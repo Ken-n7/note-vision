@@ -40,6 +40,7 @@ class Main extends StatelessWidget {
             const SizedBox(height: 24),
             // Get started button
             ElevatedButton(
+              key: const Key('getStartedButton'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.black,
                 padding: const EdgeInsets.symmetric(

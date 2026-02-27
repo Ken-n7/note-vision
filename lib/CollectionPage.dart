@@ -73,6 +73,7 @@ class _CollectionPageState extends State<CollectionPage> {
         ),
       ),
       appBar: AppBar(
+        key: const ValueKey('collectionAppBar'),
         backgroundColor: Colors.black,
         iconTheme: const IconThemeData(color: Colors.white),
         title: const Text('My Files', style: TextStyle(color: Colors.white)),
@@ -92,6 +93,7 @@ class _CollectionPageState extends State<CollectionPage> {
               ),
               const SizedBox(height: 24),
               ElevatedButton(
+                key: const ValueKey('addImageButton'),
                 onPressed: () {
                   Navigator.push(
                     context,
@@ -119,6 +121,7 @@ class _CollectionPageState extends State<CollectionPage> {
           highlightColor: Colors.transparent,
         ),
         child: BottomNavigationBar(
+          key: const ValueKey('mainBottomNav'),
           backgroundColor: Colors.black,
           currentIndex: _currentIndex,
           onTap: (i) {
