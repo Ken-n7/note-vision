@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';   // still needed for types
+import 'dart:io';
 
-void main(){
+import 'image_picker_helper.dart';   // ← add this line
+
+void main() {
   runApp(
     const MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -18,6 +22,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
+  File? _selectedImage;
 
   Widget _buildDrawerItem(IconData icon, String title, VoidCallback onTap) {
     return ListTile(
@@ -27,6 +32,25 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<void> _handleScanSheet() async {
+    final file = await ImagePickerHelper.pickFromCamera(context);
+    if (file != null && mounted) {
+      setState(() {
+        _selectedImage = file;
+      });
+      // Optional: navigate, process OCR, etc.
+    }
+  }
+
+  Future<void> _handleUploadImage() async {
+    final file = await ImagePickerHelper.pickFromGallery(context);
+    if (file != null && mounted) {
+      setState(() {
+        _selectedImage = file;
+      });
+      // Optional: same as above
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +60,6 @@ class _HomePageState extends State<HomePage> {
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            // small header area instead of default DrawerHeader
             Container(
               color: Colors.black12,
               height: 48,
@@ -76,9 +99,7 @@ class _HomePageState extends State<HomePage> {
           Builder(
             builder: (context) => IconButton(
               icon: const Icon(Icons.menu, color: Colors.black),
-              onPressed: () {
-                Scaffold.of(context).openDrawer();
-              },
+              onPressed: () => Scaffold.of(context).openDrawer(),
             ),
           )
         ],
@@ -114,33 +135,48 @@ class _HomePageState extends State<HomePage> {
               ],
             ),
             const SizedBox(height: 16),
+
             Expanded(
               child: Center(
                 child: Container(
                   width: double.infinity,
+                  height: 400,
                   decoration: BoxDecoration(
-                    color: Colors.black,
-                    borderRadius: BorderRadius.circular(8),
+                    color: Colors.black12,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade300),
                   ),
-                  child: const Center(
-                    child: Icon(Icons.camera_alt, color: Colors.white, size: 40),
-                  ),
+                  child: _selectedImage != null
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.file(
+                            _selectedImage!,
+                            fit: BoxFit.contain,
+                          ),
+                        )
+                      : const Icon(
+                          Icons.camera_alt,
+                          color: Colors.grey,
+                          size: 60,
+                        ),
                 ),
               ),
             ),
+
             const SizedBox(height: 16),
+
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF673AB7), // purple
+                    backgroundColor: const Color(0xFF673AB7),
                     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(24),
                     ),
                   ),
-                  onPressed: () {},
+                  onPressed: _handleScanSheet,
                   icon: const Icon(Icons.camera_alt, color: Colors.white),
                   label: const Text('Scan Sheet', style: TextStyle(color: Colors.white)),
                 ),
@@ -152,7 +188,7 @@ class _HomePageState extends State<HomePage> {
                       borderRadius: BorderRadius.circular(24),
                     ),
                   ),
-                  onPressed: () {},
+                  onPressed: _handleUploadImage,
                   icon: const Icon(Icons.upload_file, color: Colors.white),
                   label: const Text('Upload Image', style: TextStyle(color: Colors.white)),
                 ),
@@ -171,9 +207,7 @@ class _HomePageState extends State<HomePage> {
           backgroundColor: Colors.black,
           currentIndex: _currentIndex,
           onTap: (i) {
-            setState(() {
-              _currentIndex = i;
-            });
+            setState(() => _currentIndex = i);
           },
           selectedItemColor: Colors.white,
           unselectedItemColor: Colors.white70,
