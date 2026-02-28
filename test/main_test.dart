@@ -1,0 +1,50 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:note_vision/main.dart';
+import 'package:note_vision/CollectionPage.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  Widget createWidgetUnderTest() {
+    return const MaterialApp(
+      home: Main(),
+    );
+  }
+
+  group('Main Page Widget Tests', () {
+
+    testWidgets('Initial UI renders correctly',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(createWidgetUnderTest());
+
+      expect(find.text('Note Vision'), findsOneWidget);
+      expect(find.byType(Image), findsOneWidget);
+      expect(find.byKey(const Key('getStartedButton')),
+          findsOneWidget);
+      expect(find.text('Get Started'), findsOneWidget);
+    });
+
+    testWidgets('Get Started button navigates to CollectionPage',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(createWidgetUnderTest());
+
+      await tester.tap(find.byKey(const Key('getStartedButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CollectionPage), findsOneWidget);
+    });
+
+    testWidgets('Button is tappable without crashing',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(createWidgetUnderTest());
+
+      await tester.tap(find.text('Get Started'));
+      await tester.pump();
+
+      expect(find.text('Note Vision'), findsWidgets);
+    });
+
+  });
+}

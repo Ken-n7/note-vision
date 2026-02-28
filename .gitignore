@@ -43,5 +43,3 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-collection_page_test.dart
-main_test.dart
