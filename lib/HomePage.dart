@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 
-import 'image_picker_helper.dart'; // ← your helper file
+import 'image_picker_helper.dart';           // your helper
+import 'widgets/drawer.dart';    // ← adjust path if needed
 
 void main() {
   runApp(
@@ -29,7 +30,7 @@ class _HomePageState extends State<HomePage> {
 
     setState(() {
       _selectedImage = file;
-      _currentIndex = 0; // ← go back to Home tab to show the preview
+      _currentIndex = 0; // go back to Home tab to show preview
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
@@ -128,7 +129,7 @@ class _HomePageState extends State<HomePage> {
                       if (file != null && mounted) {
                         setState(() {
                           _selectedImage = file;
-                          _currentIndex = 0; // ensure we're on home to see it
+                          _currentIndex = 0;
                         });
                       }
                     },
@@ -142,10 +143,7 @@ class _HomePageState extends State<HomePage> {
           ),
         );
 
-      case 1: // Scan tab tapped → camera is already opening, show loading
-        return const Center(child: CircularProgressIndicator());
-
-      case 2: // Result placeholder
+      case 1: // Result placeholder
         return const Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -157,7 +155,7 @@ class _HomePageState extends State<HomePage> {
           ),
         );
 
-      case 3: // Files placeholder
+      case 2: // Files placeholder
         return const Center(
           child: Text("Your saved scans\n(coming soon)"),
         );
@@ -171,24 +169,10 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            Container(
-              color: Colors.black12,
-              height: 48,
-              alignment: Alignment.centerLeft,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: const Text(
-                'Menu',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-            // your drawer items...
-          ],
-        ),
-      ),
+
+      // ─── Replaced inline Drawer with the separate component ───
+      endDrawer: const CollectionDrawer(),
+
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -209,12 +193,14 @@ class _HomePageState extends State<HomePage> {
           Builder(
             builder: (context) => IconButton(
               icon: const Icon(Icons.menu, color: Colors.black),
-              onPressed: () => Scaffold.of(context).openDrawer(),
+              onPressed: () => Scaffold.of(context).openEndDrawer(),
             ),
           )
         ],
       ),
+
       body: _buildBody(),
+
       bottomNavigationBar: Theme(
         data: Theme.of(context).copyWith(
           splashFactory: NoSplash.splashFactory,
@@ -225,10 +211,9 @@ class _HomePageState extends State<HomePage> {
           currentIndex: _currentIndex,
           onTap: (index) async {
             if (index == 1) {
-              // "Scan" tab → open camera right away
+              // "Scan" tab → open camera immediately
               await _openCameraAndShowPreview();
-              // After camera → automatically show Home with preview
-              // (already done inside the function via setState)
+              // setState already called inside → returns to index 0
             } else {
               setState(() => _currentIndex = index);
             }

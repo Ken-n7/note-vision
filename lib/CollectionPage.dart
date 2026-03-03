@@ -1,14 +1,6 @@
 import 'package:flutter/material.dart';
-import 'HomePage.dart';
-
-void main(){
-  runApp(
-    const MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: CollectionPage(),
-    ),
-  );
-}
+import 'package:note_vision/widgets/drawer.dart';   // ← adjust path
+import 'HomePage.dart';   // adjust path if needed
 
 class CollectionPage extends StatefulWidget {
   const CollectionPage({super.key});
@@ -20,16 +12,6 @@ class CollectionPage extends StatefulWidget {
 class _CollectionPageState extends State<CollectionPage> {
   int _currentIndex = 0;
 
-  Widget _buildDrawerItem(IconData icon, String title, VoidCallback onTap) {
-    return ListTile(
-      leading: Icon(icon, color: Colors.black),
-      title: Text(title),
-      onTap: onTap,      splashColor: Colors.transparent,
-      hoverColor: Colors.transparent,
-      // disable ink effects when tapped
-      iconColor: Colors.white,    );
-  }
-
   BottomNavigationBarItem _buildBottomNavItem(IconData icon, String label) {
     return BottomNavigationBarItem(
       icon: Icon(icon),
@@ -39,39 +21,22 @@ class _CollectionPageState extends State<CollectionPage> {
 
   void _handleBottomNavigation(int index, BuildContext context) {
     if (index == 0) {
-      // Navigate to HomePage when "Add Files" is tapped
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const HomePage()),
       );
     }
+    // Add handling for other tabs later if needed
   }
-
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: [
-            Container(
-              color: Colors.black12,
-              height: 48,
-              alignment: Alignment.centerLeft,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: const Text(
-                'Menu',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-            _buildDrawerItem(Icons.edit, 'Digital Writing', () {}),
-            _buildDrawerItem(Icons.school, 'Instruction', () {}),
-            _buildDrawerItem(Icons.info, 'About', () {}),
-          ],
-        ),
-      ),
+
+      // Now using the extracted widget
+      endDrawer: const CollectionDrawer(),
+
       appBar: AppBar(
         key: const ValueKey('collectionAppBar'),
         backgroundColor: Colors.black,
@@ -79,6 +44,7 @@ class _CollectionPageState extends State<CollectionPage> {
         title: const Text('My Files', style: TextStyle(color: Colors.white)),
         centerTitle: true,
       ),
+
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Center(
@@ -115,6 +81,7 @@ class _CollectionPageState extends State<CollectionPage> {
           ),
         ),
       ),
+
       bottomNavigationBar: Theme(
         data: Theme.of(context).copyWith(
           splashFactory: NoSplash.splashFactory,
