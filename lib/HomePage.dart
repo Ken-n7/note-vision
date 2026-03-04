@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'image_picker_helper.dart'; // your helper
 import 'widgets/drawer.dart'; // ← adjust path if needed
+import 'services/image_storage_service.dart'; // ← adjust path if needed
 
 void main() {
   runApp(
@@ -184,20 +185,27 @@ class _HomePageState extends State<HomePage> {
                         _buildActionButton(
                           label: 'Save & Process',
                           icon: Icons.save_alt,
-                          onPressed: () {
-                            // TODO: Implement your music recognition / processing logic here
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Starting recognition...'),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
+                          onPressed: () async {
+                            if (_selectedImage == null) return;
 
-                            // Possible next steps (examples - uncomment as needed):
-                            // setState(() => _currentIndex = 1);           // → go to Result tab
-                            // Future.delayed(Duration(seconds: 2), () {    // simulate processing
-                            //   if (mounted) setState(() => _selectedImage = null);
-                            // });
+                            try {
+                              final service = ImageStorageService();
+                              await service.saveImage(_selectedImage!); // ← saves to collection
+
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Image saved to collection!'),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                              setState(() => _selectedImage = null); // reset preview
+                            } catch (e) {
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Failed to save: $e')),
+                              );
+                            }
                           },
                         ),
                       ],
