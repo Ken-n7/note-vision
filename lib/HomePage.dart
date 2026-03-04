@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
 
-import 'image_picker_helper.dart';           // your helper
-import 'widgets/drawer.dart';    // ← adjust path if needed
+import 'image_picker_helper.dart'; // your helper
+import 'widgets/drawer.dart'; // ← adjust path if needed
 
 void main() {
   runApp(
@@ -36,6 +36,48 @@ class _HomePageState extends State<HomePage> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Photo captured — ready to process')),
     );
+  }
+
+  Widget _buildActionButton({
+    required String label,
+    required IconData icon,
+    VoidCallback? onPressed,
+    bool isOutlined = false,
+  }) {
+    final style = isOutlined
+        ? OutlinedButton.styleFrom(
+            foregroundColor: Colors.grey.shade800,
+            side: BorderSide(color: Colors.grey.shade400),
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+          )
+        : ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF673AB7),
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24),
+            ),
+          );
+
+    final textStyle = TextStyle(
+      color: isOutlined ? Colors.grey.shade800 : Colors.white,
+    );
+
+    return isOutlined
+        ? OutlinedButton.icon(
+            style: style,
+            onPressed: onPressed,
+            icon: Icon(icon),
+            label: Text(label, style: textStyle),
+          )
+        : ElevatedButton.icon(
+            style: style,
+            onPressed: onPressed,
+            icon: Icon(icon, color: Colors.white),
+            label: Text(label, style: textStyle),
+          );
   }
 
   Widget _buildBody() {
@@ -103,41 +145,64 @@ class _HomePageState extends State<HomePage> {
 
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF673AB7),
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                    ),
-                    onPressed: _openCameraAndShowPreview,
-                    icon: const Icon(Icons.camera_alt, color: Colors.white),
-                    label: const Text('Scan Sheet', style: TextStyle(color: Colors.white)),
-                  ),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF673AB7),
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                    ),
-                    onPressed: () async {
-                      final file = await ImagePickerHelper.pickFromGallery(context);
-                      if (file != null && mounted) {
-                        setState(() {
-                          _selectedImage = file;
-                          _currentIndex = 0;
-                        });
-                      }
-                    },
-                    icon: const Icon(Icons.upload_file, color: Colors.white),
-                    label: const Text('Upload Image', style: TextStyle(color: Colors.white)),
-                  ),
-                ],
+                children: _selectedImage == null
+                    ? [
+                        // Scan button
+                        _buildActionButton(
+                          label: 'Scan Sheet',
+                          icon: Icons.camera_alt,
+                          onPressed: _openCameraAndShowPreview,
+                        ),
+                        // Upload button
+                        _buildActionButton(
+                          label: 'Upload Image',
+                          icon: Icons.upload_file,
+                          onPressed: () async {
+                            final file =
+                                await ImagePickerHelper.pickFromGallery(context);
+                            if (file != null && mounted) {
+                              setState(() {
+                                _selectedImage = file;
+                              });
+                            }
+                          },
+                        ),
+                      ]
+                    : [
+                        // Cancel button
+                        _buildActionButton(
+                          label: 'Cancel',
+                          icon: Icons.close,
+                          isOutlined: true,
+                          onPressed: () {
+                            setState(() {
+                              _selectedImage = null;
+                            });
+                          },
+                        ),
+                        // Save & Process button
+                        _buildActionButton(
+                          label: 'Save & Process',
+                          icon: Icons.save_alt,
+                          onPressed: () {
+                            // TODO: Implement your music recognition / processing logic here
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Starting recognition...'),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+
+                            // Possible next steps (examples - uncomment as needed):
+                            // setState(() => _currentIndex = 1);           // → go to Result tab
+                            // Future.delayed(Duration(seconds: 2), () {    // simulate processing
+                            //   if (mounted) setState(() => _selectedImage = null);
+                            // });
+                          },
+                        ),
+                      ],
               ),
+
               const SizedBox(height: 24),
             ],
           ),
@@ -170,7 +235,6 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       backgroundColor: Colors.white,
 
-      // ─── Replaced inline Drawer with the separate component ───
       endDrawer: const CollectionDrawer(),
 
       appBar: AppBar(
