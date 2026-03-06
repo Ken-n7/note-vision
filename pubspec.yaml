@@ -15,11 +15,18 @@ dependencies:
     sdk: flutter
 
   # Input
-  camera: ^0.10.6
+  camera: ^0.12.0
   image_picker: ^1.1.2
   path_provider: ^2.1.5
   path: ^1.9.0
   shared_preferences: ^2.0.15
+
+  # Basic preprocessing (pure Dart)
+  image: ^4.2.0
+
+  # State management & UI helpers
+  provider: ^6.1.5+1
+  # fluttertoast: ^8.2.8
 
     # TFLite
   # tflite_flutter: ^0.10.4
@@ -36,10 +43,7 @@ dependencies:
     # State management & UI helpers
   # provider: ^6.1.2
   # fluttertoast: ^8.2.8
-
-    # Basic preprocessing (pure Dart)
-  # image: ^4.2.0
-
+  
     # Future phases (commented until needed)
   # opencv_4: ^1.0.0              # Advanced CV (deskew, staff detection)
   # flutter_midi: ^0.0.1           # MIDI playback
