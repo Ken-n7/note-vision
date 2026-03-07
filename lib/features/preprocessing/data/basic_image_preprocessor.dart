@@ -23,19 +23,18 @@ PreprocessedResult _processImage(Uint8List bytes) {
   // Step 3 — Contrast / brightness adjustment
   processed = img.adjustColor(
     processed,
-    contrast: 1.8,
+    contrast: 1.4,
     // brightness: 0.05,
   );
-
-  // Step 4 — Light noise reduction (smooth before binarizing)
-  processed = img.smooth(processed, weight: 1.5);
-
-  // Step 5 — Binarize
+  // Step 4 — Binarize
   processed = img.luminanceThreshold(
     processed,
-    threshold: 0.5,
+    threshold: 0.35,
     outputColor: false,
   );
+  
+  // Step 5 — Light noise reduction (smooth after binarizing)
+  processed = img.smooth(processed, weight: 1.0);
 
   // Calculate letterbox metadata BEFORE resizing
   // using the image dimensions at this point
