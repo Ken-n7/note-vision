@@ -1,4 +1,3 @@
-// import 'dart:typed_data'; 
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
 
@@ -13,37 +12,43 @@ class BasicImagePreprocessor implements ImagePreprocessor {
 }
 
 PreprocessedResult _processImage(Uint8List bytes) {
-  // Step 1 — Decode + auto EXIF orientation correction
+  const int targetSize = 416;
+
+  // Step 1 — Decode + EXIF orientation correction
   final img.Image image = img.decodeImage(bytes)!;
   img.Image processed = img.bakeOrientation(image);
 
-  // Step 2 — Grayscale
+  // Step 2 — Convert to grayscale then back to RGB
+  // matches training data: grayscale sheet music stored as RGB
+  // convert to grayscale then back to RGB
+  // matches training data: grayscale sheet music stored as RGB
   processed = img.grayscale(processed);
 
-  // Step 3 — Contrast / brightness adjustment
-  processed = img.adjustColor(
-    processed,
-    contrast: 1.4,
-    // brightness: 0.05,
+  final img.Image rgbImage = img.Image(
+    width: processed.width,
+    height: processed.height,
+    numChannels: 3,
   );
-  // Step 4 — Binarize
-  processed = img.luminanceThreshold(
-    processed,
-    threshold: 0.35,
-    outputColor: false,
-  );
-  
-  // Step 5 — Light noise reduction (smooth after binarizing)
-  processed = img.smooth(processed, weight: 1.0);
 
-  // Calculate letterbox metadata BEFORE resizing
-  // using the image dimensions at this point
-  const int targetSize = 640;
-  final double scale = targetSize / (processed.width > processed.height ? processed.width : processed.height);
-  final int padX = ((targetSize - (processed.width * scale).round()) / 2).round();
-  final int padY = ((targetSize - (processed.height * scale).round()) / 2).round();
+  for (int y = 0; y < processed.height; y++) {
+    for (int x = 0; x < processed.width; x++) {
+      final pixel = processed.getPixel(x, y);
+      final gray = pixel.r.toInt();
+      rgbImage.setPixelRgb(x, y, gray, gray, gray);
+    }
+  }
 
-  // Step 6 — Resize to 640x640 with white padding (letterbox)
+  processed = rgbImage;
+
+  // Step 3 — Letterbox resize to 416x416 with white padding
+  final double scale =
+      targetSize /
+      (processed.width > processed.height ? processed.width : processed.height);
+  final int padX = ((targetSize - (processed.width * scale).round()) / 2)
+      .round();
+  final int padY = ((targetSize - (processed.height * scale).round()) / 2)
+      .round();
+
   processed = _letterbox(processed, targetSize);
 
   return PreprocessedResult(
@@ -57,8 +62,8 @@ PreprocessedResult _processImage(Uint8List bytes) {
 }
 
 img.Image _letterbox(img.Image src, int targetSize) {
-  // Scale down to fit within targetSize while keeping aspect ratio
-  final double scale = targetSize / (src.width > src.height ? src.width : src.height);
+  final double scale =
+      targetSize / (src.width > src.height ? src.width : src.height);
   final int scaledW = (src.width * scale).round();
   final int scaledH = (src.height * scale).round();
 
@@ -69,14 +74,10 @@ img.Image _letterbox(img.Image src, int targetSize) {
     interpolation: img.Interpolation.linear,
   );
 
-  // Create white 640x640 canvas
-  final img.Image canvas = img.Image(
-    width: targetSize,
-    height: targetSize,
-  );
+  // white canvas to match sheet music background
+  final img.Image canvas = img.Image(width: targetSize, height: targetSize);
   img.fill(canvas, color: img.ColorRgb8(255, 255, 255));
 
-  // Paste resized image centered on canvas
   final int offsetX = ((targetSize - scaledW) / 2).round();
   final int offsetY = ((targetSize - scaledH) / 2).round();
 
