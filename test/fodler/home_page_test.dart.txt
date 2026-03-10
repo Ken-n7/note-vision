@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:note_vision/HomePage.dart'; // Adjust import to your actual path
+import 'package:note_vision/home_page.dart'; // Adjust import to your actual path
 // 👆 replace with your actual package import
 
 void main() {
