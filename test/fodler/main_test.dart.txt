@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:note_vision/main.dart';
-import 'package:note_vision/CollectionPage.dart';
+import 'package:note_vision/collection_page.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

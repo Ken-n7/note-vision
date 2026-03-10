@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:note_vision/image_picker_helper.dart';
+import 'package:note_vision/core/utils/image_picker_helper.dart';
 // 👆 replace with your real package name
 
 void main() {
