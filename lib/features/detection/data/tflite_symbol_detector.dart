@@ -10,7 +10,7 @@ import '../domain/symbol_detector.dart';
 
 class TfliteSymbolDetector implements SymbolDetector {
   static const String _modelPath = 'assets/models/omr_model.tflite';
-  static const double _confidenceThreshold = 0.5;
+  static const double _confidenceThreshold = 0.75;
   static const double _iouThreshold = 0.4;
   static const int _inputSize = 416;
 

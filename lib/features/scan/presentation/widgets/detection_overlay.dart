@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:note_vision/features/detection/domain/detected_symbol.dart';
-import 'package:note_vision/features/detection/domain/music_symbol.dart';
+// import 'package:note_vision/features/detection/domain/music_symbol.dart';
 
 class DetectionOverlay extends StatelessWidget {
   final List<DetectedSymbol> symbols;
@@ -39,8 +39,8 @@ class DetectionOverlay extends StatelessWidget {
                 message: '${symbol.symbol.name} (${(symbol.confidence * 100).toStringAsFixed(1)}%)',
                 child: Container(
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.red, width: 4),
-                    color: Colors.red.withOpacity(0.15)
+                    border: Border.all(color: color, width: 2),
+                    color: color.withOpacity(0.08),
                   ),
                   child: Align( 
                     alignment: Alignment.topLeft,
@@ -54,8 +54,8 @@ class DetectionOverlay extends StatelessWidget {
                         symbol.symbol.name,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 7,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 6,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
@@ -69,19 +69,3 @@ class DetectionOverlay extends StatelessWidget {
     );
   }
 }
-// ```
-
-// ---
-
-// ### Final scan structure
-// ```
-// scan/
-// ├── domain/
-// │   └── scan_result.dart             # now includes symbols + hasDetections
-// └── presentation/
-//     ├── scan_screen.dart             # preprocessing + detecting states
-//     ├── scan_viewmodel.dart          # runs both pipeline steps
-//     └── widgets/
-//         ├── scan_image_view.dart     # image + overlay + symbol count
-//         ├── detection_overlay.dart   # bounding boxes color coded by type
-//         └── scan_actions.dart        # unchanged
