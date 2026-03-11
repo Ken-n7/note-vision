@@ -217,15 +217,15 @@ class _CaptureScreenState extends State<CaptureScreen> {
           highlightColor: Colors.transparent,
         ),
         child: BottomNavigationBar(
-          backgroundColor: Colors.black,
+          backgroundColor: const Color.fromARGB(255, 219, 215, 215),
           currentIndex: 0,
           onTap: (index) async {
             if (index == 0) {
               await _openCameraAndShowPreview();
             }
           },
-          selectedItemColor: Colors.white,
-          unselectedItemColor: Colors.white70,
+          selectedItemColor: Colors.black,
+          unselectedItemColor: Colors.grey.shade600,
           type: BottomNavigationBarType.fixed,
           enableFeedback: false,
           items: const [
