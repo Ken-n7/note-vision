@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:note_vision/dev/dev_test_screen.dart';
 import '../../../features/collection/presentation/collection_screen.dart';
 // import '../../collection/presentation/collection_screen.dart';
 // import '../../../collection_page.dart';
@@ -48,6 +49,28 @@ class LandingScreen extends StatelessWidget {
               },
               child: const Text(
                 'Get Started',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+            ElevatedButton(
+              key: const Key('TestButton'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 12,
+                ),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const DevTestScreen(),
+                  ),
+                );
+              },
+              child: const Text(
+                "Dev's Workbench",
                 style: TextStyle(color: Colors.white),
               ),
             ),

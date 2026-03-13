@@ -96,14 +96,14 @@ class _CollectionScreenState extends State<CollectionScreen> {
         ),
         child: BottomNavigationBar(
           key: const ValueKey('mainBottomNav'),
-          backgroundColor: Colors.black,
+          backgroundColor: const Color.fromARGB(255, 219, 215, 215),
           currentIndex: _currentIndex,
           onTap: (i) {
             setState(() => _currentIndex = i);
             if (i == 0) _goToCapture();
           },
-          selectedItemColor: Colors.white,
-          unselectedItemColor: Colors.white70,
+          selectedItemColor: Colors.black,
+          unselectedItemColor: Colors.grey.shade600,
           type: BottomNavigationBarType.fixed,
           enableFeedback: false,
           items: const [
