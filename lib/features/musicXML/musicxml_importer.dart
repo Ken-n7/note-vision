@@ -9,6 +9,10 @@ import 'musicxml_import_result.dart';
 
 /// Service responsible for picking and reading a MusicXML file.
 class MusicXmlImporter {
+   MusicXmlImporter({FilePicker? filePicker})
+      : _filePicker = filePicker ?? FilePicker.platform;
+
+  final FilePicker _filePicker;
   static const _allowedExtensions = ['musicxml', 'xml', 'mxl'];
 
   /// Opens the file picker and returns a [MusicXmlImportResult].
@@ -17,7 +21,7 @@ class MusicXmlImporter {
   /// Throws [MusicXmlImportException] if the file cannot be read.
   Future<MusicXmlImportResult?> pickAndRead() async {
     // First attempt: restricted to known extensions
-    FilePickerResult? result = await FilePicker.platform.pickFiles(
+    FilePickerResult? result = await _filePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: _allowedExtensions,
       allowMultiple: false,
@@ -26,7 +30,7 @@ class MusicXmlImporter {
 
     // Fallback: Android may not recognize .musicxml MIME type,
     // so we open with no filter and validate the extension manually.
-    result ??= await FilePicker.platform.pickFiles(
+    result ??= await _filePicker.pickFiles(
       type: FileType.any,
       allowMultiple: false,
       withData: false,
