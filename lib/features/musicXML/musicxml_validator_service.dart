@@ -37,6 +37,34 @@ class MusicXmlValidatorService {
       errors.add('MusicXML score is missing required <part-list> metadata.');
     }
 
+    final declaredPartIds = document
+        .findAllElements('score-part')
+        .map((element) => element.getAttribute('id'))
+        .whereType<String>()
+        .toSet();
+
+    if (partList.isNotEmpty && declaredPartIds.isEmpty) {
+      errors.add(
+        'MusicXML <part-list> must declare at least one <score-part id="..."> entry.',
+      );
+    }
+
+    final seenPartIds = <String>{};
+    for (final part in parts) {
+      final id = part.getAttribute('id');
+      if (id == null || id.isEmpty) {
+        continue;
+      }
+
+      if (!seenPartIds.add(id)) {
+        errors.add('Duplicate <part> id "$id" found in score.');
+      }
+
+      if (declaredPartIds.isNotEmpty && !declaredPartIds.contains(id)) {
+        errors.add('<part id="$id"> is not declared in <part-list>.');
+      }
+    }
+
     if (rootTagName == 'score-timewise') {
       warnings.add(
         'score-timewise is accepted, but score-partwise is recommended for best compatibility.',
