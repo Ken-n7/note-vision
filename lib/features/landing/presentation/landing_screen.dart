@@ -65,7 +65,7 @@ class LandingScreen extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const DevTestScreen(),
+                    builder: (context) => const MusicXmlInspectorScreen(),
                   ),
                 );
               },
