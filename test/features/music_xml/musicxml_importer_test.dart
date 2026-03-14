@@ -182,6 +182,22 @@ void main() {
       final result = await importer.pickAndRead();
       expect(result!.xmlContent, contains('<score-partwise'));
     });
+
+    test('propagates parser warnings to importer result', () async {
+      final path = await _writeTempFile('timewise.musicxml', '''<score-timewise>
+  <part-list>
+    <score-part id="P1"><part-name>Piano</part-name></score-part>
+  </part-list>
+  <measure number="1"><part id="P1"/></measure>
+</score-timewise>''');
+      stubPicker(first: _fakeResult(path));
+
+      final result = await importer.pickAndRead();
+
+      expect(result, isNotNull);
+      expect(result!.parseResult.success, isTrue);
+      expect(result.parseResult.warnings, isNotEmpty);
+    });
   });
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -209,10 +225,28 @@ void main() {
   // ══════════════════════════════════════════════════════════════════════════
 
   group('pickAndRead — error flows', () {
-    test('returns parse failure details for malformed XML without crashing', () async {
+    test(
+      'returns parse failure details for malformed XML without crashing',
+      () async {
+        final path = await _writeTempFile(
+          'broken.musicxml',
+          '<score-partwise><part-list></score-partwise>',
+        );
+        stubPicker(first: _fakeResult(path));
+
+        final result = await importer.pickAndRead();
+
+        expect(result, isNotNull);
+        expect(result!.parseResult.success, isFalse);
+        expect(result.parseResult.rootTagName, isNull);
+        expect(result.parseResult.errorMessage, startsWith('Malformed XML:'));
+      },
+    );
+
+    test('returns parse validation failure for non-MusicXML XML', () async {
       final path = await _writeTempFile(
-        'broken.musicxml',
-        '<score-partwise><part-list></score-partwise>',
+        'not_musicxml.xml',
+        '<catalog><book/></catalog>',
       );
       stubPicker(first: _fakeResult(path));
 
@@ -220,10 +254,12 @@ void main() {
 
       expect(result, isNotNull);
       expect(result!.parseResult.success, isFalse);
-      expect(result.parseResult.rootTagName, isNull);
-      expect(result.parseResult.errorMessage, startsWith('Malformed XML:'));
+      expect(
+        result.parseResult.errorMessage,
+        startsWith('Invalid MusicXML score:'),
+      );
+      expect(result.parseResult.validationErrors, isNotEmpty);
     });
-
 
     test('throws MusicXmlImportException for unsupported extension', () async {
       final path = await _writeTempFile('document.pdf', '<pdf/>');

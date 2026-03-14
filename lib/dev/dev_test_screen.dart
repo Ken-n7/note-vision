@@ -22,6 +22,8 @@ class _DevTestScreenState extends State<DevTestScreen> {
   String? _rootTagName;
   String? _parseError;
   String? _parsedPreview; //
+  List<String> _validationErrors = const [];
+  List<String> _warnings = const [];
   String? _errorMessage;
 
   Future<void> _handleImport() async {
@@ -33,6 +35,8 @@ class _DevTestScreenState extends State<DevTestScreen> {
       _rootTagName = null;
       _parseError = null;
       _parsedPreview = null;
+      _validationErrors = const [];
+      _warnings = const [];
       _errorMessage = null;
     });
 
@@ -55,6 +59,8 @@ class _DevTestScreenState extends State<DevTestScreen> {
         _parseSuccess = result.parseResult.success;
         _rootTagName = result.parseResult.rootTagName;
         _parseError = result.parseResult.errorMessage;
+        _validationErrors = result.parseResult.validationErrors;
+        _warnings = result.parseResult.warnings;
         if (prettyXml != null) {
           _parsedPreview = prettyXml.length > 300
               ? '${prettyXml.substring(0, 300)}…'
@@ -110,6 +116,36 @@ class _DevTestScreenState extends State<DevTestScreen> {
                   'Parse error: $_parseError',
                   style: const TextStyle(color: Colors.red),
                 ),
+              if (_validationErrors.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'Validation errors:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                  ),
+                ),
+                ..._validationErrors.map(
+                  (e) =>
+                      Text('• $e', style: const TextStyle(color: Colors.red)),
+                ),
+              ],
+              if (_warnings.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'Warnings:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange,
+                  ),
+                ),
+                ..._warnings.map(
+                  (w) => Text(
+                    '• $w',
+                    style: const TextStyle(color: Colors.orange),
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               const Text('Raw XML Preview (first 300 chars):'),
               const SizedBox(height: 8),

@@ -1,10 +1,14 @@
 import 'package:xml/xml.dart';
 
 import 'musicxml_parse_result.dart';
+import 'musicxml_validator_service.dart';
 
 /// Parses raw MusicXML text into a structured XML document result.
 class MusicXmlParserService {
-  const MusicXmlParserService();
+  const MusicXmlParserService({MusicXmlValidatorService? validator})
+      : _validator = validator ?? const MusicXmlValidatorService();
+
+  final MusicXmlValidatorService _validator;
 
   MusicXmlParseResult parse(String rawXml) {
     if (rawXml.trim().isEmpty) {
@@ -16,10 +20,23 @@ class MusicXmlParserService {
     try {
       final document = XmlDocument.parse(rawXml);
       final rootTagName = document.rootElement.name.local;
+      final validationResult = _validator.validate(document);
+
+      if (!validationResult.isValid) {
+        return MusicXmlParseResult.failure(
+          errorMessage:
+              'Invalid MusicXML score: ${validationResult.validationErrors.first}',
+          rootTagName: rootTagName,
+          document: document,
+          validationErrors: validationResult.validationErrors,
+          warnings: validationResult.warnings,
+        );
+      }
 
       return MusicXmlParseResult.success(
         document: document,
         rootTagName: rootTagName,
+        warnings: validationResult.warnings,
       );
     } on XmlException catch (e) {
       return MusicXmlParseResult.failure(
