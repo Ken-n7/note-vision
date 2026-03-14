@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<library>
+  <book id="1">
+    <title>Flutter Development</title>
+    <author>John Doe</author>
+    <year>2023</year>
+    <genre>Technology</genre>
+  </book>
+  <book id="2">
+    <title>Music Theory Basics</title>
+    <author>Jane Smith</author>
+    <year>2022</year>
+    <genre>Music</genre>
+  </book>
+</library>
