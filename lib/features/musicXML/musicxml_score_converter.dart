@@ -19,21 +19,56 @@ class MusicXmlScoreConverter {
     final title = _readTitle(root);
     final composer = _readComposer(root);
     final partNamesById = _readPartNames(root);
+    final parts = root.name.local == 'score-timewise'
+        ? _buildTimewiseParts(root, partNamesById)
+        : _buildPartwiseParts(root, partNamesById);
 
-    final parts = root.findElements('part').map((partElement) {
+    return Score(
+      id: root.getAttribute('id') ?? root.name.local,
+      title: title,
+      composer: composer,
+      parts: parts,
+    );
+  }
+
+  List<Part> _buildPartwiseParts(
+    XmlElement root,
+    Map<String, String> partNamesById,
+  ) {
+    return root.findElements('part').map((partElement) {
       final partId = partElement.getAttribute('id') ?? 'unknown-part';
       final partName = partNamesById[partId] ?? partId;
       final measures = partElement.findElements('measure').map(_buildMeasure).toList();
 
       return Part(id: partId, name: partName, measures: measures);
     }).toList();
+  }
 
-    return Score(
-      id: root.getAttribute('version') ?? 'musicxml-score',
-      title: title,
-      composer: composer,
-      parts: parts,
-    );
+  List<Part> _buildTimewiseParts(
+    XmlElement root,
+    Map<String, String> partNamesById,
+  ) {
+    final measuresByPartId = <String, List<Measure>>{};
+
+    for (final measureElement in root.findElements('measure')) {
+      final measureNumber = int.tryParse(measureElement.getAttribute('number') ?? '') ?? 0;
+
+      for (final partInMeasure in measureElement.findElements('part')) {
+        final partId = partInMeasure.getAttribute('id') ?? 'unknown-part';
+        final rebuiltMeasure = _buildMeasure(
+          partInMeasure,
+          explicitNumber: measureNumber,
+        );
+        measuresByPartId.putIfAbsent(partId, () => <Measure>[]).add(rebuiltMeasure);
+      }
+    }
+
+    return measuresByPartId.entries.map((entry) {
+      final partId = entry.key;
+      final partName = partNamesById[partId] ?? partId;
+
+      return Part(id: partId, name: partName, measures: entry.value);
+    }).toList();
   }
 
   String _readTitle(XmlElement root) {
@@ -89,8 +124,8 @@ class MusicXmlScoreConverter {
     return partNamesById;
   }
 
-  Measure _buildMeasure(XmlElement measureElement) {
-    final number = int.tryParse(measureElement.getAttribute('number') ?? '') ?? 0;
+  Measure _buildMeasure(XmlElement measureElement, {int? explicitNumber}) {
+    final number = explicitNumber ?? int.tryParse(measureElement.getAttribute('number') ?? '') ?? 0;
 
     final attributes = _firstOrNull(measureElement.findElements('attributes'));
     final clef = _buildClef(attributes);
@@ -210,4 +245,3 @@ class MusicXmlScoreConverter {
     return child?.innerText;
   }
 }
-  
