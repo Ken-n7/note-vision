@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:note_vision/features/musicXML/musicxml_import_exception.dart';
 import 'package:note_vision/features/musicXML/musicxml_importer.dart';
 import 'package:note_vision/features/musicXML/musicxml_import_result.dart';
+import 'package:note_vision/features/musicXML/musicxml_score_converter.dart';
 
 /// Dev test screen for manually verifying MusicXML import.
 class DevTestScreen extends StatefulWidget {
@@ -14,6 +15,7 @@ class DevTestScreen extends StatefulWidget {
 
 class _DevTestScreenState extends State<DevTestScreen> {
   final MusicXmlImporter _importer = MusicXmlImporter();
+  final MusicXmlScoreConverter _scoreConverter = const MusicXmlScoreConverter();
 
   bool _loading = false;
   String? _fileName;
@@ -22,6 +24,7 @@ class _DevTestScreenState extends State<DevTestScreen> {
   String? _rootTagName;
   String? _parseError;
   String? _parsedPreview; //
+  String? _scorePreview;
   List<String> _validationErrors = const [];
   List<String> _warnings = const [];
   String? _errorMessage;
@@ -35,6 +38,7 @@ class _DevTestScreenState extends State<DevTestScreen> {
       _rootTagName = null;
       _parseError = null;
       _parsedPreview = null;
+      _scorePreview = null;
       _validationErrors = const [];
       _warnings = const [];
       _errorMessage = null;
@@ -65,6 +69,12 @@ class _DevTestScreenState extends State<DevTestScreen> {
           _parsedPreview = prettyXml.length > 300
               ? '${prettyXml.substring(0, 300)}…'
               : prettyXml;
+        }
+
+        if (result.parseResult.success && result.parseResult.document != null) {
+          _scorePreview = _scoreConverter
+              .convert(result.parseResult.document!)
+              .toString();
         }
       });
     } on MusicXmlImportException catch (e) {
@@ -181,6 +191,28 @@ class _DevTestScreenState extends State<DevTestScreen> {
                   child: SingleChildScrollView(
                     child: Text(
                       _parsedPreview ?? '(No parsed XML available)',
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text('Score Model Preview:'),
+              const SizedBox(height: 8),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: SingleChildScrollView(
+                    child: Text(
+                      _scorePreview ?? '(No score model available)',
                       style: const TextStyle(
                         fontFamily: 'monospace',
                         fontSize: 12,
