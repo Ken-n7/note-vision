@@ -52,6 +52,27 @@ void main() {
       );
     });
 
+    test('allows repeated part ids in score-timewise across measures', () {
+      final doc = XmlDocument.parse('''
+<score-timewise>
+  <part-list>
+    <score-part id="P1"><part-name>Violin</part-name></score-part>
+  </part-list>
+  <measure number="1">
+    <part id="P1"><note><rest/></note></part>
+  </measure>
+  <measure number="2">
+    <part id="P1"><note><rest/></note></part>
+  </measure>
+</score-timewise>
+''');
+
+      final result = validator.validate(doc);
+
+      expect(result.isValid, isTrue);
+      expect(result.validationErrors, isEmpty);
+    });
+
     test('returns validation error for duplicate part ids', () {
       final doc = XmlDocument.parse('''
 <score-partwise>

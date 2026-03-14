@@ -56,7 +56,9 @@ class MusicXmlValidatorService {
         continue;
       }
 
-      if (!seenPartIds.add(id)) {
+      // In score-timewise, a part id appears once per measure by design,
+      // so duplicate ids are only invalid for score-partwise documents.
+      if (rootTagName == 'score-partwise' && !seenPartIds.add(id)) {
         errors.add('Duplicate <part> id "$id" found in score.');
       }
 
