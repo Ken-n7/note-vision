@@ -32,5 +32,65 @@ void main() {
       expect(result.isValid, isFalse);
       expect(result.validationErrors.length, 3);
     });
+
+    test('returns validation error when part exists but is not declared', () {
+      final doc = XmlDocument.parse('''
+<score-partwise>
+  <part-list>
+    <score-part id="P1"><part-name>Piano</part-name></score-part>
+  </part-list>
+  <part id="P2"><measure number="1"/></part>
+</score-partwise>
+''');
+
+      final result = validator.validate(doc);
+
+      expect(result.isValid, isFalse);
+      expect(
+        result.validationErrors,
+        contains('<part id="P2"> is not declared in <part-list>.'),
+      );
+    });
+
+    test('allows repeated part ids in score-timewise across measures', () {
+      final doc = XmlDocument.parse('''
+<score-timewise>
+  <part-list>
+    <score-part id="P1"><part-name>Violin</part-name></score-part>
+  </part-list>
+  <measure number="1">
+    <part id="P1"><note><rest/></note></part>
+  </measure>
+  <measure number="2">
+    <part id="P1"><note><rest/></note></part>
+  </measure>
+</score-timewise>
+''');
+
+      final result = validator.validate(doc);
+
+      expect(result.isValid, isTrue);
+      expect(result.validationErrors, isEmpty);
+    });
+
+    test('returns validation error for duplicate part ids', () {
+      final doc = XmlDocument.parse('''
+<score-partwise>
+  <part-list>
+    <score-part id="P1"><part-name>Piano</part-name></score-part>
+  </part-list>
+  <part id="P1"><measure number="1"/></part>
+  <part id="P1"><measure number="2"/></part>
+</score-partwise>
+''');
+
+      final result = validator.validate(doc);
+
+      expect(result.isValid, isFalse);
+      expect(
+        result.validationErrors,
+        contains('Duplicate <part> id "P1" found in score.'),
+      );
+    });
   });
 }
