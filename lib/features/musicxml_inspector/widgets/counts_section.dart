@@ -9,30 +9,34 @@ class CountsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final hasData = metadata != null;
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 8,
+      mainAxisSpacing: 8,
+      childAspectRatio: 2.4,
       children: [
-        Expanded(
-          child: CountCard(
-            label: 'Parts',
-            value: metadata != null ? '${metadata!.partCount}' : '—',
-            dimmed: metadata == null,
-          ),
+        CountCard(
+          label: 'Parts',
+          value: hasData ? '${metadata!.partCount}' : '—',
+          dimmed: !hasData,
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: CountCard(
-            label: 'Measures',
-            value: metadata != null ? '${metadata!.measureCount}' : '—',
-            dimmed: metadata == null,
-          ),
+        CountCard(
+          label: 'Measures',
+          value: hasData ? '${metadata!.measureCount}' : '—',
+          dimmed: !hasData,
         ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: CountCard(
-            label: 'Notes',
-            value: metadata != null ? _formatNumber(metadata!.noteCount) : '—',
-            dimmed: metadata == null,
-          ),
+        CountCard(
+          label: 'Notes',
+          value: hasData ? _formatNumber(metadata!.noteCount) : '—',
+          dimmed: !hasData,
+        ),
+        CountCard(
+          label: 'Rests',
+          value: hasData ? _formatNumber(metadata!.restCount) : '—',
+          dimmed: !hasData,
         ),
       ],
     );

@@ -7,6 +7,7 @@ import 'widgets/collapsible_section.dart';
 import 'widgets/counts_section.dart';
 import 'widgets/error_block.dart';
 import 'widgets/metadata_section.dart';
+import 'widgets/score_debug_panel.dart';
 import 'widgets/status_section.dart';
 
 class MusicXmlInspectorScreen extends StatefulWidget {
@@ -172,8 +173,7 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
                       setState(() => _showScoreModel = !_showScoreModel)
                   : null,
               child: state.score != null
-                  ? MonoPreview(
-                      text: _controller.formatScoreDebug(state.score!))
+                  ? ScoreDebugPanel(score: state.score!)
                   : null,
             ),
 
