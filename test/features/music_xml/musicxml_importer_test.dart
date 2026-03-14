@@ -26,7 +26,7 @@ List<int> _buildMxlBytes(String xmlContent, {String entryName = 'score.xml'}) {
   final archive = Archive();
   final bytes = utf8.encode(xmlContent);
   archive.addFile(ArchiveFile(entryName, bytes.length, bytes));
-  return ZipEncoder().encode(archive)!;
+  return ZipEncoder().encode(archive);
 }
 
 String get _validXml => '''<?xml version="1.0" encoding="UTF-8"?>
@@ -45,9 +45,7 @@ String get _validXml => '''<?xml version="1.0" encoding="UTF-8"?>
 FilePickerResult _fakeResult(String filePath) {
   // Split on both separators to handle Windows paths correctly
   final name = filePath.split(RegExp(r'[/\\]')).last;
-  return FilePickerResult([
-    PlatformFile(path: filePath, name: name, size: 0),
-  ]);
+  return FilePickerResult([PlatformFile(path: filePath, name: name, size: 0)]);
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -69,10 +67,7 @@ void main() {
 
   // ── Helper: stub both picker calls ───────────────────────────────────────
 
-  void stubPicker({
-    FilePickerResult? first,
-    FilePickerResult? second,
-  }) {
+  void stubPicker({FilePickerResult? first, FilePickerResult? second}) {
     var callCount = 0;
     when(
       () => mockPicker.pickFiles(
@@ -101,6 +96,8 @@ void main() {
       expect(result, isNotNull);
       expect(result!.fileName, 'happy_birthday.musicxml');
       expect(result.xmlContent, contains('<score-partwise'));
+      expect(result.parseResult.success, isTrue);
+      expect(result.parseResult.rootTagName, 'score-partwise');
     });
 
     test('reads a valid .xml file via custom picker', () async {
@@ -112,13 +109,13 @@ void main() {
       expect(result, isNotNull);
       expect(result!.fileName, 'score.xml');
       expect(result.xmlContent, contains('<score-partwise'));
+      expect(result.parseResult.success, isTrue);
     });
 
     test('reads a valid .mxl compressed file', () async {
       final mxlBytes = _buildMxlBytes(_validXml);
       final dir = Directory.systemTemp.createTempSync('mxl_test_');
-      final file = File('${dir.path}/score.mxl')
-        ..writeAsBytesSync(mxlBytes);
+      final file = File('${dir.path}/score.mxl')..writeAsBytesSync(mxlBytes);
 
       stubPicker(first: _fakeResult(file.path));
 
@@ -129,15 +126,18 @@ void main() {
       expect(result.xmlContent, contains('<score-partwise'));
     });
 
-    test('falls back to FileType.any when custom picker returns null (Android .musicxml MIME issue)', () async {
-      final path = await _writeTempFile('happy_birthday.musicxml', _validXml);
-      stubPicker(first: null, second: _fakeResult(path));
+    test(
+      'falls back to FileType.any when custom picker returns null (Android .musicxml MIME issue)',
+      () async {
+        final path = await _writeTempFile('happy_birthday.musicxml', _validXml);
+        stubPicker(first: null, second: _fakeResult(path));
 
-      final result = await importer.pickAndRead();
+        final result = await importer.pickAndRead();
 
-      expect(result, isNotNull);
-      expect(result!.fileName, 'happy_birthday.musicxml');
-    });
+        expect(result, isNotNull);
+        expect(result!.fileName, 'happy_birthday.musicxml');
+      },
+    );
 
     test('reads Latin-1 encoded file without throwing', () async {
       final latin1Content = latin1.encode(_validXml);
@@ -156,14 +156,14 @@ void main() {
     test('reads .mxl with .musicxml entry name inside archive', () async {
       final mxlBytes = _buildMxlBytes(_validXml, entryName: 'score.musicxml');
       final dir = Directory.systemTemp.createTempSync('mxl_entry_test_');
-      final file = File('${dir.path}/piece.mxl')
-        ..writeAsBytesSync(mxlBytes);
+      final file = File('${dir.path}/piece.mxl')..writeAsBytesSync(mxlBytes);
 
       stubPicker(first: _fakeResult(file.path));
 
       final result = await importer.pickAndRead();
 
       expect(result!.xmlContent, contains('<score-partwise'));
+      expect(result.parseResult.rootTagName, 'score-partwise');
     });
 
     test('skips __MACOSX metadata entries in .mxl archive', () async {
@@ -173,10 +173,9 @@ void main() {
       final real = utf8.encode(_validXml);
       archive.addFile(ArchiveFile('score.xml', real.length, real));
 
-      final mxlBytes = ZipEncoder().encode(archive)!;
+      final mxlBytes = ZipEncoder().encode(archive);
       final dir = Directory.systemTemp.createTempSync('mac_meta_test_');
-      final file = File('${dir.path}/piece.mxl')
-        ..writeAsBytesSync(mxlBytes);
+      final file = File('${dir.path}/piece.mxl')..writeAsBytesSync(mxlBytes);
 
       stubPicker(first: _fakeResult(file.path));
 
@@ -210,6 +209,22 @@ void main() {
   // ══════════════════════════════════════════════════════════════════════════
 
   group('pickAndRead — error flows', () {
+    test('returns parse failure details for malformed XML without crashing', () async {
+      final path = await _writeTempFile(
+        'broken.musicxml',
+        '<score-partwise><part-list></score-partwise>',
+      );
+      stubPicker(first: _fakeResult(path));
+
+      final result = await importer.pickAndRead();
+
+      expect(result, isNotNull);
+      expect(result!.parseResult.success, isFalse);
+      expect(result.parseResult.rootTagName, isNull);
+      expect(result.parseResult.errorMessage, startsWith('Malformed XML:'));
+    });
+
+
     test('throws MusicXmlImportException for unsupported extension', () async {
       final path = await _writeTempFile('document.pdf', '<pdf/>');
       stubPicker(first: null, second: _fakeResult(path));
@@ -218,7 +233,9 @@ void main() {
         importer.pickAndRead(),
         throwsA(
           isA<MusicXmlImportException>().having(
-            (e) => e.message, 'message', contains('Unsupported file type'),
+            (e) => e.message,
+            'message',
+            contains('Unsupported file type'),
           ),
         ),
       );
@@ -232,7 +249,9 @@ void main() {
         importer.pickAndRead(),
         throwsA(
           isA<MusicXmlImportException>().having(
-            (e) => e.message, 'message', contains('empty'),
+            (e) => e.message,
+            'message',
+            contains('empty'),
           ),
         ),
       );
@@ -248,27 +267,31 @@ void main() {
       );
     });
 
-    test('throws MusicXmlImportException when .mxl contains no XML entry', () async {
-      final archive = Archive();
-      final bytes = utf8.encode('some random data');
-      archive.addFile(ArchiveFile('README.txt', bytes.length, bytes));
-      final mxlBytes = ZipEncoder().encode(archive)!;
+    test(
+      'throws MusicXmlImportException when .mxl contains no XML entry',
+      () async {
+        final archive = Archive();
+        final bytes = utf8.encode('some random data');
+        archive.addFile(ArchiveFile('README.txt', bytes.length, bytes));
+        final mxlBytes = ZipEncoder().encode(archive);
 
-      final dir = Directory.systemTemp.createTempSync('bad_mxl_test_');
-      final file = File('${dir.path}/bad.mxl')
-        ..writeAsBytesSync(mxlBytes);
+        final dir = Directory.systemTemp.createTempSync('bad_mxl_test_');
+        final file = File('${dir.path}/bad.mxl')..writeAsBytesSync(mxlBytes);
 
-      stubPicker(first: _fakeResult(file.path));
+        stubPicker(first: _fakeResult(file.path));
 
-      await expectLater(
-        importer.pickAndRead(),
-        throwsA(
-          isA<MusicXmlImportException>().having(
-            (e) => e.message, 'message', contains('No XML content found'),
+        await expectLater(
+          importer.pickAndRead(),
+          throwsA(
+            isA<MusicXmlImportException>().having(
+              (e) => e.message,
+              'message',
+              contains('No XML content found'),
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
     test('throws MusicXmlImportException when file path is null', () async {
       when(
@@ -288,7 +311,9 @@ void main() {
         importer.pickAndRead(),
         throwsA(
           isA<MusicXmlImportException>().having(
-            (e) => e.message, 'message', contains('Could not resolve file path'),
+            (e) => e.message,
+            'message',
+            contains('Could not resolve file path'),
           ),
         ),
       );

@@ -17,14 +17,22 @@ class _DevTestScreenState extends State<DevTestScreen> {
 
   bool _loading = false;
   String? _fileName;
-  String? _preview;   // first 300 chars of XML
+  String? _rawPreview; // first 300 chars of raw XML
+  bool? _parseSuccess;
+  String? _rootTagName;
+  String? _parseError;
+  String? _parsedPreview; //
   String? _errorMessage;
 
   Future<void> _handleImport() async {
     setState(() {
       _loading = true;
       _fileName = null;
-      _preview = null;
+      _rawPreview = null;
+      _parseSuccess = null;
+      _rootTagName = null;
+      _parseError = null;
+      _parsedPreview = null;
       _errorMessage = null;
     });
 
@@ -37,11 +45,21 @@ class _DevTestScreenState extends State<DevTestScreen> {
         return;
       }
 
+      final prettyXml = result.parseResult.document?.toXmlString(pretty: true);
+
       setState(() {
         _fileName = result.fileName;
-        _preview = result.xmlContent.length > 300
+        _rawPreview = result.xmlContent.length > 300
             ? '${result.xmlContent.substring(0, 300)}…'
             : result.xmlContent;
+        _parseSuccess = result.parseResult.success;
+        _rootTagName = result.parseResult.rootTagName;
+        _parseError = result.parseResult.errorMessage;
+        if (prettyXml != null) {
+          _parsedPreview = prettyXml.length > 300
+              ? '${prettyXml.substring(0, 300)}…'
+              : prettyXml;
+        }
       });
     } on MusicXmlImportException catch (e) {
       setState(() => _errorMessage = e.message);
@@ -77,30 +95,56 @@ class _DevTestScreenState extends State<DevTestScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              Text(
-                _errorMessage!,
-                style: const TextStyle(color: Colors.red),
-              ),
+              Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
             ],
             if (_fileName != null) ...[
               Text(
                 'File: $_fileName',
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
+              const SizedBox(height: 8),
+              Text('Parse success: ${_parseSuccess == true ? 'Yes' : 'No'}'),
+              if (_rootTagName != null) Text('Root tag: $_rootTagName'),
+              if (_parseError != null && _parseSuccess == false)
+                Text(
+                  'Parse error: $_parseError',
+                  style: const TextStyle(color: Colors.red),
+                ),
               const SizedBox(height: 12),
-              const Text('XML Preview (first 300 chars):'),
+              const Text('Raw XML Preview (first 300 chars):'),
+              const SizedBox(height: 8),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 140),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: SingleChildScrollView(
+                  child: Text(
+                    _rawPreview ?? '',
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text('Parsed XML Preview (first 300 chars):'),
               const SizedBox(height: 8),
               Expanded(
-                child: SingleChildScrollView(
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: SingleChildScrollView(
                     child: Text(
-                      _preview ?? '',
+                      _parsedPreview ?? '(No parsed XML available)',
                       style: const TextStyle(
                         fontFamily: 'monospace',
                         fontSize: 12,
