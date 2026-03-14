@@ -6,13 +6,16 @@ import 'package:file_picker/file_picker.dart';
 
 import 'musicxml_import_exception.dart';
 import 'musicxml_import_result.dart';
+import 'musicxml_parser_service.dart';
 
 /// Service responsible for picking and reading a MusicXML file.
 class MusicXmlImporter {
-   MusicXmlImporter({FilePicker? filePicker})
-      : _filePicker = filePicker ?? FilePicker.platform;
+   MusicXmlImporter({FilePicker? filePicker, MusicXmlParserService? parser})
+      : _filePicker = filePicker ?? FilePicker.platform,
+        _parser = parser ?? const MusicXmlParserService();
 
   final FilePicker _filePicker;
+  final MusicXmlParserService _parser;
   static const _allowedExtensions = ['musicxml', 'xml', 'mxl'];
 
   /// Opens the file picker and returns a [MusicXmlImportResult].
@@ -65,7 +68,11 @@ class MusicXmlImporter {
         throw const MusicXmlImportException('The selected file is empty.');
       }
 
-      return MusicXmlImportResult(fileName: fileName, xmlContent: content);
+      return MusicXmlImportResult(
+        fileName: fileName,
+        xmlContent: content,
+        parseResult: _parser.parse(content),
+      );
     } on MusicXmlImportException {
       rethrow;
     } catch (e) {

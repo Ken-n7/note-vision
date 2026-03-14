@@ -36,6 +36,10 @@ dependencies:
     # TFLite
   tflite_flutter: ^0.12.1
 
+
+  # MusicXML parsing
+  xml: ^6.5.0
+
     # Storage & paths
   # path_provider: ^2.1.5
   # permission_handler: ^11.3.1
