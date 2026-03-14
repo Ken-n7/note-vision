@@ -21,14 +21,27 @@ class MusicXmlParserService {
         document: document,
         rootTagName: rootTagName,
       );
-    } on XmlParserException catch (e) {
+    } on XmlException catch (e) {
       return MusicXmlParseResult.failure(
         errorMessage: 'Malformed XML: ${e.message}',
       );
     } catch (e) {
+      if (_looksLikeXmlMalformedError(e)) {
+        return MusicXmlParseResult.failure(
+          errorMessage: 'Malformed XML: $e',
+        );
+      }
+
       return MusicXmlParseResult.failure(
         errorMessage: 'XML parsing failed: $e',
       );
     }
+  }
+
+  bool _looksLikeXmlMalformedError(Object error) {
+    final text = error.toString();
+    return text.contains('XmlTagException') ||
+        text.contains('XmlParserException') ||
+        text.contains('Expected </');
   }
 }
