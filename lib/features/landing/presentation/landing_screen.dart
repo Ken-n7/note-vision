@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:note_vision/dev/dev_test_screen.dart';
+import 'package:note_vision/features/musicxml_inspector/music_inspector_screen.dart';
 import '../../../features/collection/presentation/collection_screen.dart';
 // import '../../collection/presentation/collection_screen.dart';
 // import '../../../collection_page.dart';
@@ -65,7 +65,7 @@ class LandingScreen extends StatelessWidget {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const DevTestScreen(),
+                    builder: (context) => const MusicXmlInspectorScreen(),
                   ),
                 );
               },
