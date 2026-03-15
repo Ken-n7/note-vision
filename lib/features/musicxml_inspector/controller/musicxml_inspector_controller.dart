@@ -128,7 +128,13 @@ class MusicXmlInspectorController extends ChangeNotifier {
 
     final partCount = root.findAllElements('part').length;
     final measureCount = root.findAllElements('measure').length;
-    final noteCount = root.findAllElements('note').length;
+
+    // In MusicXML, rests are <note> elements that contain a <rest> child.
+    final allNoteElements = root.findAllElements('note').toList();
+    final restCount = allNoteElements
+        .where((n) => n.findElements('rest').isNotEmpty)
+        .length;
+    final noteCount = allNoteElements.length - restCount;
 
     return ParsedMetadata(
       rootTag: rootTag,
@@ -137,42 +143,10 @@ class MusicXmlInspectorController extends ChangeNotifier {
       partCount: partCount,
       measureCount: measureCount,
       noteCount: noteCount,
+      restCount: restCount,
       validationErrors: parseResult.validationErrors,
       warnings: parseResult.warnings,
     );
   }
 
-  /// Builds a readable debug dump from the converted [Score] domain model.
-  String formatScoreDebug(Score score) {
-    final buf = StringBuffer();
-    buf.writeln('Score {');
-    buf.writeln('  id:       ${score.id}');
-    buf.writeln('  title:    ${score.title}');
-    buf.writeln('  composer: ${score.composer}');
-    buf.writeln('  parts:    ${score.parts.length}');
-    buf.writeln();
-    for (final part in score.parts) {
-      final totalMeasures = part.measures.length;
-      final totalSymbols = part.measures.expand((m) => m.symbols).length;
-      buf.writeln('  Part "${part.name}" (id: ${part.id}) {');
-      buf.writeln('    measures: $totalMeasures');
-      buf.writeln('    symbols:  $totalSymbols');
-      if (part.measures.isNotEmpty) {
-        final first = part.measures.first;
-        if (first.clef != null) {
-          buf.writeln('    clef[0]:  ${first.clef!.sign}/${first.clef!.line}');
-        }
-        if (first.timeSignature != null) {
-          buf.writeln(
-              '    time[0]:  ${first.timeSignature!.beats}/${first.timeSignature!.beatType}');
-        }
-        if (first.keySignature != null) {
-          buf.writeln('    key[0]:   fifths=${first.keySignature!.fifths}');
-        }
-      }
-      buf.writeln('  }');
-    }
-    buf.write('}');
-    return buf.toString();
-  }
 }

@@ -5,6 +5,7 @@ class ParsedMetadata {
   final int partCount;
   final int measureCount;
   final int noteCount;
+  final int restCount;
   final List<String> validationErrors;
   final List<String> warnings;
 
@@ -15,6 +16,7 @@ class ParsedMetadata {
     required this.partCount,
     required this.measureCount,
     required this.noteCount,
+    this.restCount = 0,
     this.validationErrors = const [],
     this.warnings = const [],
   });
