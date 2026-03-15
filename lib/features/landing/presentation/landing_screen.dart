@@ -151,17 +151,6 @@ class _LandingScreenState extends State<LandingScreen>
                       ),
 
                       const Spacer(flex: 2),
-
-                      // ── Version hint ───────────────────────────────────
-                      Text(
-                        'v0.1.0 — Sprint 3',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Colors.white.withOpacity(0.15),
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-
                       const SizedBox(height: 16),
                     ],
                   ),
