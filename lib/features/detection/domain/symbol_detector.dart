@@ -1,6 +1,6 @@
 import 'package:note_vision/features/preprocessing/domain/preprocessed_result.dart';
-import 'detected_symbol.dart';
+import 'detection_result.dart';
 
 abstract class SymbolDetector {
-  Future<List<DetectedSymbol>> detect(PreprocessedResult input);
+  Future<DetectionResult> detect(PreprocessedResult input);
 }

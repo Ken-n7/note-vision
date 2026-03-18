@@ -1,10 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
-import 'dart:typed_data';
 
 import '../../preprocessing/domain/preprocessed_result.dart';
 import '../domain/detected_symbol.dart';
+import '../domain/detection_result.dart';
 import '../domain/music_symbol.dart';
 import '../domain/symbol_detector.dart';
 
@@ -33,7 +35,7 @@ class TfliteSymbolDetector implements SymbolDetector {
   }
 
   @override
-  Future<List<DetectedSymbol>> detect(PreprocessedResult input) async {
+  Future<DetectionResult> detect(PreprocessedResult input) async {
     if (_interpreter == null) await init();
 
     final inputTensor = _imageToTensor(input.bytes);
@@ -45,7 +47,7 @@ class TfliteSymbolDetector implements SymbolDetector {
 
     _interpreter!.run(inputTensor, output);
 
-    return _parseOutput(output[0] as List<List<double>>);
+    return DetectionResult(symbols: _parseOutput(output[0] as List<List<double>>));
   }
 
   List<List<List<List<double>>>> _imageToTensor(Uint8List bytes) {
@@ -82,7 +84,8 @@ class TfliteSymbolDetector implements SymbolDetector {
       if (x2 <= x1 || y2 <= y1) continue;
 
       detections.add(
-        DetectedSymbol(
+        DetectedSymbol.fromMusicSymbol(
+          id: 'symbol-${detections.length}',
           symbol: MusicSymbol.values[classIndex],
           boundingBox: Rect.fromLTRB(x1, y1, x2, y2),
           confidence: confidence,
@@ -96,15 +99,23 @@ class TfliteSymbolDetector implements SymbolDetector {
   List<DetectedSymbol> _nms(List<DetectedSymbol> detections) {
     if (detections.isEmpty) return detections;
 
-    detections.sort((a, b) => b.confidence.compareTo(a.confidence));
+    detections.sort((a, b) => (b.confidence ?? 0).compareTo(a.confidence ?? 0));
 
     final kept = <DetectedSymbol>[];
 
     for (final detection in detections) {
+      final detectionBox = detection.boundingBox;
+      if (detectionBox == null) {
+        kept.add(detection);
+        continue;
+      }
+
       bool suppressed = false;
       for (final keptDetection in kept) {
-        if (_iou(detection.boundingBox, keptDetection.boundingBox) >
-            _iouThreshold) {
+        final keptBox = keptDetection.boundingBox;
+        if (keptBox == null) continue;
+
+        if (_iou(detectionBox, keptBox) > _iouThreshold) {
           suppressed = true;
           break;
         }

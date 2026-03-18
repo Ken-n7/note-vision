@@ -29,9 +29,9 @@ class ScanViewModel extends ChangeNotifier {
       state = ScanState.detecting;
       notifyListeners();
 
-      final symbols = await _detector.detect(preprocessed);
+      final detection = await _detector.detect(preprocessed);
 
-      result = ScanResult(preprocessed: preprocessed, symbols: symbols);
+      result = ScanResult(preprocessed: preprocessed, detection: detection);
       state = ScanState.done;
     } catch (e) {
       errorMessage = e.toString();
