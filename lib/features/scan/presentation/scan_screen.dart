@@ -17,6 +17,11 @@ class ScanScreen extends StatefulWidget {
 }
 
 class _ScanScreenState extends State<ScanScreen> {
+  // ── Design tokens ──────────────────────────────────────────────────────────
+  static const _bg          = Color(0xFF0D0D0D);
+  static const _textPrimary = Color(0xFFFFFFFF);
+  static const _warning     = Color(0xFFFBBF24);
+
   @override
   void initState() {
     super.initState();
@@ -30,52 +35,55 @@ class _ScanScreenState extends State<ScanScreen> {
     final vm = context.watch<ScanViewModel>();
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: _bg,
       appBar: AppBar(
-        backgroundColor: Colors.black,
-        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: _bg,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        iconTheme: const IconThemeData(color: _textPrimary),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: const Text(
-          'Scan Result',
-          style: TextStyle(color: Colors.white),
+          'Note Vision',
+          style: TextStyle(
+            fontFamily: 'MaturaMTScriptCapitals',
+            fontSize: 22,
+            color: _textPrimary,
+            letterSpacing: 0.5,
+          ),
         ),
         centerTitle: true,
       ),
       body: switch (vm.state) {
-        ScanState.idle => const SizedBox(),
-        ScanState.preprocessing => const _PipelineStatus(
-            message: 'Preprocessing image...',
+        ScanState.idle         => const SizedBox(),
+        ScanState.preprocessing => _PipelineStatus(
+            icon: Icons.tune_outlined,
+            message: 'Preprocessing image',
+            subMessage: 'Cleaning up and preparing your scan…',
           ),
-        ScanState.detecting => const _PipelineStatus(
-            message: 'Detecting symbols...',
+        ScanState.detecting    => const _PipelineStatus(
+            icon: Icons.image_search_outlined,
+            message: 'Detecting symbols',
+            subMessage: 'Running the detection model…',
           ),
-        ScanState.done => _buildDone(context, vm),
-        ScanState.error => _buildError(context, vm),
+        ScanState.done         => _buildDone(context, vm),
+        ScanState.error        => _buildError(context, vm),
       },
     );
   }
 
   Widget _buildDone(BuildContext context, ScanViewModel vm) {
-    // show no detections banner if empty
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!vm.result!.hasDetections && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'No symbols detected — try recapturing with better lighting.',
-            ),
-            backgroundColor: Colors.orange,
-            behavior: SnackBarBehavior.floating,
-            duration: Duration(seconds: 4),
-          ),
-        );
+        _showNoDetectionsBar(context);
       }
     });
 
     return Column(
       children: [
-        Expanded(
-          child: ScanImageView(result: vm.result!),
-        ),
+        Expanded(child: ScanImageView(result: vm.result!)),
         ScanActions(
           onRedo: () => Navigator.pop(context),
           onContinue: () {
@@ -86,24 +94,102 @@ class _ScanScreenState extends State<ScanScreen> {
     );
   }
 
+  void _showNoDetectionsBar(BuildContext context) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.lightbulb_outline, size: 16, color: _warning),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'No symbols detected — try recapturing with better lighting.',
+                style: TextStyle(fontSize: 13, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: const Color(0xFF1A1A1A),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+        duration: const Duration(seconds: 4),
+      ),
+    );
+  }
+
   Widget _buildError(BuildContext context, ScanViewModel vm) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.red),
-            const SizedBox(height: 16),
-            Text(
-              'Something went wrong:\n${vm.errorMessage}',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.red),
+            // ── Error icon ──────────────────────────────────────────────
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444).withOpacity(0.1),
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: const Color(0xFFEF4444).withOpacity(0.3),
+                ),
+              ),
+              child: const Icon(
+                Icons.error_outline,
+                size: 32,
+                color: Color(0xFFEF4444),
+              ),
             ),
+
             const SizedBox(height: 24),
-            ElevatedButton(
+
+            const Text(
+              'Something went wrong',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: _textPrimary,
+                letterSpacing: 0.2,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            Text(
+              vm.errorMessage ?? 'An unexpected error occurred.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF8A8A8A),
+                height: 1.6,
+              ),
+            ),
+
+            const SizedBox(height: 32),
+
+            // ── Go back button ──────────────────────────────────────────
+            _TappableButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Go Back'),
+              child: Container(
+                width: double.infinity,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: _textPrimary,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                alignment: Alignment.center,
+                child: const Text(
+                  'Go Back',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: _bg,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
             ),
           ],
         ),
@@ -112,28 +198,129 @@ class _ScanScreenState extends State<ScanScreen> {
   }
 }
 
-// shared loading widget for pipeline steps
-class _PipelineStatus extends StatelessWidget {
-  final String message;
+// ─── Pipeline status widget ───────────────────────────────────────────────────
 
-  const _PipelineStatus({required this.message});
+class _PipelineStatus extends StatelessWidget {
+  final IconData icon;
+  final String message;
+  final String subMessage;
+
+  const _PipelineStatus({
+    required this.icon,
+    required this.message,
+    required this.subMessage,
+  });
+
+  static const _accent        = Color(0xFFD4A96A);
+  static const _surface       = Color(0xFF1A1A1A);
+  static const _textPrimary   = Color(0xFFFFFFFF);
+  static const _textSecondary = Color(0xFF8A8A8A);
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const CircularProgressIndicator(),
-          const SizedBox(height: 16),
-          Text(message),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // ── Animated icon container ─────────────────────────────────
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: _surface,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: _accent.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Icon(icon, size: 30, color: _accent),
+            ),
+
+            const SizedBox(height: 28),
+
+            Text(
+              message,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: _textPrimary,
+                letterSpacing: 0.2,
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            Text(
+              subMessage,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                color: _textSecondary,
+                height: 1.5,
+              ),
+            ),
+
+            const SizedBox(height: 32),
+
+            // ── Progress indicator ──────────────────────────────────────
+            SizedBox(
+              width: 120,
+              child: LinearProgressIndicator(
+                backgroundColor: _surface,
+                valueColor: const AlwaysStoppedAnimation<Color>(_accent),
+                borderRadius: BorderRadius.circular(4),
+                minHeight: 3,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-// injects both dependencies
+// ─── Tappable button wrapper ──────────────────────────────────────────────────
+
+class _TappableButton extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onPressed;
+
+  const _TappableButton({required this.child, required this.onPressed});
+
+  @override
+  State<_TappableButton> createState() => _TappableButtonState();
+}
+
+class _TappableButtonState extends State<_TappableButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) {
+        setState(() => _pressed = false);
+        widget.onPressed();
+      },
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        child: AnimatedOpacity(
+          opacity: _pressed ? 0.85 : 1.0,
+          duration: const Duration(milliseconds: 100),
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Provider wrapper ─────────────────────────────────────────────────────────
+
 class ScanScreenProvider extends StatelessWidget {
   final Uint8List imageBytes;
 

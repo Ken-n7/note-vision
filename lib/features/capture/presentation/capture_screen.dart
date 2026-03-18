@@ -315,7 +315,7 @@ class _CaptureScreenState extends State<CaptureScreen>
                 'Cancel',
                 style: TextStyle(
                   fontSize: 13,
-                  color: _textSecondary.withOpacity(0.7),
+                  color: const Color.fromARGB(255, 255, 255, 255).withOpacity(0.7),
                   letterSpacing: 0.3,
                 ),
               ),
