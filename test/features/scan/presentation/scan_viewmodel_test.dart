@@ -7,6 +7,11 @@ import 'package:note_vision/features/detection/domain/detected_staff.dart';
 import 'package:note_vision/features/detection/domain/detected_symbol.dart';
 import 'package:note_vision/features/detection/domain/symbol_detector.dart';
 import 'package:note_vision/features/preprocessing/domain/image_preprocessor.dart';
+import 'package:note_vision/core/models/measure.dart';
+import 'package:note_vision/core/models/part.dart';
+import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/features/mapping/domain/mapping_result.dart';
+import 'package:note_vision/features/mapping/domain/score_mapper_service.dart';
 import 'package:note_vision/features/preprocessing/domain/preprocessed_result.dart';
 import 'package:note_vision/features/scan/presentation/scan_viewmodel.dart';
 
@@ -26,6 +31,15 @@ class _FakeSymbolDetector implements SymbolDetector {
 
   @override
   Future<DetectionResult> detect(PreprocessedResult input) async => result;
+}
+
+class _FakeScoreMapperService extends ScoreMapperService {
+  const _FakeScoreMapperService(this.result);
+
+  final MappingResult result;
+
+  @override
+  MappingResult map(DetectionResult detection) => result;
 }
 
 class _ThrowingImagePreprocessor implements ImagePreprocessor {
@@ -80,15 +94,126 @@ void main() {
 
       await viewModel.run(Uint8List.fromList(const [9, 8, 7]));
 
-      expect(states, [ScanState.preprocessing, ScanState.detecting, ScanState.done]);
+      expect(states, [
+        ScanState.preprocessing,
+        ScanState.detecting,
+        ScanState.done,
+      ]);
       expect(viewModel.state, ScanState.done);
       expect(viewModel.errorMessage, isNull);
+      expect(viewModel.mappingResult, isNull);
       expect(viewModel.result, isNotNull);
       expect(viewModel.result!.detection, detection);
       expect(viewModel.result!.symbols.single.type, 'noteheadBlack');
       expect(viewModel.result!.detection.staffs.single.id, 'staff-1');
       expect(viewModel.result!.detection.barlines.single.x, 128);
     });
+
+    test(
+      'stores mapper output so the UI can consume reconstructed score data',
+      () async {
+        final preprocessed = PreprocessedResult(
+          bytes: Uint8List.fromList(const [1, 2, 3]),
+          width: 416,
+          height: 416,
+          scale: 1,
+          padX: 0,
+          padY: 0,
+        );
+        const detection = DetectionResult(
+          imageId: 'scan-2',
+          staffs: [
+            DetectedStaff(
+              id: 'staff-1',
+              topY: 50,
+              bottomY: 90,
+              lineYs: [50, 60, 70, 80, 90],
+            ),
+          ],
+        );
+        const mappingResult = MappingResult(
+          score: Score(
+            id: 'mapped-score',
+            title: '',
+            composer: '',
+            parts: [
+              Part(
+                id: 'P1',
+                name: 'Detected Part',
+                measures: [Measure(number: 1, symbols: [])],
+              ),
+            ],
+          ),
+          warnings: ['warning'],
+        );
+
+        final viewModel = ScanViewModel(
+          _FakeImagePreprocessor(preprocessed),
+          _FakeSymbolDetector(detection),
+          mapper: const _FakeScoreMapperService(mappingResult),
+        );
+
+        await viewModel.run(Uint8List.fromList(const [1, 2, 3]));
+
+        expect(viewModel.state, ScanState.done);
+        expect(viewModel.mappingResult, isNotNull);
+        expect(viewModel.mappingResult?.score.id, 'mapped-score');
+        expect(viewModel.mappingResult?.warnings, ['warning']);
+      },
+    );
+
+    test(
+      'stores mapper output so the UI can consume reconstructed score data',
+      () async {
+        final preprocessed = PreprocessedResult(
+          bytes: Uint8List.fromList(const [1, 2, 3]),
+          width: 416,
+          height: 416,
+          scale: 1,
+          padX: 0,
+          padY: 0,
+        );
+        const detection = DetectionResult(
+          imageId: 'scan-2',
+          staffs: [
+            DetectedStaff(
+              id: 'staff-1',
+              topY: 50,
+              bottomY: 90,
+              lineYs: [50, 60, 70, 80, 90],
+            ),
+          ],
+        );
+        const mappingResult = MappingResult(
+          score: Score(
+            id: 'mapped-score',
+            title: '',
+            composer: '',
+            parts: [
+              Part(
+                id: 'P1',
+                name: 'Detected Part',
+                measures: [Measure(number: 1, symbols: [])],
+              ),
+            ],
+          ),
+          warnings: ['warning'],
+        );
+
+        final viewModel = ScanViewModel(
+          _FakeImagePreprocessor(preprocessed),
+          _FakeSymbolDetector(detection),
+          mapper: const _FakeScoreMapperService(mappingResult),
+        );
+
+        await viewModel.run(Uint8List.fromList(const [1, 2, 3]));
+
+        expect(viewModel.state, ScanState.done);
+        expect(viewModel.mappingResult, isNotNull);
+        expect(viewModel.mappingResult?.score.id, 'mapped-score');
+        expect(viewModel.mappingResult?.warnings, ['warning']);
+      },
+    );
 
     test('moves to error state when preprocessing throws', () async {
       final viewModel = ScanViewModel(
@@ -117,7 +242,9 @@ void main() {
         ),
         _FakeSymbolDetector(
           const DetectionResult(
-            symbols: [DetectedSymbol(id: 'symbol-reset', type: 'stem', x: 1, y: 2)],
+            symbols: [
+              DetectedSymbol(id: 'symbol-reset', type: 'stem', x: 1, y: 2),
+            ],
           ),
         ),
       );
@@ -127,6 +254,7 @@ void main() {
 
       expect(viewModel.state, ScanState.idle);
       expect(viewModel.result, isNull);
+      expect(viewModel.mappingResult, isNull);
       expect(viewModel.errorMessage, isNull);
     });
   });
