@@ -1,13 +1,14 @@
 import 'dart:math' as math;
 
 import 'package:note_vision/core/models/clef.dart';
+import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
-// import 'package:note_vision/features/detection/domain/detected_barline.dart';
+import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/features/detection/domain/detected_staff.dart';
 import 'package:note_vision/features/detection/domain/detected_symbol.dart';
 import 'package:note_vision/features/detection/domain/detection_result.dart';
@@ -19,6 +20,8 @@ import 'score_mapper_service.dart';
 class DetectionToScoreMapperService extends ScoreMapperService {
   const DetectionToScoreMapperService();
 
+  static const double _signatureRegionWidth = 96;
+  
   @override
   MappingResult map(DetectionResult detection) {
     final warnings = <String>[];
@@ -104,7 +107,9 @@ class DetectionToScoreMapperService extends ScoreMapperService {
       ..sort((left, right) => left.symbolCenterX.compareTo(right.symbolCenterX));
 
     final barlines = detection.barlines
-        .where((barline) => barline.staffId == null || barline.staffId == primaryStaff.id)
+        .where(
+          (barline) => barline.staffId == null || barline.staffId == primaryStaff.id,
+        )
         .toList(growable: false)
       ..sort((left, right) => left.x.compareTo(right.x));
 
@@ -173,6 +178,11 @@ class DetectionToScoreMapperService extends ScoreMapperService {
         final stem = _pickClosestStem(notehead.symbol, stems, usedStemIds);
         if (stem == null) {
           result[notehead.symbol.id] = const _StemLink();
+          if (notehead.symbol.type != 'noteheadWhole') {
+            warnings.add(
+              'Could not confidently pair notehead ${notehead.symbol.id} with a nearby stem.',
+            );
+          }
           continue;
         }
 
@@ -183,6 +193,11 @@ class DetectionToScoreMapperService extends ScoreMapperService {
         }
 
         result[notehead.symbol.id] = _StemLink(stem: stem.symbol, flag: flag?.symbol);
+      }
+
+      final unclaimedStems = stems.where((entry) => !usedStemIds.contains(entry.symbol.id));
+      for (final stem in unclaimedStems) {
+        warnings.add('Stem ${stem.symbol.id} could not be paired with a plausible notehead.');
       }
 
       final unclaimedFlags = flags.where((entry) => !usedFlagIds.contains(entry.symbol.id));
@@ -201,14 +216,16 @@ class DetectionToScoreMapperService extends ScoreMapperService {
   }) {
     return measures.map((measure) {
       final semanticSymbols = <_OrderedScoreSymbol>[];
-      Clef? clef;
+      final signatureSymbols = _collectLeadingSignatureSymbols(measure.symbols);
+      final clef = _inferClef(signatureSymbols, warnings: warnings);
+      final timeSignature = _inferTimeSignature(measure.staff, signatureSymbols, warnings: warnings);
+      final keySignature = _inferKeySignature(signatureSymbols, warnings: warnings);
 
       for (final entry in measure.symbols) {
         final symbol = entry.symbol;
         final type = symbol.type;
 
-        if (_isSupportedTrebleClef(type)) {
-          clef ??= const Clef(sign: 'G', line: 2);
+        if (_isSignatureSymbol(type) || type == 'stem' || _isSupportedFlag(type)) {
           continue;
         }
 
@@ -236,16 +253,16 @@ class DetectionToScoreMapperService extends ScoreMapperService {
           continue;
         }
 
-        if (type == 'stem' || _isSupportedFlag(type)) {
-          continue;
-        }
-
         warnings.add('Unsupported symbol "$type" was ignored during Sprint 4 mapping.');
       }
 
       if (clef == null && measure.symbols.any((entry) => _isNotehead(entry.symbol.type))) {
         warnings.add(
-          'No supported treble clef detected near the staff start; note pitch reconstruction may be ambiguous.',
+          'No supported clef detected near the staff start; note pitch reconstruction may be ambiguous.',
+        );
+      } else if (clef?.sign == 'F' && measure.symbols.any((entry) => _isNotehead(entry.symbol.type))) {
+        warnings.add(
+          'Bass-clef notes are recognized, but Sprint 4 pitch reconstruction still assumes treble-style placement.',
         );
       }
 
@@ -254,6 +271,8 @@ class DetectionToScoreMapperService extends ScoreMapperService {
       return _SemanticMeasure(
         number: measure.number,
         clef: clef,
+        timeSignature: timeSignature,
+        keySignature: keySignature,
         symbols: semanticSymbols.map((entry) => entry.symbol).toList(growable: false),
       );
     }).toList(growable: false);
@@ -275,6 +294,8 @@ class DetectionToScoreMapperService extends ScoreMapperService {
                       (measure) => Measure(
                         number: measure.number,
                         clef: measure.clef,
+                        timeSignature: measure.timeSignature,
+                        keySignature: measure.keySignature,
                         symbols: measure.symbols,
                       ),
                     )
@@ -322,7 +343,9 @@ class DetectionToScoreMapperService extends ScoreMapperService {
     };
 
     if (noteType == null) {
-      warnings.add('Could not infer a supported note value from ${symbol.id} (${symbol.type}).');
+      warnings.add(
+        'Could not infer a supported note value from ${symbol.id} (${symbol.type}); leaving it unresolved.',
+      );
       return null;
     }
 
@@ -355,6 +378,113 @@ class DetectionToScoreMapperService extends ScoreMapperService {
     );
   }
 
+  Clef? _inferClef(
+    List<_StaffOwnedSymbol> signatureSymbols, {
+    required List<String> warnings,
+  }) {
+    for (final entry in signatureSymbols) {
+      if (!_isSupportedClef(entry.symbol.type)) continue;
+      return switch (entry.symbol.type) {
+        'fClef' => const Clef(sign: 'F', line: 4),
+        _ => const Clef(sign: 'G', line: 2),
+      };
+    }
+    return null;
+  }
+
+  TimeSignature? _inferTimeSignature(
+    DetectedStaff staff,
+    List<_StaffOwnedSymbol> signatureSymbols, {
+    required List<String> warnings,
+  }) {
+    final timeEntries = signatureSymbols.where((entry) => _isTimeSignatureSymbol(entry.symbol.type)).toList();
+    if (timeEntries.isEmpty) {
+      return null;
+    }
+
+    final common = timeEntries.where((entry) => entry.symbol.type == 'timeSigCommon');
+    if (common.isNotEmpty) {
+      return const TimeSignature(beats: 4, beatType: 4);
+    }
+
+    final cutCommon = timeEntries.where((entry) => entry.symbol.type == 'timeSigCutCommon');
+    if (cutCommon.isNotEmpty) {
+      return const TimeSignature(beats: 2, beatType: 2);
+    }
+
+    final digitEntries = timeEntries.where((entry) => _timeSigDigit(entry.symbol.type) != null).toList();
+    if (digitEntries.isEmpty) {
+      warnings.add('Detected time-signature symbols could not be interpreted.');
+      return null;
+    }
+
+    digitEntries.sort((left, right) => left.symbolCenterX.compareTo(right.symbolCenterX));
+    final staffMidpoint = _staffMidpoint(staff);
+    final numeratorDigits = digitEntries
+        .where((entry) => _symbolCenterY(entry.symbol) <= staffMidpoint)
+        .map((entry) => _timeSigDigit(entry.symbol.type)!)
+        .join();
+    final denominatorDigits = digitEntries
+        .where((entry) => _symbolCenterY(entry.symbol) > staffMidpoint)
+        .map((entry) => _timeSigDigit(entry.symbol.type)!)
+        .join();
+
+    final beats = int.tryParse(numeratorDigits);
+    final beatType = int.tryParse(denominatorDigits);
+    if (beats == null || beatType == null) {
+      warnings.add('Detected time-signature symbols could not be interpreted.');
+      return null;
+    }
+
+    return TimeSignature(beats: beats, beatType: beatType);
+  }
+
+  KeySignature? _inferKeySignature(
+    List<_StaffOwnedSymbol> signatureSymbols, {
+    required List<String> warnings,
+  }) {
+    final accidentalEntries = signatureSymbols.where((entry) => _isKeySignatureAccidental(entry.symbol.type)).toList();
+    if (accidentalEntries.isEmpty) {
+      return null;
+    }
+
+    final types = accidentalEntries.map((entry) => entry.symbol.type).toSet();
+    if (types.length > 1 || types.contains('accidentalNatural')) {
+      warnings.add('Detected accidentals near the clef could not be resolved into a basic key signature.');
+      return null;
+    }
+
+    final type = types.single;
+    final count = accidentalEntries.length;
+    return KeySignature(
+      fifths: switch (type) {
+        'accidentalFlat' => -count,
+        'accidentalSharp' => count,
+        _ => 0,
+      },
+    );
+  }
+
+  List<_StaffOwnedSymbol> _collectLeadingSignatureSymbols(List<_StaffOwnedSymbol> symbols) {
+    if (symbols.isEmpty) return const [];
+
+    final ordered = [...symbols]..sort((left, right) => left.symbolCenterX.compareTo(right.symbolCenterX));
+    final firstMusicalEvent = ordered.firstWhere(
+      (entry) => _isNotehead(entry.symbol.type) || _isSupportedRest(entry.symbol.type),
+      orElse: () => ordered.last,
+    );
+    final maxSignatureX = math.min(
+      firstMusicalEvent.symbolCenterX,
+      ordered.first.symbolCenterX + _signatureRegionWidth,
+    );
+
+    return ordered
+        .where(
+          (entry) => _isSignatureSymbol(entry.symbol.type) && entry.symbolCenterX <= maxSignatureX,
+        )
+        .toList(growable: false);
+  }
+
   _Pitch? _pitchFor(DetectedSymbol symbol, DetectedStaff staff) {
     if (staff.lineYs.length < 2) return null;
 
@@ -382,7 +512,7 @@ class DetectionToScoreMapperService extends ScoreMapperService {
 
   _Pitch _pitchFromTrebleOffset(int diatonicOffset) {
     const steps = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-    const baseStepIndex = 2; // E
+    const baseStepIndex = 2;
     const baseOctave = 4;
 
     var absoluteStep = baseStepIndex + diatonicOffset;
@@ -503,7 +633,7 @@ class DetectionToScoreMapperService extends ScoreMapperService {
         ],
       );
 
-  static bool _isSupportedTrebleClef(String type) => type == 'gClef' || type == 'clefG';
+  static bool _isSupportedClef(String type) => type == 'gClef' || type == 'clefG' || type == 'fClef';
 
   static bool _isSupportedRest(String type) =>
       type == 'restQuarter' || type == 'restHalf' || type == 'restWhole';
@@ -513,6 +643,34 @@ class DetectionToScoreMapperService extends ScoreMapperService {
   static bool _isNotehead(String type) =>
       type == 'noteheadWhole' || type == 'noteheadHalf' || type == 'noteheadBlack';
 
+  static bool _isTimeSignatureSymbol(String type) =>
+      type == 'timeSigCommon' ||
+      type == 'timeSigCutCommon' ||
+      _timeSigDigit(type) != null ||
+      type == 'combTimeSignature';
+
+  static bool _isKeySignatureAccidental(String type) =>
+      type == 'accidentalFlat' || type == 'accidentalSharp' || type == 'accidentalNatural';
+
+  static bool _isSignatureSymbol(String type) =>
+      _isSupportedClef(type) || _isTimeSignatureSymbol(type) || _isKeySignatureAccidental(type);
+
+  static String? _timeSigDigit(String type) {
+    const digits = {
+      'timeSig0': '0',
+      'timeSig1': '1',
+      'timeSig2': '2',
+      'timeSig3': '3',
+      'timeSig4': '4',
+      'timeSig5': '5',
+      'timeSig6': '6',
+      'timeSig7': '7',
+      'timeSig8': '8',
+      'timeSig9': '9',
+    };
+    return digits[type];
+  }
+  
   static int _durationFor(String type) => switch (type) {
         'whole' => 4,
         'half' => 2,
@@ -555,11 +713,15 @@ class _MeasureSymbols {
 class _SemanticMeasure {
   final int number;
   final Clef? clef;
+  final TimeSignature? timeSignature;
+  final KeySignature? keySignature;
   final List<ScoreSymbol> symbols;
 
   const _SemanticMeasure({
     required this.number,
     required this.clef,
+    required this.timeSignature,
+    required this.keySignature,
     required this.symbols,
   });
 }
