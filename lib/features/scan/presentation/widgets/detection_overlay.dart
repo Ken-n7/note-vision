@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:note_vision/features/detection/domain/detected_symbol.dart';
-// import 'package:note_vision/features/detection/domain/music_symbol.dart';
 
 class DetectionOverlay extends StatelessWidget {
   final List<DetectedSymbol> symbols;
@@ -9,11 +8,13 @@ class DetectionOverlay extends StatelessWidget {
 
   // color code by symbol type
   Color _colorForSymbol(DetectedSymbol symbol) {
-    if (symbol.symbol.isNote) return Colors.blue;
-    if (symbol.symbol.isRest) return Colors.green;
-    if (symbol.symbol.isClef) return Colors.purple;
-    if (symbol.symbol.isTimeSignature) return Colors.orange;
-    if (symbol.symbol.isAccidental) return Colors.red;
+    final musicSymbol = symbol.musicSymbol;
+    if (musicSymbol == null) return Colors.yellow;
+    if (musicSymbol.isNote) return Colors.blue;
+    if (musicSymbol.isRest) return Colors.green;
+    if (musicSymbol.isClef) return Colors.purple;
+    if (musicSymbol.isTimeSignature) return Colors.orange;
+    if (musicSymbol.isAccidental) return Colors.red;
     return Colors.yellow;
   }
 
@@ -28,6 +29,9 @@ class DetectionOverlay extends StatelessWidget {
         return Stack(
           children: symbols.map((symbol) {
             final box = symbol.boundingBox;
+            if (box == null) {
+              return const SizedBox.shrink();
+            }
             final color = _colorForSymbol(symbol);
 
             return Positioned(
@@ -36,13 +40,13 @@ class DetectionOverlay extends StatelessWidget {
               width: box.width * scaleX,
               height: box.height * scaleY,
               child: Tooltip(
-                message: '${symbol.symbol.name} (${(symbol.confidence * 100).toStringAsFixed(1)}%)',
+                message: '${symbol.type} (${((symbol.confidence ?? 0) * 100).toStringAsFixed(1)}%)',
                 child: Container(
                   decoration: BoxDecoration(
                     border: Border.all(color: color, width: 2),
                     color: color.withOpacity(0.08),
                   ),
-                  child: Align( 
+                  child: Align(
                     alignment: Alignment.topLeft,
                     child: Container(
                       color: color.withOpacity(0.7),
@@ -51,7 +55,7 @@ class DetectionOverlay extends StatelessWidget {
                         vertical: 1,
                       ),
                       child: Text(
-                        symbol.symbol.name,
+                        symbol.type,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 6,
