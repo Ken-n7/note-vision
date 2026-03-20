@@ -1,11 +1,17 @@
 import 'package:note_vision/features/detection/domain/detected_staff.dart';
 import 'package:note_vision/features/detection/domain/detected_symbol.dart';
+import 'package:note_vision/core/models/clef.dart';
 import 'mapping_types.dart';
 
 class PitchCalculator {
   const PitchCalculator();
 
-  Pitch? calculate(DetectedSymbol symbol, DetectedStaff staff) {
+  Pitch? calculate({
+    required DetectedSymbol symbol,
+    required DetectedStaff staff,
+    required Clef? clef,
+  }) {
+    if (clef == null || clef.sign != 'G') return null;
     if (staff.lineYs.length < 2) return null;
 
     final sortedLines = [...staff.lineYs]..sort();
@@ -13,9 +19,13 @@ class PitchCalculator {
     if (spacing <= 0) return null;
 
     final centerY = symbol.y + ((symbol.height ?? 0) / 2);
-    final offset = ((sortedLines.last - centerY) / (spacing / 2)).round();
+    final diatonicOffset = _nearestDiatonicOffset(
+      centerY: centerY,
+      bottomLineY: sortedLines.last,
+      lineSpacing: spacing,
+    );
 
-    return _fromTrebleOffset(offset);
+    return _fromTrebleOffset(diatonicOffset);
   }
 
   double _averageSpacing(List<double> sortedLines) {
@@ -27,9 +37,18 @@ class PitchCalculator {
     return total / (sortedLines.length - 1);
   }
 
-  Pitch _fromTrebleOffset(int offset) {
+  int _nearestDiatonicOffset({
+    required double centerY,
+    required double bottomLineY,
+    required double lineSpacing,
+  }) {
+    final halfStepSpacing = lineSpacing / 2;
+    return ((bottomLineY - centerY) / halfStepSpacing).round();
+  }
+
+  Pitch _fromTrebleOffset(int diatonicOffset) {
     const steps = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-    var stepIndex = 2 + offset; // base: E4 = index 2
+    var stepIndex = 2 + diatonicOffset; // base: E4 = index 2
     var octave = 4;
 
     while (stepIndex < 0) {
