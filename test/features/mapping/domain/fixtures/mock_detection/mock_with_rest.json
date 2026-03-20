@@ -1,0 +1,45 @@
+{
+  "imageId": "mock-with-rest",
+  "staffs": [
+    {
+      "id": "staff-1",
+      "topY": 100,
+      "bottomY": 140,
+      "lineYs": [100, 110, 120, 130, 140]
+    }
+  ],
+  "symbols": [
+    {
+      "id": "clef-1",
+      "type": "gClef",
+      "x": 10,
+      "y": 92,
+      "width": 18,
+      "height": 44
+    },
+    {
+      "id": "rest-1",
+      "type": "restQuarter",
+      "x": 42,
+      "y": 116,
+      "width": 8,
+      "height": 20
+    },
+    {
+      "id": "head-1",
+      "type": "noteheadBlack",
+      "x": 76,
+      "y": 136,
+      "width": 10,
+      "height": 8
+    },
+    {
+      "id": "stem-1",
+      "type": "stem",
+      "x": 84,
+      "y": 108,
+      "width": 2,
+      "height": 28
+    }
+  ]
+}
