@@ -1,0 +1,58 @@
+{
+  "imageId": "mock-melody",
+  "staffs": [
+    {
+      "id": "staff-1",
+      "topY": 100,
+      "bottomY": 140,
+      "lineYs": [100, 110, 120, 130, 140]
+    }
+  ],
+  "symbols": [
+    {
+      "id": "clef-1",
+      "type": "gClef",
+      "x": 10,
+      "y": 92,
+      "width": 18,
+      "height": 44,
+      "confidence": 0.99
+    },
+    {
+      "id": "head-1",
+      "type": "noteheadBlack",
+      "x": 42,
+      "y": 136,
+      "width": 10,
+      "height": 8,
+      "confidence": 0.95
+    },
+    {
+      "id": "stem-1",
+      "type": "stem",
+      "x": 50,
+      "y": 108,
+      "width": 2,
+      "height": 28,
+      "confidence": 0.93
+    },
+    {
+      "id": "head-2",
+      "type": "noteheadBlack",
+      "x": 72,
+      "y": 131,
+      "width": 10,
+      "height": 8,
+      "confidence": 0.94
+    },
+    {
+      "id": "stem-2",
+      "type": "stem",
+      "x": 80,
+      "y": 103,
+      "width": 2,
+      "height": 28,
+      "confidence": 0.92
+    }
+  ]
+}
