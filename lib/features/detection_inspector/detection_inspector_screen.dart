@@ -7,6 +7,7 @@ import 'controller/detection_inspector_controller.dart';
 import 'widgets/di_action_bar.dart';
 import 'widgets/di_detection_summary.dart';
 import 'widgets/di_issues_section.dart';
+import 'widgets/di_pipeline_panel.dart';
 import 'widgets/di_raw_json_panel.dart';
 import 'widgets/di_score_preview.dart';
 import 'widgets/di_status_badge.dart';
@@ -23,13 +24,12 @@ class _DetectionInspectorScreenState extends State<DetectionInspectorScreen> {
   final _ctrl = DetectionInspectorController();
   bool _showRawJson = false;
 
-  // ── Tokens ─────────────────────────────────────────────────────────────────
-  static const _bg       = Color(0xFF0F1117);
-  static const _surface  = Color(0xFF181C27);
-  static const _border   = Color(0xFF252A3A);
-  static const _accent   = Color(0xFF4F8EF7);
-  static const _textPri  = Color(0xFFE8ECF4);
-  static const _textSec  = Color(0xFF6B7390);
+  static const _bg      = Color(0xFF0F1117);
+  static const _surface = Color(0xFF181C27);
+  static const _border  = Color(0xFF252A3A);
+  static const _accent  = Color(0xFF4F8EF7);
+  static const _textPri = Color(0xFFE8ECF4);
+  static const _textSec = Color(0xFF6B7390);
 
   @override
   void initState() {
@@ -131,35 +131,41 @@ class _DetectionInspectorScreenState extends State<DetectionInspectorScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Action bar
+          // ── Action bar ───────────────────────────────────────────────
           DiActionBar(controller: _ctrl),
 
           const SizedBox(height: 20),
 
-          // Status
+          // ── Status ───────────────────────────────────────────────────
           DiStatusBadge(controller: _ctrl),
 
           const SizedBox(height: 16),
 
-          // Issues (warnings + errors)
+          // ── Issues ───────────────────────────────────────────────────
           if (_ctrl.status != InspectorStatus.idle) ...[
             DiIssuesSection(controller: _ctrl),
             const SizedBox(height: 16),
           ],
 
-          // Detection summary (after load)
+          // ── Detection summary ─────────────────────────────────────────
           if (_ctrl.detection != null) ...[
             DiDetectionSummary(controller: _ctrl),
             const SizedBox(height: 16),
           ],
 
-          // Score preview (after mapping)
+          // ── Pipeline stages (shown after mapping) ─────────────────────
+          if (_ctrl.pipelineState != null) ...[
+            DiPipelinePanel(pipeline: _ctrl.pipelineState!),
+            const SizedBox(height: 16),
+          ],
+
+          // ── Score debug output ────────────────────────────────────────
           if (_ctrl.mappingResult != null) ...[
             DiScorePreview(controller: _ctrl),
             const SizedBox(height: 16),
           ],
 
-          // Raw JSON toggle
+          // ── Raw JSON ──────────────────────────────────────────────────
           if (_ctrl.rawJsonPretty != null)
             DiRawJsonPanel(
               json: _ctrl.rawJsonPretty!,

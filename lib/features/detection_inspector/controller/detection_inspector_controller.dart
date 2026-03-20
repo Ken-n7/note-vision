@@ -8,6 +8,7 @@ import 'package:note_vision/features/mapping/domain/detection_to_score_mapper_se
 import 'package:note_vision/features/mapping/domain/mapping_result.dart';
 
 import '../data/mock_detection_data.dart';
+import '../model/mapping_pipeline_state.dart';
 
 enum InspectorStatus { idle, loaded, mapped, error }
 
@@ -58,6 +59,9 @@ class DetectionInspectorController extends ChangeNotifier {
   MappingResult? _mappingResult;
   MappingResult? get mappingResult => _mappingResult;
 
+  MappingPipelineState? _pipelineState;
+  MappingPipelineState? get pipelineState => _pipelineState;
+
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
@@ -86,7 +90,7 @@ class DetectionInspectorController extends ChangeNotifier {
       (sum, p) => sum +
           p.measures.fold(
             0,
-            (s, m) => s + m.symbols.where((sym) => sym.runtimeType.toString().contains('Note')).length,
+            (s, m) => s + m.notes.length,
           ),
     );
   }
@@ -99,7 +103,7 @@ class DetectionInspectorController extends ChangeNotifier {
       (sum, p) => sum +
           p.measures.fold(
             0,
-            (s, m) => s + m.symbols.where((sym) => sym.runtimeType.toString().contains('Rest')).length,
+            (s, m) => s + m.rests.length,
           ),
     );
   }
@@ -137,7 +141,7 @@ class DetectionInspectorController extends ChangeNotifier {
             : 'no time sig';
         sb.writeln('    Measure ${m.number}: $clefStr, $timeSigStr, ${m.symbols.length} symbol(s)');
         for (final sym in m.symbols) {
-          sb.writeln('      • ${sym.runtimeType}: ${sym.toString()}');
+          sb.writeln('      • $sym');
         }
       }
     }
@@ -164,6 +168,7 @@ class DetectionInspectorController extends ChangeNotifier {
       _detection = DetectionResult.fromJson(json);
       _loadedCase = mockCase;
       _mappingResult = null;
+      _pipelineState = null;
       _errorMessage = null;
       _status = InspectorStatus.loaded;
     } catch (e) {
@@ -180,9 +185,9 @@ class DetectionInspectorController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Simulate async pipeline delay for realism
       await Future.delayed(const Duration(milliseconds: 400));
-      _mappingResult = _mapper.map(_detection!);
+      _pipelineState = _mapper.mapWithPipeline(_detection!);
+      _mappingResult = _pipelineState!.result;
       _status = InspectorStatus.mapped;
     } catch (e) {
       _errorMessage = 'Mapping failed: $e';
@@ -198,6 +203,7 @@ class DetectionInspectorController extends ChangeNotifier {
     _loadedCase = null;
     _detection = null;
     _mappingResult = null;
+    _pipelineState = null;
     _errorMessage = null;
     _isRunningMapping = false;
     notifyListeners();

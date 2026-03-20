@@ -9,14 +9,6 @@ class DiActionBar extends StatelessWidget {
 
   const DiActionBar({super.key, required this.controller});
 
-  static const _bg      = Color(0xFF0F1117);
-  static const _surface = Color(0xFF181C27);
-  static const _border  = Color(0xFF252A3A);
-  static const _accent  = Color(0xFF4F8EF7);
-  static const _green   = Color(0xFF3DD68C);
-  static const _textPri = Color(0xFFE8ECF4);
-  static const _textSec = Color(0xFF6B7390);
-
   @override
   Widget build(BuildContext context) {
     final canRunMapping = controller.detection != null &&
