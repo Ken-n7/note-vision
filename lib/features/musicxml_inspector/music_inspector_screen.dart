@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/widgets/inspector_shared_widgets.dart';
+import '../detection_inspector/detection_inspector_screen.dart';
 import 'controller/musicxml_inspector_controller.dart';
 import 'model/inspector_state.dart';
 import 'widgets/collapsible_section.dart';
@@ -37,6 +38,15 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
     });
     await _controller.onImportPressed();
     if (mounted) setState(() {});
+  }
+
+  void _goToDetectionInspector() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const DetectionInspectorScreen(),
+      ),
+    );
   }
 
   @override
@@ -110,6 +120,26 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
                       style: TextStyle(
                           fontSize: 14, fontWeight: FontWeight.w600),
                     ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // ── Detection Inspector shortcut ──────────────────────────────
+            OutlinedButton.icon(
+              onPressed: _goToDetectionInspector,
+              icon: const Icon(Icons.biotech_outlined, size: 16),
+              label: const Text(
+                'Detection Inspector',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF185FA5),
+                side: const BorderSide(color: Color(0xFF185FA5), width: 1.5),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
             ),
 
             const SizedBox(height: 12),
