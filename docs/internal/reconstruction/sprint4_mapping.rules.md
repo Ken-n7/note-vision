@@ -1,3 +1,5 @@
+// Reconstruction rules: docs/internal/reconstruction/sprint4_mapping.rules.md
+
 # Sprint 4 Reconstruction Rules
 
 This internal spec defines what the detection-to-score mapper **will** and **will not** support in Sprint 4.  

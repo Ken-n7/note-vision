@@ -1,3 +1,4 @@
+import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'mapping_types.dart';
@@ -6,88 +7,106 @@ import 'signature_inferrer.dart';
 import 'symbol_classifier.dart';
 
 class SemanticInferrer {
+  static const int _defaultStaff = 1;
+
   final PitchCalculator _pitchCalculator;
   final SignatureInferrer _signatureInferrer;
 
   const SemanticInferrer({
     PitchCalculator pitchCalculator = const PitchCalculator(),
     SignatureInferrer signatureInferrer = const SignatureInferrer(),
-  })  : _pitchCalculator = pitchCalculator,
-        _signatureInferrer = signatureInferrer;
+  }) : _pitchCalculator = pitchCalculator,
+       _signatureInferrer = signatureInferrer;
 
   List<SemanticMeasure> infer({
     required List<MeasureSymbols> measures,
     required Map<String, StemLink> stemLinks,
     required List<String> warnings,
   }) {
-    return measures.map((measure) {
-      final signatureSymbols =
-          _signatureInferrer.collectLeadingSignatureSymbols(measure.symbols);
+    Clef? activeClef;
 
-      final clef = _signatureInferrer.inferClef(
-        signatureSymbols,
-        warnings: warnings,
-      );
-      final timeSignature = _signatureInferrer.inferTimeSignature(
-        measure.staff,
-        signatureSymbols,
-        warnings: warnings,
-      );
-      final keySignature = _signatureInferrer.inferKeySignature(
-        signatureSymbols,
-        warnings: warnings,
-      );
+    return measures
+        .map((measure) {
+          final signatureSymbols = _signatureInferrer
+              .collectLeadingSignatureSymbols(measure.symbols);
 
-      final ordered = <OrderedScoreSymbol>[];
+          final inferredClef = _signatureInferrer.inferClef(
+            signatureSymbols,
+            warnings: warnings,
+          );
+          activeClef = inferredClef ?? activeClef;
+          final clef = activeClef;
+          final timeSignature = _signatureInferrer.inferTimeSignature(
+            measure.staff,
+            signatureSymbols,
+            warnings: warnings,
+          );
+          final keySignature = _signatureInferrer.inferKeySignature(
+            signatureSymbols,
+            warnings: warnings,
+          );
 
-      for (final entry in measure.symbols) {
-        final type = entry.symbol.type;
+          final ordered = <OrderedScoreSymbol>[];
 
-        if (SymbolClassifier.isSignatureSymbol(type) ||
-            type == 'stem' ||
-            SymbolClassifier.isSupportedFlag(type)) continue;
+          for (final entry in measure.symbols) {
+            final type = entry.symbol.type;
 
-        if (SymbolClassifier.isSupportedRest(type)) {
-          ordered.add(OrderedScoreSymbol(
-            x: entry.symbolCenterX,
-            symbol: _buildRest(type),
-          ));
-          continue;
-        }
+            if (SymbolClassifier.isSignatureSymbol(type) ||
+                type == 'stem' ||
+                SymbolClassifier.isSupportedFlag(type))
+              continue;
 
-        if (SymbolClassifier.isNotehead(type)) {
-          final link = stemLinks[entry.symbol.id] ?? const StemLink();
-          final note = _buildNote(entry, link, warnings);
-          if (note != null) {
-            ordered.add(OrderedScoreSymbol(
-              x: entry.symbolCenterX,
-              symbol: note,
-            ));
+            if (SymbolClassifier.isSupportedRest(type)) {
+              ordered.add(
+                OrderedScoreSymbol(
+                  x: entry.symbolCenterX,
+                  symbol: _buildRest(type: type),
+                ),
+              );
+              continue;
+            }
+
+            if (SymbolClassifier.isNotehead(type)) {
+              final link = stemLinks[entry.symbol.id] ?? const StemLink();
+              final note = _buildNote(
+                entry: entry,
+                activeClef: clef,
+                link: link,
+                warnings: warnings,
+              );
+              if (note != null) {
+                ordered.add(
+                  OrderedScoreSymbol(x: entry.symbolCenterX, symbol: note),
+                );
+              }
+              continue;
+            }
+
+            warnings.add(
+              'Unsupported symbol "$type" was ignored during Sprint 4 mapping.',
+            );
           }
-          continue;
-        }
 
-        warnings.add('Unsupported symbol "$type" was ignored during Sprint 4 mapping.');
-      }
+          _warnAboutClef(clef, measure, warnings);
+          ordered.sort((a, b) => a.x.compareTo(b.x));
 
-      _warnAboutClef(clef, measure, warnings);
-      ordered.sort((a, b) => a.x.compareTo(b.x));
-
-      return SemanticMeasure(
-        number: measure.number,
-        clef: clef,
-        timeSignature: timeSignature,
-        keySignature: keySignature,
-        symbols: ordered.map((e) => e.symbol).toList(growable: false),
-      );
-    }).toList(growable: false);
+          return SemanticMeasure(
+            number: measure.number,
+            clef: clef,
+            timeSignature: timeSignature,
+            keySignature: keySignature,
+            symbols: ordered.map((e) => e.symbol).toList(growable: false),
+          );
+        })
+        .toList(growable: false);
   }
 
-  Note? _buildNote(
-    StaffOwnedSymbol entry,
-    StemLink link,
-    List<String> warnings,
-  ) {
+  Note? _buildNote({
+    required StaffOwnedSymbol entry,
+    required Clef? activeClef,
+    required StemLink link,
+    required List<String> warnings,
+  }) {
     final type = entry.symbol.type;
     final hasStem = link.stem != null;
     final hasFlag = link.flag != null;
@@ -107,9 +126,15 @@ class SemanticInferrer {
       return null;
     }
 
-    final pitch = _pitchCalculator.calculate(entry.symbol, entry.staff);
+    final pitch = _pitchCalculator.calculate(
+      symbol: entry.symbol,
+      staff: entry.staff,
+      clef: activeClef,
+    );
     if (pitch == null) {
-      warnings.add('Could not infer pitch for ${entry.symbol.id}; skipping.');
+      warnings.add(
+        'Could not infer a supported treble-clef pitch for ${entry.symbol.id}; skipping.',
+      );
       return null;
     }
 
@@ -118,11 +143,11 @@ class SemanticInferrer {
       octave: pitch.octave,
       duration: SymbolClassifier.durationFor(noteType),
       type: noteType,
-      staff: 1,
+      staff: _defaultStaff,
     );
   }
 
-  Rest _buildRest(String type) {
+  Rest _buildRest({required String type}) {
     final restType = switch (type) {
       'restWhole' => 'whole',
       'restHalf' => 'half',
@@ -131,26 +156,23 @@ class SemanticInferrer {
     return Rest(
       duration: SymbolClassifier.durationFor(restType),
       type: restType,
-      staff: 1,
+      staff: _defaultStaff,
     );
   }
 
-  void _warnAboutClef(
-    clef,
-    MeasureSymbols measure,
-    List<String> warnings,
-  ) {
-    final hasNoteheads =
-        measure.symbols.any((e) => SymbolClassifier.isNotehead(e.symbol.type));
+  void _warnAboutClef(clef, MeasureSymbols measure, List<String> warnings) {
+    final hasNoteheads = measure.symbols.any(
+      (e) => SymbolClassifier.isNotehead(e.symbol.type),
+    );
     if (!hasNoteheads) return;
 
     if (clef == null) {
       warnings.add(
-        'No supported clef detected; pitch reconstruction may be ambiguous.',
+        'No supported treble clef detected; pitch reconstruction is unsupported for this measure.',
       );
     } else if (clef.sign == 'F') {
       warnings.add(
-        'Bass-clef notes detected; Sprint 4 pitch reconstruction still assumes treble placement.',
+        'Bass-clef notes detected; Sprint 4 pitch reconstruction supports treble clef only.',
       );
     }
   }
