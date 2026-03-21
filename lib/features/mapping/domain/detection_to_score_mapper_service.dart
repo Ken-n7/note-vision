@@ -1,5 +1,10 @@
+// lib/features/mapping/detection_to_score_mapper_service.dart
+//
+// Drop-in replacement — adds mapWithPipeline() while keeping map() identical.
+
 import 'dart:math' as math;
 import 'package:note_vision/features/detection/domain/detection_result.dart';
+import 'package:note_vision/features/detection_inspector/model/mapping_pipeline_state.dart';
 import 'mapping_confidence_summary.dart';
 import 'mapping_result.dart';
 import 'score_mapper_service.dart';
@@ -29,13 +34,17 @@ class DetectionToScoreMapperService extends ScoreMapperService {
         _scoreBuilder = scoreBuilder;
 
   @override
-  MappingResult map(DetectionResult detection) {
+  MappingResult map(DetectionResult detection) =>
+      mapWithPipeline(detection).result;
+
+  /// Runs the full pipeline and returns every intermediate stage.
+  MappingPipelineState mapWithPipeline(DetectionResult detection) {
     final warnings = <String>[];
     final errors = <String>[];
 
     if (detection.staffs.isEmpty) {
       warnings.add('No staff detected; returning an empty mapped score.');
-      return MappingResult(
+      final result = MappingResult(
         score: _scoreBuilder.buildEmpty(),
         warnings: warnings,
         errors: errors,
@@ -44,11 +53,19 @@ class DetectionToScoreMapperService extends ScoreMapperService {
           mappedSymbolCount: 0,
         ),
       );
+      return MappingPipelineState(
+        detection: detection,
+        assignments: const [],
+        measures: const [],
+        stemLinks: const {},
+        result: result,
+      );
     }
 
     if (detection.staffs.length > 1) {
       warnings.add(
-        'Multiple staffs detected, but Sprint 4 supports only a single staff. Using the best-matching staff assignments only.',
+        'Multiple staffs detected, but Sprint 4 supports only a single staff. '
+        'Using the best-matching staff assignments only.',
       );
     }
 
@@ -75,7 +92,7 @@ class DetectionToScoreMapperService extends ScoreMapperService {
       warnings.add('No supported symbols were reconstructable.');
     }
 
-    return MappingResult(
+    final result = MappingResult(
       score: score,
       warnings: warnings,
       errors: errors,
@@ -83,6 +100,14 @@ class DetectionToScoreMapperService extends ScoreMapperService {
         detection: detection,
         mappedSymbolCount: mappedCount,
       ),
+    );
+
+    return MappingPipelineState(
+      detection: detection,
+      assignments: assignments,
+      measures: measures,
+      stemLinks: stemLinks,
+      result: result,
     );
   }
 
