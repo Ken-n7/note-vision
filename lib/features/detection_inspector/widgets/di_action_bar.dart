@@ -18,9 +18,34 @@ class DiActionBar extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ── Load mock case picker ────────────────────────────────────────
+        // ── Load from file ───────────────────────────────────────────────
         _SectionLabel(label: 'LOAD MOCK DETECTION'),
         const SizedBox(height: 8),
+        _LoadFileButton(controller: controller),
+
+        const SizedBox(height: 10),
+
+        // ── Divider with "or use preset" label ───────────────────────────
+        Row(
+          children: [
+            const Expanded(child: Divider(color: Color(0xFF252A3A))),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Text(
+                'or use preset',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: const Color(0xFF6B7390).withOpacity(0.7),
+                ),
+              ),
+            ),
+            const Expanded(child: Divider(color: Color(0xFF252A3A))),
+          ],
+        ),
+
+        const SizedBox(height: 10),
+
+        // ── Preset cases ─────────────────────────────────────────────────
         ...DetectionInspectorController.availableCases.map((c) {
           final isActive = controller.loadedCase?.label == c.label;
           return Padding(
@@ -48,23 +73,113 @@ class DiActionBar extends StatelessWidget {
   }
 }
 
-class _SectionLabel extends StatelessWidget {
-  final String label;
-  const _SectionLabel({required this.label});
+// ── Load file button ───────────────────────────────────────────────────────
+
+class _LoadFileButton extends StatelessWidget {
+  final DetectionInspectorController controller;
+
+  const _LoadFileButton({required this.controller});
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      label,
-      style: const TextStyle(
-        fontSize: 10,
-        fontWeight: FontWeight.w600,
-        color: Color(0xFF6B7390),
-        letterSpacing: 1.4,
+    final isLoading = controller.isLoadingFile;
+    final hasFile = controller.loadedFileName != null;
+
+    return GestureDetector(
+      onTap: isLoading ? null : () => controller.loadFromFile(),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          color: hasFile
+              ? const Color(0xFF4F8EF7).withOpacity(0.08)
+              : const Color(0xFF181C27),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: hasFile
+                ? const Color(0xFF4F8EF7).withOpacity(0.5)
+                : const Color(0xFF252A3A),
+            width: hasFile ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            // Icon area
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFF4F8EF7).withOpacity(0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: isLoading
+                  ? const Padding(
+                      padding: EdgeInsets.all(10),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Color(0xFF4F8EF7),
+                      ),
+                    )
+                  : Icon(
+                      hasFile ? Icons.insert_drive_file_rounded : Icons.upload_file_rounded,
+                      size: 18,
+                      color: const Color(0xFF4F8EF7),
+                    ),
+            ),
+
+            const SizedBox(width: 12),
+
+            // Text area
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isLoading ? 'Opening file picker…' : 'Load Mock Detection',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFE8ECF4),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    hasFile
+                        ? controller.loadedFileName!
+                        : 'Pick a .json file from your device',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: hasFile
+                          ? const Color(0xFF4F8EF7)
+                          : const Color(0xFF6B7390),
+                      fontStyle:
+                          hasFile ? FontStyle.normal : FontStyle.normal,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+
+            // Arrow or checkmark
+            if (!isLoading)
+              Icon(
+                hasFile
+                    ? Icons.check_circle_rounded
+                    : Icons.chevron_right_rounded,
+                size: 18,
+                color: hasFile
+                    ? const Color(0xFF4F8EF7)
+                    : const Color(0xFF3A4060),
+              ),
+          ],
+        ),
       ),
     );
   }
 }
+
+// ── Preset case button ─────────────────────────────────────────────────────
 
 class _CaseButton extends StatelessWidget {
   final MockCase mockCase;
@@ -86,12 +201,12 @@ class _CaseButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: isActive
-              ? const Color(0xFF4F8EF7).withOpacity(0.1)
+              ? const Color(0xFF4F8EF7).withOpacity(0.08)
               : const Color(0xFF181C27),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isActive
-                ? const Color(0xFF4F8EF7).withOpacity(0.6)
+                ? const Color(0xFF4F8EF7).withOpacity(0.4)
                 : const Color(0xFF252A3A),
             width: isActive ? 1.5 : 1,
           ),
@@ -103,13 +218,13 @@ class _CaseButton extends StatelessWidget {
               height: 28,
               decoration: BoxDecoration(
                 color: isActive
-                    ? const Color(0xFF4F8EF7).withOpacity(0.18)
+                    ? const Color(0xFF4F8EF7).withOpacity(0.15)
                     : const Color(0xFF252A3A),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Icon(
-                isActive ? Icons.check_circle_rounded : Icons.data_object,
-                size: 15,
+                isActive ? Icons.check_rounded : Icons.data_object_rounded,
+                size: 14,
                 color: isActive
                     ? const Color(0xFF4F8EF7)
                     : const Color(0xFF6B7390),
@@ -154,6 +269,8 @@ class _CaseButton extends StatelessWidget {
   }
 }
 
+// ── Run mapping button ─────────────────────────────────────────────────────
+
 class _RunButton extends StatelessWidget {
   final bool canRun;
   final bool isRunning;
@@ -174,12 +291,12 @@ class _RunButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
           color: canRun
-              ? const Color(0xFF3DD68C).withOpacity(0.12)
+              ? const Color(0xFF3DD68C).withOpacity(0.10)
               : const Color(0xFF181C27),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: canRun
-                ? const Color(0xFF3DD68C).withOpacity(0.5)
+                ? const Color(0xFF3DD68C).withOpacity(0.45)
                 : const Color(0xFF252A3A),
           ),
         ),
@@ -218,6 +335,26 @@ class _RunButton extends StatelessWidget {
                   ],
                 ),
         ),
+      ),
+    );
+  }
+}
+
+// ── Shared label ───────────────────────────────────────────────────────────
+
+class _SectionLabel extends StatelessWidget {
+  final String label;
+  const _SectionLabel({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: const TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w600,
+        color: Color(0xFF6B7390),
+        letterSpacing: 1.4,
       ),
     );
   }

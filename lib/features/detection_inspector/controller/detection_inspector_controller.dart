@@ -1,7 +1,9 @@
 // lib/features/dev/detection_inspector/controller/detection_inspector_controller.dart
 
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:note_vision/features/detection/domain/detection_result.dart';
 import 'package:note_vision/features/mapping/domain/detection_to_score_mapper_service.dart';
@@ -53,6 +55,12 @@ class DetectionInspectorController extends ChangeNotifier {
   MockCase? _loadedCase;
   MockCase? get loadedCase => _loadedCase;
 
+  /// Non-null when a file was picked from disk (not a preset case).
+  String? _loadedFileName;
+  String? get loadedFileName => _loadedFileName;
+
+  String? _loadedRawJson;
+
   DetectionResult? _detection;
   DetectionResult? get detection => _detection;
 
@@ -67,6 +75,9 @@ class DetectionInspectorController extends ChangeNotifier {
 
   bool _isRunningMapping = false;
   bool get isRunningMapping => _isRunningMapping;
+
+  bool _isLoadingFile = false;
+  bool get isLoadingFile => _isLoadingFile;
 
   // ── Detection summary ──────────────────────────────────────────────────────
 
@@ -87,11 +98,7 @@ class DetectionInspectorController extends ChangeNotifier {
     if (score == null) return 0;
     return score.parts.fold(
       0,
-      (sum, p) => sum +
-          p.measures.fold(
-            0,
-            (s, m) => s + m.notes.length,
-          ),
+      (sum, p) => sum + p.measures.fold(0, (s, m) => s + m.notes.length),
     );
   }
 
@@ -100,11 +107,7 @@ class DetectionInspectorController extends ChangeNotifier {
     if (score == null) return 0;
     return score.parts.fold(
       0,
-      (sum, p) => sum +
-          p.measures.fold(
-            0,
-            (s, m) => s + m.rests.length,
-          ),
+      (sum, p) => sum + p.measures.fold(0, (s, m) => s + m.rests.length),
     );
   }
 
@@ -114,12 +117,13 @@ class DetectionInspectorController extends ChangeNotifier {
   // ── Raw JSON ───────────────────────────────────────────────────────────────
 
   String? get rawJsonPretty {
-    if (_loadedCase == null) return null;
+    final source = _loadedCase?.json ?? _loadedRawJson;
+    if (source == null) return null;
     try {
-      final decoded = jsonDecode(_loadedCase!.json);
+      final decoded = jsonDecode(source);
       return const JsonEncoder.withIndent('  ').convert(decoded);
     } catch (_) {
-      return _loadedCase!.json;
+      return source;
     }
   }
 
@@ -133,13 +137,15 @@ class DetectionInspectorController extends ChangeNotifier {
     sb.writeln('Score id: ${score.id}');
     sb.writeln('Parts: ${score.parts.length}');
     for (final part in score.parts) {
-      sb.writeln('  Part "${part.name}" (${part.id}): ${part.measures.length} measure(s)');
+      sb.writeln(
+          '  Part "${part.name}" (${part.id}): ${part.measures.length} measure(s)');
       for (final m in part.measures) {
         final clefStr = m.clef != null ? '${m.clef!.sign}-clef' : 'no clef';
         final timeSigStr = m.timeSignature != null
             ? '${m.timeSignature!.beats}/${m.timeSignature!.beatType}'
             : 'no time sig';
-        sb.writeln('    Measure ${m.number}: $clefStr, $timeSigStr, ${m.symbols.length} symbol(s)');
+        sb.writeln(
+            '    Measure ${m.number}: $clefStr, $timeSigStr, ${m.symbols.length} symbol(s)');
         for (final sym in m.symbols) {
           sb.writeln('      • $sym');
         }
@@ -153,7 +159,8 @@ class DetectionInspectorController extends ChangeNotifier {
       sb.writeln('  Mapped:         ${cs.mappedSymbolCount}');
       sb.writeln('  Dropped:        ${cs.droppedSymbolCount}');
       if (cs.averageDetectionConfidence != null) {
-        sb.writeln('  Avg confidence: ${(cs.averageDetectionConfidence! * 100).toStringAsFixed(1)}%');
+        sb.writeln(
+            '  Avg confidence: ${(cs.averageDetectionConfidence! * 100).toStringAsFixed(1)}%');
       }
     }
 
@@ -167,6 +174,8 @@ class DetectionInspectorController extends ChangeNotifier {
       final json = jsonDecode(mockCase.json) as Map<String, dynamic>;
       _detection = DetectionResult.fromJson(json);
       _loadedCase = mockCase;
+      _loadedFileName = null;
+      _loadedRawJson = null;
       _mappingResult = null;
       _pipelineState = null;
       _errorMessage = null;
@@ -176,6 +185,94 @@ class DetectionInspectorController extends ChangeNotifier {
       _status = InspectorStatus.error;
     }
     notifyListeners();
+  }
+
+  /// Opens the system file picker filtered to .json only.
+  /// Validates extension, parses JSON, and loads into DetectionResult.
+  Future<void> loadFromFile() async {
+    _isLoadingFile = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        allowMultiple: false,
+      );
+
+      // User cancelled — silently return, don't change state
+      if (result == null || result.files.isEmpty) {
+        _isLoadingFile = false;
+        notifyListeners();
+        return;
+      }
+
+      final file = result.files.single;
+
+      // Guard: double-check extension — some platforms ignore the filter
+      if (!file.name.toLowerCase().endsWith('.json')) {
+        _errorMessage =
+            '"${file.name}" is not a JSON file.\nOnly .json files are accepted.';
+        _status = InspectorStatus.error;
+        _isLoadingFile = false;
+        notifyListeners();
+        return;
+      }
+
+      // Read raw content
+      final String jsonString;
+      if (file.bytes != null) {
+        jsonString = utf8.decode(file.bytes!);
+      } else if (file.path != null) {
+        jsonString = await File(file.path!).readAsString();
+      } else {
+        _errorMessage = 'Could not read "${file.name}". No content available.';
+        _status = InspectorStatus.error;
+        _isLoadingFile = false;
+        notifyListeners();
+        return;
+      }
+
+      // Validate it parses as JSON
+      final dynamic decoded;
+      try {
+        decoded = jsonDecode(jsonString);
+      } on FormatException {
+        _errorMessage =
+            '"${file.name}" contains invalid JSON.\nPlease check the file and try again.';
+        _status = InspectorStatus.error;
+        _isLoadingFile = false;
+        notifyListeners();
+        return;
+      }
+
+      // Must be a JSON object, not an array or primitive
+      if (decoded is! Map) {
+        _errorMessage =
+            '"${file.name}" must be a JSON object { … }.\nArrays and primitives are not valid DetectionResult format.';
+        _status = InspectorStatus.error;
+        _isLoadingFile = false;
+        notifyListeners();
+        return;
+      }
+
+      // Parse into DetectionResult
+      _detection = DetectionResult.fromJson(Map<String, dynamic>.from(decoded));
+      _loadedCase = null;
+      _loadedFileName = file.name;
+      _loadedRawJson = jsonString;
+      _mappingResult = null;
+      _pipelineState = null;
+      _errorMessage = null;
+      _status = InspectorStatus.loaded;
+    } catch (e) {
+      _errorMessage = 'Unexpected error: $e';
+      _status = InspectorStatus.error;
+    } finally {
+      _isLoadingFile = false;
+      notifyListeners();
+    }
   }
 
   Future<void> runMapping() async {
@@ -201,11 +298,14 @@ class DetectionInspectorController extends ChangeNotifier {
   void reset() {
     _status = InspectorStatus.idle;
     _loadedCase = null;
+    _loadedFileName = null;
+    _loadedRawJson = null;
     _detection = null;
     _mappingResult = null;
     _pipelineState = null;
     _errorMessage = null;
     _isRunningMapping = false;
+    _isLoadingFile = false;
     notifyListeners();
   }
 }
