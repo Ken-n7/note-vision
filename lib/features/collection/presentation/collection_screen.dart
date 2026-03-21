@@ -72,6 +72,17 @@ class _CollectionScreenState extends State<CollectionScreen>
     }
   }
 
+  Future<void> _deleteImage(String imagePath) async {
+    await _service.deleteImage(imagePath);
+    if (mounted) {
+      setState(() => _imagePaths.remove(imagePath));
+      // If the last image was removed, re-trigger the fade for empty state
+      if (_imagePaths.isEmpty) {
+        _fadeController.forward(from: 0);
+      }
+    }
+  }
+
   void _goToCapture() {
     Navigator.push(
       context,
@@ -161,7 +172,10 @@ class _CollectionScreenState extends State<CollectionScreen>
                 childAspectRatio: 0.78,
               ),
               delegate: SliverChildBuilderDelegate(
-                (context, index) => ScoreCard(imagePath: _imagePaths[index]),
+                (context, index) => ScoreCard(
+                  imagePath: _imagePaths[index],
+                  onDelete: () => _deleteImage(_imagePaths[index]),
+                ),
                 childCount: _imagePaths.length,
               ),
             ),

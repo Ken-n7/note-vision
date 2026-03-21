@@ -38,6 +38,21 @@ class ImageStorageService {
     return paths.reversed.toList(); // newest on top
   }
 
+  /// Deletes a single image from disk and removes it from shared preferences
+  Future<void> deleteImage(String imagePath) async {
+    // Remove from shared preferences
+    final prefs = await SharedPreferences.getInstance();
+    final List<String> paths = prefs.getStringList(_key) ?? [];
+    paths.remove(imagePath);
+    await prefs.setStringList(_key, paths);
+
+    // Delete the file from disk
+    final file = File(imagePath);
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
+
   /// Optional: clear everything (for testing)
   Future<void> clearAll() async {
     final prefs = await SharedPreferences.getInstance();
