@@ -5,9 +5,9 @@ class CollectionDrawer extends StatelessWidget {
 
   // ── Design tokens ──────────────────────────────────────────────────────────
   static const _bg            = Color(0xFF0D0D0D);
-  static const _surface       = Color(0xFF1A1A1A);
+  // static const _surface       = Color(0xFF1A1A1A);
   static const _border        = Color(0xFF2C2C2C);
-  static const _accent        = Color(0xFFD4A96A);
+  // static const _accent        = Color(0xFFD4A96A);
   static const _textPrimary   = Color(0xFFFFFFFF);
   static const _textSecondary = Color(0xFF8A8A8A);
 
@@ -53,7 +53,7 @@ class CollectionDrawer extends StatelessWidget {
                       'Music sheet scanner',
                       style: TextStyle(
                         fontSize: 12,
-                        color: _textSecondary.withOpacity(0.6),
+                        color: _textSecondary.withValues(alpha: 0.6),
                         letterSpacing: 0.3,
                       ),
                     ),
@@ -78,7 +78,7 @@ class CollectionDrawer extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w600,
-                    color: _textSecondary.withOpacity(0.5),
+                    color: _textSecondary.withValues(alpha: 0.6),
                     letterSpacing: 2.0,
                   ),
                 ),
@@ -160,7 +160,7 @@ class _DrawerItemState extends State<_DrawerItem> {
               height: 36,
               decoration: BoxDecoration(
                 color: _hovered
-                    ? _accent.withOpacity(0.15)
+                    ? _accent.withValues(alpha: 0.15)
                     : const Color(0xFF1A1A1A),
                 borderRadius: BorderRadius.circular(10),
               ),
