@@ -44,12 +44,12 @@ class DetectionOverlay extends StatelessWidget {
                 child: Container(
                   decoration: BoxDecoration(
                     border: Border.all(color: color, width: 2),
-                    color: color.withOpacity(0.08),
+                    color: color.withValues(alpha: 0.08),
                   ),
                   child: Align(
                     alignment: Alignment.topLeft,
                     child: Container(
-                      color: color.withOpacity(0.7),
+                      color: color.withValues(alpha: 0.7),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 2,
                         vertical: 1,

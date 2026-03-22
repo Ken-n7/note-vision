@@ -143,7 +143,7 @@ class _StatCell extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 11, color: color.withOpacity(0.7)),
+              Icon(icon, size: 11, color: color.withValues(alpha: 0.7)),
               const SizedBox(width: 4),
               Text(
                 label,

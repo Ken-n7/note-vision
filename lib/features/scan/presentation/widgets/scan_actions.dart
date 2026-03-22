@@ -73,7 +73,7 @@ class ScanActions extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
-                      color: _accent.withOpacity(0.18),
+                      color: _accent.withValues(alpha: 0.18),
                       blurRadius: 20,
                       offset: const Offset(0, 6),
                     ),
