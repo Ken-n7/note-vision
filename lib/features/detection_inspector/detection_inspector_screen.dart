@@ -82,9 +82,9 @@ class _DetectionInspectorScreenState extends State<DetectionInspectorScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
             decoration: BoxDecoration(
-              color: _accent.withValues(alpha: .15),
+              color: _accent.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: _accent.withOpacity(0.4)),
+              border: Border.all(color: _accent.withValues(alpha: 0.4)),
             ),
             child: const Text(
               'DEV',
