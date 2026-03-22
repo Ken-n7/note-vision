@@ -133,7 +133,7 @@ class _CaptureScreenState extends State<CaptureScreen>
           'Scan or upload a music sheet below',
           style: TextStyle(
             fontSize: 12,
-            color: _textSecondary.withValues(alpha:0.5),
+            color: _textSecondary.withOpacity(0.5),
           ),
         ),
       ],
@@ -146,7 +146,7 @@ class _CaptureScreenState extends State<CaptureScreen>
         Icon(
           Icons.lightbulb_outline,
           size: 15,
-          color: _accent.withValues(alpha: 0.8),
+          color: _accent.withOpacity(0.8),
         ),
         const SizedBox(width: 8),
         Expanded(
@@ -241,8 +241,8 @@ class _CaptureScreenState extends State<CaptureScreen>
         Navigator.push(
           context,
           PageRouteBuilder(
-            pageBuilder: (_, _, _) => ScanScreenProvider(imageBytes: bytes),
-            transitionsBuilder: (_, animation, _, child) =>
+            pageBuilder: (_, __, ___) => ScanScreenProvider(imageBytes: bytes),
+            transitionsBuilder: (_, animation, __, child) =>
                 FadeTransition(opacity: animation, child: child),
             transitionDuration: const Duration(milliseconds: 400),
           ),
@@ -256,7 +256,7 @@ class _CaptureScreenState extends State<CaptureScreen>
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-              color: _accent.withValues(alpha: 0.15),
+              color: _accent.withOpacity(0.15),
               blurRadius: 20,
               offset: const Offset(0, 6),
             ),
@@ -315,7 +315,7 @@ class _CaptureScreenState extends State<CaptureScreen>
                 'Cancel',
                 style: TextStyle(
                   fontSize: 13,
-                  color: const Color.fromARGB(255, 255, 255, 255).withValues(alpha: 0.7),
+                  color: const Color.fromARGB(255, 255, 255, 255).withOpacity(0.7),
                   letterSpacing: 0.3,
                 ),
               ),

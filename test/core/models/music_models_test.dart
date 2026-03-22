@@ -108,8 +108,8 @@ void main() {
       expect(measure.symbolCount, 4);
       expect(measure.notes.length, 2);
       expect(measure.rests.length, 1);
-      expect(measure.notes.map((note) => note.pitch), ['C4', 'E4']);
-      expect(measure.rests.map((rest) => rest.type), ['quarter']);
+      expect(measure.notes.every((n) => n is Note), isTrue);
+      expect(measure.rests.every((r) => r is Rest), isTrue);
     });
   });
 

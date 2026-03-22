@@ -99,7 +99,7 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
                 backgroundColor: const Color(0xFF185FA5),
                 foregroundColor: Colors.white,
                 disabledBackgroundColor:
-                    const Color(0xFF185FA5).withValues(alpha: 0.5),
+                    const Color(0xFF185FA5).withOpacity(0.5),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),

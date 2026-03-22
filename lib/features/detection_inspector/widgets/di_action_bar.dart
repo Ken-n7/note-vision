@@ -35,7 +35,7 @@ class DiActionBar extends StatelessWidget {
                 'or use preset',
                 style: TextStyle(
                   fontSize: 10,
-                  color: const Color(0xFF6B7390).withValues(alpha: 0.7),
+                  color: const Color(0xFF6B7390).withOpacity(0.7),
                 ),
               ),
             ),
@@ -92,12 +92,12 @@ class _LoadFileButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         decoration: BoxDecoration(
           color: hasFile
-              ? const Color(0xFF4F8EF7).withValues(alpha: 0.08)
+              ? const Color(0xFF4F8EF7).withOpacity(0.08)
               : const Color(0xFF181C27),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: hasFile
-                ? const Color(0xFF4F8EF7).withValues(alpha: 0.5)
+                ? const Color(0xFF4F8EF7).withOpacity(0.5)
                 : const Color(0xFF252A3A),
             width: hasFile ? 1.5 : 1,
           ),
@@ -109,7 +109,7 @@ class _LoadFileButton extends StatelessWidget {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: const Color(0xFF4F8EF7).withValues(alpha: 0.12),
+                color: const Color(0xFF4F8EF7).withOpacity(0.12),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: isLoading
@@ -201,12 +201,12 @@ class _CaseButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
           color: isActive
-              ? const Color(0xFF4F8EF7).withValues(alpha: 0.08)
+              ? const Color(0xFF4F8EF7).withOpacity(0.08)
               : const Color(0xFF181C27),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isActive
-                ? const Color(0xFF4F8EF7).withValues(alpha: 0.4)
+                ? const Color(0xFF4F8EF7).withOpacity(0.4)
                 : const Color(0xFF252A3A),
             width: isActive ? 1.5 : 1,
           ),
@@ -218,7 +218,7 @@ class _CaseButton extends StatelessWidget {
               height: 28,
               decoration: BoxDecoration(
                 color: isActive
-                    ? const Color(0xFF4F8EF7).withValues(alpha: 0.15)
+                    ? const Color(0xFF4F8EF7).withOpacity(0.15)
                     : const Color(0xFF252A3A),
                 borderRadius: BorderRadius.circular(6),
               ),
@@ -291,12 +291,12 @@ class _RunButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
           color: canRun
-              ? const Color(0xFF3DD68C).withValues(alpha: 0.10)
+              ? const Color(0xFF3DD68C).withOpacity(0.10)
               : const Color(0xFF181C27),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: canRun
-                ? const Color(0xFF3DD68C).withValues(alpha: 0.45)
+                ? const Color(0xFF3DD68C).withOpacity(0.45)
                 : const Color(0xFF252A3A),
           ),
         ),

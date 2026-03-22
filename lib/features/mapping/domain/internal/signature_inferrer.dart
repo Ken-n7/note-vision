@@ -41,11 +41,10 @@ class SignatureInferrer {
       return const TimeSignature(beats: 2, beatType: 2);
     }
 
-    final digits =
-        timeEntries
-            .where((e) => SymbolClassifier.timeSigDigit(e.symbol.type) != null)
-            .toList()
-          ..sort((a, b) => a.symbolCenterX.compareTo(b.symbolCenterX));
+    final digits = timeEntries
+        .where((e) => SymbolClassifier.timeSigDigit(e.symbol.type) != null)
+        .toList()
+      ..sort((a, b) => a.symbolCenterX.compareTo(b.symbolCenterX));
 
     if (digits.isEmpty) {
       warnings.add('Detected time-signature symbols could not be interpreted.');
@@ -53,8 +52,8 @@ class SignatureInferrer {
     }
 
     final midpoint = (staff.topY + staff.bottomY) / 2;
-    double centerY(StaffOwnedSymbol symbol) =>
-        symbol.symbol.y + ((symbol.symbol.height ?? 0) / 2);
+    final centerY = (StaffOwnedSymbol s) =>
+        s.symbol.y + ((s.symbol.height ?? 0) / 2);
 
     final top = digits
         .where((e) => centerY(e) <= midpoint)
@@ -87,9 +86,7 @@ class SignatureInferrer {
 
     final types = accidentals.map((e) => e.symbol.type).toSet();
     if (types.length > 1 || types.contains('accidentalNatural')) {
-      warnings.add(
-        'Detected accidentals could not be resolved into a key signature.',
-      );
+      warnings.add('Detected accidentals could not be resolved into a key signature.');
       return null;
     }
 
@@ -120,11 +117,9 @@ class SignatureInferrer {
     );
 
     return ordered
-        .where(
-          (e) =>
-              SymbolClassifier.isSignatureSymbol(e.symbol.type) &&
-              e.symbolCenterX <= maxX,
-        )
+        .where((e) =>
+            SymbolClassifier.isSignatureSymbol(e.symbol.type) &&
+            e.symbolCenterX <= maxX)
         .toList(growable: false);
   }
 }

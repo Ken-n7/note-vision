@@ -48,7 +48,7 @@ class _CopyButtonState extends State<_CopyButton> {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
           color: _copied
-              ? const Color(0xFF3DD68C).withValues(alpha: 0.15)
+              ? const Color(0xFF3DD68C).withOpacity(0.15)
               : const Color(0xFF252A3A),
           borderRadius: BorderRadius.circular(5),
         ),

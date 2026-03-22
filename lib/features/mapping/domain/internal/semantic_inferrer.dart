@@ -53,9 +53,9 @@ class SemanticInferrer {
 
             if (SymbolClassifier.isSignatureSymbol(type) ||
                 type == 'stem' ||
-                SymbolClassifier.isSupportedFlag(type)) {
+                SymbolClassifier.isSupportedFlag(type))
               continue;
-            }
+
             if (SymbolClassifier.isSupportedRest(type)) {
               ordered.add(
                 OrderedScoreSymbol(
@@ -160,7 +160,7 @@ class SemanticInferrer {
     );
   }
 
-  void _warnAboutClef(Clef? clef, MeasureSymbols measure, List<String> warnings) {
+  void _warnAboutClef(clef, MeasureSymbols measure, List<String> warnings) {
     final hasNoteheads = measure.symbols.any(
       (e) => SymbolClassifier.isNotehead(e.symbol.type),
     );

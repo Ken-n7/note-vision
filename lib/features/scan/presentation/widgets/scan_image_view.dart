@@ -10,11 +10,11 @@ class ScanImageView extends StatelessWidget {
   // ── Design tokens ──────────────────────────────────────────────────────────
   static const _surface       = Color(0xFF1A1A1A);
   static const _border        = Color(0xFF2C2C2C);
-  // static const _accent        = Color(0xFFD4A96A);
-  // static const _textPrimary   = Color(0xFFFFFFFF);
+  static const _accent        = Color(0xFFD4A96A);
+  static const _textPrimary   = Color(0xFFFFFFFF);
   static const _textSecondary = Color(0xFF8A8A8A);
-  // static const _success       = Color(0xFF4ADE80);
-  // static const _warning       = Color(0xFFFBBF24);
+  static const _success       = Color(0xFF4ADE80);
+  static const _warning       = Color(0xFFFBBF24);
 
   @override
   Widget build(BuildContext context) {
@@ -108,14 +108,14 @@ class ScanImageView extends StatelessWidget {
                 Icon(
                   Icons.pinch_outlined,
                   size: 14,
-                  color: _textSecondary.withValues(alpha: 0.4),
+                  color: _textSecondary.withOpacity(0.4),
                 ),
                 const SizedBox(width: 6),
                 Text(
                   'Pinch to zoom · drag to pan',
                   style: TextStyle(
                     fontSize: 11,
-                    color: _textSecondary.withValues(alpha: 0.4),
+                    color: _textSecondary.withOpacity(0.4),
                     letterSpacing: 0.3,
                   ),
                 ),
@@ -149,9 +149,9 @@ class _DetectionBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.3), width: 0.5),
+        border: Border.all(color: color.withOpacity(0.3), width: 0.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

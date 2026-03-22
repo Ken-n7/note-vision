@@ -55,7 +55,7 @@ class _EmptyCollectionState extends State<EmptyCollection>
             // Animated icon
             AnimatedBuilder(
               animation: _pulse,
-              builder: (_, _) => Transform.scale(
+              builder: (_, __) => Transform.scale(
                 scale: _scale.value,
                 child: Container(
                   width: 96,
@@ -66,7 +66,7 @@ class _EmptyCollectionState extends State<EmptyCollection>
                     border: Border.all(color: _border, width: 1),
                     boxShadow: [
                       BoxShadow(
-                        color: _accent.withValues(alpha: _glow.value),
+                        color: _accent.withOpacity(_glow.value),
                         blurRadius: 32,
                         spreadRadius: 2,
                       ),
@@ -124,7 +124,7 @@ class _EmptyCollectionState extends State<EmptyCollection>
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
-                      color: _accent.withValues(alpha: 0.28),
+                      color: _accent.withOpacity(0.28),
                       blurRadius: 20,
                       offset: const Offset(0, 6),
                     ),
@@ -165,7 +165,7 @@ class _EmptyCollectionState extends State<EmptyCollection>
                   'Supports camera scan & file import',
                   style: TextStyle(
                     fontSize: 12,
-                    color: _textSec.withValues(alpha: 0.7),
+                    color: _textSec.withOpacity(0.7),
                     letterSpacing: 0.1,
                   ),
                 ),

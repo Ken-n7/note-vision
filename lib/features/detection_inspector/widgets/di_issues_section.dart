@@ -104,7 +104,7 @@ class _Chip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
+        color: color.withOpacity(0.15),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
@@ -144,7 +144,7 @@ class _IssueRow extends StatelessWidget {
               message,
               style: TextStyle(
                 fontSize: 12,
-                color: color.withValues(alpha: 0.9),
+                color: color.withOpacity(0.9),
                 height: 1.5,
               ),
             ),

@@ -87,8 +87,8 @@ class _CollectionScreenState extends State<CollectionScreen>
     Navigator.push(
       context,
       PageRouteBuilder(
-        pageBuilder: (_, _, _) => const CaptureScreen(),
-        transitionsBuilder: (_, animation, _, child) =>
+        pageBuilder: (_, __, ___) => const CaptureScreen(),
+        transitionsBuilder: (_, animation, __, child) =>
             FadeTransition(opacity: animation, child: child),
         transitionDuration: const Duration(milliseconds: 400),
       ),
@@ -261,7 +261,7 @@ class _CollectionScreenState extends State<CollectionScreen>
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: _accent.withValues(alpha: 0.2),
+              color: _accent.withOpacity(0.2),
               blurRadius: 16,
               offset: const Offset(0, 4),
             ),

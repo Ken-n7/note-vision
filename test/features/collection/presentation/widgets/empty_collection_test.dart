@@ -3,9 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:note_vision/features/collection/presentation/widgets/empty_collection.dart';
 
 void main() {
-  testWidgets('EmptyCollection shows current copy and handles add tap', (
-    WidgetTester tester,
-  ) async {
+  testWidgets('EmptyCollection shows text and calls callback on button tap',
+      (WidgetTester tester) async {
     var tapped = false;
 
     await tester.pumpWidget(
@@ -20,16 +19,11 @@ void main() {
       ),
     );
 
-    expect(find.text('Your collection\nis empty'), findsOneWidget);
-    expect(
-      find.text(
-        'Scan or import a music sheet\nto start building your collection.',
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('No projects yet'), findsOneWidget);
+    expect(find.text('Scan or import a music sheet to get started'),
+        findsOneWidget);
     expect(find.text('Add Image'), findsOneWidget);
     expect(find.byKey(const ValueKey('addImageButton')), findsOneWidget);
-    expect(find.text('Supports camera scan & file import'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('addImageButton')));
     await tester.pump();

@@ -7,6 +7,7 @@
 //   Stage 4 – Mapped Score Summary
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/rest.dart';
@@ -143,7 +144,7 @@ class _StageBlock extends StatelessWidget {
         color: const Color(0xFF181C27),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: expanded ? color.withValues(alpha: 0.35) : const Color(0xFF252A3A),
+          color: expanded ? color.withOpacity(0.35) : const Color(0xFF252A3A),
         ),
       ),
       child: Column(
@@ -161,7 +162,7 @@ class _StageBlock extends StatelessWidget {
                     width: 30,
                     height: 30,
                     decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.12),
+                      color: color.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(7),
                     ),
                     child: Icon(icon, size: 15, color: color),
@@ -176,7 +177,7 @@ class _StageBlock extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.w700,
-                            color: color.withValues(alpha: 0.7),
+                            color: color.withOpacity(0.7),
                             letterSpacing: 1.2,
                           ),
                         ),
@@ -195,7 +196,7 @@ class _StageBlock extends StatelessWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.1),
+                      color: color.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(5),
                     ),
                     child: Text(
@@ -683,7 +684,7 @@ class _InlineTag extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+        color: color.withOpacity(0.12),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
@@ -717,9 +718,9 @@ class _TypeChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: _color.withValues(alpha: 0.1),
+        color: _color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: _color.withValues(alpha: 0.3)),
+        border: Border.all(color: _color.withOpacity(0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -736,7 +737,7 @@ class _TypeChip extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
             decoration: BoxDecoration(
-              color: _color.withValues(alpha: 0.2),
+              color: _color.withOpacity(0.2),
               borderRadius: BorderRadius.circular(3),
             ),
             child: Text(
