@@ -427,6 +427,92 @@ void main() {
       expect(result.confidenceSummary?.mappedSymbolCount, 0);
     });
 
+    test('returns stable results across repeated mapping runs in one session', () {
+      const detection = DetectionResult(
+        imageId: 'repeatable-run',
+        staffs: [singleStaff],
+        barlines: [DetectedBarline(x: 90, staffId: 'staff-1')],
+        symbols: [
+          DetectedSymbol(
+            id: 'clef-1',
+            type: 'gClef',
+            x: 10,
+            y: 92,
+            width: 18,
+            height: 44,
+          ),
+          DetectedSymbol(
+            id: 'head-1',
+            type: 'noteheadBlack',
+            x: 42,
+            y: 136,
+            width: 10,
+            height: 8,
+          ),
+          DetectedSymbol(
+            id: 'stem-1',
+            type: 'stem',
+            x: 50,
+            y: 108,
+            width: 2,
+            height: 28,
+          ),
+          DetectedSymbol(
+            id: 'rest-1',
+            type: 'restQuarter',
+            x: 108,
+            y: 116,
+            width: 8,
+            height: 20,
+          ),
+        ],
+      );
+
+      final first = mapper.map(detection);
+      final second = mapper.map(detection);
+      final third = mapper.map(detection);
+
+      expect(second.score.toString(), first.score.toString());
+      expect(third.score.toString(), first.score.toString());
+      expect(second.warnings, first.warnings);
+      expect(third.warnings, first.warnings);
+      expect(second.errors, first.errors);
+      expect(third.errors, first.errors);
+      expect(
+        second.confidenceSummary?.inputSymbolCount,
+        first.confidenceSummary?.inputSymbolCount,
+      );
+      expect(
+        third.confidenceSummary?.inputSymbolCount,
+        first.confidenceSummary?.inputSymbolCount,
+      );
+      expect(
+        second.confidenceSummary?.mappedSymbolCount,
+        first.confidenceSummary?.mappedSymbolCount,
+      );
+      expect(
+        third.confidenceSummary?.mappedSymbolCount,
+        first.confidenceSummary?.mappedSymbolCount,
+      );
+      expect(
+        second.confidenceSummary?.droppedSymbolCount,
+        first.confidenceSummary?.droppedSymbolCount,
+      );
+      expect(
+        third.confidenceSummary?.droppedSymbolCount,
+        first.confidenceSummary?.droppedSymbolCount,
+      );
+      expect(
+        second.confidenceSummary?.averageDetectionConfidence,
+        first.confidenceSummary?.averageDetectionConfidence,
+      );
+      expect(
+        third.confidenceSummary?.averageDetectionConfidence,
+        first.confidenceSummary?.averageDetectionConfidence,
+      );
+    });
+
+
     test('returns a partial mapped score and warnings for unsupported symbols', () {
       const detection = DetectionResult(
         imageId: 'partial',
