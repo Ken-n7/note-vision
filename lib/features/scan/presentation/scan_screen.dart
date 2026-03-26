@@ -2,8 +2,11 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:note_vision/features/preprocessing/data/basic_image_preprocessor.dart';
+import 'package:note_vision/features/cropping/data/basic_stave_aware_cropper.dart';
 import 'package:note_vision/features/detection/data/tflite_symbol_detector.dart';
+import 'package:note_vision/features/resolution/data/basic_symbol_relation_resolver.dart';
 import 'package:note_vision/features/scan/presentation/scan_viewmodel.dart';
+import 'package:note_vision/features/structure/data/tflite_structure_detector.dart';
 import 'widgets/scan_actions.dart';
 import 'widgets/scan_image_view.dart';
 
@@ -63,10 +66,25 @@ class _ScanScreenState extends State<ScanScreen> {
             message: 'Preprocessing image',
             subMessage: 'Cleaning up and preparing your scan…',
           ),
+        ScanState.detectingStructure => const _PipelineStatus(
+            icon: Icons.grid_on_outlined,
+            message: 'Detecting structure',
+            subMessage: 'Finding staves and instrument groups…',
+          ),
+        ScanState.cropping => const _PipelineStatus(
+            icon: Icons.crop_outlined,
+            message: 'Cropping staves',
+            subMessage: 'Preparing stave-aware tiles…',
+          ),
         ScanState.detecting    => const _PipelineStatus(
             icon: Icons.image_search_outlined,
             message: 'Detecting symbols',
             subMessage: 'Running the detection model…',
+          ),
+        ScanState.resolving => const _PipelineStatus(
+            icon: Icons.hub_outlined,
+            message: 'Resolving relationships',
+            subMessage: 'Linking symbols into musical context…',
           ),
         ScanState.done         => _buildDone(context, vm),
         ScanState.error        => _buildError(context, vm),
@@ -332,6 +350,9 @@ class ScanScreenProvider extends StatelessWidget {
       create: (_) => ScanViewModel(
         BasicImagePreprocessor(),
         TfliteSymbolDetector(),
+        structureDetector: TfliteStructureDetector(),
+        cropper: const BasicStaveAwareCropper(),
+        relationResolver: const BasicSymbolRelationResolver(),
       ),
       child: ScanScreen(imageBytes: imageBytes),
     );

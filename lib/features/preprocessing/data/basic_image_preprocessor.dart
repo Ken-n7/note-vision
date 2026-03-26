@@ -6,13 +6,27 @@ import '../domain/preprocessed_result.dart';
 
 class BasicImagePreprocessor implements ImagePreprocessor {
   @override
-  Future<PreprocessedResult> preprocess(Uint8List bytes) async {
-    return await compute(_processImage, bytes);
+  Future<PreprocessedResult> preprocess(
+    Uint8List bytes, {
+    int targetSize = 416,
+  }) async {
+    return await compute(
+      _processImage,
+      _PreprocessRequest(bytes: bytes, targetSize: targetSize),
+    );
   }
 }
 
-PreprocessedResult _processImage(Uint8List bytes) {
-  const int targetSize = 416;
+class _PreprocessRequest {
+  final Uint8List bytes;
+  final int targetSize;
+
+  const _PreprocessRequest({required this.bytes, required this.targetSize});
+}
+
+PreprocessedResult _processImage(_PreprocessRequest request) {
+  final bytes = request.bytes;
+  final targetSize = request.targetSize;
 
   // Step 1 — Decode + EXIF orientation correction
   final img.Image image = img.decodeImage(bytes)!;

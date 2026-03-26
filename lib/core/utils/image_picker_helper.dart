@@ -17,9 +17,9 @@ class ImagePickerHelper {
 
       final XFile? xFile = await picker.pickImage(
         source: source,
-        imageQuality: 82,          // adjustable 0–100
-        maxWidth: 1200,
-        maxHeight: 1200,
+        imageQuality: 90,          // adjustable 0–100
+        maxWidth: 2000,
+        maxHeight: 2000,
         preferredCameraDevice: CameraDevice.rear,
       );
 

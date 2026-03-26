@@ -19,9 +19,16 @@ class _FakeImagePreprocessor implements ImagePreprocessor {
   _FakeImagePreprocessor(this.result);
 
   final PreprocessedResult result;
+  final List<int> requestedSizes = [];
 
   @override
-  Future<PreprocessedResult> preprocess(Uint8List bytes) async => result;
+  Future<PreprocessedResult> preprocess(
+    Uint8List bytes, {
+    int targetSize = 416,
+  }) async {
+    requestedSizes.add(targetSize);
+    return result;
+  }
 }
 
 class _FakeSymbolDetector implements SymbolDetector {
@@ -44,7 +51,10 @@ class _FakeScoreMapperService extends ScoreMapperService {
 
 class _ThrowingImagePreprocessor implements ImagePreprocessor {
   @override
-  Future<PreprocessedResult> preprocess(Uint8List bytes) {
+  Future<PreprocessedResult> preprocess(
+    Uint8List bytes, {
+    int targetSize = 416,
+  }) {
     throw StateError('preprocessing failed');
   }
 }
@@ -84,8 +94,9 @@ void main() {
         ],
       );
 
+      final preprocessor = _FakeImagePreprocessor(preprocessed);
       final viewModel = ScanViewModel(
-        _FakeImagePreprocessor(preprocessed),
+        preprocessor,
         _FakeSymbolDetector(detection),
       );
 
@@ -96,71 +107,40 @@ void main() {
 
       expect(states, [
         ScanState.preprocessing,
+        ScanState.detectingStructure,
+        ScanState.cropping,
         ScanState.detecting,
+        ScanState.resolving,
         ScanState.done,
       ]);
+      expect(preprocessor.requestedSizes, [1024, 416]);
       expect(viewModel.state, ScanState.done);
       expect(viewModel.errorMessage, isNull);
       expect(viewModel.mappingResult, isNull);
       expect(viewModel.result, isNotNull);
-      expect(viewModel.result!.detection, detection);
-      expect(viewModel.result!.symbols.single.type, 'noteheadBlack');
-      expect(viewModel.result!.detection.staffs.single.id, 'staff-1');
-      expect(viewModel.result!.detection.barlines.single.x, 128);
-    });
-
-    test(
-      'stores mapper output so the UI can consume reconstructed score data',
-      () async {
-        final preprocessed = PreprocessedResult(
-          bytes: Uint8List.fromList(const [1, 2, 3]),
-          width: 416,
-          height: 416,
-          scale: 1,
-          padX: 0,
-          padY: 0,
-        );
-        const detection = DetectionResult(
-          imageId: 'scan-2',
-          staffs: [
-            DetectedStaff(
-              id: 'staff-1',
-              topY: 50,
-              bottomY: 90,
-              lineYs: [50, 60, 70, 80, 90],
+      expect(
+        viewModel.result!.detection,
+        const DetectionResult(
+          symbols: [
+            DetectedSymbol(
+              id: 'symbol-1',
+              type: 'noteheadBlack',
+              x: 140,
+              y: 68,
+              width: 11,
+              height: 9,
+              confidence: 0.93,
+              metadata: {
+                'staveIndex': 0,
+                'instrumentGroup': null,
+                'isBracePair': false,
+              },
             ),
           ],
-        );
-        const mappingResult = MappingResult(
-          score: Score(
-            id: 'mapped-score',
-            title: '',
-            composer: '',
-            parts: [
-              Part(
-                id: 'P1',
-                name: 'Detected Part',
-                measures: [Measure(number: 1, symbols: [])],
-              ),
-            ],
-          ),
-          warnings: ['warning'],
-        );
-
-        final viewModel = ScanViewModel(
-          _FakeImagePreprocessor(preprocessed),
-          _FakeSymbolDetector(detection),
-          mapper: const _FakeScoreMapperService(mappingResult),
-        );
-
-        await viewModel.run(Uint8List.fromList(const [1, 2, 3]));
-
-        expect(viewModel.state, ScanState.done);
-        expect(viewModel.mappingResult, isNotNull);
-        expect(viewModel.mappingResult?.score.id, 'mapped-score');
-        expect(viewModel.mappingResult?.warnings, ['warning']);
-      },
-    );
+        ),
+      );
+      expect(viewModel.result!.symbols.single.type, 'noteheadBlack');
+    });
 
     test(
       'stores mapper output so the UI can consume reconstructed score data',

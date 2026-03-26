@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:note_vision/features/cropping/domain/stave_crop.dart';
 
 import 'music_symbol.dart';
 
@@ -68,6 +69,24 @@ class DetectedSymbol {
       (box.top - padY) / scale,
       box.width / scale,
       box.height / scale,
+    );
+  }
+
+  DetectedSymbol toStaveCoordinates(StaveCrop crop) {
+    return DetectedSymbol(
+      id: id,
+      type: type,
+      x: x + crop.offsetX,
+      y: y + crop.offsetY,
+      width: width,
+      height: height,
+      confidence: confidence,
+      metadata: {
+        ...?metadata,
+        'staveIndex': crop.staveIndex,
+        'instrumentGroup': crop.instrumentGroup,
+        'isBracePair': crop.isBracePair,
+      },
     );
   }
 
