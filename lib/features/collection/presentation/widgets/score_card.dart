@@ -24,7 +24,7 @@ class ScoreCard extends StatelessWidget {
           Image(
             image: imageProvider ?? FileImage(File(imagePath)),
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => Container(
+            errorBuilder: (_, _, _) => Container(
               color: Colors.grey.shade200,
               child: const Icon(Icons.broken_image, color: Colors.grey),
             ),
@@ -42,7 +42,7 @@ class ScoreCard extends StatelessWidget {
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withOpacity(0.55),
+                    Colors.black.withValues(alpha: 0.55),
                     Colors.transparent,
                   ],
                 ),
@@ -61,10 +61,10 @@ class ScoreCard extends StatelessWidget {
                   width: 28,
                   height: 28,
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.55),
+                    color: Colors.black.withValues(alpha: 0.55),
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: Colors.white.withOpacity(0.15),
+                      color: Colors.white.withValues(alpha: 0.15),
                       width: 0.5,
                     ),
                   ),
@@ -134,7 +134,7 @@ class _DeleteConfirmSheet extends StatelessWidget {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: const Color(0xFFFF4444).withOpacity(0.12),
+              color: const Color(0xFFFF4444).withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
             child: const Icon(
@@ -213,10 +213,10 @@ class _DeleteConfirmSheet extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(vertical: 13),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFF4444).withOpacity(0.15),
+                        color: const Color(0xFFFF4444).withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: const Color(0xFFFF4444).withOpacity(0.4),
+                          color: const Color(0xFFFF4444).withValues(alpha: 0.4),
                         ),
                       ),
                       child: const Center(

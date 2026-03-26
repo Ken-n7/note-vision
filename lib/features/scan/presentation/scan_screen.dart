@@ -130,10 +130,10 @@ class _ScanScreenState extends State<ScanScreen> {
               width: 72,
               height: 72,
               decoration: BoxDecoration(
-                color: const Color(0xFFEF4444).withOpacity(0.1),
+                color: const Color(0xFFEF4444).withValues(alpha: 0.1),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: const Color(0xFFEF4444).withOpacity(0.3),
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.3),
                 ),
               ),
               child: const Icon(
@@ -232,7 +232,7 @@ class _PipelineStatus extends StatelessWidget {
                 color: _surface,
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: _accent.withOpacity(0.3),
+                  color: _accent.withValues(alpha: 0.3),
                   width: 1,
                 ),
               ),

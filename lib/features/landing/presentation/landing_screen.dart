@@ -122,7 +122,7 @@ class _LandingScreenState extends State<LandingScreen>
                         'Read music. Understand it.',
                         style: TextStyle(
                           fontSize: 13,
-                          color: Colors.white.withOpacity(0.35),
+                          color: Colors.white.withValues(alpha: 0.35),
                           letterSpacing: 2.0,
                           fontWeight: FontWeight.w300,
                         ),
@@ -165,8 +165,8 @@ class _LandingScreenState extends State<LandingScreen>
 
   PageRoute _fadeRoute(Widget page) {
     return PageRouteBuilder(
-      pageBuilder: (_, __, ___) => page,
-      transitionsBuilder: (_, animation, __, child) =>
+      pageBuilder: (_, _, _) => page,
+      transitionsBuilder: (_, animation, _, child) =>
           FadeTransition(opacity: animation, child: child),
       transitionDuration: const Duration(milliseconds: 400),
     );
@@ -208,7 +208,7 @@ class _PrimaryButtonState extends State<_PrimaryButton> {
             borderRadius: BorderRadius.circular(14),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFD4A96A).withOpacity(0.2),
+                color: const Color(0xFFD4A96A).withValues(alpha: 0.2),
                 blurRadius: 20,
                 offset: const Offset(0, 6),
               ),
@@ -266,7 +266,7 @@ class _GhostButtonState extends State<_GhostButton> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
               border: Border.all(
-                color: Colors.white.withOpacity(0.15),
+                color: Colors.white.withValues(alpha: 0.15),
                 width: 1,
               ),
             ),
@@ -276,7 +276,7 @@ class _GhostButtonState extends State<_GhostButton> {
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w400,
-                color: Colors.white.withOpacity(0.5),
+                color: Colors.white.withValues(alpha: 0.5),
                 letterSpacing: 0.5,
               ),
             ),
