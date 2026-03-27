@@ -10,14 +10,16 @@ class CountsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasData = metadata != null;
-    return GridView.count(
-      crossAxisCount: 2,
+    return GridView.custom(
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 8,
-      mainAxisSpacing: 8,
-      childAspectRatio: 2.4,
-      children: [
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        mainAxisExtent: 72,
+      ),
+      childrenDelegate: SliverChildListDelegate([
         CountCard(
           label: 'Parts',
           value: hasData ? '${metadata!.partCount}' : '—',
@@ -38,7 +40,7 @@ class CountsSection extends StatelessWidget {
           value: hasData ? _formatNumber(metadata!.restCount) : '—',
           dimmed: !hasData,
         ),
-      ],
+      ]),
     );
   }
 
@@ -75,6 +77,7 @@ class CountCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
         ),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
               value,
