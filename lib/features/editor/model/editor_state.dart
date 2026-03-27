@@ -4,6 +4,7 @@ import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
+import 'package:note_vision/features/editor/model/editor_snapshot.dart';
 
 class EditorState {
   static const int maxHistoryDepth = 50;
@@ -13,8 +14,8 @@ class EditorState {
   final int? selectedMeasureIndex;
   final int? selectedSymbolIndex;
   final ScoreSymbol? selectedSymbol;
-  final List<Score> undoStack;
-  final List<Score> redoStack;
+  final List<EditorSnapshot> undoStack;
+  final List<EditorSnapshot> redoStack;
   final bool hasUnsavedChanges;
 
   EditorState({
@@ -23,8 +24,8 @@ class EditorState {
     this.selectedMeasureIndex,
     this.selectedSymbolIndex,
     this.selectedSymbol,
-    List<Score>? undoStack,
-    List<Score>? redoStack,
+    List<EditorSnapshot>? undoStack,
+    List<EditorSnapshot>? redoStack,
     this.hasUnsavedChanges = false,
   }) : undoStack = UnmodifiableListView(_trimStack(undoStack ?? const [])),
        redoStack = UnmodifiableListView(_trimStack(redoStack ?? const [])) {
@@ -38,8 +39,8 @@ class EditorState {
     int? selectedSymbolIndex,
     ScoreSymbol? selectedSymbol,
     bool clearSelection = false,
-    List<Score>? undoStack,
-    List<Score>? redoStack,
+    List<EditorSnapshot>? undoStack,
+    List<EditorSnapshot>? redoStack,
     bool? hasUnsavedChanges,
   }) {
     final nextScore = score ?? this.score;
@@ -70,11 +71,11 @@ class EditorState {
     );
   }
 
-  static List<Score> _trimStack(List<Score> stack) {
+  static List<EditorSnapshot> _trimStack(List<EditorSnapshot> stack) {
     if (stack.length <= maxHistoryDepth) {
-      return List<Score>.from(stack);
+      return List<EditorSnapshot>.from(stack);
     }
-    return List<Score>.from(
+    return List<EditorSnapshot>.from(
       stack.sublist(stack.length - maxHistoryDepth),
     );
   }
