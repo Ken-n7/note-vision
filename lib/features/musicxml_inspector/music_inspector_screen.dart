@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/widgets/inspector_shared_widgets.dart';
+import '../../core/widgets/score_notation_viewer.dart';
 import '../detection_inspector/detection_inspector_screen.dart';
 import 'controller/musicxml_inspector_controller.dart';
 import 'model/inspector_state.dart';
@@ -8,7 +9,6 @@ import 'widgets/collapsible_section.dart';
 import 'widgets/counts_section.dart';
 import 'widgets/error_block.dart';
 import 'widgets/metadata_section.dart';
-import 'widgets/score_debug_panel.dart';
 import 'widgets/status_section.dart';
 
 class MusicXmlInspectorScreen extends StatefulWidget {
@@ -23,7 +23,7 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
   final _controller = MusicXmlInspectorController();
 
   bool _showRawXml = false;
-  bool _showScoreModel = false;
+  bool _showNotation = false;
 
   @override
   void dispose() {
@@ -34,7 +34,7 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
   Future<void> _onImportPressed() async {
     setState(() {
       _showRawXml = false;
-      _showScoreModel = false;
+      _showNotation = false;
     });
     await _controller.onImportPressed();
     if (mounted) setState(() {});
@@ -193,17 +193,17 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
 
             const SizedBox(height: 8),
 
-            // ── ScoreModel debug ──────────────────────────────────────────
+            // ── Sheet notation preview ───────────────────────────────────
             CollapsibleSection(
-              label: 'SCOREMODEL DEBUG',
+              label: 'SHEET NOTATION PREVIEW',
               enabled: state.score != null,
-              expanded: _showScoreModel,
+              expanded: _showNotation,
               onToggle: state.score != null
                   ? () =>
-                      setState(() => _showScoreModel = !_showScoreModel)
+                      setState(() => _showNotation = !_showNotation)
                   : null,
               child: state.score != null
-                  ? ScoreDebugPanel(score: state.score!)
+                  ? ScoreNotationViewer(score: state.score!)
                   : null,
             ),
 
