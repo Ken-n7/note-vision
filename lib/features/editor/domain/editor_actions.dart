@@ -49,6 +49,10 @@ extension EditorActions on EditorState {
 
     final symbol = selectedSymbol;
     if (symbol is Note) {
+      final isSameDuration =
+          symbol.duration == durationSpec.divisions &&
+          symbol.type == durationSpec.type;
+      if (isSameDuration) return this;
       return _replaceSelectedSymbol(
         Note(
           step: symbol.step,
@@ -63,6 +67,10 @@ extension EditorActions on EditorState {
     }
 
     if (symbol is Rest) {
+      final isSameDuration =
+          symbol.duration == durationSpec.divisions &&
+          symbol.type == durationSpec.type;
+      if (isSameDuration) return this;
       return _replaceSelectedSymbol(
         Rest(
           duration: durationSpec.divisions,
@@ -77,44 +85,19 @@ extension EditorActions on EditorState {
   }
 
   EditorState insertNoteAfterSelection() {
-    final note = selectedSymbol is Note
-        ? selectedSymbol as Note
-        : const Note(step: 'C', octave: 4, duration: 1, type: 'quarter');
+    if (selectedPartIndex == null || selectedMeasureIndex == null) return this;
 
-    final newNote = Note(
-      step: note.step,
-      octave: note.octave,
-      alter: note.alter,
-      duration: note.duration,
-      type: note.type,
-      voice: note.voice,
-      staff: note.staff,
+    return _appendToSelectedMeasure(
+      const Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
     );
-
-    if (!hasSelection) {
-      return _insertWithoutSelection(newNote);
-    }
-
-    return _insertAfterSelection(newNote);
   }
 
   EditorState insertRestAfterSelection() {
-    final rest = selectedSymbol is Rest
-        ? selectedSymbol as Rest
-        : const Rest(duration: 1, type: 'quarter');
+    if (selectedPartIndex == null || selectedMeasureIndex == null) return this;
 
-    final newRest = Rest(
-      duration: rest.duration,
-      type: rest.type,
-      voice: rest.voice,
-      staff: rest.staff,
+    return _appendToSelectedMeasure(
+      const Rest(duration: 1, type: 'quarter'),
     );
-
-    if (!hasSelection) {
-      return _insertWithoutSelection(newRest);
-    }
-
-    return _insertAfterSelection(newRest);
   }
 
   EditorState deleteSelectedSymbol() {
@@ -174,43 +157,15 @@ extension EditorActions on EditorState {
     );
   }
 
-  EditorState _insertAfterSelection(ScoreSymbol symbol) {
+  EditorState _appendToSelectedMeasure(ScoreSymbol symbol) {
     final partIndex = selectedPartIndex!;
     final measureIndex = selectedMeasureIndex!;
-    final insertIndex = selectedSymbolIndex! + 1;
 
     final symbols = List<ScoreSymbol>.from(
       score.parts[partIndex].measures[measureIndex].symbols,
     );
+    final insertIndex = symbols.length;
     symbols.insert(insertIndex, symbol);
-
-    final nextScore = _replaceMeasureSymbols(
-      partIndex: partIndex,
-      measureIndex: measureIndex,
-      symbols: symbols,
-    );
-
-    return applyEdit(
-      score: nextScore,
-      selectedPartIndex: partIndex,
-      selectedMeasureIndex: measureIndex,
-      selectedSymbolIndex: insertIndex,
-      selectedSymbol: symbol,
-    );
-  }
-
-  EditorState _insertWithoutSelection(ScoreSymbol symbol) {
-    if (score.parts.isEmpty || score.parts.first.measures.isEmpty) {
-      return this;
-    }
-
-    const partIndex = 0;
-    const measureIndex = 0;
-    final symbols = List<ScoreSymbol>.from(
-      score.parts[partIndex].measures[measureIndex].symbols,
-    );
-    symbols.add(symbol);
-    final insertIndex = symbols.length - 1;
 
     final nextScore = _replaceMeasureSymbols(
       partIndex: partIndex,
