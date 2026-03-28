@@ -14,6 +14,7 @@ import 'package:note_vision/features/scan/presentation/scan_viewmodel.dart';
 import 'widgets/scan_actions.dart';
 import 'widgets/scan_image_view.dart';
 
+
 class ScanScreen extends StatefulWidget {
   final Uint8List imageBytes;
 
