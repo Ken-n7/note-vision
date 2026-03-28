@@ -293,24 +293,27 @@ class ScoreNotationPainter extends CustomPainter {
         drag.draggedSymbolIndex < symbolCount &&
         drag.targetSymbolIndex >= 0 &&
         drag.targetSymbolIndex < symbolCount;
-    final draggedSymbol = hasDragInMeasure ? measure.symbols[drag!.draggedSymbolIndex] : null;
-    final clampedDragX = hasDragInMeasure
-        ? drag!.dragX.clamp(
+    final activeDrag = hasDragInMeasure ? drag : null;
+    final draggedSymbol = activeDrag != null
+        ? measure.symbols[activeDrag.draggedSymbolIndex]
+        : null;
+    final clampedDragX = activeDrag != null
+        ? activeDrag.dragX.clamp(
             measureStartX + innerPadding,
             measureEndX - innerPadding,
           )
         : 0.0;
 
     for (var i = 0; i < symbolCount; i++) {
-      if (hasDragInMeasure && i == drag!.draggedSymbolIndex) {
+      if (activeDrag != null && i == activeDrag.draggedSymbolIndex) {
         continue;
       }
       final symbol = measure.symbols[i];
       var visualIndex = i;
-      if (hasDragInMeasure) {
-        final compactIndex = i > drag!.draggedSymbolIndex ? i - 1 : i;
+      if (activeDrag != null) {
+        final compactIndex = i > activeDrag.draggedSymbolIndex ? i - 1 : i;
         visualIndex =
-            compactIndex >= drag.targetSymbolIndex ? compactIndex + 1 : compactIndex;
+            compactIndex >= activeDrag.targetSymbolIndex ? compactIndex + 1 : compactIndex;
       }
       final progress = (visualIndex + 1) / (symbolCount + 1);
       final x = measureStartX + innerPadding + (drawableWidth * progress);
