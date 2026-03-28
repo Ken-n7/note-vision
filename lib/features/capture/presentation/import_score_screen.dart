@@ -727,13 +727,13 @@ class _TappableButtonState extends State<_TappableButton> {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTapDown: widget.onPressed == null ? null : (_) => setState(() => _pressed = true),
-      onTapUp: widget.onPressed == null
+      onTapCancel: widget.onPressed == null ? null : () => setState(() => _pressed = false),
+      onTap: widget.onPressed == null
           ? null
-          : (_) {
+          : () {
               setState(() => _pressed = false);
               widget.onPressed!();
             },
-      onTapCancel: widget.onPressed == null ? null : () => setState(() => _pressed = false),
       child: AnimatedScale(
         scale: _pressed ? 0.97 : 1.0,
         duration: const Duration(milliseconds: 100),

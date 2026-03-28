@@ -336,13 +336,9 @@ class _CaptureScreenState extends State<CaptureScreen>
         backgroundColor: _bg,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 16),
-          child: Image.asset(
-            'assets/images/notevision.png',
-            height: 28,
-            colorBlendMode: BlendMode.srcIn,
-          ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, size: 20, color: _textPrimary),
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
         title: const Text(
           'Note Vision',
@@ -507,7 +503,7 @@ class _BottomNavItem extends StatelessWidget {
 
 class _TappableButton extends StatefulWidget {
   final Widget child;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   const _TappableButton({required this.child, required this.onPressed});
 
@@ -521,12 +517,14 @@ class _TappableButtonState extends State<_TappableButton> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) {
-        setState(() => _pressed = false);
-        widget.onPressed();
-      },
-      onTapCancel: () => setState(() => _pressed = false),
+      onTapDown: widget.onPressed == null ? null : (_) => setState(() => _pressed = true),
+      onTapCancel: widget.onPressed == null ? null : () => setState(() => _pressed = false),
+      onTap: widget.onPressed == null
+          ? null
+          : () {
+              setState(() => _pressed = false);
+              widget.onPressed!();
+            },
       child: AnimatedScale(
         scale: _pressed ? 0.97 : 1.0,
         duration: const Duration(milliseconds: 100),
