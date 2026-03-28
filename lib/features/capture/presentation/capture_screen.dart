@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:note_vision/core/utils/image_picker_helper.dart';
 import 'package:note_vision/core/widgets/drawer.dart';
 import 'package:note_vision/features/scan/presentation/scan_screen.dart';
+import 'package:note_vision/features/capture/presentation/import_score_screen.dart';
 
 class CaptureScreen extends StatefulWidget {
   const CaptureScreen({super.key});
@@ -435,7 +436,14 @@ class _CaptureScreenState extends State<CaptureScreen>
                 icon: Icons.upload_file_outlined,
                 label: 'Import',
                 isSelected: false,
-                onTap: _pickFromGallery,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ImportScoreScreen(),
+                    ),
+                  );
+                },
               ),
             ],
           ),

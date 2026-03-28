@@ -110,9 +110,10 @@ class _ScanScreenState extends State<ScanScreen> {
             Padding(
               padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
               child: ScanActions(
-          onRedo: () => Navigator.pop(context),
-          onImport: _importFromFile,
-          onContinue: () {
+                onRedo: () => Navigator.pop(context),
+                onImport: _importFromFile,
+                canContinue: vm.result?.hasDetections ?? false,
+                onContinue: () {
             final mappedScore = vm.mappingResult?.score ??
                 const Score(
                   id: 'scan-score',

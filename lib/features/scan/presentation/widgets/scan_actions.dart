@@ -4,12 +4,14 @@ class ScanActions extends StatelessWidget {
   final VoidCallback onRedo;
   final VoidCallback onContinue;
   final VoidCallback? onImport;
+  final bool canContinue;
 
   const ScanActions({
     super.key,
     required this.onRedo,
     required this.onContinue,
     this.onImport,
+    this.canContinue = true,
   });
 
   // ── Design tokens ──────────────────────────────────────────────────────────
@@ -41,7 +43,7 @@ class ScanActions extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(color: _border),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(Icons.redo_outlined, size: 18, color: _textMuted),
@@ -73,7 +75,7 @@ class ScanActions extends StatelessWidget {
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(color: _border),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Icons.file_upload_outlined, size: 18, color: _textMuted),
@@ -99,11 +101,11 @@ class ScanActions extends StatelessWidget {
           Expanded(
             flex: onImport == null ? 2 : 1,
             child: _TappableButton(
-              onPressed: onContinue,
+              onPressed: canContinue ? onContinue : null,
               child: Container(
                 height: 52,
                 decoration: BoxDecoration(
-                  color: _textPrimary,
+                  color: canContinue ? _textPrimary : _border,
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
@@ -113,7 +115,7 @@ class ScanActions extends StatelessWidget {
                     ),
                   ],
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
@@ -121,12 +123,16 @@ class ScanActions extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: _bg,
+                        color: canContinue ? _bg : _textMuted,
                         letterSpacing: 0.3,
                       ),
                     ),
                     SizedBox(width: 8),
-                    Icon(Icons.arrow_forward, size: 18, color: _bg),
+                    Icon(
+                      Icons.arrow_forward,
+                      size: 18,
+                      color: canContinue ? _bg : _textMuted,
+                    ),
                   ],
                 ),
               ),
@@ -142,7 +148,7 @@ class ScanActions extends StatelessWidget {
 
 class _TappableButton extends StatefulWidget {
   final Widget child;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   const _TappableButton({required this.child, required this.onPressed});
 
@@ -156,12 +162,14 @@ class _TappableButtonState extends State<_TappableButton> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) {
-        setState(() => _pressed = false);
-        widget.onPressed();
-      },
-      onTapCancel: () => setState(() => _pressed = false),
+      onTapDown: widget.onPressed == null ? null : (_) => setState(() => _pressed = true),
+      onTapUp: widget.onPressed == null
+          ? null
+          : (_) {
+              setState(() => _pressed = false);
+              widget.onPressed!();
+            },
+      onTapCancel: widget.onPressed == null ? null : () => setState(() => _pressed = false),
       child: AnimatedScale(
         scale: _pressed ? 0.97 : 1.0,
         duration: const Duration(milliseconds: 100),

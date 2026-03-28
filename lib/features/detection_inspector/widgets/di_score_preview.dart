@@ -21,10 +21,7 @@ class DiScorePreview extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ScoreNotationViewer(
-            score: score,
-            backgroundColor: const Color(0xFF0B0E16),
-          ),
+          ScoreNotationViewer(score: score),
           const SizedBox(height: 12),
           _MonoBlock(text: debug),
         ],
