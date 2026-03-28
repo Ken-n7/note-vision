@@ -74,6 +74,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   Widget build(BuildContext context) {
     final selected = _editorState.selectedSymbol;
     final hasSelection = _editorState.hasSelection;
+    final hasMeasureContext =
+        _editorState.selectedPartIndex != null &&
+        _editorState.selectedMeasureIndex != null;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -134,6 +137,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 _EditorActionBar(
                   horizontalPadding: horizontalPadding,
                   hasSelection: hasSelection,
+                  hasMeasureContext: hasMeasureContext,
                   canUndo: _editorState.canUndo,
                   canRedo: _editorState.canRedo,
                   onMoveUp: () => _updateState((s) => s.moveSelectedSymbolUp()),
@@ -274,6 +278,7 @@ class _EditorActionBar extends StatelessWidget {
   const _EditorActionBar({
     required this.horizontalPadding,
     required this.hasSelection,
+    required this.hasMeasureContext,
     required this.canUndo,
     required this.canRedo,
     required this.onMoveUp,
@@ -291,6 +296,7 @@ class _EditorActionBar extends StatelessWidget {
 
   final double horizontalPadding;
   final bool hasSelection;
+  final bool hasMeasureContext;
   final bool canUndo;
   final bool canRedo;
   final VoidCallback onMoveUp;
@@ -336,11 +342,11 @@ class _EditorActionBar extends StatelessWidget {
             _ActionButton(label: 'E', onPressed: hasSelection ? onEighth : null),
             _ActionButton(
               label: 'Insert Note',
-              onPressed: onInsertNote,
+              onPressed: hasMeasureContext ? onInsertNote : null,
             ),
             _ActionButton(
               label: 'Insert Rest',
-              onPressed: onInsertRest,
+              onPressed: hasMeasureContext ? onInsertRest : null,
             ),
             _ActionButton(
               label: 'Delete',

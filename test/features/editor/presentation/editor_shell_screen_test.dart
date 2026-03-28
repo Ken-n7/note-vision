@@ -64,7 +64,7 @@ void main() {
     expect(find.text('Redo'), findsOneWidget);
   });
 
-  testWidgets('allows insert actions with no selection and updates status', (
+  testWidgets('disables insert actions with no measure context', (
     tester,
   ) async {
     final score = buildScore(withSymbols: false);
@@ -88,17 +88,15 @@ void main() {
     final insertNoteButton = tester.widget<OutlinedButton>(
       find.widgetWithText(OutlinedButton, 'Insert Note'),
     );
-    expect(insertNoteButton.onPressed, isNotNull);
+    expect(insertNoteButton.onPressed, isNull);
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'Move Up'));
     await tester.tap(find.widgetWithText(OutlinedButton, 'Insert Note'));
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Note'), findsOneWidget);
-    expect(find.text('C4'), findsOneWidget);
-    expect(find.text('quarter'), findsOneWidget);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('None'), findsOneWidget);
+    expect(find.text('—'), findsWidgets);
   });
 
   testWidgets('tapping symbols selects, reselects, and deselects', (tester) async {
