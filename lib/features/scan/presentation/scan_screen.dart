@@ -68,13 +68,6 @@ class _ScanScreenState extends State<ScanScreen> {
           ),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            tooltip: 'Import MusicXML/JSON',
-            onPressed: _importFromFile,
-            icon: const Icon(Icons.file_upload_outlined),
-          ),
-        ],
       ),
       body: switch (vm.state) {
         ScanState.idle         => const SizedBox(),
@@ -110,7 +103,6 @@ class _ScanScreenState extends State<ScanScreen> {
           padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
           child: ScanActions(
             onRedo: () => Navigator.pop(context),
-            onImport: _importFromFile,
             canContinue: vm.result?.hasDetections ?? false,
             onContinue: () {
               final mappedScore = vm.mappingResult?.score ??

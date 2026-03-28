@@ -5,7 +5,6 @@ import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/theme/responsive_layout.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
-import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 
 class EditorShellArgs {
@@ -50,9 +49,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           state.selectedMeasureIndex == measureIndex &&
           state.selectedSymbolIndex == symbolIndex;
 
-      if (isSameSelection) {
-        return _clearSymbolSelection(state);
-      }
+      if (isSameSelection) return _clearSymbolSelection(state);
 
       final parts = state.score.parts;
       if (parts.isEmpty || measureIndex < 0 || measureIndex >= parts.first.measures.length) {
@@ -98,52 +95,56 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     final selected = _editorState.selectedSymbol;
     final hasSelection = _editorState.hasSelection;
     final hasMeasureContext =
-        _editorState.selectedPartIndex != null &&
-        _editorState.selectedMeasureIndex != null;
+        _editorState.selectedPartIndex != null && _editorState.selectedMeasureIndex != null;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final horizontalPadding =
-                ResponsiveLayout.horizontalPadding(constraints.maxWidth);
-
+            final horizontalPadding = ResponsiveLayout.horizontalPadding(constraints.maxWidth);
             return Column(
               children: [
                 _EditorHeader(
-                  title: _editorState.score.title.isEmpty
-                      ? 'Untitled Score'
-                      : _editorState.score.title,
+                  title: _editorState.score.title.isEmpty ? 'Untitled Score' : _editorState.score.title,
                   hasUnsavedChanges: _editorState.hasUnsavedChanges,
                   horizontalPadding: horizontalPadding,
+                  onBack: () => Navigator.of(context).maybePop(),
                 ),
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-                    child: SingleChildScrollView(
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: ScoreNotationViewer(
-                          score: _editorState.score,
-                          selectedMeasureIndex: _editorState.selectedMeasureIndex,
-                          selectedSymbolIndex: _editorState.selectedSymbolIndex,
-                          onSymbolTap: (target) {
-                            if (target == null) {
-                              _updateState((state) => _clearSymbolSelection(state));
-                              return;
-                            }
-                            _onNotationSymbolTap(target.measureIndex, target.symbolIndex);
-                          },
-                          onSymbolReorder: (event) {
-                            _updateState(
-                              (state) => state.reorderSymbolWithinMeasure(
-                                measureIndex: event.measureIndex,
-                                fromSymbolIndex: event.fromSymbolIndex,
-                                toSymbolIndex: event.toSymbolIndex,
-                              ),
-                            );
-                          },
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: SingleChildScrollView(
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: ScoreNotationViewer(
+                            score: _editorState.score,
+                            selectedMeasureIndex: _editorState.selectedMeasureIndex,
+                            selectedSymbolIndex: _editorState.selectedSymbolIndex,
+                            onSymbolTap: (target) {
+                              if (target == null) {
+                                _updateState((state) => _clearSymbolSelection(state));
+                                return;
+                              }
+                              _onNotationSymbolTap(target.measureIndex, target.symbolIndex);
+                            },
+                            onSymbolReorder: (event) {
+                              _updateState(
+                                (state) => state.reorderSymbolWithinMeasure(
+                                  measureIndex: event.measureIndex,
+                                  fromSymbolIndex: event.fromSymbolIndex,
+                                  toSymbolIndex: event.toSymbolIndex,
+                                ),
+                              );
+                            },
+                          ),
                         ),
                       ),
                     ),
@@ -151,11 +152,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 ),
                 _StatusStrip(
                   horizontalPadding: horizontalPadding,
-                  symbolType: selected == null
-                      ? 'None'
-                      : selected is Note
-                          ? 'Note'
-                          : 'Rest',
+                  symbolType: selected == null ? 'None' : selected is Note ? 'Note' : 'Rest',
                   pitch: selected is Note ? selected.pitch : '—',
                   durationType: selected == null
                       ? '—'
@@ -173,21 +170,13 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   canUndo: _editorState.canUndo,
                   canRedo: _editorState.canRedo,
                   onMoveUp: () => _updateState((s) => s.moveSelectedSymbolUp()),
-                  onMoveDown: () =>
-                      _updateState((s) => s.moveSelectedSymbolDown()),
-                  onWhole: () =>
-                      _updateState((s) => s.setSelectedDuration(wholeDuration)),
-                  onHalf: () =>
-                      _updateState((s) => s.setSelectedDuration(halfDuration)),
-                  onQuarter: () => _updateState(
-                    (s) => s.setSelectedDuration(quarterDuration),
-                  ),
-                  onEighth: () =>
-                      _updateState((s) => s.setSelectedDuration(eighthDuration)),
-                  onInsertNote: () =>
-                      _updateState((s) => s.insertNoteAfterSelection()),
-                  onInsertRest: () =>
-                      _updateState((s) => s.insertRestAfterSelection()),
+                  onMoveDown: () => _updateState((s) => s.moveSelectedSymbolDown()),
+                  onWhole: () => _updateState((s) => s.setSelectedDuration(wholeDuration)),
+                  onHalf: () => _updateState((s) => s.setSelectedDuration(halfDuration)),
+                  onQuarter: () => _updateState((s) => s.setSelectedDuration(quarterDuration)),
+                  onEighth: () => _updateState((s) => s.setSelectedDuration(eighthDuration)),
+                  onInsertNote: () => _updateState((s) => s.insertNoteAfterSelection()),
+                  onInsertRest: () => _updateState((s) => s.insertRestAfterSelection()),
                   onDelete: () => _updateState((s) => s.deleteSelectedSymbol()),
                   onUndo: () => _updateState((s) => s.applyUndo()),
                   onRedo: () => _updateState((s) => s.applyRedo()),
@@ -206,36 +195,76 @@ class _EditorHeader extends StatelessWidget {
     required this.title,
     required this.hasUnsavedChanges,
     required this.horizontalPadding,
+    required this.onBack,
   });
 
   final String title;
   final bool hasUnsavedChanges;
   final double horizontalPadding;
+  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.fromLTRB(horizontalPadding, 12, horizontalPadding, 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              hasUnsavedChanges ? '$title *' : title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            IconButton(
+              onPressed: onBack,
+              icon: const Icon(Icons.arrow_back_ios_new, size: 16),
+              color: AppColors.textPrimary,
+              tooltip: 'Back',
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    hasUnsavedChanges ? '$title *' : title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Editor Workspace',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
-          FilledButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.save_outlined),
-            label: const Text('Save'),
-          ),
-        ],
+            FilledButton.icon(
+              onPressed: () {},
+              icon: const Icon(Icons.save_outlined, size: 18),
+              label: const Text('Save'),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: () {},
+              icon: const Icon(Icons.ios_share_outlined, size: 16),
+              label: const Text('Export'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.textPrimary,
+                side: const BorderSide(color: AppColors.border),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -260,13 +289,15 @@ class _StatusStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: EdgeInsets.fromLTRB(horizontalPadding, 8, horizontalPadding, 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 8,
         children: [
           _StatusItem(label: 'Type', value: symbolType),
           _StatusItem(label: 'Pitch', value: pitch),
@@ -286,22 +317,31 @@ class _StatusItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
-        ),
-        Text(
-          value,
-          style: const TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
+    return Container(
+      constraints: const BoxConstraints(minWidth: 82),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
           ),
-        ),
-      ],
+          Text(
+            value,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -347,47 +387,38 @@ class _EditorActionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: AppColors.surfaceAlt,
-      padding: EdgeInsets.fromLTRB(
-        horizontalPadding / 2,
-        8,
-        horizontalPadding / 2,
-        16,
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            _ActionButton(
-              label: 'Move Up',
-              onPressed: hasSelection ? onMoveUp : null,
+      padding: EdgeInsets.fromLTRB(horizontalPadding, 10, horizontalPadding, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'TOOLS',
+            style: TextStyle(
+              fontSize: 11,
+              color: AppColors.textSecondary,
+              letterSpacing: 1.1,
+              fontWeight: FontWeight.w600,
             ),
-            _ActionButton(
-              label: 'Move Down',
-              onPressed: hasSelection ? onMoveDown : null,
-            ),
-            _ActionButton(label: 'W', onPressed: hasSelection ? onWhole : null),
-            _ActionButton(label: 'H', onPressed: hasSelection ? onHalf : null),
-            _ActionButton(
-              label: 'Q',
-              onPressed: hasSelection ? onQuarter : null,
-            ),
-            _ActionButton(label: 'E', onPressed: hasSelection ? onEighth : null),
-            _ActionButton(
-              label: 'Insert Note',
-              onPressed: hasMeasureContext ? onInsertNote : null,
-            ),
-            _ActionButton(
-              label: 'Insert Rest',
-              onPressed: hasMeasureContext ? onInsertRest : null,
-            ),
-            _ActionButton(
-              label: 'Delete',
-              onPressed: hasSelection ? onDelete : null,
-            ),
-            _ActionButton(label: 'Undo', onPressed: canUndo ? onUndo : null),
-            _ActionButton(label: 'Redo', onPressed: canRedo ? onRedo : null),
-          ],
-        ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _ActionButton(label: 'Move Up', onPressed: hasSelection ? onMoveUp : null),
+              _ActionButton(label: 'Move Down', onPressed: hasSelection ? onMoveDown : null),
+              _ActionButton(label: 'Whole', onPressed: hasSelection ? onWhole : null),
+              _ActionButton(label: 'Half', onPressed: hasSelection ? onHalf : null),
+              _ActionButton(label: 'Quarter', onPressed: hasSelection ? onQuarter : null),
+              _ActionButton(label: 'Eighth', onPressed: hasSelection ? onEighth : null),
+              _ActionButton(label: 'Insert Note', onPressed: hasMeasureContext ? onInsertNote : null),
+              _ActionButton(label: 'Insert Rest', onPressed: hasMeasureContext ? onInsertRest : null),
+              _ActionButton(label: 'Delete', onPressed: hasSelection ? onDelete : null),
+              _ActionButton(label: 'Undo', onPressed: canUndo ? onUndo : null),
+              _ActionButton(label: 'Redo', onPressed: canRedo ? onRedo : null),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -401,16 +432,18 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.textPrimary,
-          side: const BorderSide(color: AppColors.border),
+    final enabled = onPressed != null;
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        backgroundColor: enabled ? AppColors.surface : AppColors.surfaceAlt,
+        foregroundColor: enabled ? AppColors.textPrimary : AppColors.textSecondary,
+        side: BorderSide(
+          color: enabled ? AppColors.accent.withValues(alpha: 0.6) : AppColors.border,
         ),
-        child: Text(label),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       ),
+      child: Text(label),
     );
   }
 }
