@@ -64,7 +64,7 @@ void main() {
     expect(find.text('Redo'), findsOneWidget);
   });
 
-  testWidgets('disables insert actions with no measure context', (
+  testWidgets('keeps insert actions enabled with default measure context', (
     tester,
   ) async {
     final score = buildScore(withSymbols: false);
@@ -88,15 +88,15 @@ void main() {
     final insertNoteButton = tester.widget<OutlinedButton>(
       find.widgetWithText(OutlinedButton, 'Insert Note'),
     );
-    expect(insertNoteButton.onPressed, isNull);
+    expect(insertNoteButton.onPressed, isNotNull);
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'Move Up'));
     await tester.tap(find.widgetWithText(OutlinedButton, 'Insert Note'));
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('None'), findsOneWidget);
-    expect(find.text('—'), findsWidgets);
+    expect(find.text('Note'), findsOneWidget);
+    expect(find.text('C4'), findsOneWidget);
   });
 
   testWidgets('tapping symbols selects, reselects, and deselects', (tester) async {
