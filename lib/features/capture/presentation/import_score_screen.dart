@@ -65,56 +65,129 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
         ),
         centerTitle: true,
       ),
-      body: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'IMPORT SCORE FILE',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: _textSecondary,
-                letterSpacing: 2.0,
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Import a MusicXML file, preview it, then continue to the editor.',
-              style: TextStyle(
-                fontSize: 14,
-                color: _textSecondary,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 18),
-            Expanded(child: _buildPreviewArea()),
-            const SizedBox(height: 14),
-            if (_warnings.isNotEmpty) ...[
-              _buildMessageCard(
-                title: 'Warnings',
-                icon: Icons.info_outline,
-                color: _accent,
-                messages: _warnings,
-              ),
-              const SizedBox(height: 10),
-            ],
-            if (_errors.isNotEmpty) ...[
-              _buildMessageCard(
-                title: 'Import Issues',
-                icon: Icons.error_outline,
-                color: const Color(0xFFFF6B6B),
-                messages: _errors,
-              ),
-              const SizedBox(height: 10),
-            ],
-            _buildActionRow(),
-            const SizedBox(height: 20),
-          ],
-        ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isLandscape = constraints.maxWidth > constraints.maxHeight;
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            child: isLandscape
+                ? _buildLandscapeContent()
+                : _buildPortraitContent(),
+          );
+        },
       ),
       bottomNavigationBar: _buildBottomNav(),
+    );
+  }
+
+  Widget _buildPortraitContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'IMPORT SCORE FILE',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: _textSecondary,
+            letterSpacing: 2.0,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Import a MusicXML file, preview it, then continue to the editor.',
+          style: TextStyle(
+            fontSize: 14,
+            color: _textSecondary,
+            height: 1.5,
+          ),
+        ),
+        const SizedBox(height: 18),
+        Expanded(child: _buildPreviewArea()),
+        const SizedBox(height: 14),
+        _buildMessages(),
+        _buildActionRow(),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  Widget _buildLandscapeContent() {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          flex: 3,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'IMPORT SCORE FILE',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: _textSecondary,
+                  letterSpacing: 2.0,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Import a MusicXML file, preview it, then continue to the editor.',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: _textSecondary,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(child: _buildPreviewArea()),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          flex: 2,
+          child: SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildMessages(),
+                _buildActionRow(),
+                const SizedBox(height: 12),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMessages() {
+    if (_warnings.isEmpty && _errors.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      children: [
+        if (_warnings.isNotEmpty) ...[
+          _buildMessageCard(
+            title: 'Warnings',
+            icon: Icons.info_outline,
+            color: _accent,
+            messages: _warnings,
+          ),
+          const SizedBox(height: 10),
+        ],
+        if (_errors.isNotEmpty) ...[
+          _buildMessageCard(
+            title: 'Import Issues',
+            icon: Icons.error_outline,
+            color: const Color(0xFFFF6B6B),
+            messages: _errors,
+          ),
+          const SizedBox(height: 10),
+        ],
+      ],
     );
   }
 

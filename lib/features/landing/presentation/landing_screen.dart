@@ -59,7 +59,9 @@ class _LandingScreenState extends State<LandingScreen>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final horizontalPadding = ResponsiveLayout.horizontalPadding(size.width) * 1.5;
+    final orientation = MediaQuery.of(context).orientation;
+    final isLandscape = orientation == Orientation.landscape;
+    final horizontalPadding = ResponsiveLayout.horizontalPadding(size.width) * (isLandscape ? 1.0 : 1.5);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -86,82 +88,132 @@ class _LandingScreenState extends State<LandingScreen>
                 position: _slideUp,
                 child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-                  child: Column(
-                    children: [
-                      const Spacer(flex: 3),
-
-                      // ── Title ──────────────────────────────────────────
-                      Text(
-                        'Note Vision',
-                        style: TextStyle(
-                          fontFamily: 'MaturaMTScriptCapitals',
-                          fontSize: 50,
-                          color: AppColors.textPrimary,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-
-                      const Spacer(flex: 1),
-
-                      // ── Logo with glow ─────────────────────────────────
-                      Container(
-                        width: 160,
-                        height: 160,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                        ),
-                        child: Image.asset(
-                          'assets/images/notevision.png',
-                          width: 160,
-                          height: 160,
-                          colorBlendMode: BlendMode.srcIn,
-                        ),
-                      ),
-
-                      const Spacer(flex: 1),
-
-                      // ── Tagline ────────────────────────────────────────
-                      Text(
-                        'Read music. Understand it.',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
-                          letterSpacing: 2.0,
-                          fontWeight: FontWeight.w300,
-                        ),
-                      ),
-
-                      const Spacer(flex: 3),
-
-                      // ── Get Started (primary) ──────────────────────────
-                      _PrimaryButton(
-                        label: 'Get Started',
-                        onPressed: () => Navigator.push(
-                          context,
-                          _fadeRoute(const CollectionScreen()),
-                        ),
-                      ),
-
-                      const SizedBox(height: 14),
-
-                      // ── Dev's Workbench (ghost) ────────────────────────
-                      _GhostButton(
-                        label: "Dev's Workbench",
-                        onPressed: () => Navigator.push(
-                          context,
-                          _fadeRoute(const MusicXmlInspectorScreen()),
-                        ),
-                      ),
-
-                      const Spacer(flex: 2),
-                      const SizedBox(height: 16),
-                    ],
-                  ),
+                  child: isLandscape
+                      ? _buildLandscapeLayout(context)
+                      : _buildPortraitLayout(context),
                 ),
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPortraitLayout(BuildContext context) {
+    return Column(
+      children: [
+        const Spacer(flex: 3),
+        Text(
+          'Note Vision',
+          style: TextStyle(
+            fontFamily: 'MaturaMTScriptCapitals',
+            fontSize: 50,
+            color: AppColors.textPrimary,
+            letterSpacing: 1.5,
+          ),
+        ),
+        const Spacer(flex: 1),
+        _buildLogo(size: 160),
+        const Spacer(flex: 1),
+        _buildTagline(),
+        const Spacer(flex: 3),
+        _buildPrimaryAction(context),
+        const SizedBox(height: 14),
+        _buildWorkbenchAction(context),
+        const Spacer(flex: 2),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildLandscapeLayout(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildLogo(size: 130),
+                  const SizedBox(height: 12),
+                  _buildTagline(),
+                ],
+              ),
+            ),
+            const SizedBox(width: 28),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Note Vision',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'MaturaMTScriptCapitals',
+                      fontSize: 42,
+                      color: AppColors.textPrimary,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildPrimaryAction(context),
+                  const SizedBox(height: 14),
+                  _buildWorkbenchAction(context),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogo({required double size}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(shape: BoxShape.circle),
+      child: Image.asset(
+        'assets/images/notevision.png',
+        width: size,
+        height: size,
+        colorBlendMode: BlendMode.srcIn,
+      ),
+    );
+  }
+
+  Widget _buildTagline() {
+    return Text(
+      'Read music. Understand it.',
+      textAlign: TextAlign.center,
+      style: TextStyle(
+        fontSize: 13,
+        color: AppColors.textSecondary,
+        letterSpacing: 2.0,
+        fontWeight: FontWeight.w300,
+      ),
+    );
+  }
+
+  Widget _buildPrimaryAction(BuildContext context) {
+    return _PrimaryButton(
+      label: 'Get Started',
+      onPressed: () => Navigator.push(
+        context,
+        _fadeRoute(const CollectionScreen()),
+      ),
+    );
+  }
+
+  Widget _buildWorkbenchAction(BuildContext context) {
+    return _GhostButton(
+      label: "Dev's Workbench",
+      onPressed: () => Navigator.push(
+        context,
+        _fadeRoute(const MusicXmlInspectorScreen()),
       ),
     );
   }
