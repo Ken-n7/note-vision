@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/theme/app_theme.dart';
+import 'package:note_vision/core/theme/responsive_layout.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
@@ -45,64 +47,78 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     final hasSelection = _editorState.hasSelection;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0D0D0D),
+      backgroundColor: AppColors.background,
       body: SafeArea(
-        child: Column(
-          children: [
-            _EditorHeader(
-              title: _editorState.score.title.isEmpty
-                  ? 'Untitled Score'
-                  : _editorState.score.title,
-              hasUnsavedChanges: _editorState.hasUnsavedChanges,
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: SingleChildScrollView(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final horizontalPadding =
+                ResponsiveLayout.horizontalPadding(constraints.maxWidth);
+
+            return Column(
+              children: [
+                _EditorHeader(
+                  title: _editorState.score.title.isEmpty
+                      ? 'Untitled Score'
+                      : _editorState.score.title,
+                  hasUnsavedChanges: _editorState.hasUnsavedChanges,
+                  horizontalPadding: horizontalPadding,
+                ),
+                Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: ScoreNotationViewer(score: _editorState.score),
+                    padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                    child: SingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: ScoreNotationViewer(score: _editorState.score),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            ),
-            _StatusStrip(
-              symbolType: selected == null
-                  ? 'None'
-                  : selected is Note
-                      ? 'Note'
-                      : 'Rest',
-              pitch: selected is Note ? selected.pitch : '—',
-              durationType: selected == null
-                  ? '—'
-                  : selected is Note
-                      ? selected.type
-                      : (selected as Rest).type,
-              measure: _editorState.selectedMeasureIndex == null
-                  ? '—'
-                  : (_editorState.selectedMeasureIndex! + 1).toString(),
-            ),
-            _EditorActionBar(
-              hasSelection: hasSelection,
-              canUndo: _editorState.canUndo,
-              canRedo: _editorState.canRedo,
-              onMoveUp: () => _updateState((s) => s.moveSelectedSymbolUp()),
-              onMoveDown: () =>
-                  _updateState((s) => s.moveSelectedSymbolDown()),
-              onWhole: () => _updateState((s) => s.setSelectedDuration(wholeDuration)),
-              onHalf: () => _updateState((s) => s.setSelectedDuration(halfDuration)),
-              onQuarter: () =>
-                  _updateState((s) => s.setSelectedDuration(quarterDuration)),
-              onEighth: () => _updateState((s) => s.setSelectedDuration(eighthDuration)),
-              onInsertNote: () =>
-                  _updateState((s) => s.insertNoteAfterSelection()),
-              onInsertRest: () =>
-                  _updateState((s) => s.insertRestAfterSelection()),
-              onDelete: () => _updateState((s) => s.deleteSelectedSymbol()),
-              onUndo: () => _updateState((s) => s.applyUndo()),
-              onRedo: () => _updateState((s) => s.applyRedo()),
-            ),
-          ],
+                _StatusStrip(
+                  horizontalPadding: horizontalPadding,
+                  symbolType: selected == null
+                      ? 'None'
+                      : selected is Note
+                          ? 'Note'
+                          : 'Rest',
+                  pitch: selected is Note ? selected.pitch : '—',
+                  durationType: selected == null
+                      ? '—'
+                      : selected is Note
+                          ? selected.type
+                          : (selected as Rest).type,
+                  measure: _editorState.selectedMeasureIndex == null
+                      ? '—'
+                      : (_editorState.selectedMeasureIndex! + 1).toString(),
+                ),
+                _EditorActionBar(
+                  horizontalPadding: horizontalPadding,
+                  hasSelection: hasSelection,
+                  canUndo: _editorState.canUndo,
+                  canRedo: _editorState.canRedo,
+                  onMoveUp: () => _updateState((s) => s.moveSelectedSymbolUp()),
+                  onMoveDown: () =>
+                      _updateState((s) => s.moveSelectedSymbolDown()),
+                  onWhole: () =>
+                      _updateState((s) => s.setSelectedDuration(wholeDuration)),
+                  onHalf: () =>
+                      _updateState((s) => s.setSelectedDuration(halfDuration)),
+                  onQuarter: () => _updateState(
+                    (s) => s.setSelectedDuration(quarterDuration),
+                  ),
+                  onEighth: () =>
+                      _updateState((s) => s.setSelectedDuration(eighthDuration)),
+                  onInsertNote: () =>
+                      _updateState((s) => s.insertNoteAfterSelection()),
+                  onInsertRest: () =>
+                      _updateState((s) => s.insertRestAfterSelection()),
+                  onDelete: () => _updateState((s) => s.deleteSelectedSymbol()),
+                  onUndo: () => _updateState((s) => s.applyUndo()),
+                  onRedo: () => _updateState((s) => s.applyRedo()),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -110,15 +126,20 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 }
 
 class _EditorHeader extends StatelessWidget {
-  const _EditorHeader({required this.title, required this.hasUnsavedChanges});
+  const _EditorHeader({
+    required this.title,
+    required this.hasUnsavedChanges,
+    required this.horizontalPadding,
+  });
 
   final String title;
   final bool hasUnsavedChanges;
+  final double horizontalPadding;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      padding: EdgeInsets.fromLTRB(horizontalPadding, 12, horizontalPadding, 8),
       child: Row(
         children: [
           Expanded(
@@ -127,7 +148,7 @@ class _EditorHeader extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
               ),
@@ -146,12 +167,14 @@ class _EditorHeader extends StatelessWidget {
 
 class _StatusStrip extends StatelessWidget {
   const _StatusStrip({
+    required this.horizontalPadding,
     required this.symbolType,
     required this.pitch,
     required this.durationType,
     required this.measure,
   });
 
+  final double horizontalPadding;
   final String symbolType;
   final String pitch;
   final String durationType;
@@ -160,10 +183,10 @@ class _StatusStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      margin: EdgeInsets.fromLTRB(horizontalPadding, 8, horizontalPadding, 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -192,12 +215,12 @@ class _StatusItem extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 10, color: Color(0xFF8A8A8A)),
+          style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
         ),
         Text(
           value,
           style: const TextStyle(
-            color: Colors.white,
+            color: AppColors.textPrimary,
             fontSize: 12,
             fontWeight: FontWeight.w600,
           ),
@@ -209,6 +232,7 @@ class _StatusItem extends StatelessWidget {
 
 class _EditorActionBar extends StatelessWidget {
   const _EditorActionBar({
+    required this.horizontalPadding,
     required this.hasSelection,
     required this.canUndo,
     required this.canRedo,
@@ -225,6 +249,7 @@ class _EditorActionBar extends StatelessWidget {
     required this.onRedo,
   });
 
+  final double horizontalPadding;
   final bool hasSelection;
   final bool canUndo;
   final bool canRedo;
@@ -243,21 +268,44 @@ class _EditorActionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFF161616),
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 16),
+      color: AppColors.surfaceAlt,
+      padding: EdgeInsets.fromLTRB(
+        horizontalPadding / 2,
+        8,
+        horizontalPadding / 2,
+        16,
+      ),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            _ActionButton(label: 'Move Up', onPressed: hasSelection ? onMoveUp : null),
-            _ActionButton(label: 'Move Down', onPressed: hasSelection ? onMoveDown : null),
+            _ActionButton(
+              label: 'Move Up',
+              onPressed: hasSelection ? onMoveUp : null,
+            ),
+            _ActionButton(
+              label: 'Move Down',
+              onPressed: hasSelection ? onMoveDown : null,
+            ),
             _ActionButton(label: 'W', onPressed: hasSelection ? onWhole : null),
             _ActionButton(label: 'H', onPressed: hasSelection ? onHalf : null),
-            _ActionButton(label: 'Q', onPressed: hasSelection ? onQuarter : null),
+            _ActionButton(
+              label: 'Q',
+              onPressed: hasSelection ? onQuarter : null,
+            ),
             _ActionButton(label: 'E', onPressed: hasSelection ? onEighth : null),
-            _ActionButton(label: 'Insert Note', onPressed: hasSelection ? onInsertNote : null),
-            _ActionButton(label: 'Insert Rest', onPressed: hasSelection ? onInsertRest : null),
-            _ActionButton(label: 'Delete', onPressed: hasSelection ? onDelete : null),
+            _ActionButton(
+              label: 'Insert Note',
+              onPressed: onInsertNote,
+            ),
+            _ActionButton(
+              label: 'Insert Rest',
+              onPressed: onInsertRest,
+            ),
+            _ActionButton(
+              label: 'Delete',
+              onPressed: hasSelection ? onDelete : null,
+            ),
             _ActionButton(label: 'Undo', onPressed: canUndo ? onUndo : null),
             _ActionButton(label: 'Redo', onPressed: canRedo ? onRedo : null),
           ],
@@ -280,8 +328,8 @@ class _ActionButton extends StatelessWidget {
       child: OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.white,
-          side: const BorderSide(color: Color(0xFF2C2C2C)),
+          foregroundColor: AppColors.textPrimary,
+          side: const BorderSide(color: AppColors.border),
         ),
         child: Text(label),
       ),

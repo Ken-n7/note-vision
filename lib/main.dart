@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'core/theme/app_theme.dart';
 import 'features/editor/presentation/editor_shell_screen.dart';
 import 'features/landing/presentation/landing_screen.dart';
 
@@ -14,10 +15,7 @@ class App extends StatelessWidget {
     return MaterialApp(
       title: 'Note Vision',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.dark(),
       onGenerateRoute: (settings) {
         if (settings.name == EditorShellScreen.routeName) {
           final args = settings.arguments! as EditorShellArgs;

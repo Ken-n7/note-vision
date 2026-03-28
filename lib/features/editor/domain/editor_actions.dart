@@ -77,7 +77,6 @@ extension EditorActions on EditorState {
   }
 
   EditorState insertNoteAfterSelection() {
-    if (!hasSelection) return this;
     final note = selectedSymbol is Note
         ? selectedSymbol as Note
         : const Note(step: 'C', octave: 4, duration: 1, type: 'quarter');
@@ -92,11 +91,14 @@ extension EditorActions on EditorState {
       staff: note.staff,
     );
 
+    if (!hasSelection) {
+      return _insertWithoutSelection(newNote);
+    }
+
     return _insertAfterSelection(newNote);
   }
 
   EditorState insertRestAfterSelection() {
-    if (!hasSelection) return this;
     final rest = selectedSymbol is Rest
         ? selectedSymbol as Rest
         : const Rest(duration: 1, type: 'quarter');
@@ -107,6 +109,10 @@ extension EditorActions on EditorState {
       voice: rest.voice,
       staff: rest.staff,
     );
+
+    if (!hasSelection) {
+      return _insertWithoutSelection(newRest);
+    }
 
     return _insertAfterSelection(newRest);
   }
@@ -188,6 +194,34 @@ extension EditorActions on EditorState {
       score.parts[partIndex].measures[measureIndex].symbols,
     );
     symbols.insert(insertIndex, symbol);
+
+    final nextScore = _replaceMeasureSymbols(
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      symbols: symbols,
+    );
+
+    return applyEdit(
+      score: nextScore,
+      selectedPartIndex: partIndex,
+      selectedMeasureIndex: measureIndex,
+      selectedSymbolIndex: insertIndex,
+      selectedSymbol: symbol,
+    );
+  }
+
+  EditorState _insertWithoutSelection(ScoreSymbol symbol) {
+    if (score.parts.isEmpty || score.parts.first.measures.isEmpty) {
+      return this;
+    }
+
+    const partIndex = 0;
+    const measureIndex = 0;
+    final symbols = List<ScoreSymbol>.from(
+      score.parts[partIndex].measures[measureIndex].symbols,
+    );
+    symbols.add(symbol);
+    final insertIndex = symbols.length - 1;
 
     final nextScore = _replaceMeasureSymbols(
       partIndex: partIndex,

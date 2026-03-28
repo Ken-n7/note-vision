@@ -1,16 +1,19 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:note_vision/features/preprocessing/data/basic_image_preprocessor.dart';
-import 'package:note_vision/features/detection/data/tflite_symbol_detector.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/theme/app_theme.dart';
+import 'package:note_vision/core/theme/responsive_layout.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
+import 'package:note_vision/features/detection/data/tflite_symbol_detector.dart';
+import 'package:note_vision/features/preprocessing/data/basic_image_preprocessor.dart';
 import 'package:note_vision/features/scan/presentation/scan_viewmodel.dart';
 import 'widgets/scan_actions.dart';
 import 'widgets/scan_image_view.dart';
+
 
 class ScanScreen extends StatefulWidget {
   final Uint8List imageBytes;
@@ -22,11 +25,6 @@ class ScanScreen extends StatefulWidget {
 }
 
 class _ScanScreenState extends State<ScanScreen> {
-  // ── Design tokens ──────────────────────────────────────────────────────────
-  static const _bg          = Color(0xFF0D0D0D);
-  static const _textPrimary = Color(0xFFFFFFFF);
-  static const _warning     = Color(0xFFFBBF24);
-
   @override
   void initState() {
     super.initState();
@@ -40,12 +38,12 @@ class _ScanScreenState extends State<ScanScreen> {
     final vm = context.watch<ScanViewModel>();
 
     return Scaffold(
-      backgroundColor: _bg,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: _bg,
+        backgroundColor: AppColors.background,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        iconTheme: const IconThemeData(color: _textPrimary),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, size: 20),
           onPressed: () => Navigator.pop(context),
@@ -55,7 +53,7 @@ class _ScanScreenState extends State<ScanScreen> {
           style: TextStyle(
             fontFamily: 'MaturaMTScriptCapitals',
             fontSize: 22,
-            color: _textPrimary,
+            color: AppColors.textPrimary,
             letterSpacing: 0.5,
           ),
         ),
@@ -86,10 +84,15 @@ class _ScanScreenState extends State<ScanScreen> {
       }
     });
 
-    return Column(
-      children: [
-        Expanded(child: ScanImageView(result: vm.result!)),
-        ScanActions(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final horizontalPadding = ResponsiveLayout.horizontalPadding(constraints.maxWidth);
+        return Column(
+          children: [
+            Expanded(child: ScanImageView(result: vm.result!)),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+              child: ScanActions(
           onRedo: () => Navigator.pop(context),
           onContinue: () {
             final mappedScore = vm.mappingResult?.score ??
@@ -115,8 +118,11 @@ class _ScanScreenState extends State<ScanScreen> {
               ),
             );
           },
-        ),
-      ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -125,7 +131,7 @@ class _ScanScreenState extends State<ScanScreen> {
       SnackBar(
         content: Row(
           children: [
-            Icon(Icons.lightbulb_outline, size: 16, color: _warning),
+            Icon(Icons.lightbulb_outline, size: 16, color: AppColors.accent),
             const SizedBox(width: 10),
             const Expanded(
               child: Text(
@@ -176,7 +182,7 @@ class _ScanScreenState extends State<ScanScreen> {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: _textPrimary,
+                color: AppColors.textPrimary,
                 letterSpacing: 0.2,
               ),
             ),
@@ -202,7 +208,7 @@ class _ScanScreenState extends State<ScanScreen> {
                 width: double.infinity,
                 height: 52,
                 decoration: BoxDecoration(
-                  color: _textPrimary,
+                  color: AppColors.textPrimary,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 alignment: Alignment.center,
@@ -211,7 +217,7 @@ class _ScanScreenState extends State<ScanScreen> {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: _bg,
+                    color: AppColors.background,
                     letterSpacing: 0.3,
                   ),
                 ),
@@ -272,7 +278,7 @@ class _PipelineStatus extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: _textPrimary,
+                color: AppColors.textPrimary,
                 letterSpacing: 0.2,
               ),
             ),

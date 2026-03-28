@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:note_vision/core/theme/app_theme.dart';
 
 class ScoreCard extends StatelessWidget {
   final String imagePath;
@@ -96,10 +97,10 @@ class _DeleteConfirmSheet extends StatelessWidget {
 
   const _DeleteConfirmSheet({required this.onConfirm});
 
-  static const _surface = Color(0xFF1A1A1A);
-  static const _border = Color(0xFF2C2C2C);
-  static const _textPri = Color(0xFFFFFFFF);
-  static const _textSec = Color(0xFF8A8A8A);
+  static const _surface = AppColors.surface;
+  static const _border = AppColors.border;
+  static const _textPri = AppColors.textPrimary;
+  static const _textSec = AppColors.textSecondary;
 
   @override
   Widget build(BuildContext context) {

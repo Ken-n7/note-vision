@@ -61,7 +61,9 @@ void main() {
     expect(find.text('Redo'), findsOneWidget);
   });
 
-  testWidgets('disables edit actions and remains stable with no selection', (tester) async {
+  testWidgets('allows insert actions with no selection and updates status', (
+    tester,
+  ) async {
     final score = buildScore(withSymbols: false);
 
     await tester.pumpWidget(
@@ -80,12 +82,19 @@ void main() {
     );
     expect(moveUpButton.onPressed, isNull);
 
+    final insertNoteButton = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'Insert Note'),
+    );
+    expect(insertNoteButton.onPressed, isNotNull);
+
     await tester.tap(find.widgetWithText(OutlinedButton, 'Move Up'));
     await tester.tap(find.widgetWithText(OutlinedButton, 'Insert Note'));
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('None'), findsOneWidget);
-    expect(find.text('—'), findsNWidgets(3));
+    expect(find.text('Note'), findsOneWidget);
+    expect(find.text('C4'), findsOneWidget);
+    expect(find.text('quarter'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
   });
 }
