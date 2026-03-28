@@ -256,6 +256,7 @@ class ScoreNotationPainter extends CustomPainter {
       _drawMeasureSymbols(
         canvas,
         measure,
+        absoluteMeasureIndex: row.globalStartMeasureIndex + measureInRow,
         measureStartX: measureX,
         measureEndX: nextMeasureX,
         staffTop: row.staffTop,
@@ -267,6 +268,7 @@ class ScoreNotationPainter extends CustomPainter {
   void _drawMeasureSymbols(
     Canvas canvas,
     Measure measure, {
+    required int absoluteMeasureIndex,
     required double measureStartX,
     required double measureEndX,
     required double staffTop,
@@ -295,7 +297,7 @@ class ScoreNotationPainter extends CustomPainter {
           lineSpacing: staffLineSpacing,
         );
         final isSelected =
-            selectedMeasureIndex == row.globalStartMeasureIndex + measureInRow &&
+            selectedMeasureIndex == absoluteMeasureIndex &&
             selectedSymbolIndex == i;
         if (isSelected) {
           _drawSelectionHighlight(canvas, Offset(x, y));
@@ -304,7 +306,7 @@ class ScoreNotationPainter extends CustomPainter {
       } else if (symbol is Rest) {
         final y = _symbolCenterY(symbol, staffTop, staffBottom);
         final isSelected =
-            selectedMeasureIndex == row.globalStartMeasureIndex + measureInRow &&
+            selectedMeasureIndex == absoluteMeasureIndex &&
             selectedSymbolIndex == i;
         if (isSelected) {
           _drawSelectionHighlight(canvas, Offset(x, y));
