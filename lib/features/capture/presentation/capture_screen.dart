@@ -363,54 +363,70 @@ class _CaptureScreenState extends State<CaptureScreen>
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Section label ────────────────────────────────────────────
-            const Text(
-              'CAPTURE MUSIC SHEET',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: _textSecondary,
-                letterSpacing: 2.0,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isLandscape = constraints.maxWidth > constraints.maxHeight;
+          if (isLandscape) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeaderSection(),
+                  const SizedBox(height: 14),
+                  SizedBox(height: 260, child: _buildPreviewArea()),
+                  const SizedBox(height: 14),
+                  _buildActionRow(),
+                ],
               ),
+            );
+          }
+
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeaderSection(),
+                const SizedBox(height: 20),
+                Expanded(child: _buildPreviewArea()),
+                const SizedBox(height: 16),
+                _buildActionRow(),
+                const SizedBox(height: 20),
+              ],
             ),
-
-            const SizedBox(height: 6),
-
-            // ── Description ──────────────────────────────────────────────
-            const Text(
-              'Scan printed music sheets and convert them into digital notation.',
-              style: TextStyle(
-                fontSize: 14,
-                color: _textSecondary,
-                height: 1.5,
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // ── Hint ─────────────────────────────────────────────────────
-            _buildHint(),
-
-            const SizedBox(height: 20),
-
-            // ── Preview area ─────────────────────────────────────────────
-            Expanded(child: _buildPreviewArea()),
-
-            const SizedBox(height: 16),
-
-            // ── Action buttons ───────────────────────────────────────────
-            _buildActionRow(),
-
-            const SizedBox(height: 20),
-          ],
-        ),
+          );
+        },
       ),
       bottomNavigationBar: _buildBottomNav(),
+    );
+  }
+
+  Widget _buildHeaderSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'CAPTURE MUSIC SHEET',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: _textSecondary,
+            letterSpacing: 2.0,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Scan printed music sheets and convert them into digital notation.',
+          style: TextStyle(
+            fontSize: 14,
+            color: _textSecondary,
+            height: 1.5,
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildHint(),
+      ],
     );
   }
 

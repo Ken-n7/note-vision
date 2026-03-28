@@ -46,12 +46,20 @@ class _EmptyCollectionState extends State<EmptyCollection>
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 40),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+
+    return LayoutBuilder(
+      builder: (context, constraints) => SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: constraints.maxHeight - 16),
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
             // Animated icon
             AnimatedBuilder(
               animation: _pulse,
@@ -81,14 +89,14 @@ class _EmptyCollectionState extends State<EmptyCollection>
               ),
             ),
 
-            const SizedBox(height: 32),
+            SizedBox(height: isLandscape ? 18 : 32),
 
             // Heading
-            const Text(
+            Text(
               'Your collection\nis empty',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 26,
+                fontSize: isLandscape ? 22 : 26,
                 fontWeight: FontWeight.w700,
                 color: _textPri,
                 height: 1.2,
@@ -96,7 +104,7 @@ class _EmptyCollectionState extends State<EmptyCollection>
               ),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
 
             // Subtext
             const Text(
@@ -110,7 +118,7 @@ class _EmptyCollectionState extends State<EmptyCollection>
               ),
             ),
 
-            const SizedBox(height: 40),
+            SizedBox(height: isLandscape ? 20 : 40),
 
             // CTA button
             GestureDetector(
@@ -149,7 +157,7 @@ class _EmptyCollectionState extends State<EmptyCollection>
               ),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
 
             // Secondary hint
             Row(
@@ -171,7 +179,10 @@ class _EmptyCollectionState extends State<EmptyCollection>
                 ),
               ],
             ),
-          ],
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
