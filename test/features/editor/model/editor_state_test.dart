@@ -89,6 +89,26 @@ void main() {
       expect(state.selectedSymbol, isNull);
     });
 
+    test('copyWith can clear symbol selection while preserving measure context', () {
+      final score = _buildScore();
+      final selected = EditorState(score: score).copyWith(
+        selectedPartIndex: 0,
+        selectedMeasureIndex: 0,
+        selectedSymbolIndex: 0,
+        selectedSymbol: score.parts[0].measures[0].symbols[0],
+      );
+
+      final cleared = selected.copyWith(
+        selectedSymbolIndex: null,
+        selectedSymbol: null,
+      );
+
+      expect(cleared.selectedPartIndex, 0);
+      expect(cleared.selectedMeasureIndex, 0);
+      expect(cleared.selectedSymbolIndex, isNull);
+      expect(cleared.selectedSymbol, isNull);
+    });
+
     test('undo and redo stacks are capped at max depth 50', () {
       final entries = List.generate(
         55,

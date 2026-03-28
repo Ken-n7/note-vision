@@ -8,6 +8,7 @@ import 'package:note_vision/features/editor/model/editor_snapshot.dart';
 
 class EditorState {
   static const int maxHistoryDepth = 50;
+  static const Object _unset = Object();
 
   final Score score;
   final int? selectedPartIndex;
@@ -34,10 +35,10 @@ class EditorState {
 
   EditorState copyWith({
     Score? score,
-    int? selectedPartIndex,
-    int? selectedMeasureIndex,
-    int? selectedSymbolIndex,
-    ScoreSymbol? selectedSymbol,
+    Object? selectedPartIndex = _unset,
+    Object? selectedMeasureIndex = _unset,
+    Object? selectedSymbolIndex = _unset,
+    Object? selectedSymbol = _unset,
     bool clearSelection = false,
     List<EditorSnapshot>? undoStack,
     List<EditorSnapshot>? redoStack,
@@ -48,10 +49,18 @@ class EditorState {
     final candidateSelection = clearSelection
         ? _Selection.none()
         : _Selection(
-            partIndex: selectedPartIndex ?? this.selectedPartIndex,
-            measureIndex: selectedMeasureIndex ?? this.selectedMeasureIndex,
-            symbolIndex: selectedSymbolIndex ?? this.selectedSymbolIndex,
-            symbol: selectedSymbol ?? this.selectedSymbol,
+            partIndex: selectedPartIndex == _unset
+                ? this.selectedPartIndex
+                : selectedPartIndex as int?,
+            measureIndex: selectedMeasureIndex == _unset
+                ? this.selectedMeasureIndex
+                : selectedMeasureIndex as int?,
+            symbolIndex: selectedSymbolIndex == _unset
+                ? this.selectedSymbolIndex
+                : selectedSymbolIndex as int?,
+            symbol: selectedSymbol == _unset
+                ? this.selectedSymbol
+                : selectedSymbol as ScoreSymbol?,
           );
 
     final normalizedSelection = _normalizeSelection(
