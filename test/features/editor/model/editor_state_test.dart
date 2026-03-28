@@ -76,6 +76,19 @@ void main() {
       expect(nextState.selectedSymbol, isNull);
     });
 
+    test('measure context can exist without selected symbol', () {
+      final score = _buildScore();
+      final state = EditorState(score: score).copyWith(
+        selectedPartIndex: 0,
+        selectedMeasureIndex: 0,
+      );
+
+      expect(state.selectedPartIndex, 0);
+      expect(state.selectedMeasureIndex, 0);
+      expect(state.selectedSymbolIndex, isNull);
+      expect(state.selectedSymbol, isNull);
+    });
+
     test('undo and redo stacks are capped at max depth 50', () {
       final entries = List.generate(
         55,

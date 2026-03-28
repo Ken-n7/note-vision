@@ -32,7 +32,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   @override
   void initState() {
     super.initState();
-    _editorState = widget.args.initialState.copyWith(score: widget.args.score);
+    _editorState = _withDefaultMeasureContext(
+      widget.args.initialState.copyWith(score: widget.args.score),
+    );
   }
 
   void _updateState(EditorState Function(EditorState state) updater) {
@@ -49,7 +51,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           state.selectedSymbolIndex == symbolIndex;
 
       if (isSameSelection) {
-        return state.copyWith(clearSelection: true);
+        return _clearSymbolSelection(state);
       }
 
       final parts = state.score.parts;
@@ -58,7 +60,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       }
       final symbols = parts.first.measures[measureIndex].symbols;
       if (symbolIndex < 0 || symbolIndex >= symbols.length) {
-        return state.copyWith(clearSelection: true);
+        return _clearSymbolSelection(state);
       }
 
       return state.copyWith(
@@ -68,6 +70,27 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         selectedSymbol: symbols[symbolIndex],
       );
     });
+  }
+
+  EditorState _withDefaultMeasureContext(EditorState state) {
+    if (state.selectedPartIndex != null && state.selectedMeasureIndex != null) {
+      return state;
+    }
+    if (state.score.parts.isEmpty || state.score.parts.first.measures.isEmpty) {
+      return state;
+    }
+    return state.copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
+  }
+
+  EditorState _clearSymbolSelection(EditorState state) {
+    return EditorState(
+      score: state.score,
+      selectedPartIndex: state.selectedPartIndex,
+      selectedMeasureIndex: state.selectedMeasureIndex,
+      undoStack: state.undoStack,
+      redoStack: state.redoStack,
+      hasUnsavedChanges: state.hasUnsavedChanges,
+    );
   }
 
   @override
@@ -107,7 +130,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                           selectedSymbolIndex: _editorState.selectedSymbolIndex,
                           onSymbolTap: (target) {
                             if (target == null) {
-                              _updateState((state) => state.copyWith(clearSelection: true));
+                              _updateState((state) => _clearSymbolSelection(state));
                               return;
                             }
                             _onNotationSymbolTap(target.measureIndex, target.symbolIndex);
