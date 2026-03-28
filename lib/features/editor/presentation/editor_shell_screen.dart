@@ -296,11 +296,11 @@ class _EditorActionBar extends StatelessWidget {
             _ActionButton(label: 'E', onPressed: hasSelection ? onEighth : null),
             _ActionButton(
               label: 'Insert Note',
-              onPressed: hasSelection ? onInsertNote : null,
+              onPressed: onInsertNote,
             ),
             _ActionButton(
               label: 'Insert Rest',
-              onPressed: hasSelection ? onInsertRest : null,
+              onPressed: onInsertRest,
             ),
             _ActionButton(
               label: 'Delete',

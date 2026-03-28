@@ -8,6 +8,8 @@ import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/theme/responsive_layout.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
+import 'package:note_vision/features/detection/data/tflite_symbol_detector.dart';
+import 'package:note_vision/features/preprocessing/data/basic_image_preprocessor.dart';
 import 'package:note_vision/features/scan/presentation/scan_viewmodel.dart';
 import 'widgets/scan_actions.dart';
 import 'widgets/scan_image_view.dart';
