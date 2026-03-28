@@ -22,6 +22,7 @@ class ScoreNotationViewer extends StatefulWidget {
     this.selectedMeasureIndex,
     this.selectedSymbolIndex,
     this.onSymbolTap,
+    this.onSymbolReorder,
   });
 
   final Score? score;
@@ -33,6 +34,7 @@ class ScoreNotationViewer extends StatefulWidget {
   final int? selectedMeasureIndex;
   final int? selectedSymbolIndex;
   final ValueChanged<NotationSymbolTarget?>? onSymbolTap;
+  final ValueChanged<NotationSymbolReorder>? onSymbolReorder;
 
   @override
   State<ScoreNotationViewer> createState() => _ScoreNotationViewerState();
@@ -42,6 +44,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   final ScrollController _horizontalController = ScrollController();
   final NotationLayoutCalculator _layoutCalculator =
       const NotationLayoutCalculator();
+  _NotationDragSession? _dragSession;
 
   @override
   void dispose() {
@@ -87,6 +90,16 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
               final tapped = _nearestTarget(adjusted, targets);
               widget.onSymbolTap?.call(tapped);
             },
+      onLongPressStart: widget.onSymbolReorder == null
+          ? null
+          : (position) => _beginDrag(measures: measures, layout: layout, position: position),
+      onLongPressMoveUpdate: widget.onSymbolReorder == null
+          ? null
+          : (position) => _updateDrag(measures: measures, layout: layout, position: position),
+      onLongPressEnd: widget.onSymbolReorder == null
+          ? null
+          : (position) => _endDrag(measures: measures, layout: layout, position: position),
+      onLongPressCancel: widget.onSymbolReorder == null ? null : _cancelDrag,
       painter: ScoreNotationPainter(
         measures: measures,
         measuresPerRow: layout.measuresPerRow,
@@ -96,7 +109,141 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
         rowPrefixWidth: layout.rowPrefixWidth,
         selectedMeasureIndex: widget.selectedMeasureIndex,
         selectedSymbolIndex: widget.selectedSymbolIndex,
+        dragFeedback: _dragSession == null
+            ? null
+            : NotationDragFeedback(
+                measureIndex: _dragSession!.measureIndex,
+                draggedSymbolIndex: _dragSession!.fromSymbolIndex,
+                targetSymbolIndex: _dragSession!.toSymbolIndex,
+                dragX: _dragSession!.dragPosition.dx,
+              ),
       ),
+    );
+  }
+
+  void _beginDrag({
+    required List<Measure> measures,
+    required NotationLayout layout,
+    required Offset position,
+  }) {
+    final adjusted = _adjustForHorizontalScroll(position);
+    final targets = ScoreNotationPainter.buildSymbolTargets(
+      measures: measures,
+      measuresPerRow: layout.measuresPerRow,
+      minMeasureWidth: widget.minMeasureWidth,
+      rowHeight: widget.rowHeight,
+      padding: widget.padding,
+      rowPrefixWidth: layout.rowPrefixWidth,
+    );
+    final pressed = _nearestTarget(adjusted, targets);
+    if (pressed == null) return;
+
+    setState(() {
+      _dragSession = _NotationDragSession(
+        measureIndex: pressed.measureIndex,
+        fromSymbolIndex: pressed.symbolIndex,
+        toSymbolIndex: pressed.symbolIndex,
+        dragPosition: adjusted,
+      );
+    });
+  }
+
+  void _updateDrag({
+    required List<Measure> measures,
+    required NotationLayout layout,
+    required Offset position,
+  }) {
+    final drag = _dragSession;
+    if (drag == null) return;
+    final adjusted = _adjustForHorizontalScroll(position);
+    final toIndex = _targetIndexForDrag(
+      measures: measures,
+      layout: layout,
+      measureIndex: drag.measureIndex,
+      fromSymbolIndex: drag.fromSymbolIndex,
+      dragPosition: adjusted,
+    );
+    if (toIndex == null) return;
+
+    setState(() {
+      _dragSession = drag.copyWith(toSymbolIndex: toIndex, dragPosition: adjusted);
+    });
+  }
+
+  void _endDrag({
+    required List<Measure> measures,
+    required NotationLayout layout,
+    required Offset position,
+  }) {
+    final drag = _dragSession;
+    if (drag == null) return;
+    final adjusted = _adjustForHorizontalScroll(position);
+    final toIndex = _targetIndexForDrag(
+      measures: measures,
+      layout: layout,
+      measureIndex: drag.measureIndex,
+      fromSymbolIndex: drag.fromSymbolIndex,
+      dragPosition: adjusted,
+    );
+    final resolvedIndex = toIndex ?? drag.toSymbolIndex;
+
+    if (resolvedIndex != drag.fromSymbolIndex) {
+      widget.onSymbolReorder?.call(
+        NotationSymbolReorder(
+          measureIndex: drag.measureIndex,
+          fromSymbolIndex: drag.fromSymbolIndex,
+          toSymbolIndex: resolvedIndex,
+        ),
+      );
+    }
+
+    setState(() {
+      _dragSession = null;
+    });
+  }
+
+  void _cancelDrag() {
+    if (_dragSession == null) return;
+    setState(() {
+      _dragSession = null;
+    });
+  }
+
+  int? _targetIndexForDrag({
+    required List<Measure> measures,
+    required NotationLayout layout,
+    required int measureIndex,
+    required int fromSymbolIndex,
+    required Offset dragPosition,
+  }) {
+    if (measureIndex < 0 || measureIndex >= measures.length) return null;
+    final symbolCount = measures[measureIndex].symbols.length;
+    if (symbolCount <= 1 || fromSymbolIndex < 0 || fromSymbolIndex >= symbolCount) {
+      return null;
+    }
+
+    final targets = ScoreNotationPainter.buildSymbolTargets(
+      measures: measures,
+      measuresPerRow: layout.measuresPerRow,
+      minMeasureWidth: widget.minMeasureWidth,
+      rowHeight: widget.rowHeight,
+      padding: widget.padding,
+      rowPrefixWidth: layout.rowPrefixWidth,
+    ).where((target) => target.measureIndex == measureIndex && target.symbolIndex != fromSymbolIndex);
+
+    var insertIndex = 0;
+    for (final target in targets) {
+      if (dragPosition.dx > target.center.dx) {
+        insertIndex++;
+      }
+    }
+    return insertIndex.clamp(0, symbolCount - 1);
+  }
+
+  Offset _adjustForHorizontalScroll(Offset position) {
+    return position.translate(
+      _horizontalController.hasClients ? _horizontalController.offset : 0,
+      0,
     );
   }
 
@@ -130,6 +277,10 @@ class _NotationCanvasFrame extends StatelessWidget {
     required this.size,
     required this.painter,
     this.onTapUp,
+    this.onLongPressStart,
+    this.onLongPressMoveUpdate,
+    this.onLongPressEnd,
+    this.onLongPressCancel,
   });
 
   final Color backgroundColor;
@@ -137,6 +288,10 @@ class _NotationCanvasFrame extends StatelessWidget {
   final Size size;
   final CustomPainter painter;
   final ValueChanged<Offset>? onTapUp;
+  final ValueChanged<Offset>? onLongPressStart;
+  final ValueChanged<Offset>? onLongPressMoveUpdate;
+  final ValueChanged<Offset>? onLongPressEnd;
+  final VoidCallback? onLongPressCancel;
 
   @override
   Widget build(BuildContext context) {
@@ -149,12 +304,59 @@ class _NotationCanvasFrame extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTapUp: onTapUp == null ? null : (details) => onTapUp!(details.localPosition),
+        onLongPressStart: onLongPressStart == null
+            ? null
+            : (details) => onLongPressStart!(details.localPosition),
+        onLongPressMoveUpdate: onLongPressMoveUpdate == null
+            ? null
+            : (details) => onLongPressMoveUpdate!(details.localPosition),
+        onLongPressEnd:
+            onLongPressEnd == null ? null : (details) => onLongPressEnd!(details.localPosition),
+        onLongPressCancel: onLongPressCancel,
         child: SingleChildScrollView(
           controller: horizontalController,
           scrollDirection: Axis.horizontal,
           child: CustomPaint(size: size, painter: painter),
         ),
       ),
+    );
+  }
+}
+
+class NotationSymbolReorder {
+  const NotationSymbolReorder({
+    required this.measureIndex,
+    required this.fromSymbolIndex,
+    required this.toSymbolIndex,
+  });
+
+  final int measureIndex;
+  final int fromSymbolIndex;
+  final int toSymbolIndex;
+}
+
+class _NotationDragSession {
+  const _NotationDragSession({
+    required this.measureIndex,
+    required this.fromSymbolIndex,
+    required this.toSymbolIndex,
+    required this.dragPosition,
+  });
+
+  final int measureIndex;
+  final int fromSymbolIndex;
+  final int toSymbolIndex;
+  final Offset dragPosition;
+
+  _NotationDragSession copyWith({
+    int? toSymbolIndex,
+    Offset? dragPosition,
+  }) {
+    return _NotationDragSession(
+      measureIndex: measureIndex,
+      fromSymbolIndex: fromSymbolIndex,
+      toSymbolIndex: toSymbolIndex ?? this.toSymbolIndex,
+      dragPosition: dragPosition ?? this.dragPosition,
     );
   }
 }

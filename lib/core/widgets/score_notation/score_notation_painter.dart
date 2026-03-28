@@ -20,6 +20,7 @@ class ScoreNotationPainter extends CustomPainter {
     required this.rowPrefixWidth,
     this.selectedMeasureIndex,
     this.selectedSymbolIndex,
+    this.dragFeedback,
   });
 
   final List<Measure> measures;
@@ -30,6 +31,7 @@ class ScoreNotationPainter extends CustomPainter {
   final double rowPrefixWidth;
   final int? selectedMeasureIndex;
   final int? selectedSymbolIndex;
+  final NotationDragFeedback? dragFeedback;
 
   static const double staffLineSpacing = 12;
   static const double tapTargetSize = 24;
@@ -283,10 +285,34 @@ class ScoreNotationPainter extends CustomPainter {
       (measureEndX - measureStartX) - (innerPadding * 2),
     );
     final middleLineY = staffTop + staffLineSpacing * 2;
+    final drag = dragFeedback;
+    final hasDragInMeasure =
+        drag != null &&
+        drag.measureIndex == absoluteMeasureIndex &&
+        drag.draggedSymbolIndex >= 0 &&
+        drag.draggedSymbolIndex < symbolCount &&
+        drag.targetSymbolIndex >= 0 &&
+        drag.targetSymbolIndex < symbolCount;
+    final draggedSymbol = hasDragInMeasure ? measure.symbols[drag!.draggedSymbolIndex] : null;
+    final clampedDragX = hasDragInMeasure
+        ? drag!.dragX.clamp(
+            measureStartX + innerPadding,
+            measureEndX - innerPadding,
+          )
+        : 0.0;
 
     for (var i = 0; i < symbolCount; i++) {
+      if (hasDragInMeasure && i == drag!.draggedSymbolIndex) {
+        continue;
+      }
       final symbol = measure.symbols[i];
-      final progress = (i + 1) / (symbolCount + 1);
+      var visualIndex = i;
+      if (hasDragInMeasure) {
+        final compactIndex = i > drag!.draggedSymbolIndex ? i - 1 : i;
+        visualIndex =
+            compactIndex >= drag.targetSymbolIndex ? compactIndex + 1 : compactIndex;
+      }
+      final progress = (visualIndex + 1) / (symbolCount + 1);
       final x = measureStartX + innerPadding + (drawableWidth * progress);
 
       if (symbol is Note) {
@@ -314,13 +340,30 @@ class ScoreNotationPainter extends CustomPainter {
         _drawRest(canvas, symbol, x: x, staffTop: staffTop);
       }
     }
+
+    if (!hasDragInMeasure || draggedSymbol == null) return;
+
+    final dragY = _symbolCenterY(draggedSymbol, staffTop, staffBottom) - 8;
+    if (draggedSymbol is Note) {
+      _drawSelectionHighlight(canvas, Offset(clampedDragX, dragY), radius: 16);
+      _drawNote(
+        canvas,
+        draggedSymbol,
+        x: clampedDragX,
+        y: dragY,
+        middleLineY: middleLineY,
+      );
+    } else if (draggedSymbol is Rest) {
+      _drawSelectionHighlight(canvas, Offset(clampedDragX, dragY), radius: 16);
+      _drawRest(canvas, draggedSymbol, x: clampedDragX, staffTop: staffTop - 8);
+    }
   }
 
-  void _drawSelectionHighlight(Canvas canvas, Offset center) {
+  void _drawSelectionHighlight(Canvas canvas, Offset center, {double radius = 14}) {
     final paint = Paint()
       ..color = const Color(0xFFD4A96A).withValues(alpha: 0.26)
       ..style = PaintingStyle.fill;
-    canvas.drawCircle(center, 14, paint);
+    canvas.drawCircle(center, radius, paint);
   }
 
   void _drawNote(
@@ -605,7 +648,8 @@ class ScoreNotationPainter extends CustomPainter {
         oldDelegate.padding != padding ||
         oldDelegate.rowPrefixWidth != rowPrefixWidth ||
         oldDelegate.selectedMeasureIndex != selectedMeasureIndex ||
-        oldDelegate.selectedSymbolIndex != selectedSymbolIndex;
+        oldDelegate.selectedSymbolIndex != selectedSymbolIndex ||
+        oldDelegate.dragFeedback != dragFeedback;
   }
 }
 
@@ -621,6 +665,37 @@ class NotationSymbolTarget {
   final int symbolIndex;
   final Offset center;
   final Rect hitRect;
+}
+
+class NotationDragFeedback {
+  const NotationDragFeedback({
+    required this.measureIndex,
+    required this.draggedSymbolIndex,
+    required this.targetSymbolIndex,
+    required this.dragX,
+  });
+
+  final int measureIndex;
+  final int draggedSymbolIndex;
+  final int targetSymbolIndex;
+  final double dragX;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NotationDragFeedback &&
+          runtimeType == other.runtimeType &&
+          measureIndex == other.measureIndex &&
+          draggedSymbolIndex == other.draggedSymbolIndex &&
+          targetSymbolIndex == other.targetSymbolIndex &&
+          dragX == other.dragX;
+
+  @override
+  int get hashCode =>
+      measureIndex.hashCode ^
+      draggedSymbolIndex.hashCode ^
+      targetSymbolIndex.hashCode ^
+      dragX.hashCode;
 }
 
 class _RowMetrics {

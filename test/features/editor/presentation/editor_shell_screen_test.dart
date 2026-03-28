@@ -134,4 +134,60 @@ void main() {
     expect(find.text('None'), findsOneWidget);
     expect(tester.widget<OutlinedButton>(moveUpButtonFinder).onPressed, isNull);
   });
+
+  testWidgets('drag reorder updates model order and undo restores original order', (
+    tester,
+  ) async {
+    final score = Score(
+      id: 'score-reorder',
+      title: 'Test Score',
+      composer: 'Composer',
+      parts: [
+        Part(
+          id: 'P1',
+          name: 'Part 1',
+          measures: [
+            Measure(
+              number: 1,
+              symbols: const [
+                Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                Note(step: 'E', octave: 4, duration: 1, type: 'quarter'),
+                Rest(duration: 1, type: 'quarter'),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EditorShellScreen(
+          args: EditorShellArgs(
+            score: score,
+            initialState: EditorState(score: score),
+          ),
+        ),
+      ),
+    );
+
+    final origin = tester.getTopLeft(find.byType(ScoreNotationViewer));
+    final dragGesture = await tester.startGesture(origin + const Offset(146, 68));
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 20));
+    await dragGesture.moveTo(origin + const Offset(198, 68));
+    await tester.pump();
+    await dragGesture.up();
+    await tester.pump();
+
+    await tester.tapAt(origin + const Offset(146, 68));
+    await tester.pump();
+    expect(find.text('E4'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Undo'));
+    await tester.pump();
+
+    await tester.tapAt(origin + const Offset(146, 68));
+    await tester.pump();
+    expect(find.text('C4'), findsOneWidget);
+  });
 }
