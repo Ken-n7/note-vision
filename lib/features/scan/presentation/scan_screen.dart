@@ -3,6 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:note_vision/features/preprocessing/data/basic_image_preprocessor.dart';
 import 'package:note_vision/features/detection/data/tflite_symbol_detector.dart';
+import 'package:note_vision/core/models/measure.dart';
+import 'package:note_vision/core/models/part.dart';
+import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/features/editor/model/editor_state.dart';
+import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 import 'package:note_vision/features/scan/presentation/scan_viewmodel.dart';
 import 'widgets/scan_actions.dart';
 import 'widgets/scan_image_view.dart';
@@ -87,7 +92,28 @@ class _ScanScreenState extends State<ScanScreen> {
         ScanActions(
           onRedo: () => Navigator.pop(context),
           onContinue: () {
-            // navigate to editor — coming soon
+            final mappedScore = vm.mappingResult?.score ??
+                const Score(
+                  id: 'scan-score',
+                  title: 'Scanned Score',
+                  composer: 'Unknown',
+                  parts: [
+                    Part(
+                      id: 'P1',
+                      name: 'Part 1',
+                      measures: [Measure(number: 1, symbols: [])],
+                    ),
+                  ],
+                );
+
+            Navigator.pushNamed(
+              context,
+              EditorShellScreen.routeName,
+              arguments: EditorShellArgs(
+                score: mappedScore,
+                initialState: EditorState(score: mappedScore),
+              ),
+            );
           },
         ),
       ],

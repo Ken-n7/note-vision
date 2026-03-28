@@ -1,82 +1,83 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 class ScoreCard extends StatelessWidget {
   final String imagePath;
   final ImageProvider? imageProvider;
   final VoidCallback? onDelete;
+  final VoidCallback? onOpen;
 
   const ScoreCard({
     super.key,
     required this.imagePath,
     this.imageProvider,
     this.onDelete,
+    this.onOpen,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // ── Image ────────────────────────────────────────────────────
-          Image(
-            image: imageProvider ?? FileImage(File(imagePath)),
-            fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => Container(
-              color: Colors.grey.shade200,
-              child: const Icon(Icons.broken_image, color: Colors.grey),
+    return GestureDetector(
+      onTap: onOpen,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image(
+              image: imageProvider ?? FileImage(File(imagePath)),
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => Container(
+                color: Colors.grey.shade200,
+                child: const Icon(Icons.broken_image, color: Colors.grey),
+              ),
             ),
-          ),
-
-          // ── Top gradient scrim for delete button visibility ───────────
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 56,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.55),
-                    Colors.transparent,
-                  ],
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 56,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withValues(alpha: 0.55),
+                      Colors.transparent,
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-
-          // ── Delete button ────────────────────────────────────────────
-          if (onDelete != null)
-            Positioned(
-              top: 6,
-              right: 6,
-              child: GestureDetector(
-                onTap: () => _confirmDelete(context),
-                child: Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.55),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.15),
-                      width: 0.5,
+            if (onDelete != null)
+              Positioned(
+                top: 6,
+                right: 6,
+                child: GestureDetector(
+                  onTap: () => _confirmDelete(context),
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        width: 0.5,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 15,
+                      color: Colors.white,
                     ),
                   ),
-                  child: const Icon(
-                    Icons.close_rounded,
-                    size: 15,
-                    color: Colors.white,
-                  ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -90,15 +91,13 @@ class ScoreCard extends StatelessWidget {
   }
 }
 
-// ── Confirmation bottom sheet ──────────────────────────────────────────────
-
 class _DeleteConfirmSheet extends StatelessWidget {
   final VoidCallback onConfirm;
 
   const _DeleteConfirmSheet({required this.onConfirm});
 
   static const _surface = Color(0xFF1A1A1A);
-  static const _border  = Color(0xFF2C2C2C);
+  static const _border = Color(0xFF2C2C2C);
   static const _textPri = Color(0xFFFFFFFF);
   static const _textSec = Color(0xFF8A8A8A);
 
@@ -114,7 +113,6 @@ class _DeleteConfirmSheet extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Handle
           Padding(
             padding: const EdgeInsets.only(top: 12),
             child: Container(
@@ -126,10 +124,7 @@ class _DeleteConfirmSheet extends StatelessWidget {
               ),
             ),
           ),
-
           const SizedBox(height: 20),
-
-          // Icon
           Container(
             width: 48,
             height: 48,
@@ -143,9 +138,7 @@ class _DeleteConfirmSheet extends StatelessWidget {
               size: 22,
             ),
           ),
-
           const SizedBox(height: 14),
-
           const Text(
             'Delete Image',
             style: TextStyle(
@@ -154,30 +147,20 @@ class _DeleteConfirmSheet extends StatelessWidget {
               color: _textPri,
             ),
           ),
-
           const SizedBox(height: 6),
-
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 32),
             child: Text(
               'This image will be permanently removed from your collection.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                color: _textSec,
-                height: 1.4,
-              ),
+              style: TextStyle(fontSize: 13, color: _textSec, height: 1.4),
             ),
           ),
-
           const SizedBox(height: 24),
-
-          // Buttons
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
             child: Row(
               children: [
-                // Cancel
                 Expanded(
                   child: GestureDetector(
                     onTap: () => Navigator.pop(context),
@@ -200,10 +183,7 @@ class _DeleteConfirmSheet extends StatelessWidget {
                     ),
                   ),
                 ),
-
                 const SizedBox(width: 10),
-
-                // Delete
                 Expanded(
                   child: GestureDetector(
                     onTap: () {
@@ -235,7 +215,6 @@ class _DeleteConfirmSheet extends StatelessWidget {
               ],
             ),
           ),
-
           const SizedBox(height: 16),
         ],
       ),

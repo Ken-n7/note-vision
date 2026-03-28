@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:note_vision/core/models/measure.dart';
+import 'package:note_vision/core/models/part.dart';
+import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/features/editor/model/editor_state.dart';
+import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 import 'package:note_vision/core/widgets/drawer.dart';
 import 'package:note_vision/core/services/image_storage_service.dart';
 import 'package:note_vision/features/capture/presentation/capture_screen.dart';
@@ -95,6 +100,39 @@ class _CollectionScreenState extends State<CollectionScreen>
     ).then((_) => _loadImages());
   }
 
+  void _openEditorForImport(String imagePath) {
+    final importedScore = _buildImportedScore(imagePath);
+    Navigator.pushNamed(
+      context,
+      EditorShellScreen.routeName,
+      arguments: EditorShellArgs(
+        score: importedScore,
+        initialState: EditorState(score: importedScore),
+      ),
+    );
+  }
+
+  Score _buildImportedScore(String imagePath) {
+    final segments = imagePath.split('/');
+    final fileName = segments.isNotEmpty ? segments.last : 'Imported Score';
+    final title = fileName.contains('.')
+        ? fileName.substring(0, fileName.lastIndexOf('.'))
+        : fileName;
+
+    return Score(
+      id: 'imported-${title.hashCode}',
+      title: title,
+      composer: 'Imported',
+      parts: const [
+        Part(
+          id: 'P1',
+          name: 'Part 1',
+          measures: [Measure(number: 1, symbols: [])],
+        ),
+      ],
+    );
+  }
+
   // ── Body ───────────────────────────────────────────────────────────────────
 
   Widget _buildBody() {
@@ -175,6 +213,7 @@ class _CollectionScreenState extends State<CollectionScreen>
                 (context, index) => ScoreCard(
                   imagePath: _imagePaths[index],
                   onDelete: () => _deleteImage(_imagePaths[index]),
+                  onOpen: () => _openEditorForImport(_imagePaths[index]),
                 ),
                 childCount: _imagePaths.length,
               ),
