@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 class ScanActions extends StatelessWidget {
   final VoidCallback onRedo;
   final VoidCallback onContinue;
+  final VoidCallback? onImport;
 
   const ScanActions({
     super.key,
     required this.onRedo,
     required this.onContinue,
+    this.onImport,
   });
 
   // ── Design tokens ──────────────────────────────────────────────────────────
@@ -60,10 +62,42 @@ class ScanActions extends StatelessWidget {
           ),
 
           const SizedBox(width: 12),
+          if (onImport != null) ...[
+            Expanded(
+              child: _TappableButton(
+                onPressed: onImport!,
+                child: Container(
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: _surface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: _border),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.file_upload_outlined, size: 18, color: _textMuted),
+                      SizedBox(width: 8),
+                      Text(
+                        'Import',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: _textMuted,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+          ],
 
           // ── Continue (primary) ───────────────────────────────────────
           Expanded(
-            flex: 2,
+            flex: onImport == null ? 2 : 1,
             child: _TappableButton(
               onPressed: onContinue,
               child: Container(

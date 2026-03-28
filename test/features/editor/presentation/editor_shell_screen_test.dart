@@ -3,7 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/part.dart';
+import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 
@@ -23,6 +25,7 @@ void main() {
               symbols: withSymbols
                   ? const [
                       Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                      Rest(duration: 1, type: 'quarter'),
                     ]
                   : const [],
             ),
@@ -96,5 +99,41 @@ void main() {
     expect(find.text('C4'), findsOneWidget);
     expect(find.text('quarter'), findsOneWidget);
     expect(find.text('1'), findsOneWidget);
+  });
+
+  testWidgets('tapping symbols selects, reselects, and deselects', (tester) async {
+    final score = buildScore();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EditorShellScreen(
+          args: EditorShellArgs(
+            score: score,
+            initialState: EditorState(score: score),
+          ),
+        ),
+      ),
+    );
+
+    final moveUpButtonFinder = find.widgetWithText(OutlinedButton, 'Move Up');
+    expect(tester.widget<OutlinedButton>(moveUpButtonFinder).onPressed, isNull);
+
+    final notationOrigin = tester.getTopLeft(find.byType(ScoreNotationViewer));
+
+    await tester.tapAt(notationOrigin + const Offset(154, 68));
+    await tester.pump();
+    expect(find.text('Note'), findsOneWidget);
+    expect(find.text('C4'), findsOneWidget);
+    expect(tester.widget<OutlinedButton>(moveUpButtonFinder).onPressed, isNotNull);
+
+    await tester.tapAt(notationOrigin + const Offset(190, 68));
+    await tester.pump();
+    expect(find.text('Rest'), findsOneWidget);
+    expect(find.text('—'), findsWidgets);
+
+    await tester.tapAt(notationOrigin + const Offset(190, 68));
+    await tester.pump();
+    expect(find.text('None'), findsOneWidget);
+    expect(tester.widget<OutlinedButton>(moveUpButtonFinder).onPressed, isNull);
   });
 }

@@ -41,6 +41,35 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     });
   }
 
+  void _onNotationSymbolTap(int measureIndex, int symbolIndex) {
+    _updateState((state) {
+      final isSameSelection =
+          state.selectedPartIndex == 0 &&
+          state.selectedMeasureIndex == measureIndex &&
+          state.selectedSymbolIndex == symbolIndex;
+
+      if (isSameSelection) {
+        return state.copyWith(clearSelection: true);
+      }
+
+      final parts = state.score.parts;
+      if (parts.isEmpty || measureIndex < 0 || measureIndex >= parts.first.measures.length) {
+        return state.copyWith(clearSelection: true);
+      }
+      final symbols = parts.first.measures[measureIndex].symbols;
+      if (symbolIndex < 0 || symbolIndex >= symbols.length) {
+        return state.copyWith(clearSelection: true);
+      }
+
+      return state.copyWith(
+        selectedPartIndex: 0,
+        selectedMeasureIndex: measureIndex,
+        selectedSymbolIndex: symbolIndex,
+        selectedSymbol: symbols[symbolIndex],
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final selected = _editorState.selectedSymbol;
@@ -69,7 +98,18 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                     child: SingleChildScrollView(
                       child: Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: ScoreNotationViewer(score: _editorState.score),
+                        child: ScoreNotationViewer(
+                          score: _editorState.score,
+                          selectedMeasureIndex: _editorState.selectedMeasureIndex,
+                          selectedSymbolIndex: _editorState.selectedSymbolIndex,
+                          onSymbolTap: (target) {
+                            if (target == null) {
+                              _updateState((state) => state.copyWith(clearSelection: true));
+                              return;
+                            }
+                            _onNotationSymbolTap(target.measureIndex, target.symbolIndex);
+                          },
+                        ),
                       ),
                     ),
                   ),

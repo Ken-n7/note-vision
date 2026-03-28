@@ -123,5 +123,52 @@ void main() {
       expect(find.byType(ScoreNotationViewer), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('taps resolve note and rest targets with 24dp hit areas', (
+      tester,
+    ) async {
+      final score = Score(
+        id: 'tap-targets',
+        title: 'Tap targets',
+        composer: 'Tester',
+        parts: [
+          Part(
+            id: 'P1',
+            name: 'Part 1',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: const [
+                  Note(step: 'E', octave: 4, duration: 1, type: 'quarter'),
+                  Rest(duration: 1, type: 'quarter'),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final taps = <(int, int)>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ScoreNotationViewer(
+              score: score,
+              onSymbolTap: (target) {
+                if (target == null) return;
+                taps.add((target.measureIndex, target.symbolIndex));
+              },
+            ),
+          ),
+        ),
+      );
+
+      final origin = tester.getTopLeft(find.byType(ScoreNotationViewer));
+      await tester.tapAt(origin + const Offset(154, 68));
+      await tester.tapAt(origin + const Offset(190, 68));
+      await tester.pump();
+
+      expect(taps, equals([(0, 0), (0, 1)]));
+    });
   });
 }

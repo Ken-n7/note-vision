@@ -19,6 +19,9 @@ class ScoreNotationViewer extends StatefulWidget {
     this.rowHeight = 140,
     this.padding = const EdgeInsets.all(16),
     this.backgroundColor = const Color(0xFFF9FAFB),
+    this.selectedMeasureIndex,
+    this.selectedSymbolIndex,
+    this.onSymbolTap,
   });
 
   final Score? score;
@@ -27,6 +30,9 @@ class ScoreNotationViewer extends StatefulWidget {
   final double rowHeight;
   final EdgeInsets padding;
   final Color backgroundColor;
+  final int? selectedMeasureIndex;
+  final int? selectedSymbolIndex;
+  final ValueChanged<NotationSymbolTarget?>? onSymbolTap;
 
   @override
   State<ScoreNotationViewer> createState() => _ScoreNotationViewerState();
@@ -63,6 +69,24 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
       backgroundColor: widget.backgroundColor,
       horizontalController: _horizontalController,
       size: layout.size,
+      onTapUp: widget.onSymbolTap == null
+          ? null
+          : (position) {
+              final adjusted = position.translate(
+                _horizontalController.hasClients ? _horizontalController.offset : 0,
+                0,
+              );
+              final targets = ScoreNotationPainter.buildSymbolTargets(
+                measures: measures,
+                measuresPerRow: layout.measuresPerRow,
+                minMeasureWidth: widget.minMeasureWidth,
+                rowHeight: widget.rowHeight,
+                padding: widget.padding,
+                rowPrefixWidth: layout.rowPrefixWidth,
+              );
+              final tapped = _nearestTarget(adjusted, targets);
+              widget.onSymbolTap?.call(tapped);
+            },
       painter: ScoreNotationPainter(
         measures: measures,
         measuresPerRow: layout.measuresPerRow,
@@ -70,8 +94,27 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
         rowHeight: widget.rowHeight,
         padding: widget.padding,
         rowPrefixWidth: layout.rowPrefixWidth,
+        selectedMeasureIndex: widget.selectedMeasureIndex,
+        selectedSymbolIndex: widget.selectedSymbolIndex,
       ),
     );
+  }
+
+  NotationSymbolTarget? _nearestTarget(
+    Offset position,
+    List<NotationSymbolTarget> targets,
+  ) {
+    NotationSymbolTarget? best;
+    double? bestDistance;
+    for (final target in targets) {
+      if (!target.hitRect.contains(position)) continue;
+      final distance = (target.center - position).distanceSquared;
+      if (best == null || distance < bestDistance!) {
+        best = target;
+        bestDistance = distance;
+      }
+    }
+    return best;
   }
 
   List<Measure> _measuresFor(Score? score) {
@@ -86,12 +129,14 @@ class _NotationCanvasFrame extends StatelessWidget {
     required this.horizontalController,
     required this.size,
     required this.painter,
+    this.onTapUp,
   });
 
   final Color backgroundColor;
   final ScrollController horizontalController;
   final Size size;
   final CustomPainter painter;
+  final ValueChanged<Offset>? onTapUp;
 
   @override
   Widget build(BuildContext context) {
@@ -101,10 +146,14 @@ class _NotationCanvasFrame extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
-      child: SingleChildScrollView(
-        controller: horizontalController,
-        scrollDirection: Axis.horizontal,
-        child: CustomPaint(size: size, painter: painter),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapUp: onTapUp == null ? null : (details) => onTapUp!(details.localPosition),
+        child: SingleChildScrollView(
+          controller: horizontalController,
+          scrollDirection: Axis.horizontal,
+          child: CustomPaint(size: size, painter: painter),
+        ),
       ),
     );
   }
