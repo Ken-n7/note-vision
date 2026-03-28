@@ -22,9 +22,9 @@ class CollapsibleSection extends StatelessWidget {
       opacity: enabled ? 1.0 : 0.45,
       child: Container(
         decoration: BoxDecoration(
-          color: const Color(0xFFF7F7F7),
+          color: const Color(0xFF1A1A1A),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFFE8E8E8), width: 0.5),
+          border: Border.all(color: const Color(0xFF2C2C2C), width: 0.5),
         ),
         child: Column(
           children: [
@@ -41,7 +41,7 @@ class CollapsibleSection extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF999999),
+                        color: Color(0xFF8A8A8A),
                         letterSpacing: 0.8,
                       ),
                     ),
@@ -50,7 +50,7 @@ class CollapsibleSection extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 11,
                         color: enabled
-                            ? const Color(0xFF185FA5)
+                            ? const Color(0xFFD4A96A)
                             : const Color(0xFFBBBBBB),
                         fontWeight: FontWeight.w500,
                       ),

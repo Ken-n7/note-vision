@@ -51,7 +51,7 @@ class MetaRow extends StatelessWidget {
               isEmpty ? '—' : value!,
               style: TextStyle(
                 fontSize: mono ? 11 : 12,
-                color: isEmpty ? const Color(0xFFBBBBBB) : const Color(0xFF111111),
+                color: isEmpty ? const Color(0xFFBBBBBB) : const Color(0xFFFFFFFF),
                 fontStyle: isEmpty ? FontStyle.italic : FontStyle.normal,
                 fontFamily: mono ? 'monospace' : null,
               ),

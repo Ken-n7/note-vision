@@ -29,7 +29,7 @@ class StatusSection extends StatelessWidget {
                         : FontWeight.w500,
                     color: state.status == ScreenState.empty
                         ? const Color(0xFFAAAAAA)
-                        : const Color(0xFF111111),
+                        : const Color(0xFFFFFFFF),
                     fontStyle: state.status == ScreenState.empty
                         ? FontStyle.italic
                         : FontStyle.normal,

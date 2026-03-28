@@ -55,9 +55,9 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
     final isLoading = _controller.isLoading;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: const Color(0xFF0D0D0D),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF5F5F5),
+        backgroundColor: const Color(0xFF0D0D0D),
         elevation: 0,
         centerTitle: true,
         title: const Text(
@@ -65,7 +65,7 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF111111),
+            color: Color(0xFFFFFFFF),
           ),
         ),
         actions: [
@@ -75,9 +75,9 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
             decoration: BoxDecoration(
               color: const Color(0xFFE8F0FE),
               borderRadius: BorderRadius.circular(4),
-            ),
-            child: const Text(
-              'DEV',
+              ),
+              child: const Text(
+                'DEV',
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
@@ -96,10 +96,10 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
             ElevatedButton(
               onPressed: isLoading ? null : _onImportPressed,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF185FA5),
+                backgroundColor: const Color(0xFFD4A96A),
                 foregroundColor: Colors.white,
                 disabledBackgroundColor:
-                    const Color(0xFF185FA5).withValues(alpha: 0.5),
+                    const Color(0xFFD4A96A).withValues(alpha: 0.5),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
@@ -133,8 +133,8 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF185FA5),
-                side: const BorderSide(color: Color(0xFF185FA5), width: 1.5),
+                foregroundColor: const Color(0xFFD4A96A),
+                side: const BorderSide(color: Color(0xFFD4A96A), width: 1.5),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),

@@ -13,8 +13,9 @@ class SectionCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFF7F7F7),
+        color: const Color(0xFF1A1A1A),
         borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFF2C2C2C), width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -24,7 +25,7 @@ class SectionCard extends StatelessWidget {
             style: const TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF999999),
+              color: Color(0xFF8A8A8A),
               letterSpacing: 0.8,
             ),
           ),
@@ -51,7 +52,7 @@ class InspectorBadge extends StatelessWidget {
     final (bg, fg) = switch (style) {
       BadgeStyle.success => (const Color(0xFFDCFCE7), const Color(0xFF15803D)),
       BadgeStyle.fail    => (const Color(0xFFFEE2E2), const Color(0xFFB91C1C)),
-      BadgeStyle.neutral => (const Color(0xFFEFEFEF), const Color(0xFFAAAAAA)),
+      BadgeStyle.neutral => (const Color(0xFF252525), const Color(0xFFAAAAAA)),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
@@ -59,7 +60,7 @@ class InspectorBadge extends StatelessWidget {
         color: bg,
         borderRadius: BorderRadius.circular(20),
         border: style == BadgeStyle.neutral
-            ? Border.all(color: const Color(0xFFE0E0E0), width: 0.5)
+            ? Border.all(color: const Color(0xFF3A3A3A), width: 0.5)
             : null,
       ),
       child: Text(
@@ -81,13 +82,13 @@ class MonoPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(12),
-      color: const Color(0xFFF0F0F0),
+      color: const Color(0xFF111111),
       child: Text(
         text,
         style: const TextStyle(
           fontFamily: 'monospace',
           fontSize: 10.5,
-          color: Color(0xFF333333),
+          color: Color(0xFFB8C4E0),
           height: 1.5,
         ),
       ),

@@ -23,7 +23,7 @@ class DiScorePreview extends StatelessWidget {
         children: [
           ScoreNotationViewer(
             score: score,
-            backgroundColor: const Color(0xFF0B0E16),
+            backgroundColor: const Color(0xFFF9FAFB),
           ),
           const SizedBox(height: 12),
           _MonoBlock(text: debug),

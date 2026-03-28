@@ -17,16 +17,16 @@ class ErrorBlock extends StatelessWidget {
     // Validation errors use orange; hard parse errors use red.
     final (bg, border, labelColor, textColor) = isValidation
         ? (
-            const Color(0xFFFFF7ED),
-            const Color(0xFFFED7AA),
-            const Color(0xFFC2410C),
-            const Color(0xFF7C2D12),
+            const Color(0xFF2B1E10),
+            const Color(0xFF7C4A1D),
+            const Color(0xFFF59E0B),
+            const Color(0xFFFCD9A3),
           )
         : (
-            const Color(0xFFFFF5F5),
-            const Color(0xFFFCA5A5),
-            const Color(0xFFB91C1C),
+            const Color(0xFF2A1717),
             const Color(0xFF7F1D1D),
+            const Color(0xFFF87171),
+            const Color(0xFFFECACA),
           );
 
     return Container(
@@ -76,9 +76,9 @@ class WarningBlock extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFFBEB),
+        color: const Color(0xFF2D2615),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFFDE68A), width: 0.5),
+        border: Border.all(color: const Color(0xFF8D6C1E), width: 0.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -88,7 +88,7 @@ class WarningBlock extends StatelessWidget {
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w600,
-              color: Color(0xFFB45309),
+              color: Color(0xFFF59E0B),
               letterSpacing: 0.8,
             ),
           ),
@@ -100,7 +100,7 @@ class WarningBlock extends StatelessWidget {
                 '• $w',
                 style: const TextStyle(
                   fontSize: 11.5,
-                  color: Color(0xFF78350F),
+                  color: Color(0xFFFDE68A),
                   height: 1.55,
                 ),
               ),

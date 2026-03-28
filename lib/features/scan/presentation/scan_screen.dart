@@ -70,9 +70,9 @@ class _ScanScreenState extends State<ScanScreen> {
         centerTitle: true,
         actions: [
           IconButton(
-            tooltip: 'Import MusicXML/JSON',
-            onPressed: _importFromFile,
-            icon: const Icon(Icons.file_upload_outlined),
+            tooltip: 'Scan / Import',
+            onPressed: () => _showInputChooser(context),
+            icon: const Icon(Icons.add_photo_alternate_outlined),
           ),
         ],
       ),
@@ -111,8 +111,8 @@ class _ScanScreenState extends State<ScanScreen> {
               padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
               child: ScanActions(
           onRedo: () => Navigator.pop(context),
-          onImport: _importFromFile,
-          onContinue: () {
+          onImport: () => _showInputChooser(context),
+          onContinue: vm.result!.hasDetections ? () {
             final mappedScore = vm.mappingResult?.score ??
                 const Score(
                   id: 'scan-score',
@@ -135,7 +135,7 @@ class _ScanScreenState extends State<ScanScreen> {
                 initialState: EditorState(score: mappedScore),
               ),
             );
-          },
+          } : null,
               ),
             ),
           ],
@@ -144,12 +144,93 @@ class _ScanScreenState extends State<ScanScreen> {
     );
   }
 
-  Future<void> _importFromFile() async {
+  Future<void> _showInputChooser(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF111111),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Choose input source',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                _SourceOption(
+                  icon: Icons.photo_camera_outlined,
+                  label: 'Capture image',
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    Navigator.pop(context);
+                  },
+                ),
+                _SourceOption(
+                  icon: Icons.image_outlined,
+                  label: 'Import image (detect symbols)',
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _importImageForDetection();
+                  },
+                ),
+                _SourceOption(
+                  icon: Icons.description_outlined,
+                  label: 'Import MusicXML',
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _importStructuredFile(allowedExtensions: const ['xml', 'musicxml']);
+                  },
+                ),
+                _SourceOption(
+                  icon: Icons.data_object_outlined,
+                  label: 'Import score JSON',
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    _importStructuredFile(allowedExtensions: const ['json']);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _importImageForDetection() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+      withData: true,
+    );
+    if (!mounted || result == null || result.files.isEmpty) return;
+    final data = result.files.single.bytes;
+    if (data == null) {
+      _showImportError('Unable to read the selected image.');
+      return;
+    }
+    await context.read<ScanViewModel>().run(data);
+  }
+
+  Future<void> _importStructuredFile({
+    required List<String> allowedExtensions,
+  }) async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowMultiple: false,
       withData: true,
-      allowedExtensions: const ['json', 'xml', 'musicxml'],
+      allowedExtensions: allowedExtensions,
     );
 
     if (!mounted || result == null || result.files.isEmpty) return;
@@ -383,6 +464,51 @@ class _ScanScreenState extends State<ScanScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SourceOption extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _SourceOption({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A1A),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF2C2C2C)),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: AppColors.textSecondary),
+              const SizedBox(width: 10),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

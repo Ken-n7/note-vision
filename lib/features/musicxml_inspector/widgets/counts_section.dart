@@ -71,8 +71,9 @@ class CountCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: const Color(0xFFF7F7F7),
+          color: const Color(0xFF1A1A1A),
           borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFF2C2C2C), width: 0.5),
         ),
         child: Column(
           children: [
@@ -81,13 +82,13 @@ class CountCard extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF111111),
+                color: Color(0xFFFFFFFF),
               ),
             ),
             const SizedBox(height: 2),
             Text(
               label,
-              style: const TextStyle(fontSize: 10, color: Color(0xFF999999)),
+              style: const TextStyle(fontSize: 10, color: Color(0xFF8A8A8A)),
             ),
           ],
         ),

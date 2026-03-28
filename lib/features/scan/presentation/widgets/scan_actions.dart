@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 class ScanActions extends StatelessWidget {
   final VoidCallback onRedo;
-  final VoidCallback onContinue;
+  final VoidCallback? onContinue;
   final VoidCallback? onImport;
 
   const ScanActions({
@@ -19,6 +19,7 @@ class ScanActions extends StatelessWidget {
   static const _accent      = Color(0xFFD4A96A);
   static const _textPrimary = Color(0xFFFFFFFF);
   static const _textMuted   = Color(0xFF8A8A8A);
+  static const _disabledBg  = Color(0xFF2A2A2A);
 
   @override
   Widget build(BuildContext context) {
@@ -103,17 +104,19 @@ class ScanActions extends StatelessWidget {
               child: Container(
                 height: 52,
                 decoration: BoxDecoration(
-                  color: _textPrimary,
+                  color: onContinue == null ? _disabledBg : _textPrimary,
                   borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: _accent.withValues(alpha: 0.18),
-                      blurRadius: 20,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
+                  boxShadow: onContinue == null
+                      ? null
+                      : [
+                          BoxShadow(
+                            color: _accent.withValues(alpha: 0.18),
+                            blurRadius: 20,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
@@ -121,12 +124,16 @@ class ScanActions extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: _bg,
+                        color: onContinue == null ? _textMuted : _bg,
                         letterSpacing: 0.3,
                       ),
                     ),
                     SizedBox(width: 8),
-                    Icon(Icons.arrow_forward, size: 18, color: _bg),
+                    Icon(
+                      Icons.arrow_forward,
+                      size: 18,
+                      color: onContinue == null ? _textMuted : _bg,
+                    ),
                   ],
                 ),
               ),
@@ -142,7 +149,7 @@ class ScanActions extends StatelessWidget {
 
 class _TappableButton extends StatefulWidget {
   final Widget child;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   const _TappableButton({required this.child, required this.onPressed});
 
@@ -156,17 +163,18 @@ class _TappableButtonState extends State<_TappableButton> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
+      onTapDown: widget.onPressed == null ? null : (_) => setState(() => _pressed = true),
       onTapUp: (_) {
+        if (widget.onPressed == null) return;
         setState(() => _pressed = false);
-        widget.onPressed();
+        widget.onPressed?.call();
       },
-      onTapCancel: () => setState(() => _pressed = false),
+      onTapCancel: widget.onPressed == null ? null : () => setState(() => _pressed = false),
       child: AnimatedScale(
-        scale: _pressed ? 0.97 : 1.0,
+        scale: _pressed && widget.onPressed != null ? 0.97 : 1.0,
         duration: const Duration(milliseconds: 100),
         child: AnimatedOpacity(
-          opacity: _pressed ? 0.85 : 1.0,
+          opacity: widget.onPressed == null ? 0.55 : (_pressed ? 0.85 : 1.0),
           duration: const Duration(milliseconds: 100),
           child: widget.child,
         ),
