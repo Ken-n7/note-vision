@@ -92,18 +92,12 @@ class EditorState {
 
     if (allNull) return _Selection.none();
 
-    if (candidate.partIndex == null ||
-        candidate.measureIndex == null ||
-        candidate.symbolIndex == null ||
-        candidate.symbol == null) {
+    if (candidate.partIndex == null || candidate.measureIndex == null) {
       return _Selection.none();
     }
 
-    _validateSelectedSymbolType(candidate.symbol);
-
     final partIndex = candidate.partIndex!;
     final measureIndex = candidate.measureIndex!;
-    final symbolIndex = candidate.symbolIndex!;
 
     if (partIndex < 0 || partIndex >= score.parts.length) {
       return _Selection.none();
@@ -114,6 +108,24 @@ class EditorState {
       return _Selection.none();
     }
 
+    final hasSymbolSelection =
+        candidate.symbolIndex != null || candidate.symbol != null;
+    if (!hasSymbolSelection) {
+      return _Selection(
+        partIndex: partIndex,
+        measureIndex: measureIndex,
+        symbolIndex: null,
+        symbol: null,
+      );
+    }
+
+    if (candidate.symbolIndex == null || candidate.symbol == null) {
+      return _Selection.none();
+    }
+
+    _validateSelectedSymbolType(candidate.symbol);
+
+    final symbolIndex = candidate.symbolIndex!;
     final measure = part.measures[measureIndex];
     if (symbolIndex < 0 || symbolIndex >= measure.symbols.length) {
       return _Selection.none();

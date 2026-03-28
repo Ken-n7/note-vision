@@ -118,13 +118,23 @@ extension EditorActions on EditorState {
       symbols: symbols,
     );
 
+    if (symbols.isEmpty) {
+      return applyEdit(
+        score: nextScore,
+        selectedPartIndex: partIndex,
+        selectedMeasureIndex: measureIndex,
+        selectedSymbolIndex: null,
+        selectedSymbol: null,
+      );
+    }
+
+    final nextIndex = symbolIndex.clamp(0, symbols.length - 1);
     return applyEdit(
       score: nextScore,
-      selectedPartIndex: null,
-      selectedMeasureIndex: null,
-      selectedSymbolIndex: null,
-      selectedSymbol: null,
-      clearSelection: true,
+      selectedPartIndex: partIndex,
+      selectedMeasureIndex: measureIndex,
+      selectedSymbolIndex: nextIndex,
+      selectedSymbol: symbols[nextIndex],
     );
   }
 

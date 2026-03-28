@@ -111,6 +111,28 @@ void main() {
       expect(identical(state.insertNoteAfterSelection(), state), isTrue);
       expect(identical(state.insertRestAfterSelection(), state), isTrue);
     });
+
+    test('deleting last symbol keeps measure context so insert can recover', () {
+      final score = _baseScore(
+        const [Note(step: 'C', octave: 4, duration: 1, type: 'quarter')],
+      );
+      final selectedState = EditorState(score: score).copyWith(
+        selectedPartIndex: 0,
+        selectedMeasureIndex: 0,
+        selectedSymbolIndex: 0,
+        selectedSymbol: score.parts[0].measures[0].symbols[0],
+      );
+
+      final cleared = selectedState.deleteSelectedSymbol();
+      expect(cleared.selectedPartIndex, 0);
+      expect(cleared.selectedMeasureIndex, 0);
+      expect(cleared.selectedSymbolIndex, isNull);
+      expect(cleared.selectedSymbol, isNull);
+
+      final restored = cleared.insertNoteAfterSelection();
+      expect(restored.score.parts[0].measures[0].symbols, hasLength(1));
+      expect(restored.score.parts[0].measures[0].symbols.first, isA<Note>());
+    });
   });
 }
 
