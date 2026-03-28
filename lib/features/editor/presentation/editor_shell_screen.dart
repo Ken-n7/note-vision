@@ -5,6 +5,7 @@ import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/theme/responsive_layout.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
+import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 
 class EditorShellArgs {
