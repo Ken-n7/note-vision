@@ -235,15 +235,19 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
           const SizedBox(height: 10),
           _TappableButton(
             onPressed: _cancelSelection,
-            child: SizedBox(
+            child: Container(
               width: double.infinity,
-              height: 44,
-              child: Center(
+              height: 52,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: _border, width: 1),
+              ),
+              child: const Center(
                 child: Text(
                   'Cancel',
                   style: TextStyle(
                     fontSize: 13,
-                    color: Colors.white.withValues(alpha: 0.7),
+                    color: _textSecondary,
                     letterSpacing: 0.3,
                   ),
                 ),
