@@ -170,5 +170,113 @@ void main() {
 
       expect(taps, equals([(0, 0), (0, 1)]));
     });
+
+    testWidgets('long-press drag reorders symbols within the same measure', (
+      tester,
+    ) async {
+      final score = Score(
+        id: 'drag-reorder',
+        title: 'Drag reorder',
+        composer: 'Tester',
+        parts: [
+          Part(
+            id: 'P1',
+            name: 'Part 1',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: const [
+                  Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                  Rest(duration: 1, type: 'quarter'),
+                  Note(step: 'E', octave: 4, duration: 1, type: 'quarter'),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+
+      NotationSymbolReorder? reorderEvent;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ScoreNotationViewer(
+              score: score,
+              onSymbolReorder: (event) {
+                reorderEvent = event;
+              },
+            ),
+          ),
+        ),
+      );
+
+      final origin = tester.getTopLeft(find.byType(ScoreNotationViewer));
+      final gesture = await tester.startGesture(origin + const Offset(146, 68));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 20));
+      await gesture.moveTo(origin + const Offset(198, 68));
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+
+      expect(reorderEvent, isNotNull);
+      expect(reorderEvent!.measureIndex, 0);
+      expect(reorderEvent!.fromSymbolIndex, 0);
+      expect(reorderEvent!.toSymbolIndex, 2);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('drag cannot move symbol across measure boundary', (tester) async {
+      final score = Score(
+        id: 'drag-boundary',
+        title: 'Drag boundary',
+        composer: 'Tester',
+        parts: [
+          Part(
+            id: 'P1',
+            name: 'Part 1',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: const [
+                  Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                ],
+              ),
+              Measure(
+                number: 2,
+                symbols: const [
+                  Rest(duration: 1, type: 'quarter'),
+                  Note(step: 'E', octave: 4, duration: 1, type: 'quarter'),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+
+      NotationSymbolReorder? reorderEvent;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ScoreNotationViewer(
+              score: score,
+              onSymbolReorder: (event) {
+                reorderEvent = event;
+              },
+            ),
+          ),
+        ),
+      );
+
+      final origin = tester.getTopLeft(find.byType(ScoreNotationViewer));
+      final gesture = await tester.startGesture(origin + const Offset(184, 68));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 20));
+      await gesture.moveTo(origin + const Offset(315, 68));
+      await tester.pump();
+      await gesture.up();
+      await tester.pump();
+
+      expect(reorderEvent, isNull);
+      expect(tester.takeException(), isNull);
+    });
   });
 }

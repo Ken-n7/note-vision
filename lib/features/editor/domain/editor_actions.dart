@@ -142,6 +142,68 @@ extension EditorActions on EditorState {
 
   EditorState applyRedo() => redo();
 
+  EditorState reorderSymbolWithinMeasure({
+    required int measureIndex,
+    required int fromSymbolIndex,
+    required int toSymbolIndex,
+  }) {
+    if (score.parts.isEmpty) return this;
+    final partIndex = 0;
+    final measures = score.parts[partIndex].measures;
+    if (measureIndex < 0 || measureIndex >= measures.length) return this;
+
+    final currentSymbols = measures[measureIndex].symbols;
+    if (fromSymbolIndex < 0 || fromSymbolIndex >= currentSymbols.length) return this;
+    if (toSymbolIndex < 0 || toSymbolIndex >= currentSymbols.length) return this;
+    if (fromSymbolIndex == toSymbolIndex) return this;
+
+    final symbols = List<ScoreSymbol>.from(currentSymbols);
+    final movedSymbol = symbols.removeAt(fromSymbolIndex);
+    symbols.insert(toSymbolIndex, movedSymbol);
+
+    final nextScore = _replaceMeasureSymbols(
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      symbols: symbols,
+    );
+
+    final selectedPart = selectedPartIndex;
+    final selectedMeasure = selectedMeasureIndex;
+    final selectedIndex = selectedSymbolIndex;
+    final selected = selectedSymbol;
+
+    if (selectedPart != partIndex ||
+        selectedMeasure != measureIndex ||
+        selectedIndex == null ||
+        selected == null) {
+      return applyEdit(
+        score: nextScore,
+        selectedPartIndex: selectedPartIndex,
+        selectedMeasureIndex: selectedMeasureIndex,
+        selectedSymbolIndex: selectedSymbolIndex,
+        selectedSymbol: selectedSymbol,
+      );
+    }
+
+    int nextSelectedIndex = selectedIndex;
+
+    if (selectedIndex == fromSymbolIndex) {
+      nextSelectedIndex = toSymbolIndex;
+    } else if (fromSymbolIndex < selectedIndex && toSymbolIndex >= selectedIndex) {
+      nextSelectedIndex = selectedIndex - 1;
+    } else if (fromSymbolIndex > selectedIndex && toSymbolIndex <= selectedIndex) {
+      nextSelectedIndex = selectedIndex + 1;
+    }
+
+    return applyEdit(
+      score: nextScore,
+      selectedPartIndex: partIndex,
+      selectedMeasureIndex: measureIndex,
+      selectedSymbolIndex: nextSelectedIndex,
+      selectedSymbol: symbols[nextSelectedIndex],
+    );
+  }
+
   EditorState _replaceSelectedSymbol(ScoreSymbol symbol) {
     final partIndex = selectedPartIndex!;
     final measureIndex = selectedMeasureIndex!;

@@ -135,6 +135,15 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                             }
                             _onNotationSymbolTap(target.measureIndex, target.symbolIndex);
                           },
+                          onSymbolReorder: (event) {
+                            _updateState(
+                              (state) => state.reorderSymbolWithinMeasure(
+                                measureIndex: event.measureIndex,
+                                fromSymbolIndex: event.fromSymbolIndex,
+                                toSymbolIndex: event.toSymbolIndex,
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ),

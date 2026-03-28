@@ -133,6 +133,85 @@ void main() {
       expect(restored.score.parts[0].measures[0].symbols, hasLength(1));
       expect(restored.score.parts[0].measures[0].symbols.first, isA<Note>());
     });
+
+    test('reorderSymbolWithinMeasure reorders and preserves selection', () {
+      final score = Score(
+        id: 's-reorder',
+        title: 't',
+        composer: 'c',
+        parts: const [
+          Part(
+            id: 'p1',
+            name: 'P1',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: [
+                  Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                  Rest(duration: 1, type: 'quarter'),
+                  Note(step: 'E', octave: 4, duration: 1, type: 'quarter'),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final selected = EditorState(score: score).copyWith(
+        selectedPartIndex: 0,
+        selectedMeasureIndex: 0,
+        selectedSymbolIndex: 0,
+        selectedSymbol: score.parts[0].measures[0].symbols[0],
+      );
+
+      final moved = selected.reorderSymbolWithinMeasure(
+        measureIndex: 0,
+        fromSymbolIndex: 0,
+        toSymbolIndex: 2,
+      );
+      final symbols = moved.score.parts[0].measures[0].symbols;
+      expect(symbols[0], isA<Rest>());
+      expect((symbols[1] as Note).pitch, 'E4');
+      expect((symbols[2] as Note).pitch, 'C4');
+      expect(moved.selectedSymbolIndex, 2);
+      expect((moved.selectedSymbol! as Note).pitch, 'C4');
+      expect(moved.undoStack, isNotEmpty);
+    });
+
+    test('reorderSymbolWithinMeasure cannot move symbol across measure boundary', () {
+      final score = Score(
+        id: 's-multi',
+        title: 't',
+        composer: 'c',
+        parts: const [
+          Part(
+            id: 'p1',
+            name: 'P1',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: [Note(step: 'C', octave: 4, duration: 1, type: 'quarter')],
+              ),
+              Measure(
+                number: 2,
+                symbols: [Rest(duration: 1, type: 'quarter')],
+              ),
+            ],
+          ),
+        ],
+      );
+      final state = EditorState(score: score);
+
+      final unchanged = state.reorderSymbolWithinMeasure(
+        measureIndex: 0,
+        fromSymbolIndex: 0,
+        toSymbolIndex: 1,
+      );
+
+      expect(identical(unchanged, state), isTrue);
+      expect(unchanged.undoStack, isEmpty);
+      expect(unchanged.score.parts[0].measures[1].symbols.single, isA<Rest>());
+    });
   });
 }
 
