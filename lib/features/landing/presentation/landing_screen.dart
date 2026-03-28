@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:note_vision/core/theme/app_theme.dart';
+import 'package:note_vision/core/theme/responsive_layout.dart';
 import 'package:note_vision/features/musicxml_inspector/music_inspector_screen.dart';
 import '../../../features/collection/presentation/collection_screen.dart';
 
@@ -57,9 +59,10 @@ class _LandingScreenState extends State<LandingScreen>
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
+    final horizontalPadding = ResponsiveLayout.horizontalPadding(size.width) * 1.5;
 
     return Scaffold(
-      backgroundColor: const Color.fromARGB(255, 0, 0, 0),
+      backgroundColor: AppColors.background,
       body: Stack(
         children: [
           // ── Ambient glow background ────────────────────────────────────
@@ -82,7 +85,7 @@ class _LandingScreenState extends State<LandingScreen>
               child: SlideTransition(
                 position: _slideUp,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
                   child: Column(
                     children: [
                       const Spacer(flex: 3),
@@ -93,7 +96,7 @@ class _LandingScreenState extends State<LandingScreen>
                         style: TextStyle(
                           fontFamily: 'MaturaMTScriptCapitals',
                           fontSize: 50,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           letterSpacing: 1.5,
                         ),
                       ),
@@ -122,7 +125,7 @@ class _LandingScreenState extends State<LandingScreen>
                         'Read music. Understand it.',
                         style: TextStyle(
                           fontSize: 13,
-                          color: Colors.white.withValues(alpha: 0.35),
+                          color: AppColors.textSecondary,
                           letterSpacing: 2.0,
                           fontWeight: FontWeight.w300,
                         ),
