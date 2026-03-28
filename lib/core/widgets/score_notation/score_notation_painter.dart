@@ -6,6 +6,7 @@ import '../../models/key_signature.dart';
 import '../../models/measure.dart';
 import '../../models/note.dart';
 import '../../models/rest.dart';
+import '../../models/score_symbol.dart';
 import '../../models/time_signature.dart';
 import 'staff_pitch_mapper.dart';
 
@@ -17,6 +18,8 @@ class ScoreNotationPainter extends CustomPainter {
     required this.rowHeight,
     required this.padding,
     required this.rowPrefixWidth,
+    this.selectedMeasureIndex,
+    this.selectedSymbolIndex,
   });
 
   final List<Measure> measures;
@@ -25,8 +28,11 @@ class ScoreNotationPainter extends CustomPainter {
   final double rowHeight;
   final EdgeInsets padding;
   final double rowPrefixWidth;
+  final int? selectedMeasureIndex;
+  final int? selectedSymbolIndex;
 
   static const double staffLineSpacing = 12;
+  static const double tapTargetSize = 24;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -37,17 +43,31 @@ class ScoreNotationPainter extends CustomPainter {
   }
 
   List<_RowMetrics> _buildRowMetrics() {
+    return _buildRowMetricsStatic(
+      measures: measures,
+      measuresPerRow: measuresPerRow,
+      rowHeight: rowHeight,
+      padding: padding,
+      rowPrefixWidth: rowPrefixWidth,
+      minMeasureWidth: minMeasureWidth,
+    );
+  }
+
+  static List<_RowMetrics> _buildRowMetricsStatic({
+    required List<Measure> measures,
+    required int measuresPerRow,
+    required double rowHeight,
+    required EdgeInsets padding,
+    required double rowPrefixWidth,
+    required double minMeasureWidth,
+  }) {
     final rows = <_RowMetrics>[];
     final rowCount = (measures.length / measuresPerRow).ceil();
 
     for (var rowIndex = 0; rowIndex < rowCount; rowIndex++) {
       final rowStartMeasure = rowIndex * measuresPerRow;
-      final rowEndExclusive = math.min(
-        rowStartMeasure + measuresPerRow,
-        measures.length,
-      );
+      final rowEndExclusive = math.min(rowStartMeasure + measuresPerRow, measures.length);
       final rowMeasures = measures.sublist(rowStartMeasure, rowEndExclusive);
-
       final rowTop = padding.top + rowIndex * rowHeight + 28;
       final staffTop = rowTop;
       final staffBottom = staffTop + staffLineSpacing * 4;
@@ -58,6 +78,7 @@ class ScoreNotationPainter extends CustomPainter {
       rows.add(
         _RowMetrics(
           rowIndex: rowIndex,
+          globalStartMeasureIndex: rowStartMeasure,
           measures: rowMeasures,
           staffTop: staffTop,
           staffBottom: staffBottom,
@@ -69,6 +90,80 @@ class ScoreNotationPainter extends CustomPainter {
     }
 
     return rows;
+  }
+
+  static List<NotationSymbolTarget> buildSymbolTargets({
+    required List<Measure> measures,
+    required int measuresPerRow,
+    required double minMeasureWidth,
+    required double rowHeight,
+    required EdgeInsets padding,
+    required double rowPrefixWidth,
+  }) {
+    final rows = _buildRowMetricsStatic(
+      measures: measures,
+      measuresPerRow: measuresPerRow,
+      rowHeight: rowHeight,
+      padding: padding,
+      rowPrefixWidth: rowPrefixWidth,
+      minMeasureWidth: minMeasureWidth,
+    );
+    final targets = <NotationSymbolTarget>[];
+
+    for (final row in rows) {
+      for (var measureInRow = 0; measureInRow < row.measures.length; measureInRow++) {
+        final measure = row.measures[measureInRow];
+        final measureStartX = row.contentStartX + (measureInRow * minMeasureWidth);
+        final measureEndX = measureStartX + minMeasureWidth;
+        if (measure.symbols.isEmpty) continue;
+
+        const innerPadding = 16.0;
+        final drawableWidth = math.max(
+          12.0,
+          (measureEndX - measureStartX) - (innerPadding * 2),
+        );
+
+        for (var symbolIndex = 0; symbolIndex < measure.symbols.length; symbolIndex++) {
+          final symbol = measure.symbols[symbolIndex];
+          final progress = (symbolIndex + 1) / (measure.symbols.length + 1);
+          final x = measureStartX + innerPadding + (drawableWidth * progress);
+          final y = _symbolCenterY(symbol, row.staffTop, row.staffBottom);
+          targets.add(
+            NotationSymbolTarget(
+              measureIndex: row.globalStartMeasureIndex + measureInRow,
+              symbolIndex: symbolIndex,
+              center: Offset(x, y),
+              hitRect: Rect.fromCenter(
+                center: Offset(x, y),
+                width: tapTargetSize,
+                height: tapTargetSize,
+              ),
+            ),
+          );
+        }
+      }
+    }
+    return targets;
+  }
+
+  static double _symbolCenterY(ScoreSymbol symbol, double staffTop, double staffBottom) {
+    if (symbol is Note) {
+      return StaffPitchMapper.yForPitch(
+        step: symbol.step,
+        octave: symbol.octave,
+        bottomLineY: staffBottom,
+        lineSpacing: staffLineSpacing,
+      );
+    }
+
+    final restType = symbol is Rest ? symbol.type.trim().toLowerCase() : '';
+    if (restType == 'whole') {
+      return staffTop + (staffLineSpacing * 3) + 4.3;
+    }
+    if (restType == 'half') {
+      return staffTop + (staffLineSpacing * 2) - 3.0;
+    }
+    return staffTop + (staffLineSpacing * 1.35) + 8.0;
   }
 
   void _drawRow(Canvas canvas, _RowMetrics row) {
@@ -199,11 +294,31 @@ class ScoreNotationPainter extends CustomPainter {
           bottomLineY: staffBottom,
           lineSpacing: staffLineSpacing,
         );
+        final isSelected =
+            selectedMeasureIndex == row.globalStartMeasureIndex + measureInRow &&
+            selectedSymbolIndex == i;
+        if (isSelected) {
+          _drawSelectionHighlight(canvas, Offset(x, y));
+        }
         _drawNote(canvas, symbol, x: x, y: y, middleLineY: middleLineY);
       } else if (symbol is Rest) {
+        final y = _symbolCenterY(symbol, staffTop, staffBottom);
+        final isSelected =
+            selectedMeasureIndex == row.globalStartMeasureIndex + measureInRow &&
+            selectedSymbolIndex == i;
+        if (isSelected) {
+          _drawSelectionHighlight(canvas, Offset(x, y));
+        }
         _drawRest(canvas, symbol, x: x, staffTop: staffTop);
       }
     }
+  }
+
+  void _drawSelectionHighlight(Canvas canvas, Offset center) {
+    final paint = Paint()
+      ..color = const Color(0xFFD4A96A).withValues(alpha: 0.26)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, 14, paint);
   }
 
   void _drawNote(
@@ -486,13 +601,30 @@ class ScoreNotationPainter extends CustomPainter {
         oldDelegate.minMeasureWidth != minMeasureWidth ||
         oldDelegate.rowHeight != rowHeight ||
         oldDelegate.padding != padding ||
-        oldDelegate.rowPrefixWidth != rowPrefixWidth;
+        oldDelegate.rowPrefixWidth != rowPrefixWidth ||
+        oldDelegate.selectedMeasureIndex != selectedMeasureIndex ||
+        oldDelegate.selectedSymbolIndex != selectedSymbolIndex;
   }
+}
+
+class NotationSymbolTarget {
+  const NotationSymbolTarget({
+    required this.measureIndex,
+    required this.symbolIndex,
+    required this.center,
+    required this.hitRect,
+  });
+
+  final int measureIndex;
+  final int symbolIndex;
+  final Offset center;
+  final Rect hitRect;
 }
 
 class _RowMetrics {
   const _RowMetrics({
     required this.rowIndex,
+    required this.globalStartMeasureIndex,
     required this.measures,
     required this.staffTop,
     required this.staffBottom,
@@ -502,6 +634,7 @@ class _RowMetrics {
   });
 
   final int rowIndex;
+  final int globalStartMeasureIndex;
   final List<Measure> measures;
   final double staffTop;
   final double staffBottom;
