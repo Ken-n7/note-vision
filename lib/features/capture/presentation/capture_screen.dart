@@ -430,14 +430,14 @@ class _CaptureScreenState extends State<CaptureScreen>
                 icon: Icons.camera_alt_outlined,
                 label: 'Scan',
                 isSelected: true,
-                onTap: _openCameraAndShowPreview,
+                onTap: () {},
               ),
               _BottomNavItem(
                 icon: Icons.upload_file_outlined,
                 label: 'Import',
                 isSelected: false,
                 onTap: () {
-                  Navigator.push(
+                  Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(
                       builder: (_) => const ImportScoreScreen(),
