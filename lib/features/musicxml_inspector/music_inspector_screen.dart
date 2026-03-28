@@ -90,9 +90,12 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isLandscape = constraints.maxWidth > constraints.maxHeight;
+            final content = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
             // ── Import button ─────────────────────────────────────────────
             ElevatedButton(
               onPressed: isLoading ? null : _onImportPressed,
@@ -207,8 +210,21 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
                   : null,
             ),
 
-            const SizedBox(height: 32),
-          ],
+                const SizedBox(height: 32),
+              ],
+            );
+
+            if (!isLandscape) {
+              return content;
+            }
+
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 920),
+                child: content,
+              ),
+            );
+          },
         ),
       ),
     );

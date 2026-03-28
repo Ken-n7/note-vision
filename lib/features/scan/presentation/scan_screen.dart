@@ -104,39 +104,60 @@ class _ScanScreenState extends State<ScanScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = ResponsiveLayout.horizontalPadding(constraints.maxWidth);
-        return Column(
-          children: [
-            Expanded(child: ScanImageView(result: vm.result!)),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-              child: ScanActions(
-                onRedo: () => Navigator.pop(context),
-                onImport: _importFromFile,
-                canContinue: vm.result?.hasDetections ?? false,
-                onContinue: () {
-            final mappedScore = vm.mappingResult?.score ??
-                const Score(
-                  id: 'scan-score',
-                  title: 'Scanned Score',
-                  composer: 'Unknown',
-                  parts: [
-                    Part(
-                      id: 'P1',
-                      name: 'Part 1',
-                      measures: [Measure(number: 1, symbols: [])],
-                    ),
-                  ],
-                );
+        final isLandscape = constraints.maxWidth > constraints.maxHeight;
 
-            Navigator.pushNamed(
-              context,
-              EditorShellScreen.routeName,
-              arguments: EditorShellArgs(
-                score: mappedScore,
-                initialState: EditorState(score: mappedScore),
-              ),
-            );
-          },
+        final actions = Padding(
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+          child: ScanActions(
+            onRedo: () => Navigator.pop(context),
+            onImport: _importFromFile,
+            canContinue: vm.result?.hasDetections ?? false,
+            onContinue: () {
+              final mappedScore = vm.mappingResult?.score ??
+                  const Score(
+                    id: 'scan-score',
+                    title: 'Scanned Score',
+                    composer: 'Unknown',
+                    parts: [
+                      Part(
+                        id: 'P1',
+                        name: 'Part 1',
+                        measures: [Measure(number: 1, symbols: [])],
+                      ),
+                    ],
+                  );
+
+              Navigator.pushNamed(
+                context,
+                EditorShellScreen.routeName,
+                arguments: EditorShellArgs(
+                  score: mappedScore,
+                  initialState: EditorState(score: mappedScore),
+                ),
+              );
+            },
+          ),
+        );
+
+        if (!isLandscape) {
+          return Column(
+            children: [
+              Expanded(child: ScanImageView(result: vm.result!)),
+              actions,
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(flex: 3, child: ScanImageView(result: vm.result!)),
+            Expanded(
+              flex: 2,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: actions,
+                ),
               ),
             ),
           ],
