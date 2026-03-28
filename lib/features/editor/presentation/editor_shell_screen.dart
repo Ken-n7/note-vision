@@ -97,6 +97,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     final hasSelection = _editorState.hasSelection;
     final hasMeasureContext =
         _editorState.selectedPartIndex != null && _editorState.selectedMeasureIndex != null;
+    final selectedMeasureIndex = _editorState.selectedMeasureIndex ?? 0;
+    final measureCount = _editorState.score.parts.isEmpty
+        ? 0
+        : _editorState.score.parts.first.measures.length;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -163,6 +167,26 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   measure: _editorState.selectedMeasureIndex == null
                       ? '—'
                       : (_editorState.selectedMeasureIndex! + 1).toString(),
+                  onPrevMeasure: selectedMeasureIndex > 0
+                      ? () => _updateState(
+                            (s) => s.copyWith(
+                              selectedPartIndex: 0,
+                              selectedMeasureIndex: selectedMeasureIndex - 1,
+                              selectedSymbolIndex: null,
+                              selectedSymbol: null,
+                            ),
+                          )
+                      : null,
+                  onNextMeasure: selectedMeasureIndex < measureCount - 1
+                      ? () => _updateState(
+                            (s) => s.copyWith(
+                              selectedPartIndex: 0,
+                              selectedMeasureIndex: selectedMeasureIndex + 1,
+                              selectedSymbolIndex: null,
+                              selectedSymbol: null,
+                            ),
+                          )
+                      : null,
                 ),
                 _EditorActionBar(
                   horizontalPadding: horizontalPadding,
@@ -179,6 +203,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   onInsertNote: () => _updateState((s) => s.insertNoteAfterSelection()),
                   onInsertRest: () => _updateState((s) => s.insertRestAfterSelection()),
                   onDelete: () => _updateState((s) => s.deleteSelectedSymbol()),
+                  onMoveToPrevMeasure: () =>
+                      _updateState((s) => s.moveSelectedSymbolToMeasureOffset(-1)),
+                  onMoveToNextMeasure: () =>
+                      _updateState((s) => s.moveSelectedSymbolToMeasureOffset(1)),
                   onUndo: () => _updateState((s) => s.applyUndo()),
                   onRedo: () => _updateState((s) => s.applyRedo()),
                 ),
@@ -278,6 +306,8 @@ class _StatusStrip extends StatelessWidget {
     required this.pitch,
     required this.durationType,
     required this.measure,
+    required this.onPrevMeasure,
+    required this.onNextMeasure,
   });
 
   final double horizontalPadding;
@@ -285,6 +315,8 @@ class _StatusStrip extends StatelessWidget {
   final String pitch;
   final String durationType;
   final String measure;
+  final VoidCallback? onPrevMeasure;
+  final VoidCallback? onNextMeasure;
 
   @override
   Widget build(BuildContext context) {
@@ -304,8 +336,36 @@ class _StatusStrip extends StatelessWidget {
           _StatusItem(label: 'Pitch', value: pitch),
           _StatusItem(label: 'Duration', value: durationType),
           _StatusItem(label: 'Measure', value: measure),
+          _StatusNavButton(
+            icon: Icons.chevron_left_rounded,
+            onPressed: onPrevMeasure,
+          ),
+          _StatusNavButton(
+            icon: Icons.chevron_right_rounded,
+            onPressed: onNextMeasure,
+          ),
         ],
       ),
+    );
+  }
+}
+
+class _StatusNavButton extends StatelessWidget {
+  const _StatusNavButton({required this.icon, required this.onPressed});
+
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        side: const BorderSide(color: AppColors.border),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        minimumSize: const Size(32, 32),
+      ),
+      child: Icon(icon, size: 18),
     );
   }
 }
@@ -363,6 +423,8 @@ class _EditorActionBar extends StatelessWidget {
     required this.onInsertNote,
     required this.onInsertRest,
     required this.onDelete,
+    required this.onMoveToPrevMeasure,
+    required this.onMoveToNextMeasure,
     required this.onUndo,
     required this.onRedo,
   });
@@ -381,6 +443,8 @@ class _EditorActionBar extends StatelessWidget {
   final VoidCallback onInsertNote;
   final VoidCallback onInsertRest;
   final VoidCallback onDelete;
+  final VoidCallback onMoveToPrevMeasure;
+  final VoidCallback onMoveToNextMeasure;
   final VoidCallback onUndo;
   final VoidCallback onRedo;
 
@@ -415,6 +479,14 @@ class _EditorActionBar extends StatelessWidget {
               _ActionButton(label: 'Insert Note', onPressed: hasMeasureContext ? onInsertNote : null),
               _ActionButton(label: 'Insert Rest', onPressed: hasMeasureContext ? onInsertRest : null),
               _ActionButton(label: 'Delete', onPressed: hasSelection ? onDelete : null),
+              _ActionButton(
+                label: 'To Prev Measure',
+                onPressed: hasSelection ? onMoveToPrevMeasure : null,
+              ),
+              _ActionButton(
+                label: 'To Next Measure',
+                onPressed: hasSelection ? onMoveToNextMeasure : null,
+              ),
               _ActionButton(label: 'Undo', onPressed: canUndo ? onUndo : null),
               _ActionButton(label: 'Redo', onPressed: canRedo ? onRedo : null),
             ],
