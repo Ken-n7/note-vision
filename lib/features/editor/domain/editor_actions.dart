@@ -160,7 +160,7 @@ extension EditorActions on EditorState {
       toInsertIndex,
       moved,
     );
-    final toSymbolIndex = toSymbols.length - 1;
+    final toSymbolIndex = toSymbols.length;
 
     return applyEdit(
       score: nextScore,

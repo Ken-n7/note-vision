@@ -112,6 +112,50 @@ void main() {
       expect(identical(state.insertRestAfterSelection(), state), isTrue);
     });
 
+    test('moveSelectedSymbolToMeasureOffset keeps moved symbol selected', () {
+      final score = Score(
+        id: 's-move-measure',
+        title: 't',
+        composer: 'c',
+        parts: const [
+          Part(
+            id: 'p1',
+            name: 'P1',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: [
+                  Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                  Rest(duration: 1, type: 'quarter'),
+                ],
+              ),
+              Measure(
+                number: 2,
+                symbols: [Rest(duration: 2, type: 'half')],
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final selected = EditorState(score: score).copyWith(
+        selectedPartIndex: 0,
+        selectedMeasureIndex: 0,
+        selectedSymbolIndex: 0,
+        selectedSymbol: score.parts[0].measures[0].symbols[0],
+      );
+
+      final moved = selected.moveSelectedSymbolToMeasureOffset(1);
+
+      expect(moved.selectedPartIndex, 0);
+      expect(moved.selectedMeasureIndex, 1);
+      expect(moved.selectedSymbolIndex, 1);
+      expect(moved.selectedSymbol, isA<Note>());
+      expect((moved.selectedSymbol! as Note).pitch, 'C4');
+      expect(moved.score.parts[0].measures[1].symbols, hasLength(2));
+      expect(moved.undoStack, isNotEmpty);
+    });
+
     test('deleting last symbol keeps measure context so insert can recover', () {
       final score = _baseScore(
         const [Note(step: 'C', octave: 4, duration: 1, type: 'quarter')],
