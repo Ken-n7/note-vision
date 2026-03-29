@@ -318,6 +318,8 @@ class _CollectionScreenState extends State<CollectionScreen>
 
   @override
   Widget build(BuildContext context) {
+    final orientation = MediaQuery.of(context).orientation;
+    final isLandscape = orientation == Orientation.landscape;
     final horizontalPadding =
         ResponsiveLayout.horizontalPadding(MediaQuery.of(context).size.width);
 
@@ -335,27 +337,27 @@ class _CollectionScreenState extends State<CollectionScreen>
             colorBlendMode: BlendMode.srcIn,
           ),
         ),
-        title: const Text(
+        title: Text(
           'Note Vision',
           style: TextStyle(
             fontFamily: 'MaturaMTScriptCapitals',
-            fontSize: 22,
+            fontSize: isLandscape ? 20 : 22,
             color: AppColors.textPrimary,
             letterSpacing: 0.5,
           ),
         ),
         centerTitle: true,
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(48),
+          preferredSize: Size.fromHeight(isLandscape ? 42 : 48),
           child: Padding(
-            padding: EdgeInsets.fromLTRB(horizontalPadding, 0, horizontalPadding, 12),
+            padding: EdgeInsets.fromLTRB(horizontalPadding, 0, horizontalPadding, isLandscape ? 8 : 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'MY COLLECTION',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: isLandscape ? 10 : 11,
                     fontWeight: FontWeight.w600,
                     color: AppColors.textSecondary,
                     letterSpacing: 2.0,
@@ -364,8 +366,8 @@ class _CollectionScreenState extends State<CollectionScreen>
                 if (!_isLoading && _imagePaths.isNotEmpty)
                   Text(
                     '${_imagePaths.length} items',
-                    style: const TextStyle(
-                      fontSize: 11,
+                    style: TextStyle(
+                      fontSize: isLandscape ? 10 : 11,
                       color: AppColors.textSecondary,
                       letterSpacing: 0.3,
                     ),

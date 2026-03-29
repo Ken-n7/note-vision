@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:note_vision/core/utils/image_picker_helper.dart';
 import 'package:note_vision/core/widgets/drawer.dart';
 import 'package:note_vision/features/scan/presentation/scan_screen.dart';
+import 'package:note_vision/features/capture/presentation/import_score_screen.dart';
 
 class CaptureScreen extends StatefulWidget {
   const CaptureScreen({super.key});
@@ -307,15 +308,19 @@ class _CaptureScreenState extends State<CaptureScreen>
         const SizedBox(height: 10),
         _TappableButton(
           onPressed: _cancelSelection,
-          child: SizedBox(
+          child: Container(
             width: double.infinity,
-            height: 44,
-            child: Center(
+            height: 52,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: _border, width: 1),
+            ),
+            child: const Center(
               child: Text(
                 'Cancel',
                 style: TextStyle(
                   fontSize: 13,
-                  color: const Color.fromARGB(255, 255, 255, 255).withValues(alpha: 0.7),
+                  color: _textSecondary,
                   letterSpacing: 0.3,
                 ),
               ),
@@ -335,13 +340,9 @@ class _CaptureScreenState extends State<CaptureScreen>
         backgroundColor: _bg,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 16),
-          child: Image.asset(
-            'assets/images/notevision.png',
-            height: 28,
-            colorBlendMode: BlendMode.srcIn,
-          ),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, size: 20, color: _textPrimary),
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
         title: const Text(
           'Note Vision',
@@ -362,54 +363,70 @@ class _CaptureScreenState extends State<CaptureScreen>
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Section label ────────────────────────────────────────────
-            const Text(
-              'CAPTURE MUSIC SHEET',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: _textSecondary,
-                letterSpacing: 2.0,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isLandscape = constraints.maxWidth > constraints.maxHeight;
+          if (isLandscape) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeaderSection(),
+                  const SizedBox(height: 14),
+                  SizedBox(height: 260, child: _buildPreviewArea()),
+                  const SizedBox(height: 14),
+                  _buildActionRow(),
+                ],
               ),
+            );
+          }
+
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeaderSection(),
+                const SizedBox(height: 20),
+                Expanded(child: _buildPreviewArea()),
+                const SizedBox(height: 16),
+                _buildActionRow(),
+                const SizedBox(height: 20),
+              ],
             ),
-
-            const SizedBox(height: 6),
-
-            // ── Description ──────────────────────────────────────────────
-            const Text(
-              'Scan printed music sheets and convert them into digital notation.',
-              style: TextStyle(
-                fontSize: 14,
-                color: _textSecondary,
-                height: 1.5,
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // ── Hint ─────────────────────────────────────────────────────
-            _buildHint(),
-
-            const SizedBox(height: 20),
-
-            // ── Preview area ─────────────────────────────────────────────
-            Expanded(child: _buildPreviewArea()),
-
-            const SizedBox(height: 16),
-
-            // ── Action buttons ───────────────────────────────────────────
-            _buildActionRow(),
-
-            const SizedBox(height: 20),
-          ],
-        ),
+          );
+        },
       ),
       bottomNavigationBar: _buildBottomNav(),
+    );
+  }
+
+  Widget _buildHeaderSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'CAPTURE MUSIC SHEET',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: _textSecondary,
+            letterSpacing: 2.0,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          'Scan printed music sheets and convert them into digital notation.',
+          style: TextStyle(
+            fontSize: 14,
+            color: _textSecondary,
+            height: 1.5,
+          ),
+        ),
+        const SizedBox(height: 16),
+        _buildHint(),
+      ],
     );
   }
 
@@ -429,13 +446,20 @@ class _CaptureScreenState extends State<CaptureScreen>
                 icon: Icons.camera_alt_outlined,
                 label: 'Scan',
                 isSelected: true,
-                onTap: _openCameraAndShowPreview,
+                onTap: () {},
               ),
               _BottomNavItem(
                 icon: Icons.upload_file_outlined,
                 label: 'Import',
                 isSelected: false,
-                onTap: _pickFromGallery,
+                onTap: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ImportScoreScreen(),
+                    ),
+                  );
+                },
               ),
             ],
           ),
@@ -499,7 +523,7 @@ class _BottomNavItem extends StatelessWidget {
 
 class _TappableButton extends StatefulWidget {
   final Widget child;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   const _TappableButton({required this.child, required this.onPressed});
 
@@ -513,12 +537,14 @@ class _TappableButtonState extends State<_TappableButton> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) {
-        setState(() => _pressed = false);
-        widget.onPressed();
-      },
-      onTapCancel: () => setState(() => _pressed = false),
+      onTapDown: widget.onPressed == null ? null : (_) => setState(() => _pressed = true),
+      onTapCancel: widget.onPressed == null ? null : () => setState(() => _pressed = false),
+      onTap: widget.onPressed == null
+          ? null
+          : () {
+              setState(() => _pressed = false);
+              widget.onPressed!();
+            },
       child: AnimatedScale(
         scale: _pressed ? 0.97 : 1.0,
         duration: const Duration(milliseconds: 100),

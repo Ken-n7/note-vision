@@ -1,20 +1,13 @@
 import 'dart:typed_data';
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
-import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/part.dart';
-import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
-import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/theme/responsive_layout.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
-import 'package:note_vision/features/musicXML/musicxml_parser_service.dart';
-import 'package:note_vision/features/musicXML/musicxml_score_converter.dart';
 import 'package:note_vision/features/detection/data/tflite_symbol_detector.dart';
 import 'package:note_vision/features/preprocessing/data/basic_image_preprocessor.dart';
 import 'package:note_vision/features/scan/presentation/scan_viewmodel.dart';
@@ -32,9 +25,6 @@ class ScanScreen extends StatefulWidget {
 }
 
 class _ScanScreenState extends State<ScanScreen> {
-  static const _xmlParser = MusicXmlParserService();
-  static const _xmlConverter = MusicXmlScoreConverter();
-
   @override
   void initState() {
     super.initState();
@@ -68,13 +58,6 @@ class _ScanScreenState extends State<ScanScreen> {
           ),
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            tooltip: 'Import MusicXML/JSON',
-            onPressed: _importFromFile,
-            icon: const Icon(Icons.file_upload_outlined),
-          ),
-        ],
       ),
       body: switch (vm.state) {
         ScanState.idle         => const SizedBox(),
@@ -104,184 +87,64 @@ class _ScanScreenState extends State<ScanScreen> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final horizontalPadding = ResponsiveLayout.horizontalPadding(constraints.maxWidth);
-        return Column(
-          children: [
-            Expanded(child: ScanImageView(result: vm.result!)),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-              child: ScanActions(
-          onRedo: () => Navigator.pop(context),
-          onImport: _importFromFile,
-          onContinue: () {
-            final mappedScore = vm.mappingResult?.score ??
-                const Score(
-                  id: 'scan-score',
-                  title: 'Scanned Score',
-                  composer: 'Unknown',
-                  parts: [
-                    Part(
-                      id: 'P1',
-                      name: 'Part 1',
-                      measures: [Measure(number: 1, symbols: [])],
-                    ),
-                  ],
-                );
+        final isLandscape = constraints.maxWidth > constraints.maxHeight;
 
-            Navigator.pushNamed(
-              context,
-              EditorShellScreen.routeName,
-              arguments: EditorShellArgs(
-                score: mappedScore,
-                initialState: EditorState(score: mappedScore),
-              ),
-            );
-          },
+        final actions = Padding(
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+          child: ScanActions(
+            onRedo: () => Navigator.pop(context),
+            canContinue: vm.result?.hasDetections ?? false,
+            onContinue: () {
+              final mappedScore = vm.mappingResult?.score ??
+                  const Score(
+                    id: 'scan-score',
+                    title: 'Scanned Score',
+                    composer: 'Unknown',
+                    parts: [
+                      Part(
+                        id: 'P1',
+                        name: 'Part 1',
+                        measures: [Measure(number: 1, symbols: [])],
+                      ),
+                    ],
+                  );
+
+              Navigator.pushNamed(
+                context,
+                EditorShellScreen.routeName,
+                arguments: EditorShellArgs(
+                  score: mappedScore,
+                  initialState: EditorState(score: mappedScore),
+                ),
+              );
+            },
+          ),
+        );
+
+        if (!isLandscape) {
+          return Column(
+            children: [
+              Expanded(child: ScanImageView(result: vm.result!)),
+              actions,
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(flex: 3, child: ScanImageView(result: vm.result!)),
+            Expanded(
+              flex: 2,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: actions,
+                ),
               ),
             ),
           ],
         );
       },
-    );
-  }
-
-  Future<void> _importFromFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowMultiple: false,
-      withData: true,
-      allowedExtensions: const ['json', 'xml', 'musicxml'],
-    );
-
-    if (!mounted || result == null || result.files.isEmpty) return;
-    final file = result.files.single;
-    final fileName = file.name;
-    final ext = fileName.split('.').last.toLowerCase();
-    final data = file.bytes;
-    if (data == null) {
-      _showImportError('Unable to read "$fileName".');
-      return;
-    }
-
-    try {
-      final importedScore = switch (ext) {
-        'json' => _scoreFromJson(utf8.decode(data)),
-        'xml' || 'musicxml' => _scoreFromMusicXml(utf8.decode(data)),
-        _ => throw const FormatException('Unsupported import type.'),
-      };
-      if (!mounted) return;
-      Navigator.pushNamed(
-        context,
-        EditorShellScreen.routeName,
-        arguments: EditorShellArgs(
-          score: importedScore,
-          initialState: EditorState(score: importedScore),
-        ),
-      );
-    } catch (_) {
-      _showImportError(
-        'Could not import "$fileName". Use a valid MusicXML or score JSON file.',
-      );
-    }
-  }
-
-  Score _scoreFromMusicXml(String content) {
-    final parsed = _xmlParser.parse(content);
-    if (!parsed.success || parsed.document == null) {
-      throw const FormatException('Invalid MusicXML');
-    }
-    return _xmlConverter.convert(parsed.document!);
-  }
-
-  Score _scoreFromJson(String content) {
-    final root = jsonDecode(content);
-    if (root is! Map) {
-      throw const FormatException('JSON root must be an object');
-    }
-    final rootMap = Map<String, dynamic>.from(root);
-
-    final partMaps = (rootMap['parts'] as List?)
-            ?.whereType<Map>()
-            .map((part) => Map<String, dynamic>.from(part))
-            .toList() ??
-        [];
-    if (partMaps.isEmpty) {
-      throw const FormatException('Score JSON must include parts');
-    }
-
-    final parts = partMaps.map((part) {
-      final measureMaps = (part['measures'] as List?)
-              ?.whereType<Map>()
-              .map((measure) => Map<String, dynamic>.from(measure))
-              .toList() ??
-          [];
-      return Part(
-        id: (part['id']?.toString().isNotEmpty ?? false) ? part['id'].toString() : 'P1',
-        name: part['name']?.toString() ?? 'Part 1',
-        measures: measureMaps.map(_measureFromJson).toList(),
-      );
-    }).toList();
-
-    return Score(
-      id: rootMap['id']?.toString() ?? 'imported-score',
-      title: rootMap['title']?.toString() ?? 'Imported Score',
-      composer: rootMap['composer']?.toString() ?? 'Unknown',
-      parts: parts,
-    );
-  }
-
-  Measure _measureFromJson(Map<String, dynamic> measure) {
-    final symbolMaps = (measure['symbols'] as List?)
-            ?.whereType<Map>()
-            .map((symbol) => Map<String, dynamic>.from(symbol))
-            .toList() ??
-        [];
-    return Measure(
-      number: (measure['number'] as num?)?.toInt() ?? 1,
-      symbols: symbolMaps.map(_symbolFromJson).toList(),
-    );
-  }
-
-  ScoreSymbol _symbolFromJson(Map<String, dynamic> symbol) {
-    final type = symbol['type']?.toString().toLowerCase();
-    if (type == 'rest') {
-      return Rest(
-        duration: (symbol['duration'] as num?)?.toInt() ?? 1,
-        type: symbol['restType']?.toString() ?? symbol['noteType']?.toString() ?? 'quarter',
-        voice: (symbol['voice'] as num?)?.toInt(),
-        staff: (symbol['staff'] as num?)?.toInt(),
-      );
-    }
-
-    final pitch = symbol['pitch']?.toString().toUpperCase() ?? 'C4';
-    final match = RegExp(r'^([A-G])([#B]*)(\d)$').firstMatch(pitch);
-    final step = match?.group(1) ?? symbol['step']?.toString().toUpperCase() ?? 'C';
-    final accidental = match?.group(2) ?? '';
-    final alter = accidental.isEmpty
-        ? (symbol['alter'] as num?)?.toInt()
-        : accidental.replaceAll('B', 'b').split('').fold<int>(
-            0,
-            (value, c) => value + (c == '#' ? 1 : c == 'b' ? -1 : 0),
-          );
-    final octave = int.tryParse(match?.group(3) ?? '') ?? (symbol['octave'] as num?)?.toInt() ?? 4;
-
-    return Note(
-      step: step,
-      octave: octave,
-      alter: alter,
-      duration: (symbol['duration'] as num?)?.toInt() ?? 1,
-      type: symbol['noteType']?.toString() ?? symbol['typeName']?.toString() ?? 'quarter',
-      voice: (symbol['voice'] as num?)?.toInt(),
-      staff: (symbol['staff'] as num?)?.toInt(),
-    );
-  }
-
-  void _showImportError(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-      ),
     );
   }
 

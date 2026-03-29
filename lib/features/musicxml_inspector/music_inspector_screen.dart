@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_theme.dart';
 import '../../core/widgets/inspector_shared_widgets.dart';
 import '../../core/widgets/score_notation_viewer.dart';
 import '../detection_inspector/detection_inspector_screen.dart';
@@ -55,9 +56,9 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
     final isLoading = _controller.isLoading;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF5F5F5),
+        backgroundColor: AppColors.background,
         elevation: 0,
         centerTitle: true,
         title: const Text(
@@ -65,7 +66,7 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
           style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF111111),
+            color: AppColors.textPrimary,
           ),
         ),
         actions: [
@@ -73,7 +74,7 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
             margin: const EdgeInsets.only(right: 16, top: 10, bottom: 10),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
-              color: const Color(0xFFE8F0FE),
+              color: AppColors.surface,
               borderRadius: BorderRadius.circular(4),
             ),
             child: const Text(
@@ -81,7 +82,7 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF1A56DB),
+                color: AppColors.accent,
               ),
             ),
           ),
@@ -89,17 +90,19 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isLandscape = constraints.maxWidth > constraints.maxHeight;
+            final content = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
             // ── Import button ─────────────────────────────────────────────
             ElevatedButton(
               onPressed: isLoading ? null : _onImportPressed,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF185FA5),
-                foregroundColor: Colors.white,
-                disabledBackgroundColor:
-                    const Color(0xFF185FA5).withValues(alpha: 0.5),
+                backgroundColor: AppColors.surface,
+                foregroundColor: AppColors.textPrimary,
+                disabledBackgroundColor: AppColors.border,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
@@ -133,8 +136,8 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
               style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFF185FA5),
-                side: const BorderSide(color: Color(0xFF185FA5), width: 1.5),
+                foregroundColor: AppColors.accent,
+                side: const BorderSide(color: AppColors.accent, width: 1.5),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
@@ -207,8 +210,21 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
                   : null,
             ),
 
-            const SizedBox(height: 32),
-          ],
+                const SizedBox(height: 32),
+              ],
+            );
+
+            if (!isLandscape) {
+              return content;
+            }
+
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 920),
+                child: content,
+              ),
+            );
+          },
         ),
       ),
     );

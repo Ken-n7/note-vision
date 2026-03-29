@@ -142,6 +142,41 @@ extension EditorActions on EditorState {
 
   EditorState applyRedo() => redo();
 
+  EditorState moveSelectedSymbolToMeasureOffset(int offset) {
+    if (!hasSelection || offset == 0) return this;
+
+    final partIndex = selectedPartIndex!;
+    final fromMeasureIndex = selectedMeasureIndex!;
+    final toMeasureIndex = fromMeasureIndex + offset;
+    final measures = score.parts[partIndex].measures;
+    if (toMeasureIndex < 0 || toMeasureIndex >= measures.length) return this;
+
+    final fromSymbols = List<ScoreSymbol>.from(measures[fromMeasureIndex].symbols);
+    final toSymbols = List<ScoreSymbol>.from(measures[toMeasureIndex].symbols);
+    final fromSymbolIndex = selectedSymbolIndex!;
+    if (fromSymbolIndex < 0 || fromSymbolIndex >= fromSymbols.length) return this;
+
+    final moved = fromSymbols.removeAt(fromSymbolIndex);
+    toSymbols.add(moved);
+    final toSymbolIndex = toSymbols.length - 1;
+
+    final nextScore = _replaceMeasureSymbolsBatch(
+      partIndex: partIndex,
+      updates: {
+        fromMeasureIndex: fromSymbols,
+        toMeasureIndex: toSymbols,
+      },
+    );
+
+    return applyEdit(
+      score: nextScore,
+      selectedPartIndex: partIndex,
+      selectedMeasureIndex: toMeasureIndex,
+      selectedSymbolIndex: toSymbolIndex,
+      selectedSymbol: moved,
+    );
+  }
+
   EditorState reorderSymbolWithinMeasure({
     required int measureIndex,
     required int fromSymbolIndex,
@@ -285,6 +320,40 @@ extension EditorActions on EditorState {
       parts: parts,
     );
   }
+
+  Score _replaceMeasureSymbolsBatch({
+    required int partIndex,
+    required Map<int, List<ScoreSymbol>> updates,
+  }) {
+    final parts = List<Part>.from(score.parts);
+    final measures = List<Measure>.from(parts[partIndex].measures);
+
+    for (final entry in updates.entries) {
+      final measureIndex = entry.key;
+      final currentMeasure = measures[measureIndex];
+      measures[measureIndex] = Measure(
+        number: currentMeasure.number,
+        clef: currentMeasure.clef,
+        timeSignature: currentMeasure.timeSignature,
+        keySignature: currentMeasure.keySignature,
+        symbols: entry.value,
+      );
+    }
+
+    final currentPart = parts[partIndex];
+    parts[partIndex] = Part(
+      id: currentPart.id,
+      name: currentPart.name,
+      measures: measures,
+    );
+
+    return Score(
+      id: score.id,
+      title: score.title,
+      composer: score.composer,
+      parts: parts,
+    );
+  }
 }
 
 Note _moveNoteByScaleStep(Note note, int steps) {
@@ -307,7 +376,7 @@ Note _moveNoteByScaleStep(Note note, int steps) {
 
   return Note(
     step: stepsByName[nextIndex],
-    octave: nextOctave.clamp(0, 9),
+    octave: nextOctave.clamp(1, 7),
     alter: note.alter,
     duration: note.duration,
     type: note.type,
