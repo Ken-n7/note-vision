@@ -4,6 +4,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/inspector_shared_widgets.dart';
 import '../../core/widgets/score_notation_viewer.dart';
 import '../detection_inspector/detection_inspector_screen.dart';
+import '../preprocessing_inspector/presentation/preprocessing_inspector_screen.dart';
 import 'controller/musicxml_inspector_controller.dart';
 import 'model/inspector_state.dart';
 import 'widgets/collapsible_section.dart';
@@ -46,6 +47,15 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
       context,
       MaterialPageRoute(
         builder: (_) => const DetectionInspectorScreen(),
+      ),
+    );
+  }
+
+  void _goToPreprocessingInspector() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const PreprocessingInspectorScreen(),
       ),
     );
   }
@@ -138,6 +148,26 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.accent,
                 side: const BorderSide(color: AppColors.accent, width: 1.5),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // ── Preprocessing Inspector shortcut ───────────────────────────
+            OutlinedButton.icon(
+              onPressed: _goToPreprocessingInspector,
+              icon: const Icon(Icons.filter_center_focus_outlined, size: 16),
+              label: const Text(
+                'Preprocessing Inspector',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.textSecondary,
+                side: const BorderSide(color: AppColors.border, width: 1.2),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
