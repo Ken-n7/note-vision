@@ -9,6 +9,7 @@ import 'package:note_vision/core/theme/responsive_layout.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 import 'package:note_vision/features/detection/data/tflite_symbol_detector.dart';
+import 'package:note_vision/features/detection/data/tiled_symbol_detector.dart';
 import 'package:note_vision/features/preprocessing/data/basic_image_preprocessor.dart';
 import 'package:note_vision/features/scan/presentation/scan_viewmodel.dart';
 import 'widgets/scan_actions.dart';
@@ -60,19 +61,54 @@ class _ScanScreenState extends State<ScanScreen> {
         centerTitle: true,
       ),
       body: switch (vm.state) {
-        ScanState.idle         => const SizedBox(),
-        ScanState.preprocessing => _PipelineStatus(
+        ScanState.idle => const SizedBox(),
+        ScanState.preprocessing => const _PipelineStatus(
             icon: Icons.tune_outlined,
             message: 'Preprocessing image',
             subMessage: 'Cleaning up and preparing your scan…',
           ),
-        ScanState.detecting    => const _PipelineStatus(
-            icon: Icons.image_search_outlined,
-            message: 'Detecting symbols',
-            subMessage: 'Running the detection model…',
+        ScanState.staffLineDetection => const _PipelineStatus(
+            icon: Icons.horizontal_rule_rounded,
+            message: 'Detecting staff lines',
+            subMessage: 'Estimating staff baselines and spacing…',
           ),
-        ScanState.done         => _buildDone(context, vm),
-        ScanState.error        => _buildError(context, vm),
+        ScanState.staffLineRemoval => const _PipelineStatus(
+            icon: Icons.content_cut_rounded,
+            message: 'Removing staff lines',
+            subMessage: 'Isolating musical symbols from staff strokes…',
+          ),
+        ScanState.symbolDetectionClassification => const _PipelineStatus(
+            icon: Icons.image_search_outlined,
+            message: 'Detecting symbols in tiles',
+            subMessage: 'Scanning zoomed tiles and classifying symbols…',
+          ),
+        ScanState.symbolToStaffAssignment => const _PipelineStatus(
+            icon: Icons.call_split_rounded,
+            message: 'Assigning symbols to staffs',
+            subMessage: 'Linking each symbol to its staff region…',
+          ),
+        ScanState.pitchReconstruction => const _PipelineStatus(
+            icon: Icons.music_note_rounded,
+            message: 'Reconstructing pitch',
+            subMessage: 'Mapping noteheads to lines/spaces…',
+          ),
+        ScanState.rhythmReconstruction => const _PipelineStatus(
+            icon: Icons.timelapse_rounded,
+            message: 'Reconstructing rhythm',
+            subMessage: 'Associating stems/flags/beams into durations…',
+          ),
+        ScanState.measureGrouping => const _PipelineStatus(
+            icon: Icons.view_week_outlined,
+            message: 'Grouping measures',
+            subMessage: 'Using barlines to segment musical events…',
+          ),
+        ScanState.scoreAssembly => const _PipelineStatus(
+            icon: Icons.library_music_outlined,
+            message: 'Assembling score model',
+            subMessage: 'Building the final score structure…',
+          ),
+        ScanState.done => _buildDone(context, vm),
+        ScanState.error => _buildError(context, vm),
       },
     );
   }
@@ -384,7 +420,12 @@ class ScanScreenProvider extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (_) => ScanViewModel(
         BasicImagePreprocessor(),
-        TfliteSymbolDetector(),
+        TiledSymbolDetector(
+          TfliteSymbolDetector(),
+          gridColumns: 2,
+          gridRows: 2,
+          overlapFraction: 0.3,
+        ),
       ),
       child: ScanScreen(imageBytes: imageBytes),
     );
