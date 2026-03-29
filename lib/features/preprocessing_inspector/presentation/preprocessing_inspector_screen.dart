@@ -8,6 +8,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../preprocessing/data/basic_image_preprocessor.dart';
 import '../../preprocessing/domain/image_preprocessor.dart';
 import '../../preprocessing/domain/preprocessed_result.dart';
+import '../data/dev_staff_line_detector.dart';
 import '../data/experimental_image_preprocessor.dart';
 
 enum _PreprocessorChoice { baseline, experimental }
@@ -31,6 +32,7 @@ class _PreprocessingInspectorScreenState
 
   final ImagePreprocessor _baseline = BasicImagePreprocessor();
   final ImagePreprocessor _experimental = const ExperimentalImagePreprocessor();
+  final DevStaffLineDetector _staffLineDetector = const DevStaffLineDetector();
 
   _PreprocessorChoice _choice = _PreprocessorChoice.experimental;
   bool _isRunning = false;
@@ -41,7 +43,9 @@ class _PreprocessingInspectorScreenState
   img.Image? _decodedInput;
 
   PreprocessedResult? _output;
+  DevStaffLineDetectionResult? _staffLineResult;
   Duration? _elapsed;
+  Duration? _stage2Elapsed;
 
   Future<void> _pickImageAndRun() async {
     setState(() {
@@ -90,13 +94,19 @@ class _PreprocessingInspectorScreenState
       final output = await preprocessor.preprocess(bytes);
       sw.stop();
 
+      final swStage2 = Stopwatch()..start();
+      final staffLines = await _staffLineDetector.detect(output.bytes);
+      swStage2.stop();
+
       if (!mounted) return;
       setState(() {
         _fileName = file.name;
         _inputBytes = bytes;
         _decodedInput = decoded;
         _output = output;
+        _staffLineResult = staffLines;
         _elapsed = sw.elapsed;
+        _stage2Elapsed = swStage2.elapsed;
         _isRunning = false;
       });
     } catch (e) {
@@ -126,10 +136,16 @@ class _PreprocessingInspectorScreenState
       final output = await preprocessor.preprocess(input);
       sw.stop();
 
+      final swStage2 = Stopwatch()..start();
+      final staffLines = await _staffLineDetector.detect(output.bytes);
+      swStage2.stop();
+
       if (!mounted) return;
       setState(() {
         _output = output;
+        _staffLineResult = staffLines;
         _elapsed = sw.elapsed;
+        _stage2Elapsed = swStage2.elapsed;
         _isRunning = false;
       });
     } catch (e) {
@@ -182,6 +198,11 @@ class _PreprocessingInspectorScreenState
             _buildStageCard(
               title: 'Stage 1 · Preprocessing Output',
               child: _buildOutputPreview(),
+            ),
+            const SizedBox(height: 12),
+            _buildStageCard(
+              title: 'Stage 2 · Staff Line Detection (DEV heuristic)',
+              child: _buildStaffLineStage(),
             ),
           ],
         ),
@@ -342,6 +363,50 @@ class _PreprocessingInspectorScreenState
     );
   }
 
+
+  Widget _buildStaffLineStage() {
+    final output = _output;
+    final stage = _staffLineResult;
+    if (output == null || stage == null) {
+      return const _EmptyState(
+        icon: Icons.horizontal_rule_outlined,
+        message: 'Run stage 1 first to enable staff-line detection.',
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: CustomPaint(
+            foregroundPainter: _StaffLineOverlayPainter(lines: stage.lines),
+            child: Image.memory(output.bytes, fit: BoxFit.contain),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 10,
+          runSpacing: 6,
+          children: [
+            _metaChip('Detected lines', stage.lines.length.toString()),
+            _metaChip('Dark rows', stage.darkRows.toString()),
+            _metaChip('Threshold', stage.minDarkRatio.toStringAsFixed(2)),
+            if (_stage2Elapsed != null)
+              _metaChip('Runtime', '${_stage2Elapsed!.inMilliseconds} ms'),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          stage.hasLines
+              ? 'Top lines: ${stage.lines.take(8).map((l) => l.y.toStringAsFixed(1)).join(', ')}'
+              : 'No strong horizontal staff candidates found.',
+          style: const TextStyle(fontSize: 12, color: _textSec, height: 1.4),
+        ),
+      ],
+    );
+  }
+
   Widget _metaChip(String label, String value) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -449,5 +514,32 @@ class _EmptyState extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+
+class _StaffLineOverlayPainter extends CustomPainter {
+  const _StaffLineOverlayPainter({required this.lines});
+
+  final List<DevStaffLine> lines;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (lines.isEmpty || size.height <= 0) return;
+
+    final paint = Paint()
+      ..color = const Color(0xFF00E5FF).withValues(alpha: 0.85)
+      ..strokeWidth = 1.2
+      ..style = PaintingStyle.stroke;
+
+    for (final line in lines) {
+      final y = line.y.clamp(0, 415) / 416 * size.height;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _StaffLineOverlayPainter oldDelegate) {
+    return oldDelegate.lines != lines;
   }
 }
