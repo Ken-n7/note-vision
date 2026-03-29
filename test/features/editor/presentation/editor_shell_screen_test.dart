@@ -200,7 +200,9 @@ void main() {
     await tester.pump();
     expect(find.text('E4'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Undo'));
+    final undoButton = find.widgetWithText(OutlinedButton, 'Undo');
+    await tester.ensureVisible(undoButton);
+    await tester.tap(undoButton);
     await tester.pump();
 
     await tester.tapAt(
@@ -232,7 +234,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final notationRect = tester.getRect(find.byType(ScoreNotationViewer));
-    final symbolLabelRect = tester.getRect(find.text('Symbol'));
+    final symbolLabelRect = tester.getRect(find.text('Type'));
 
     expect(symbolLabelRect.left, greaterThan(notationRect.right));
     expect(tester.takeException(), isNull);
