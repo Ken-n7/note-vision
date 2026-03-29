@@ -5,15 +5,15 @@ import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
-import 'package:note_vision/core/theme/responsive_layout.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 import 'package:note_vision/features/detection/data/tflite_symbol_detector.dart';
 import 'package:note_vision/features/detection/data/tiled_symbol_detector.dart';
+import 'package:note_vision/features/mapping/domain/detection_to_score_mapper_service.dart';
 import 'package:note_vision/features/preprocessing/data/basic_image_preprocessor.dart';
 import 'package:note_vision/features/scan/presentation/scan_viewmodel.dart';
 import 'widgets/scan_actions.dart';
-import 'widgets/scan_image_view.dart';
+import 'widgets/detection_overlay.dart';
 
 
 class ScanScreen extends StatefulWidget {
@@ -129,72 +129,7 @@ class _ScanScreenState extends State<ScanScreen> {
       }
     });
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final horizontalPadding = ResponsiveLayout.horizontalPadding(constraints.maxWidth);
-        final isLandscape = constraints.maxWidth > constraints.maxHeight;
-
-        final actions = Padding(
-          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-          child: ScanActions(
-            onRedo: () => Navigator.pop(context),
-            canContinue: vm.result?.hasDetections ?? false,
-            onContinue: () {
-              final mappedScore = vm.mappingResult?.score ??
-                  const Score(
-                    id: 'scan-score',
-                    title: 'Scanned Score',
-                    composer: 'Unknown',
-                    parts: [
-                      Part(
-                        id: 'P1',
-                        name: 'Part 1',
-                        measures: [Measure(number: 1, symbols: [])],
-                      ),
-                    ],
-                  );
-
-              Navigator.pushNamed(
-                context,
-                EditorShellScreen.routeName,
-                arguments: EditorShellArgs(
-                  score: mappedScore,
-                  initialState: EditorState(score: mappedScore),
-                ),
-              );
-            },
-          ),
-        );
-
-        if (!isLandscape) {
-          return Column(
-            children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(20, 10, 20, 0),
-                child: _PipelineStagesTimeline(currentState: ScanState.done),
-              ),
-              Expanded(child: ScanImageView(result: vm.result!)),
-              actions,
-            ],
-          );
-        }
-
-        return Row(
-          children: [
-            Expanded(flex: 3, child: ScanImageView(result: vm.result!)),
-            Expanded(
-              flex: 2,
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 520),
-                  child: actions,
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
+    return _StageWalkthrough(vm: vm);
   }
 
   void _showNoDetectionsBar(BuildContext context) {
@@ -302,6 +237,193 @@ class _ScanScreenState extends State<ScanScreen> {
 }
 
 // ─── Pipeline status widget ───────────────────────────────────────────────────
+
+class _StageWalkthrough extends StatefulWidget {
+  final ScanViewModel vm;
+
+  const _StageWalkthrough({required this.vm});
+
+  @override
+  State<_StageWalkthrough> createState() => _StageWalkthroughState();
+}
+
+class _StageWalkthroughState extends State<_StageWalkthrough> {
+  int _index = 0;
+
+  static const _stageScreens = <_StageScreenSpec>[
+    _StageScreenSpec(
+      title: 'Stage 1 — Preprocessing',
+      description: 'Grayscale, normalize, and letterbox to model size.',
+      state: ScanState.preprocessing,
+    ),
+    _StageScreenSpec(
+      title: 'Stage 2 — Staff Line Detection',
+      description: 'Find each staff line track and spacing profile.',
+      state: ScanState.staffLineDetection,
+    ),
+    _StageScreenSpec(
+      title: 'Stage 3 — Staff Line Removal',
+      description: 'Suppress staff strokes to isolate symbol blobs.',
+      state: ScanState.staffLineRemoval,
+    ),
+    _StageScreenSpec(
+      title: 'Stage 4 — Symbol Detection / Classification',
+      description: 'Detect symbols on tiles and classify symbol types.',
+      state: ScanState.symbolDetectionClassification,
+    ),
+    _StageScreenSpec(
+      title: 'Stage 5 — Symbol to Staff Assignment',
+      description: 'Assign symbols to the closest staff boundaries.',
+      state: ScanState.symbolToStaffAssignment,
+    ),
+    _StageScreenSpec(
+      title: 'Stage 6 — Pitch Reconstruction',
+      description: 'Map notehead vertical position to line/space pitch.',
+      state: ScanState.pitchReconstruction,
+    ),
+    _StageScreenSpec(
+      title: 'Stage 7 — Rhythm Reconstruction',
+      description: 'Use stems/flags/beams to infer note durations.',
+      state: ScanState.rhythmReconstruction,
+    ),
+    _StageScreenSpec(
+      title: 'Stage 8 — Measure Grouping',
+      description: 'Use barlines to segment symbols into measures.',
+      state: ScanState.measureGrouping,
+    ),
+    _StageScreenSpec(
+      title: 'Stage 9 — Score Assembly',
+      description: 'Build final score model for editor handoff.',
+      state: ScanState.scoreAssembly,
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final stage = _stageScreens[_index];
+    final result = widget.vm.result!;
+    final score = widget.vm.mappingResult?.score;
+    final measures = score?.parts.fold<int>(0, (sum, p) => sum + p.measures.length) ?? 0;
+    final notes = score?.parts.fold<int>(
+          0,
+          (sum, p) => sum + p.measures.fold<int>(0, (mSum, m) => mSum + m.notes.length),
+        ) ??
+        0;
+    final rests = score?.parts.fold<int>(
+          0,
+          (sum, p) => sum + p.measures.fold<int>(0, (mSum, m) => mSum + m.rests.length),
+        ) ??
+        0;
+    final symbols = result.symbols.length;
+
+    final stats = switch (_index) {
+      0 => 'Output image: ${result.preprocessed.width}×${result.preprocessed.height}',
+      1 => 'Detected staffs: ${result.detection.staffs.length}',
+      2 => 'Staff-removed raster shown (preview uses processed image)',
+      3 => 'Detected symbols: $symbols',
+      4 => 'Staff assignments: ${result.detection.staffs.isEmpty ? 0 : symbols}',
+      5 => 'Mapped notes estimate: $notes',
+      6 => 'Mapped rests estimate: $rests',
+      7 => 'Grouped measures estimate: $measures',
+      _ => 'Final score ready: ${score != null ? "yes" : "partial"}',
+    };
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _PipelineStagesTimeline(currentState: stage.state),
+          const SizedBox(height: 12),
+          Text(
+            stage.title,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            stage.description,
+            style: const TextStyle(fontSize: 13, color: Color(0xFF9AA1B4)),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            stats,
+            style: const TextStyle(fontSize: 12, color: Color(0xFFD4A96A)),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF2B3142)),
+                color: const Color(0xFF12151E),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: Image.memory(result.preprocessed.bytes, fit: BoxFit.contain),
+                  ),
+                  if (_index >= 3 && symbols > 0)
+                    Positioned.fill(child: DetectionOverlay(symbols: result.symbols)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          ScanActions(
+            onRedo: () => Navigator.pop(context),
+            canContinue: true,
+            onContinue: () {
+              if (_index < _stageScreens.length - 1) {
+                setState(() => _index += 1);
+                return;
+              }
+
+              final mappedScore = widget.vm.mappingResult?.score ??
+                  const Score(
+                    id: 'scan-score',
+                    title: 'Scanned Score',
+                    composer: 'Unknown',
+                    parts: [
+                      Part(
+                        id: 'P1',
+                        name: 'Part 1',
+                        measures: [Measure(number: 1, symbols: [])],
+                      ),
+                    ],
+                  );
+
+              Navigator.pushNamed(
+                context,
+                EditorShellScreen.routeName,
+                arguments: EditorShellArgs(
+                  score: mappedScore,
+                  initialState: EditorState(score: mappedScore),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StageScreenSpec {
+  final String title;
+  final String description;
+  final ScanState state;
+
+  const _StageScreenSpec({
+    required this.title,
+    required this.description,
+    required this.state,
+  });
+}
 
 class _PipelineStatus extends StatelessWidget {
   final IconData icon;
@@ -585,6 +707,7 @@ class ScanScreenProvider extends StatelessWidget {
           gridRows: 2,
           overlapFraction: 0.3,
         ),
+        mapper: const DetectionToScoreMapperService(),
       ),
       child: ScanScreen(imageBytes: imageBytes),
     );
