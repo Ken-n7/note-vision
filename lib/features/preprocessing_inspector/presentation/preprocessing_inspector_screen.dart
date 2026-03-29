@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 
 import '../../../core/theme/app_theme.dart';
+import '../../detection/data/tflite_symbol_detector.dart';
+import '../../detection/domain/detection_result.dart';
 import '../../preprocessing/data/basic_image_preprocessor.dart';
 import '../../preprocessing/domain/image_preprocessor.dart';
 import '../../preprocessing/domain/preprocessed_result.dart';
@@ -36,6 +38,7 @@ class _PreprocessingInspectorScreenState
   final ImagePreprocessor _experimental = const ExperimentalImagePreprocessor();
   final ImagePreprocessor _yoloParity = const YoloParityImagePreprocessor();
   final DevStaffLineDetector _staffLineDetector = const DevStaffLineDetector();
+  final TfliteSymbolDetector _modelDetector = TfliteSymbolDetector();
 
   _PreprocessorChoice _choice = _PreprocessorChoice.experimental;
   bool _isRunning = false;
@@ -47,8 +50,10 @@ class _PreprocessingInspectorScreenState
 
   PreprocessedResult? _output;
   DevStaffLineDetectionResult? _staffLineResult;
+  DetectionResult? _modelDetection;
   Duration? _elapsed;
   Duration? _stage2Elapsed;
+  Duration? _stage3Elapsed;
 
   Timer? _stage2Debounce;
 
@@ -115,11 +120,14 @@ class _PreprocessingInspectorScreenState
         _decodedInput = decoded;
         _output = output;
         _staffLineResult = null;
+        _modelDetection = null;
         _elapsed = sw.elapsed;
         _stage2Elapsed = null;
+        _stage3Elapsed = null;
       });
 
       await _runStage2();
+      await _runStage3ModelOnly();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -153,11 +161,14 @@ class _PreprocessingInspectorScreenState
       setState(() {
         _output = output;
         _staffLineResult = null;
+        _modelDetection = null;
         _elapsed = sw.elapsed;
         _stage2Elapsed = null;
+        _stage3Elapsed = null;
       });
 
       await _runStage2();
+      await _runStage3ModelOnly();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -171,6 +182,7 @@ class _PreprocessingInspectorScreenState
   @override
   void dispose() {
     _stage2Debounce?.cancel();
+    _modelDetector.dispose();
     super.dispose();
   }
 
@@ -222,6 +234,28 @@ class _PreprocessingInspectorScreenState
     }
   }
 
+  Future<void> _runStage3ModelOnly() async {
+    final output = _output;
+    if (output == null) return;
+
+    try {
+      final sw = Stopwatch()..start();
+      final detection = await _modelDetector.detect(output);
+      sw.stop();
+
+      if (!mounted) return;
+      setState(() {
+        _modelDetection = detection;
+        _stage3Elapsed = sw.elapsed;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Stage 3 model detection failed: $e';
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -268,6 +302,11 @@ class _PreprocessingInspectorScreenState
             _buildStageCard(
               title: 'Stage 2 · Staff Line Detection (DEV heuristic)',
               child: _buildStaffLineStage(),
+            ),
+            const SizedBox(height: 12),
+            _buildStageCard(
+              title: 'Stage 3 · Model-only Staff Detection',
+              child: _buildModelStaffStage(),
             ),
           ],
         ),
@@ -495,6 +534,15 @@ class _PreprocessingInspectorScreenState
           const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _isRunning ? null : _runStage3ModelOnly,
+              icon: const Icon(Icons.memory_outlined, size: 16),
+              label: const Text('Run Stage 3 model-only staff detection'),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
             child: ElevatedButton.icon(
               onPressed: _isRunning ? null : _pickImageAndRun,
               icon: _isRunning
@@ -684,6 +732,47 @@ class _PreprocessingInspectorScreenState
     );
   }
 
+  Widget _buildModelStaffStage() {
+    final detection = _modelDetection;
+    final output = _output;
+    if (output == null || detection == null) {
+      return const _EmptyState(
+        icon: Icons.memory_outlined,
+        message: 'Run Stage 1 to evaluate model-only staff detection.',
+      );
+    }
+
+    final lineYs = detection.staffs.expand((s) => s.lineYs).toList()..sort();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: CustomPaint(
+            foregroundPainter: _ModelStaffOverlayPainter(
+              lineYs: lineYs,
+              sourceHeight: output.height,
+            ),
+            child: Image.memory(output.bytes, fit: BoxFit.contain),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 10,
+          runSpacing: 6,
+          children: [
+            _metaChip('Model staffs', detection.staffs.length.toString()),
+            _metaChip('Model symbols', detection.symbols.length.toString()),
+            _metaChip('Model lines', lineYs.length.toString()),
+            if (_stage3Elapsed != null)
+              _metaChip('Runtime', '${_stage3Elapsed!.inMilliseconds} ms'),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _metaChip(String label, String value) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -791,6 +880,37 @@ class _EmptyState extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _ModelStaffOverlayPainter extends CustomPainter {
+  const _ModelStaffOverlayPainter({
+    required this.lineYs,
+    required this.sourceHeight,
+  });
+
+  final List<double> lineYs;
+  final int sourceHeight;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (lineYs.isEmpty || size.height <= 0 || sourceHeight <= 0) return;
+
+    final paint = Paint()
+      ..color = const Color(0xFFFFB74D).withValues(alpha: 0.85)
+      ..strokeWidth = 1.2
+      ..style = PaintingStyle.stroke;
+
+    for (final yValue in lineYs) {
+      final y = yValue.clamp(0, sourceHeight - 1) / sourceHeight * size.height;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ModelStaffOverlayPainter oldDelegate) {
+    return oldDelegate.lineYs != lineYs ||
+        oldDelegate.sourceHeight != sourceHeight;
   }
 }
 
