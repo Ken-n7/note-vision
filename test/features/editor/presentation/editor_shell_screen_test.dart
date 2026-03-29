@@ -7,6 +7,8 @@ import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
+import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
+import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 
@@ -54,10 +56,10 @@ void main() {
     expect(find.text('Save'), findsOneWidget);
     expect(find.text('Move Up'), findsOneWidget);
     expect(find.text('Move Down'), findsOneWidget);
-    expect(find.text('W'), findsOneWidget);
-    expect(find.text('H'), findsOneWidget);
-    expect(find.text('Q'), findsOneWidget);
-    expect(find.text('E'), findsOneWidget);
+    expect(find.text('Whole'), findsOneWidget);
+    expect(find.text('Half'), findsOneWidget);
+    expect(find.text('Quarter'), findsOneWidget);
+    expect(find.text('Eighth'), findsOneWidget);
     expect(find.text('Insert Note'), findsOneWidget);
     expect(find.text('Insert Rest'), findsOneWidget);
     expect(find.text('Delete'), findsOneWidget);
@@ -119,18 +121,24 @@ void main() {
 
     final notationOrigin = tester.getTopLeft(find.byType(ScoreNotationViewer));
 
-    await tester.tapAt(notationOrigin + const Offset(154, 68));
+    await tester.tapAt(
+      notationOrigin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 0),
+    );
     await tester.pump();
     expect(find.text('Note'), findsOneWidget);
     expect(find.text('C4'), findsOneWidget);
     expect(tester.widget<OutlinedButton>(moveUpButtonFinder).onPressed, isNotNull);
 
-    await tester.tapAt(notationOrigin + const Offset(190, 68));
+    await tester.tapAt(
+      notationOrigin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 1),
+    );
     await tester.pump();
     expect(find.text('Rest'), findsOneWidget);
     expect(find.text('—'), findsWidgets);
 
-    await tester.tapAt(notationOrigin + const Offset(190, 68));
+    await tester.tapAt(
+      notationOrigin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 1),
+    );
     await tester.pump();
     expect(find.text('None'), findsOneWidget);
     expect(tester.widget<OutlinedButton>(moveUpButtonFinder).onPressed, isNull);
@@ -173,22 +181,63 @@ void main() {
     );
 
     final origin = tester.getTopLeft(find.byType(ScoreNotationViewer));
-    final dragGesture = await tester.startGesture(origin + const Offset(146, 68));
+    final dragGesture = await tester.startGesture(
+      origin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 0),
+    );
     await tester.pump(kLongPressTimeout + const Duration(milliseconds: 20));
-    await dragGesture.moveTo(origin + const Offset(198, 68));
+    await dragGesture.moveTo(
+      origin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 2),
+    );
     await tester.pump();
     await dragGesture.up();
     await tester.pump();
 
-    await tester.tapAt(origin + const Offset(146, 68));
+    await tester.tapAt(
+      origin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 0),
+    );
     await tester.pump();
     expect(find.text('E4'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(OutlinedButton, 'Undo'));
     await tester.pump();
 
-    await tester.tapAt(origin + const Offset(146, 68));
+    await tester.tapAt(
+      origin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 0),
+    );
     await tester.pump();
     expect(find.text('C4'), findsOneWidget);
   });
+}
+
+Offset _symbolCenterOffset(
+  Score score, {
+  required int measureIndex,
+  required int symbolIndex,
+}) {
+  const measuresPerRow = 4;
+  const minMeasureWidth = 140.0;
+  const rowHeight = 140.0;
+  const padding = EdgeInsets.all(16);
+
+  final measures = score.parts.first.measures;
+  final layout = const NotationLayoutCalculator().calculate(
+    measures: measures,
+    measuresPerRow: measuresPerRow,
+    minMeasureWidth: minMeasureWidth,
+    rowHeight: rowHeight,
+    padding: padding,
+  );
+
+  final target = ScoreNotationPainter.buildSymbolTargets(
+    measures: measures,
+    measuresPerRow: layout.measuresPerRow,
+    minMeasureWidth: minMeasureWidth,
+    rowHeight: rowHeight,
+    padding: padding,
+    rowPrefixWidth: layout.rowPrefixWidth,
+  ).firstWhere(
+    (entry) => entry.measureIndex == measureIndex && entry.symbolIndex == symbolIndex,
+  );
+
+  return target.center;
 }

@@ -8,6 +8,8 @@ import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/time_signature.dart';
+import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
+import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 
 void main() {
@@ -165,8 +167,12 @@ void main() {
       );
 
       final origin = tester.getTopLeft(find.byType(ScoreNotationViewer));
-      await tester.tapAt(origin + const Offset(154, 68));
-      await tester.tapAt(origin + const Offset(190, 68));
+      await tester.tapAt(
+        origin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 0),
+      );
+      await tester.tapAt(
+        origin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 1),
+      );
       await tester.pump();
 
       expect(taps, equals([(0, 0), (0, 1)]));
@@ -212,9 +218,13 @@ void main() {
       );
 
       final origin = tester.getTopLeft(find.byType(ScoreNotationViewer));
-      final gesture = await tester.startGesture(origin + const Offset(146, 68));
+      final gesture = await tester.startGesture(
+        origin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 0),
+      );
       await tester.pump(kLongPressTimeout + const Duration(milliseconds: 20));
-      await gesture.moveTo(origin + const Offset(198, 68));
+      await gesture.moveTo(
+        origin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 2),
+      );
       await tester.pump();
       await gesture.up();
       await tester.pump();
@@ -280,4 +290,37 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   });
+}
+
+Offset _symbolCenterOffset(
+  Score score, {
+  required int measureIndex,
+  required int symbolIndex,
+}) {
+  const measuresPerRow = 4;
+  const minMeasureWidth = 140.0;
+  const rowHeight = 140.0;
+  const padding = EdgeInsets.all(16);
+
+  final measures = score.parts.first.measures;
+  final layout = const NotationLayoutCalculator().calculate(
+    measures: measures,
+    measuresPerRow: measuresPerRow,
+    minMeasureWidth: minMeasureWidth,
+    rowHeight: rowHeight,
+    padding: padding,
+  );
+
+  final target = ScoreNotationPainter.buildSymbolTargets(
+    measures: measures,
+    measuresPerRow: layout.measuresPerRow,
+    minMeasureWidth: minMeasureWidth,
+    rowHeight: rowHeight,
+    padding: padding,
+    rowPrefixWidth: layout.rowPrefixWidth,
+  ).firstWhere(
+    (entry) => entry.measureIndex == measureIndex && entry.symbolIndex == symbolIndex,
+  );
+
+  return target.center;
 }

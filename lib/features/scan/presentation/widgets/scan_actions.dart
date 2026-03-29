@@ -70,21 +70,24 @@ class ScanActions extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: _border),
         ),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.redo_outlined, size: 18, color: _textMuted),
-            SizedBox(width: 8),
-            Text(
-              'Redo',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-                color: _textMuted,
-                letterSpacing: 0.3,
+        child: const FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.redo_outlined, size: 18, color: _textMuted),
+              SizedBox(width: 8),
+              Text(
+                'Redo',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: _textMuted,
+                  letterSpacing: 0.3,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -100,21 +103,24 @@ class ScanActions extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: _border),
         ),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.file_upload_outlined, size: 18, color: _textMuted),
-            SizedBox(width: 8),
-            Text(
-              'Import',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-                color: _textMuted,
-                letterSpacing: 0.3,
+        child: const FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.file_upload_outlined, size: 18, color: _textMuted),
+              SizedBox(width: 8),
+              Text(
+                'Import',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: _textMuted,
+                  letterSpacing: 0.3,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -138,25 +144,28 @@ class ScanActions extends StatelessWidget {
               ),
             ],
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'Continue',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: canContinue ? _bg : _textMuted,
-                  letterSpacing: 0.3,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Continue',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: canContinue ? _bg : _textMuted,
+                    letterSpacing: 0.3,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.arrow_forward,
-                size: 18,
-                color: canContinue ? _bg : _textMuted,
-              ),
-            ],
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.arrow_forward,
+                  size: 18,
+                  color: canContinue ? _bg : _textMuted,
+                ),
+              ],
+            ),
           ),
         ),
       ),
