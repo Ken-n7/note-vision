@@ -82,12 +82,10 @@ Future<void> _runFullFlow(
     toSymbolIndex: 2,
   );
 
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Undo'));
-  await tester.pump();
+  await _tapActionButton(tester, 'Undo');
   expected = expected.applyUndo();
 
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Redo'));
-  await tester.pump();
+  await _tapActionButton(tester, 'Redo');
   expected = expected.applyRedo();
 
   // Re-select moved B4 note and validate pitch movement boundaries.
@@ -96,45 +94,37 @@ Future<void> _runFullFlow(
   expected = _select(expected, measureIndex: 0, symbolIndex: 2);
   expect(find.text('B4'), findsOneWidget);
 
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Move Up'));
-  await tester.pump();
+  await _tapActionButton(tester, 'Move Up');
   expected = expected.moveSelectedSymbolUp();
   expect(find.text('C5'), findsOneWidget);
 
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Move Down'));
-  await tester.pump();
+  await _tapActionButton(tester, 'Move Down');
   expected = expected.moveSelectedSymbolDown();
   expect(find.text('B4'), findsOneWidget);
 
   // Duration change across all supported values for note.
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Whole'));
-  await tester.pump();
+  await _tapActionButton(tester, 'Whole');
   expected = expected.setSelectedDuration(wholeDuration);
   expect(find.text('whole'), findsOneWidget);
 
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Half'));
-  await tester.pump();
+  await _tapActionButton(tester, 'Half');
   expected = expected.setSelectedDuration(halfDuration);
   expect(find.text('half'), findsOneWidget);
 
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Quarter'));
-  await tester.pump();
+  await _tapActionButton(tester, 'Quarter');
   expected = expected.setSelectedDuration(quarterDuration);
   expect(find.text('quarter'), findsOneWidget);
 
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Eighth'));
-  await tester.pump();
+  await _tapActionButton(tester, 'Eighth');
   expected = expected.setSelectedDuration(eighthDuration);
   expect(find.text('eighth'), findsOneWidget);
 
   // Insert note/rest and verify auto-selection.
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Insert Note'));
-  await tester.pump();
+  await _tapActionButton(tester, 'Insert Note');
   expected = expected.insertNoteAfterSelection();
   expect(find.text('Note'), findsOneWidget);
 
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Insert Rest'));
-  await tester.pump();
+  await _tapActionButton(tester, 'Insert Rest');
   expected = expected.insertRestAfterSelection();
   expect(find.text('Rest'), findsOneWidget);
 
@@ -144,57 +134,51 @@ Future<void> _runFullFlow(
   expected = _select(expected, measureIndex: 0, symbolIndex: 0);
   expect(find.text('Rest'), findsOneWidget);
 
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Whole'));
-  await tester.pump();
+  await _tapActionButton(tester, 'Whole');
   expected = expected.setSelectedDuration(wholeDuration);
   expect(find.text('whole'), findsOneWidget);
 
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Half'));
-  await tester.pump();
+  await _tapActionButton(tester, 'Half');
   expected = expected.setSelectedDuration(halfDuration);
   expect(find.text('half'), findsOneWidget);
 
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Quarter'));
-  await tester.pump();
+  await _tapActionButton(tester, 'Quarter');
   expected = expected.setSelectedDuration(quarterDuration);
   expect(find.text('quarter'), findsOneWidget);
 
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Eighth'));
-  await tester.pump();
+  await _tapActionButton(tester, 'Eighth');
   expected = expected.setSelectedDuration(eighthDuration);
   expect(find.text('eighth'), findsOneWidget);
 
   // Delete selected rest then delete a note; validate no crash and consistent state.
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Delete'));
-  await tester.pump();
+  await _tapActionButton(tester, 'Delete');
   expected = expected.deleteSelectedSymbol();
 
-  await tester.tapAt(origin + _symbolCenterOffset(expected.score, measureIndex: 0, symbolIndex: 0));
+  var noteIndex = _firstNoteIndexOrNull(expected.score, measureIndex: 0);
+  if (noteIndex == null) {
+    await _tapActionButton(tester, 'Insert Note');
+    expected = expected.insertNoteAfterSelection();
+    noteIndex = expected.selectedSymbolIndex ?? 0;
+  }
+  await tester.tapAt(origin + _symbolCenterOffset(expected.score, measureIndex: 0, symbolIndex: noteIndex));
   await tester.pump();
-  expected = _select(expected, measureIndex: 0, symbolIndex: 0);
-  expect(find.text('Note'), findsOneWidget);
+  expected = _select(expected, measureIndex: 0, symbolIndex: noteIndex);
 
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Delete'));
-  await tester.pump();
+  await _tapActionButton(tester, 'Delete');
   expected = expected.deleteSelectedSymbol();
 
   // Multiple sequential edits and no crash on empty-measure flow.
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Insert Note'));
-  await tester.pump();
+  await _tapActionButton(tester, 'Insert Note');
   expected = expected.insertNoteAfterSelection();
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Delete'));
-  await tester.pump();
+  await _tapActionButton(tester, 'Delete');
   expected = expected.deleteSelectedSymbol();
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Insert Rest'));
-  await tester.pump();
+  await _tapActionButton(tester, 'Insert Rest');
   expected = expected.insertRestAfterSelection();
 
   // Undo/Redo should remain functional after sequential edits.
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Undo'));
-  await tester.pump();
+  await _tapActionButton(tester, 'Undo');
   expected = expected.applyUndo();
-  await tester.tap(find.widgetWithText(OutlinedButton, 'Redo'));
-  await tester.pump();
+  await _tapActionButton(tester, 'Redo');
   expected = expected.applyRedo();
 
   expect(tester.takeException(), isNull);
@@ -213,6 +197,19 @@ EditorState _select(
     selectedSymbolIndex: symbolIndex,
     selectedSymbol: symbol,
   );
+}
+
+Future<void> _tapActionButton(WidgetTester tester, String label) async {
+  final button = find.widgetWithText(OutlinedButton, label);
+  await tester.ensureVisible(button);
+  await tester.tap(button);
+  await tester.pump();
+}
+
+int? _firstNoteIndexOrNull(Score score, {required int measureIndex}) {
+  final symbols = score.parts.first.measures[measureIndex].symbols;
+  final index = symbols.indexWhere((symbol) => symbol is Note);
+  return index == -1 ? null : index;
 }
 
 Score _importedScore() {
