@@ -1,6 +1,4 @@
-import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
-import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
@@ -107,16 +105,9 @@ extension EditorActions on EditorState {
     final measureIndex = selectedMeasureIndex!;
     final symbolIndex = selectedSymbolIndex!;
 
-    final symbols = List<ScoreSymbol>.from(
-      score.parts[partIndex].measures[measureIndex].symbols,
-    );
-    symbols.removeAt(symbolIndex);
-
-    final nextScore = _replaceMeasureSymbols(
-      partIndex: partIndex,
-      measureIndex: measureIndex,
-      symbols: symbols,
-    );
+    final currentSymbols = score.parts[partIndex].measures[measureIndex].symbols;
+    final symbols = List<ScoreSymbol>.from(currentSymbols)..removeAt(symbolIndex);
+    final nextScore = score.deleteSymbolAt(partIndex, measureIndex, symbolIndex);
 
     if (symbols.isEmpty) {
       return applyEdit(
@@ -156,17 +147,20 @@ extension EditorActions on EditorState {
     final fromSymbolIndex = selectedSymbolIndex!;
     if (fromSymbolIndex < 0 || fromSymbolIndex >= fromSymbols.length) return this;
 
-    final moved = fromSymbols.removeAt(fromSymbolIndex);
-    toSymbols.add(moved);
-    final toSymbolIndex = toSymbols.length - 1;
-
-    final nextScore = _replaceMeasureSymbolsBatch(
-      partIndex: partIndex,
-      updates: {
-        fromMeasureIndex: fromSymbols,
-        toMeasureIndex: toSymbols,
-      },
+    final moved = fromSymbols[fromSymbolIndex];
+    final withoutSource = score.deleteSymbolAt(
+      partIndex,
+      fromMeasureIndex,
+      fromSymbolIndex,
     );
+    final toInsertIndex = score.parts[partIndex].measures[toMeasureIndex].symbols.length;
+    final nextScore = withoutSource.insertSymbolAt(
+      partIndex,
+      toMeasureIndex,
+      toInsertIndex,
+      moved,
+    );
+    final toSymbolIndex = toSymbols.length - 1;
 
     return applyEdit(
       score: nextScore,
@@ -192,15 +186,13 @@ extension EditorActions on EditorState {
     if (toSymbolIndex < 0 || toSymbolIndex >= currentSymbols.length) return this;
     if (fromSymbolIndex == toSymbolIndex) return this;
 
-    final symbols = List<ScoreSymbol>.from(currentSymbols);
-    final movedSymbol = symbols.removeAt(fromSymbolIndex);
-    symbols.insert(toSymbolIndex, movedSymbol);
-
-    final nextScore = _replaceMeasureSymbols(
-      partIndex: partIndex,
-      measureIndex: measureIndex,
-      symbols: symbols,
+    final nextScore = score.reorderSymbol(
+      partIndex,
+      measureIndex,
+      fromSymbolIndex,
+      toSymbolIndex,
     );
+    final symbols = nextScore.parts[partIndex].measures[measureIndex].symbols;
 
     final selectedPart = selectedPartIndex;
     final selectedMeasure = selectedMeasureIndex;
@@ -244,15 +236,11 @@ extension EditorActions on EditorState {
     final measureIndex = selectedMeasureIndex!;
     final symbolIndex = selectedSymbolIndex!;
 
-    final symbols = List<ScoreSymbol>.from(
-      score.parts[partIndex].measures[measureIndex].symbols,
-    );
-    symbols[symbolIndex] = symbol;
-
-    final nextScore = _replaceMeasureSymbols(
-      partIndex: partIndex,
-      measureIndex: measureIndex,
-      symbols: symbols,
+    final nextScore = score.replaceSymbolAt(
+      partIndex,
+      measureIndex,
+      symbolIndex,
+      symbol,
     );
 
     return applyEdit(
@@ -268,16 +256,12 @@ extension EditorActions on EditorState {
     final partIndex = selectedPartIndex!;
     final measureIndex = selectedMeasureIndex!;
 
-    final symbols = List<ScoreSymbol>.from(
-      score.parts[partIndex].measures[measureIndex].symbols,
-    );
-    final insertIndex = symbols.length;
-    symbols.insert(insertIndex, symbol);
-
-    final nextScore = _replaceMeasureSymbols(
-      partIndex: partIndex,
-      measureIndex: measureIndex,
-      symbols: symbols,
+    final insertIndex = score.parts[partIndex].measures[measureIndex].symbols.length;
+    final nextScore = score.insertSymbolAt(
+      partIndex,
+      measureIndex,
+      insertIndex,
+      symbol,
     );
 
     return applyEdit(
@@ -289,71 +273,6 @@ extension EditorActions on EditorState {
     );
   }
 
-  Score _replaceMeasureSymbols({
-    required int partIndex,
-    required int measureIndex,
-    required List<ScoreSymbol> symbols,
-  }) {
-    final parts = List<Part>.from(score.parts);
-    final measures = List<Measure>.from(parts[partIndex].measures);
-    final currentMeasure = measures[measureIndex];
-
-    measures[measureIndex] = Measure(
-      number: currentMeasure.number,
-      clef: currentMeasure.clef,
-      timeSignature: currentMeasure.timeSignature,
-      keySignature: currentMeasure.keySignature,
-      symbols: symbols,
-    );
-
-    final currentPart = parts[partIndex];
-    parts[partIndex] = Part(
-      id: currentPart.id,
-      name: currentPart.name,
-      measures: measures,
-    );
-
-    return Score(
-      id: score.id,
-      title: score.title,
-      composer: score.composer,
-      parts: parts,
-    );
-  }
-
-  Score _replaceMeasureSymbolsBatch({
-    required int partIndex,
-    required Map<int, List<ScoreSymbol>> updates,
-  }) {
-    final parts = List<Part>.from(score.parts);
-    final measures = List<Measure>.from(parts[partIndex].measures);
-
-    for (final entry in updates.entries) {
-      final measureIndex = entry.key;
-      final currentMeasure = measures[measureIndex];
-      measures[measureIndex] = Measure(
-        number: currentMeasure.number,
-        clef: currentMeasure.clef,
-        timeSignature: currentMeasure.timeSignature,
-        keySignature: currentMeasure.keySignature,
-        symbols: entry.value,
-      );
-    }
-
-    final currentPart = parts[partIndex];
-    parts[partIndex] = Part(
-      id: currentPart.id,
-      name: currentPart.name,
-      measures: measures,
-    );
-
-    return Score(
-      id: score.id,
-      title: score.title,
-      composer: score.composer,
-      parts: parts,
-    );
-  }
 }
 
 Note _moveNoteByScaleStep(Note note, int steps) {
