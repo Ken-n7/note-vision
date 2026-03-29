@@ -13,6 +13,7 @@ import '../../preprocessing/domain/image_preprocessor.dart';
 import '../../preprocessing/domain/preprocessed_result.dart';
 import '../data/dev_staff_line_detector.dart';
 import '../data/experimental_image_preprocessor.dart';
+import '../data/smart_staff_detector.dart';
 import '../data/yolo_parity_image_preprocessor.dart';
 
 enum _PreprocessorChoice { baseline, experimental, yoloParity }
@@ -39,6 +40,7 @@ class _PreprocessingInspectorScreenState
   final ImagePreprocessor _yoloParity = const YoloParityImagePreprocessor();
   final DevStaffLineDetector _staffLineDetector = const DevStaffLineDetector();
   final TfliteSymbolDetector _modelDetector = TfliteSymbolDetector();
+  final SmartStaffDetector _smartDetector = const SmartStaffDetector();
 
   _PreprocessorChoice _choice = _PreprocessorChoice.experimental;
   bool _isRunning = false;
@@ -51,9 +53,11 @@ class _PreprocessingInspectorScreenState
   PreprocessedResult? _output;
   DevStaffLineDetectionResult? _staffLineResult;
   DetectionResult? _modelDetection;
+  SmartStaffDetectionResult? _smartResult;
   Duration? _elapsed;
   Duration? _stage2Elapsed;
   Duration? _stage3Elapsed;
+  Duration? _stage4Elapsed;
 
   Timer? _stage2Debounce;
 
@@ -121,13 +125,16 @@ class _PreprocessingInspectorScreenState
         _output = output;
         _staffLineResult = null;
         _modelDetection = null;
+        _smartResult = null;
         _elapsed = sw.elapsed;
         _stage2Elapsed = null;
         _stage3Elapsed = null;
+        _stage4Elapsed = null;
       });
 
       await _runStage2();
       await _runStage3ModelOnly();
+      _runStage4SmartFusion();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -162,13 +169,16 @@ class _PreprocessingInspectorScreenState
         _output = output;
         _staffLineResult = null;
         _modelDetection = null;
+        _smartResult = null;
         _elapsed = sw.elapsed;
         _stage2Elapsed = null;
         _stage3Elapsed = null;
+        _stage4Elapsed = null;
       });
 
       await _runStage2();
       await _runStage3ModelOnly();
+      _runStage4SmartFusion();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -256,6 +266,25 @@ class _PreprocessingInspectorScreenState
     }
   }
 
+  void _runStage4SmartFusion() {
+    final model = _modelDetection;
+    final heur = _staffLineResult;
+    if (model == null || heur == null) return;
+
+    final sw = Stopwatch()..start();
+    final result = _smartDetector.detect(
+      modelDetection: model,
+      heuristic: heur,
+    );
+    sw.stop();
+
+    if (!mounted) return;
+    setState(() {
+      _smartResult = result;
+      _stage4Elapsed = sw.elapsed;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -307,6 +336,11 @@ class _PreprocessingInspectorScreenState
             _buildStageCard(
               title: 'Stage 3 · Model-only Staff Detection',
               child: _buildModelStaffStage(),
+            ),
+            const SizedBox(height: 12),
+            _buildStageCard(
+              title: 'Stage 4 · Smart Staff Fusion',
+              child: _buildSmartStaffStage(),
             ),
           ],
         ),
@@ -538,6 +572,15 @@ class _PreprocessingInspectorScreenState
               onPressed: _isRunning ? null : _runStage3ModelOnly,
               icon: const Icon(Icons.memory_outlined, size: 16),
               label: const Text('Run Stage 3 model-only staff detection'),
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _isRunning ? null : _runStage4SmartFusion,
+              icon: const Icon(Icons.auto_awesome_outlined, size: 16),
+              label: const Text('Run Stage 4 smart staff fusion'),
             ),
           ),
           const SizedBox(height: 8),
@@ -785,6 +828,52 @@ class _PreprocessingInspectorScreenState
               ? 'No model symbols detected.'
               : 'Top model classes: ${sortedSymbolCounts.take(8).map((e) => '${e.key}:${e.value}').join(', ')}',
           style: const TextStyle(fontSize: 12, color: _textSec, height: 1.4),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSmartStaffStage() {
+    final output = _output;
+    final smart = _smartResult;
+    if (output == null || smart == null) {
+      return const _EmptyState(
+        icon: Icons.auto_awesome_outlined,
+        message: 'Run Stage 1 to evaluate smart staff fusion.',
+      );
+    }
+
+    final top = smart.candidates.isEmpty ? null : smart.candidates.first;
+    final lineYs = top?.lineYs ?? const <double>[];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: CustomPaint(
+            foregroundPainter: _ModelStaffOverlayPainter(
+              lineYs: lineYs,
+              sourceHeight: output.height,
+            ),
+            child: Image.memory(output.bytes, fit: BoxFit.contain),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 10,
+          runSpacing: 6,
+          children: [
+            _metaChip('Smart candidates', smart.candidates.length.toString()),
+            _metaChip('Model staffs', smart.modelCount.toString()),
+            _metaChip('Heuristic staffs', smart.heuristicCount.toString()),
+            if (_stage4Elapsed != null)
+              _metaChip('Runtime', '${_stage4Elapsed!.inMilliseconds} ms'),
+            if (top != null)
+              _metaChip('Top score', top.score.toStringAsFixed(2)),
+            if (top != null)
+              _metaChip('Top source', top.source.name),
+          ],
         ),
       ],
     );
