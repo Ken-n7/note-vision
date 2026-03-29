@@ -8,6 +8,7 @@ import 'package:image/image.dart' as img;
 import '../../../core/theme/app_theme.dart';
 import '../../detection/data/tflite_symbol_detector.dart';
 import '../../detection/domain/detection_result.dart';
+import '../../detection/domain/music_symbol.dart';
 import '../../preprocessing/data/basic_image_preprocessor.dart';
 import '../../preprocessing/domain/image_preprocessor.dart';
 import '../../preprocessing/domain/preprocessed_result.dart';
@@ -794,6 +795,16 @@ class _PreprocessingInspectorScreenState
       ..sort((a, b) => b.value.compareTo(a.value));
     final staffLineCount = symbolCounts['staffLine'] ?? 0;
     final combStaffCount = symbolCounts['combStaff'] ?? 0;
+    final staffLineBoxes = detection.symbols
+        .where((s) => s.musicSymbol == MusicSymbol.staffLine)
+        .map((s) => s.boundingBox)
+        .whereType<Rect>()
+        .toList(growable: false);
+    final combStaffBoxes = detection.symbols
+        .where((s) => s.musicSymbol == MusicSymbol.combStaff)
+        .map((s) => s.boundingBox)
+        .whereType<Rect>()
+        .toList(growable: false);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -803,7 +814,10 @@ class _PreprocessingInspectorScreenState
           child: CustomPaint(
             foregroundPainter: _ModelStaffOverlayPainter(
               lineYs: lineYs,
+              sourceWidth: output.width,
               sourceHeight: output.height,
+              staffLineBoxes: staffLineBoxes,
+              combStaffBoxes: combStaffBoxes,
             ),
             child: Image.memory(output.bytes, fit: BoxFit.contain),
           ),
@@ -854,6 +868,7 @@ class _PreprocessingInspectorScreenState
           child: CustomPaint(
             foregroundPainter: _ModelStaffOverlayPainter(
               lineYs: lineYs,
+              sourceWidth: output.width,
               sourceHeight: output.height,
             ),
             child: Image.memory(output.bytes, fit: BoxFit.contain),
@@ -992,30 +1007,70 @@ class _EmptyState extends StatelessWidget {
 class _ModelStaffOverlayPainter extends CustomPainter {
   const _ModelStaffOverlayPainter({
     required this.lineYs,
+    required this.sourceWidth,
     required this.sourceHeight,
+    this.staffLineBoxes = const [],
+    this.combStaffBoxes = const [],
   });
 
   final List<double> lineYs;
+  final int sourceWidth;
   final int sourceHeight;
+  final List<Rect> staffLineBoxes;
+  final List<Rect> combStaffBoxes;
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (lineYs.isEmpty || size.height <= 0 || sourceHeight <= 0) return;
+    if (size.height <= 0 || sourceHeight <= 0 || sourceWidth <= 0) return;
 
-    final paint = Paint()
+    final xScale = size.width / sourceWidth;
+    final yScale = size.height / sourceHeight;
+
+    final linePaint = Paint()
       ..color = const Color(0xFFFFB74D).withValues(alpha: 0.85)
       ..strokeWidth = 1.2
       ..style = PaintingStyle.stroke;
 
     for (final yValue in lineYs) {
       final y = yValue.clamp(0, sourceHeight - 1) / sourceHeight * size.height;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), linePaint);
+    }
+
+    final staffLineBoxPaint = Paint()
+      ..color = const Color(0xFF26C6DA).withValues(alpha: 0.9)
+      ..strokeWidth = 1.1
+      ..style = PaintingStyle.stroke;
+    for (final box in staffLineBoxes) {
+      final scaled = Rect.fromLTWH(
+        box.left * xScale,
+        box.top * yScale,
+        box.width * xScale,
+        box.height * yScale,
+      );
+      canvas.drawRect(scaled, staffLineBoxPaint);
+    }
+
+    final combStaffBoxPaint = Paint()
+      ..color = const Color(0xFFAB47BC).withValues(alpha: 0.95)
+      ..strokeWidth = 1.4
+      ..style = PaintingStyle.stroke;
+    for (final box in combStaffBoxes) {
+      final scaled = Rect.fromLTWH(
+        box.left * xScale,
+        box.top * yScale,
+        box.width * xScale,
+        box.height * yScale,
+      );
+      canvas.drawRect(scaled, combStaffBoxPaint);
     }
   }
 
   @override
   bool shouldRepaint(covariant _ModelStaffOverlayPainter oldDelegate) {
     return oldDelegate.lineYs != lineYs ||
+        oldDelegate.staffLineBoxes != staffLineBoxes ||
+        oldDelegate.combStaffBoxes != combStaffBoxes ||
+        oldDelegate.sourceWidth != sourceWidth ||
         oldDelegate.sourceHeight != sourceHeight;
   }
 }
