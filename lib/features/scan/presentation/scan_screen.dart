@@ -66,46 +66,55 @@ class _ScanScreenState extends State<ScanScreen> {
             icon: Icons.tune_outlined,
             message: 'Preprocessing image',
             subMessage: 'Cleaning up and preparing your scan…',
+            currentState: ScanState.preprocessing,
           ),
         ScanState.staffLineDetection => const _PipelineStatus(
             icon: Icons.horizontal_rule_rounded,
             message: 'Detecting staff lines',
             subMessage: 'Estimating staff baselines and spacing…',
+            currentState: ScanState.staffLineDetection,
           ),
         ScanState.staffLineRemoval => const _PipelineStatus(
             icon: Icons.content_cut_rounded,
             message: 'Removing staff lines',
             subMessage: 'Isolating musical symbols from staff strokes…',
+            currentState: ScanState.staffLineRemoval,
           ),
         ScanState.symbolDetectionClassification => const _PipelineStatus(
             icon: Icons.image_search_outlined,
             message: 'Detecting symbols in tiles',
             subMessage: 'Scanning zoomed tiles and classifying symbols…',
+            currentState: ScanState.symbolDetectionClassification,
           ),
         ScanState.symbolToStaffAssignment => const _PipelineStatus(
             icon: Icons.call_split_rounded,
             message: 'Assigning symbols to staffs',
             subMessage: 'Linking each symbol to its staff region…',
+            currentState: ScanState.symbolToStaffAssignment,
           ),
         ScanState.pitchReconstruction => const _PipelineStatus(
             icon: Icons.music_note_rounded,
             message: 'Reconstructing pitch',
             subMessage: 'Mapping noteheads to lines/spaces…',
+            currentState: ScanState.pitchReconstruction,
           ),
         ScanState.rhythmReconstruction => const _PipelineStatus(
             icon: Icons.timelapse_rounded,
             message: 'Reconstructing rhythm',
             subMessage: 'Associating stems/flags/beams into durations…',
+            currentState: ScanState.rhythmReconstruction,
           ),
         ScanState.measureGrouping => const _PipelineStatus(
             icon: Icons.view_week_outlined,
             message: 'Grouping measures',
             subMessage: 'Using barlines to segment musical events…',
+            currentState: ScanState.measureGrouping,
           ),
         ScanState.scoreAssembly => const _PipelineStatus(
             icon: Icons.library_music_outlined,
             message: 'Assembling score model',
             subMessage: 'Building the final score structure…',
+            currentState: ScanState.scoreAssembly,
           ),
         ScanState.done => _buildDone(context, vm),
         ScanState.error => _buildError(context, vm),
@@ -160,6 +169,10 @@ class _ScanScreenState extends State<ScanScreen> {
         if (!isLandscape) {
           return Column(
             children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(20, 10, 20, 0),
+                child: _PipelineStagesTimeline(currentState: ScanState.done),
+              ),
               Expanded(child: ScanImageView(result: vm.result!)),
               actions,
             ],
@@ -294,11 +307,13 @@ class _PipelineStatus extends StatelessWidget {
   final IconData icon;
   final String message;
   final String subMessage;
+  final ScanState currentState;
 
   const _PipelineStatus({
     required this.icon,
     required this.message,
     required this.subMessage,
+    required this.currentState,
   });
 
   static const _accent        = Color(0xFFD4A96A);
@@ -364,8 +379,152 @@ class _PipelineStatus extends StatelessWidget {
                 minHeight: 3,
               ),
             ),
+            const SizedBox(height: 20),
+            _PipelineStagesTimeline(currentState: currentState),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PipelineStageItem {
+  final ScanState state;
+  final String title;
+  final String hint;
+
+  const _PipelineStageItem({
+    required this.state,
+    required this.title,
+    required this.hint,
+  });
+}
+
+class _PipelineStagesTimeline extends StatelessWidget {
+  final ScanState currentState;
+
+  const _PipelineStagesTimeline({required this.currentState});
+
+  static const _stages = [
+    _PipelineStageItem(
+      state: ScanState.preprocessing,
+      title: '1. Preprocessing',
+      hint: 'Grayscale, straighten, denoise, binarize prep',
+    ),
+    _PipelineStageItem(
+      state: ScanState.staffLineDetection,
+      title: '2. Staff Line Detection',
+      hint: 'Find line positions, spacing, staff bounds',
+    ),
+    _PipelineStageItem(
+      state: ScanState.staffLineRemoval,
+      title: '3. Staff Line Removal',
+      hint: 'Suppress staff strokes while preserving symbols',
+    ),
+    _PipelineStageItem(
+      state: ScanState.symbolDetectionClassification,
+      title: '4. Symbol Detection / Classification',
+      hint: 'Run detector on tiles and classify note/rest/clef',
+    ),
+    _PipelineStageItem(
+      state: ScanState.symbolToStaffAssignment,
+      title: '5. Symbol to Staff Assignment',
+      hint: 'Attach each symbol to the best staff region',
+    ),
+    _PipelineStageItem(
+      state: ScanState.pitchReconstruction,
+      title: '6. Pitch Reconstruction',
+      hint: 'Map notehead Y to nearest staff line/space',
+    ),
+    _PipelineStageItem(
+      state: ScanState.rhythmReconstruction,
+      title: '7. Rhythm Reconstruction',
+      hint: 'Use stems/flags/beams to infer durations',
+    ),
+    _PipelineStageItem(
+      state: ScanState.measureGrouping,
+      title: '8. Measure Grouping',
+      hint: 'Use barlines to segment symbols into measures',
+    ),
+    _PipelineStageItem(
+      state: ScanState.scoreAssembly,
+      title: '9. Score Assembly',
+      hint: 'Build final score structure and signatures',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final currentIndex = _stages.indexWhere((s) => s.state == currentState);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF151820),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF252A3A)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'PIPELINE DEBUG (temporary)',
+            style: TextStyle(
+              fontSize: 10,
+              color: Color(0xFF8A8FA3),
+              letterSpacing: 1.2,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...List.generate(_stages.length, (index) {
+            final item = _stages[index];
+            final isActive = currentState == item.state;
+            final isDone = currentState == ScanState.done || (currentIndex != -1 && index < currentIndex);
+
+            final color = isActive
+                ? const Color(0xFFD4A96A)
+                : (isDone ? const Color(0xFF4ADE80) : const Color(0xFF6B7280));
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    isDone ? Icons.check_circle : (isActive ? Icons.radio_button_checked : Icons.radio_button_unchecked),
+                    size: 16,
+                    color: color,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.title,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: color,
+                            fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                          ),
+                        ),
+                        Text(
+                          item.hint,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF8A8A8A),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
       ),
     );
   }
