@@ -888,8 +888,33 @@ class _PreprocessingInspectorScreenState
               _metaChip('Top score', top.score.toStringAsFixed(2)),
             if (top != null)
               _metaChip('Top source', top.source.name),
+            if (top != null)
+              _metaChip('Top confidence', top.confidence.name),
+            if (top != null)
+              _metaChip('Observed lines', top.observedLineYs.length.toString()),
+            if (top != null)
+              _metaChip('Inferred lines', top.inferredLineYs.length.toString()),
           ],
         ),
+        if (top != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Score terms — count:${top.countScore.toStringAsFixed(2)} '
+            'spacing:${top.spacingScore.toStringAsFixed(2)} '
+            'overlap:${top.overlapScore.toStringAsFixed(2)} '
+            'projection:${top.projectionScore.toStringAsFixed(2)} '
+            'thickness:${top.thicknessScore.toStringAsFixed(2)} '
+            'penalty:${top.penaltyScore.toStringAsFixed(2)}',
+            style: const TextStyle(fontSize: 12, color: _textSec, height: 1.4),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            top.repairMethods.isEmpty
+                ? 'Repair: none'
+                : 'Repair methods: ${top.repairMethods.join(', ')}',
+            style: const TextStyle(fontSize: 12, color: _textSec, height: 1.4),
+          ),
+        ],
       ],
     );
   }
