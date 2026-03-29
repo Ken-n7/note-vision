@@ -102,8 +102,14 @@ class TfliteSymbolDetector implements SymbolDetector {
 
 
   List<DetectedStaff> _deriveStaffsFromSymbols(List<DetectedSymbol> symbols) {
-    final lineCenters = symbols
+    final staffLineSymbols = symbols
         .where((s) => s.musicSymbol == MusicSymbol.staffLine)
+        .toList(growable: false);
+    final combStaffSymbols = symbols
+        .where((s) => s.musicSymbol == MusicSymbol.combStaff)
+        .toList(growable: false);
+
+    final lineCenters = staffLineSymbols
         .map((s) {
           final box = s.boundingBox;
           if (box == null) return null;
@@ -169,7 +175,28 @@ class TfliteSymbolDetector implements SymbolDetector {
       index += 5;
     }
 
-    return staffs;
+    if (staffs.isNotEmpty) return staffs;
+
+    // Fallback: some models emit combStaff region boxes instead of individual
+    // staffLine instances. Convert each region into a synthetic 5-line staff.
+    final fallbackFromCombStaff = <DetectedStaff>[];
+    for (final comb in combStaffSymbols) {
+      final box = comb.boundingBox;
+      if (box == null || box.height <= 0) continue;
+      final top = box.top;
+      final bottom = box.bottom;
+      final step = (bottom - top) / 4;
+      fallbackFromCombStaff.add(
+        DetectedStaff(
+          id: 'staff-comb-${fallbackFromCombStaff.length}',
+          topY: top,
+          bottomY: bottom,
+          lineYs: List<double>.generate(5, (i) => top + (step * i)),
+        ),
+      );
+    }
+
+    return fallbackFromCombStaff;
   }
 
   List<DetectedSymbol> _nms(List<DetectedSymbol> detections) {

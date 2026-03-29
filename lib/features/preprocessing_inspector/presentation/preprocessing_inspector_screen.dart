@@ -743,6 +743,14 @@ class _PreprocessingInspectorScreenState
     }
 
     final lineYs = detection.staffs.expand((s) => s.lineYs).toList()..sort();
+    final symbolCounts = <String, int>{};
+    for (final symbol in detection.symbols) {
+      symbolCounts.update(symbol.type, (value) => value + 1, ifAbsent: () => 1);
+    }
+    final sortedSymbolCounts = symbolCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final staffLineCount = symbolCounts['staffLine'] ?? 0;
+    final combStaffCount = symbolCounts['combStaff'] ?? 0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -765,9 +773,18 @@ class _PreprocessingInspectorScreenState
             _metaChip('Model staffs', detection.staffs.length.toString()),
             _metaChip('Model symbols', detection.symbols.length.toString()),
             _metaChip('Model lines', lineYs.length.toString()),
+            _metaChip('staffLine symbols', staffLineCount.toString()),
+            _metaChip('combStaff symbols', combStaffCount.toString()),
             if (_stage3Elapsed != null)
               _metaChip('Runtime', '${_stage3Elapsed!.inMilliseconds} ms'),
           ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          sortedSymbolCounts.isEmpty
+              ? 'No model symbols detected.'
+              : 'Top model classes: ${sortedSymbolCounts.take(8).map((e) => '${e.key}:${e.value}').join(', ')}',
+          style: const TextStyle(fontSize: 12, color: _textSec, height: 1.4),
         ),
       ],
     );
