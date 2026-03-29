@@ -6,6 +6,7 @@ import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/features/detection/domain/detection_result.dart';
+import 'package:note_vision/features/detection/domain/detected_symbol.dart';
 import 'package:note_vision/features/detection/domain/symbol_detector.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 import 'package:note_vision/features/mapping/domain/mapping_result.dart';
@@ -33,7 +34,12 @@ class _FakeImagePreprocessor implements ImagePreprocessor {
 class _FakeSymbolDetector implements SymbolDetector {
   @override
   Future<DetectionResult> detect(PreprocessedResult input) async {
-    return const DetectionResult(imageId: 'scan-test');
+    return const DetectionResult(
+      imageId: 'scan-test',
+      symbols: [
+        DetectedSymbol(id: 's1', type: 'noteheadFilled', x: 1, y: 1),
+      ],
+    );
   }
 }
 
@@ -60,6 +66,18 @@ class _FakeScoreMapperService extends ScoreMapperService {
 }
 
 void main() {
+  final validImageBytes = Uint8List.fromList(const <int>[
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+    0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+    0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+    0x89, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x44, 0x41,
+    0x54, 0x78, 0x9C, 0x63, 0xF8, 0xCF, 0xC0, 0x00,
+    0x00, 0x03, 0x01, 0x01, 0x00, 0x18, 0xDD, 0x8D,
+    0x18, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E,
+    0x44, 0xAE, 0x42, 0x60, 0x82,
+  ]);
+
   testWidgets('continue opens editor shell route from scan screen', (tester) async {
     final vm = ScanViewModel(
       _FakeImagePreprocessor(),
@@ -79,7 +97,7 @@ void main() {
             }
             return MaterialPageRoute<void>(
               builder: (_) => ScanScreen(
-                imageBytes: Uint8List.fromList(const [1, 2, 3]),
+                imageBytes: validImageBytes,
               ),
             );
           },

@@ -108,6 +108,99 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final horizontalPadding = ResponsiveLayout.horizontalPadding(constraints.maxWidth);
+            final isLandscape = constraints.maxWidth > constraints.maxHeight;
+            final controlPanelWidth = (constraints.maxWidth * 0.32).clamp(280.0, 360.0) as double;
+            final notationPanel = Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: ScoreNotationViewer(
+                    score: _editorState.score,
+                    selectedMeasureIndex: _editorState.selectedMeasureIndex,
+                    selectedSymbolIndex: _editorState.selectedSymbolIndex,
+                    onSymbolTap: (target) {
+                      if (target == null) {
+                        _updateState((state) => _clearSymbolSelection(state));
+                        return;
+                      }
+                      _onNotationSymbolTap(target.measureIndex, target.symbolIndex);
+                    },
+                    onSymbolReorder: (event) {
+                      _updateState(
+                        (state) => state.reorderSymbolWithinMeasure(
+                          measureIndex: event.measureIndex,
+                          fromSymbolIndex: event.fromSymbolIndex,
+                          toSymbolIndex: event.toSymbolIndex,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            );
+
+            final statusStrip = _StatusStrip(
+              horizontalPadding: isLandscape ? 0 : horizontalPadding,
+              symbolType: selected == null ? 'None' : selected is Note ? 'Note' : 'Rest',
+              pitch: selected is Note ? selected.pitch : '—',
+              durationType: selected == null
+                  ? '—'
+                  : selected is Note
+                      ? selected.type
+                      : (selected as Rest).type,
+              measure: _editorState.selectedMeasureIndex == null
+                  ? '—'
+                  : (_editorState.selectedMeasureIndex! + 1).toString(),
+              onPrevMeasure: selectedMeasureIndex > 0
+                  ? () => _updateState(
+                        (s) => s.copyWith(
+                          selectedPartIndex: 0,
+                          selectedMeasureIndex: selectedMeasureIndex - 1,
+                          selectedSymbolIndex: null,
+                          selectedSymbol: null,
+                        ),
+                      )
+                  : null,
+              onNextMeasure: selectedMeasureIndex < measureCount - 1
+                  ? () => _updateState(
+                        (s) => s.copyWith(
+                          selectedPartIndex: 0,
+                          selectedMeasureIndex: selectedMeasureIndex + 1,
+                          selectedSymbolIndex: null,
+                          selectedSymbol: null,
+                        ),
+                      )
+                  : null,
+            );
+
+            final actionBar = _EditorActionBar(
+              horizontalPadding: isLandscape ? 0 : horizontalPadding,
+              hasSelection: hasSelection,
+              hasMeasureContext: hasMeasureContext,
+              canUndo: _editorState.canUndo,
+              canRedo: _editorState.canRedo,
+              onMoveUp: () => _updateState((s) => s.moveSelectedSymbolUp()),
+              onMoveDown: () => _updateState((s) => s.moveSelectedSymbolDown()),
+              onWhole: () => _updateState((s) => s.setSelectedDuration(wholeDuration)),
+              onHalf: () => _updateState((s) => s.setSelectedDuration(halfDuration)),
+              onQuarter: () => _updateState((s) => s.setSelectedDuration(quarterDuration)),
+              onEighth: () => _updateState((s) => s.setSelectedDuration(eighthDuration)),
+              onInsertNote: () => _updateState((s) => s.insertNoteAfterSelection()),
+              onInsertRest: () => _updateState((s) => s.insertRestAfterSelection()),
+              onDelete: () => _updateState((s) => s.deleteSelectedSymbol()),
+              onMoveToPrevMeasure: () =>
+                  _updateState((s) => s.moveSelectedSymbolToMeasureOffset(-1)),
+              onMoveToNextMeasure: () =>
+                  _updateState((s) => s.moveSelectedSymbolToMeasureOffset(1)),
+              onUndo: () => _updateState((s) => s.applyUndo()),
+              onRedo: () => _updateState((s) => s.applyRedo()),
+            );
+
             return Column(
               children: [
                 _EditorHeader(
@@ -119,96 +212,33 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.border),
-                      ),
-                      child: SingleChildScrollView(
-                        child: Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: ScoreNotationViewer(
-                            score: _editorState.score,
-                            selectedMeasureIndex: _editorState.selectedMeasureIndex,
-                            selectedSymbolIndex: _editorState.selectedSymbolIndex,
-                            onSymbolTap: (target) {
-                              if (target == null) {
-                                _updateState((state) => _clearSymbolSelection(state));
-                                return;
-                              }
-                              _onNotationSymbolTap(target.measureIndex, target.symbolIndex);
-                            },
-                            onSymbolReorder: (event) {
-                              _updateState(
-                                (state) => state.reorderSymbolWithinMeasure(
-                                  measureIndex: event.measureIndex,
-                                  fromSymbolIndex: event.fromSymbolIndex,
-                                  toSymbolIndex: event.toSymbolIndex,
+                    child: isLandscape
+                        ? Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Expanded(child: notationPanel),
+                              const SizedBox(width: 12),
+                              SizedBox(
+                                width: controlPanelWidth,
+                                child: SingleChildScrollView(
+                                  child: Column(
+                                    children: [
+                                      statusStrip,
+                                      actionBar,
+                                    ],
+                                  ),
                                 ),
-                              );
-                            },
+                              ),
+                            ],
+                          )
+                        : Column(
+                            children: [
+                              Expanded(child: notationPanel),
+                              statusStrip,
+                              actionBar,
+                            ],
                           ),
-                        ),
-                      ),
-                    ),
                   ),
-                ),
-                _StatusStrip(
-                  horizontalPadding: horizontalPadding,
-                  symbolType: selected == null ? 'None' : selected is Note ? 'Note' : 'Rest',
-                  pitch: selected is Note ? selected.pitch : '—',
-                  durationType: selected == null
-                      ? '—'
-                      : selected is Note
-                          ? selected.type
-                          : (selected as Rest).type,
-                  measure: _editorState.selectedMeasureIndex == null
-                      ? '—'
-                      : (_editorState.selectedMeasureIndex! + 1).toString(),
-                  onPrevMeasure: selectedMeasureIndex > 0
-                      ? () => _updateState(
-                            (s) => s.copyWith(
-                              selectedPartIndex: 0,
-                              selectedMeasureIndex: selectedMeasureIndex - 1,
-                              selectedSymbolIndex: null,
-                              selectedSymbol: null,
-                            ),
-                          )
-                      : null,
-                  onNextMeasure: selectedMeasureIndex < measureCount - 1
-                      ? () => _updateState(
-                            (s) => s.copyWith(
-                              selectedPartIndex: 0,
-                              selectedMeasureIndex: selectedMeasureIndex + 1,
-                              selectedSymbolIndex: null,
-                              selectedSymbol: null,
-                            ),
-                          )
-                      : null,
-                ),
-                _EditorActionBar(
-                  horizontalPadding: horizontalPadding,
-                  hasSelection: hasSelection,
-                  hasMeasureContext: hasMeasureContext,
-                  canUndo: _editorState.canUndo,
-                  canRedo: _editorState.canRedo,
-                  onMoveUp: () => _updateState((s) => s.moveSelectedSymbolUp()),
-                  onMoveDown: () => _updateState((s) => s.moveSelectedSymbolDown()),
-                  onWhole: () => _updateState((s) => s.setSelectedDuration(wholeDuration)),
-                  onHalf: () => _updateState((s) => s.setSelectedDuration(halfDuration)),
-                  onQuarter: () => _updateState((s) => s.setSelectedDuration(quarterDuration)),
-                  onEighth: () => _updateState((s) => s.setSelectedDuration(eighthDuration)),
-                  onInsertNote: () => _updateState((s) => s.insertNoteAfterSelection()),
-                  onInsertRest: () => _updateState((s) => s.insertRestAfterSelection()),
-                  onDelete: () => _updateState((s) => s.deleteSelectedSymbol()),
-                  onMoveToPrevMeasure: () =>
-                      _updateState((s) => s.moveSelectedSymbolToMeasureOffset(-1)),
-                  onMoveToNextMeasure: () =>
-                      _updateState((s) => s.moveSelectedSymbolToMeasureOffset(1)),
-                  onUndo: () => _updateState((s) => s.applyUndo()),
-                  onRedo: () => _updateState((s) => s.applyRedo()),
                 ),
               ],
             );
