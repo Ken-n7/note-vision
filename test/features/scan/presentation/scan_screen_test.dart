@@ -6,6 +6,7 @@ import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/features/detection/domain/detection_result.dart';
+import 'package:note_vision/features/detection/domain/detected_symbol.dart';
 import 'package:note_vision/features/detection/domain/symbol_detector.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 import 'package:note_vision/features/mapping/domain/mapping_result.dart';
@@ -33,7 +34,12 @@ class _FakeImagePreprocessor implements ImagePreprocessor {
 class _FakeSymbolDetector implements SymbolDetector {
   @override
   Future<DetectionResult> detect(PreprocessedResult input) async {
-    return const DetectionResult(imageId: 'scan-test');
+    return const DetectionResult(
+      imageId: 'scan-test',
+      symbols: [
+        DetectedSymbol(id: 's1', type: 'noteheadFilled', x: 1, y: 1),
+      ],
+    );
   }
 }
 

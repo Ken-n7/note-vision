@@ -186,7 +186,9 @@ void main() {
     );
     await tester.pump(kLongPressTimeout + const Duration(milliseconds: 20));
     await dragGesture.moveTo(
-      origin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 2),
+      origin +
+          _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 2) +
+          const Offset(2, 0),
     );
     await tester.pump();
     await dragGesture.up();
