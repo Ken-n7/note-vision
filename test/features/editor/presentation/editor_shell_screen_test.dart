@@ -209,6 +209,34 @@ void main() {
     await tester.pump();
     expect(find.text('C4'), findsOneWidget);
   });
+
+  testWidgets('landscape keeps controls beside notation without overlap', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1400, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final score = buildScore();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EditorShellScreen(
+          args: EditorShellArgs(
+            score: score,
+            initialState: EditorState(score: score),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final notationRect = tester.getRect(find.byType(ScoreNotationViewer));
+    final symbolLabelRect = tester.getRect(find.text('Symbol'));
+
+    expect(symbolLabelRect.left, greaterThan(notationRect.right));
+    expect(tester.takeException(), isNull);
+  });
 }
 
 Offset _symbolCenterOffset(
