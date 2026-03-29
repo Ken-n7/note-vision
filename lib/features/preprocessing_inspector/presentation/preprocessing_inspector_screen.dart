@@ -11,8 +11,9 @@ import '../../preprocessing/domain/image_preprocessor.dart';
 import '../../preprocessing/domain/preprocessed_result.dart';
 import '../data/dev_staff_line_detector.dart';
 import '../data/experimental_image_preprocessor.dart';
+import '../data/yolo_parity_image_preprocessor.dart';
 
-enum _PreprocessorChoice { baseline, experimental }
+enum _PreprocessorChoice { baseline, experimental, yoloParity }
 
 class PreprocessingInspectorScreen extends StatefulWidget {
   const PreprocessingInspectorScreen({super.key});
@@ -33,6 +34,7 @@ class _PreprocessingInspectorScreenState
 
   final ImagePreprocessor _baseline = BasicImagePreprocessor();
   final ImagePreprocessor _experimental = const ExperimentalImagePreprocessor();
+  final ImagePreprocessor _yoloParity = const YoloParityImagePreprocessor();
   final DevStaffLineDetector _staffLineDetector = const DevStaffLineDetector();
 
   _PreprocessorChoice _choice = _PreprocessorChoice.experimental;
@@ -96,9 +98,11 @@ class _PreprocessingInspectorScreenState
         return;
       }
 
-      final preprocessor = _choice == _PreprocessorChoice.baseline
-          ? _baseline
-          : _experimental;
+      final preprocessor = switch (_choice) {
+        _PreprocessorChoice.baseline => _baseline,
+        _PreprocessorChoice.experimental => _experimental,
+        _PreprocessorChoice.yoloParity => _yoloParity,
+      };
 
       final sw = Stopwatch()..start();
       final output = await preprocessor.preprocess(bytes);
@@ -135,9 +139,11 @@ class _PreprocessingInspectorScreenState
     });
 
     try {
-      final preprocessor = _choice == _PreprocessorChoice.baseline
-          ? _baseline
-          : _experimental;
+      final preprocessor = switch (_choice) {
+        _PreprocessorChoice.baseline => _baseline,
+        _PreprocessorChoice.experimental => _experimental,
+        _PreprocessorChoice.yoloParity => _yoloParity,
+      };
 
       final sw = Stopwatch()..start();
       final output = await preprocessor.preprocess(input);
@@ -323,6 +329,18 @@ class _PreprocessingInspectorScreenState
                         _rerun();
                       },
               ),
+              ChoiceChip(
+                label: const Text('YOLO Parity (416 stretch)'),
+                selected: _choice == _PreprocessorChoice.yoloParity,
+                onSelected: _isRunning
+                    ? null
+                    : (_) {
+                        setState(() {
+                          _choice = _PreprocessorChoice.yoloParity;
+                        });
+                        _rerun();
+                      },
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -331,6 +349,52 @@ class _PreprocessingInspectorScreenState
           const Text(
             'Stage 2 tuning (live)',
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _textPri),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton(
+                onPressed: _isRunning
+                    ? null
+                    : () => _applyStage2Preset(
+                          darkThreshold: 150,
+                          minRatio: 0.28,
+                          smoothWindow: 11,
+                          prominence: 0.010,
+                          minDistance: 7,
+                          tolerance: 0.30,
+                        ),
+                child: const Text('Conservative'),
+              ),
+              OutlinedButton(
+                onPressed: _isRunning
+                    ? null
+                    : () => _applyStage2Preset(
+                          darkThreshold: 135,
+                          minRatio: 0.21,
+                          smoothWindow: 9,
+                          prominence: 0.007,
+                          minDistance: 5,
+                          tolerance: 0.35,
+                        ),
+                child: const Text('Balanced'),
+              ),
+              OutlinedButton(
+                onPressed: _isRunning
+                    ? null
+                    : () => _applyStage2Preset(
+                          darkThreshold: 115,
+                          minRatio: 0.16,
+                          smoothWindow: 7,
+                          prominence: 0.004,
+                          minDistance: 3,
+                          tolerance: 0.45,
+                        ),
+                child: const Text('Aggressive'),
+              ),
+            ],
           ),
           const SizedBox(height: 6),
           _buildSliderRow(
@@ -461,6 +525,26 @@ class _PreprocessingInspectorScreenState
   }
 
 
+
+  void _applyStage2Preset({
+    required int darkThreshold,
+    required double minRatio,
+    required int smoothWindow,
+    required double prominence,
+    required int minDistance,
+    required double tolerance,
+  }) {
+    setState(() {
+      _darkPixelThreshold = darkThreshold;
+      _minDarkRatio = minRatio;
+      _smoothingWindow = smoothWindow.isOdd ? smoothWindow : smoothWindow + 1;
+      _minPeakProminence = prominence;
+      _minPeakDistance = minDistance;
+      _groupSpacingTolerance = tolerance;
+    });
+    _scheduleStage2Run();
+  }
+
   Widget _buildSliderRow({
     required String label,
     required String valueLabel,
@@ -545,7 +629,9 @@ class _PreprocessingInspectorScreenState
               'Mode',
               _choice == _PreprocessorChoice.experimental
                   ? 'Experimental'
-                  : 'Baseline',
+                  : _choice == _PreprocessorChoice.yoloParity
+                      ? 'YOLO Parity'
+                      : 'Baseline',
             ),
           ],
         ),
