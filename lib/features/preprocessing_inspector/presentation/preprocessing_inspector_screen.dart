@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -47,6 +48,15 @@ class _PreprocessingInspectorScreenState
   Duration? _elapsed;
   Duration? _stage2Elapsed;
 
+  Timer? _stage2Debounce;
+
+  int _darkPixelThreshold = 120;
+  double _minDarkRatio = 0.24;
+  int _smoothingWindow = 7;
+  double _minPeakProminence = 0.008;
+  int _minPeakDistance = 6;
+  double _groupSpacingTolerance = 0.35;
+
   Future<void> _pickImageAndRun() async {
     setState(() {
       _isRunning = true;
@@ -94,21 +104,18 @@ class _PreprocessingInspectorScreenState
       final output = await preprocessor.preprocess(bytes);
       sw.stop();
 
-      final swStage2 = Stopwatch()..start();
-      final staffLines = await _staffLineDetector.detect(output.bytes);
-      swStage2.stop();
-
       if (!mounted) return;
       setState(() {
         _fileName = file.name;
         _inputBytes = bytes;
         _decodedInput = decoded;
         _output = output;
-        _staffLineResult = staffLines;
+        _staffLineResult = null;
         _elapsed = sw.elapsed;
-        _stage2Elapsed = swStage2.elapsed;
-        _isRunning = false;
+        _stage2Elapsed = null;
       });
+
+      await _runStage2();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -136,15 +143,67 @@ class _PreprocessingInspectorScreenState
       final output = await preprocessor.preprocess(input);
       sw.stop();
 
+      if (!mounted) return;
+      setState(() {
+        _output = output;
+        _staffLineResult = null;
+        _elapsed = sw.elapsed;
+        _stage2Elapsed = null;
+      });
+
+      await _runStage2();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isRunning = false;
+        _error = 'Preprocessing failed: $e';
+      });
+    }
+  }
+
+
+  @override
+  void dispose() {
+    _stage2Debounce?.cancel();
+    super.dispose();
+  }
+
+  DevStaffLineDetectorConfig get _stage2Config => DevStaffLineDetectorConfig(
+        darkPixelThreshold: _darkPixelThreshold,
+        minDarkRatio: _minDarkRatio,
+        smoothingWindow: _smoothingWindow,
+        minPeakProminence: _minPeakProminence,
+        minPeakDistance: _minPeakDistance,
+        groupSpacingTolerance: _groupSpacingTolerance,
+      );
+
+  void _scheduleStage2Run() {
+    _stage2Debounce?.cancel();
+    _stage2Debounce = Timer(const Duration(milliseconds: 180), () {
+      _runStage2();
+    });
+  }
+
+  Future<void> _runStage2() async {
+    final output = _output;
+    if (output == null) return;
+
+    setState(() {
+      _isRunning = true;
+      _error = null;
+    });
+
+    try {
       final swStage2 = Stopwatch()..start();
-      final staffLines = await _staffLineDetector.detect(output.bytes);
+      final staffLines = await _staffLineDetector.detect(
+        output.bytes,
+        config: _stage2Config,
+      );
       swStage2.stop();
 
       if (!mounted) return;
       setState(() {
-        _output = output;
         _staffLineResult = staffLines;
-        _elapsed = sw.elapsed;
         _stage2Elapsed = swStage2.elapsed;
         _isRunning = false;
       });
@@ -152,7 +211,7 @@ class _PreprocessingInspectorScreenState
       if (!mounted) return;
       setState(() {
         _isRunning = false;
-        _error = 'Preprocessing failed: $e';
+        _error = 'Stage 2 failed: $e';
       });
     }
   }
@@ -267,6 +326,109 @@ class _PreprocessingInspectorScreenState
             ],
           ),
           const SizedBox(height: 12),
+          const Divider(height: 1, color: _border),
+          const SizedBox(height: 12),
+          const Text(
+            'Stage 2 tuning (live)',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _textPri),
+          ),
+          const SizedBox(height: 6),
+          _buildSliderRow(
+            label: 'Dark threshold',
+            valueLabel: _darkPixelThreshold.toString(),
+            slider: Slider(
+              min: 60,
+              max: 200,
+              divisions: 140,
+              value: _darkPixelThreshold.toDouble(),
+              onChanged: (v) {
+                setState(() => _darkPixelThreshold = v.round());
+                _scheduleStage2Run();
+              },
+            ),
+          ),
+          _buildSliderRow(
+            label: 'Min dark ratio',
+            valueLabel: _minDarkRatio.toStringAsFixed(2),
+            slider: Slider(
+              min: 0.10,
+              max: 0.60,
+              divisions: 50,
+              value: _minDarkRatio,
+              onChanged: (v) {
+                setState(() => _minDarkRatio = v);
+                _scheduleStage2Run();
+              },
+            ),
+          ),
+          _buildSliderRow(
+            label: 'Smooth window',
+            valueLabel: _smoothingWindow.toString(),
+            slider: Slider(
+              min: 1,
+              max: 21,
+              divisions: 10,
+              value: _smoothingWindow.toDouble(),
+              onChanged: (v) {
+                final rounded = v.round();
+                final odd = rounded.isOdd ? rounded : rounded + 1;
+                setState(() => _smoothingWindow = odd.clamp(1, 21));
+                _scheduleStage2Run();
+              },
+            ),
+          ),
+          _buildSliderRow(
+            label: 'Peak prominence',
+            valueLabel: _minPeakProminence.toStringAsFixed(3),
+            slider: Slider(
+              min: 0.001,
+              max: 0.050,
+              divisions: 49,
+              value: _minPeakProminence,
+              onChanged: (v) {
+                setState(() => _minPeakProminence = v);
+                _scheduleStage2Run();
+              },
+            ),
+          ),
+          _buildSliderRow(
+            label: 'Peak distance',
+            valueLabel: _minPeakDistance.toString(),
+            slider: Slider(
+              min: 2,
+              max: 20,
+              divisions: 18,
+              value: _minPeakDistance.toDouble(),
+              onChanged: (v) {
+                setState(() => _minPeakDistance = v.round());
+                _scheduleStage2Run();
+              },
+            ),
+          ),
+          _buildSliderRow(
+            label: 'Group tolerance',
+            valueLabel: _groupSpacingTolerance.toStringAsFixed(2),
+            slider: Slider(
+              min: 0.10,
+              max: 0.80,
+              divisions: 70,
+              value: _groupSpacingTolerance,
+              onChanged: (v) {
+                setState(() => _groupSpacingTolerance = v);
+                _scheduleStage2Run();
+              },
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _isRunning ? null : _runStage2,
+              icon: const Icon(Icons.tune, size: 16),
+              label: const Text('Re-run Stage 2 now'),
+            ),
+          ),
+          const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
@@ -295,6 +457,34 @@ class _PreprocessingInspectorScreenState
           ],
         ],
       ),
+    );
+  }
+
+
+  Widget _buildSliderRow({
+    required String label,
+    required String valueLabel,
+    required Widget slider,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(fontSize: 12, color: _textSec),
+              ),
+            ),
+            Text(
+              valueLabel,
+              style: const TextStyle(fontSize: 12, color: _textPri),
+            ),
+          ],
+        ),
+        slider,
+      ],
     );
   }
 
@@ -380,7 +570,7 @@ class _PreprocessingInspectorScreenState
         ClipRRect(
           borderRadius: BorderRadius.circular(8),
           child: CustomPaint(
-            foregroundPainter: _StaffLineOverlayPainter(lines: stage.lines),
+            foregroundPainter: _StaffLineOverlayPainter(lines: stage.lines, sourceHeight: stage.height),
             child: Image.memory(output.bytes, fit: BoxFit.contain),
           ),
         ),
@@ -390,6 +580,7 @@ class _PreprocessingInspectorScreenState
           runSpacing: 6,
           children: [
             _metaChip('Detected lines', stage.lines.length.toString()),
+            _metaChip('Staff groups', stage.groups.length.toString()),
             _metaChip('Dark rows', stage.darkRows.toString()),
             _metaChip('Threshold', stage.minDarkRatio.toStringAsFixed(2)),
             if (_stage2Elapsed != null)
@@ -517,15 +708,18 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-
 class _StaffLineOverlayPainter extends CustomPainter {
-  const _StaffLineOverlayPainter({required this.lines});
+  const _StaffLineOverlayPainter({
+    required this.lines,
+    required this.sourceHeight,
+  });
 
   final List<DevStaffLine> lines;
+  final int sourceHeight;
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (lines.isEmpty || size.height <= 0) return;
+    if (lines.isEmpty || size.height <= 0 || sourceHeight <= 0) return;
 
     final paint = Paint()
       ..color = const Color(0xFF00E5FF).withValues(alpha: 0.85)
@@ -533,13 +727,13 @@ class _StaffLineOverlayPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     for (final line in lines) {
-      final y = line.y.clamp(0, 415) / 416 * size.height;
+      final y = line.y.clamp(0, sourceHeight - 1) / sourceHeight * size.height;
       canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
     }
   }
 
   @override
   bool shouldRepaint(covariant _StaffLineOverlayPainter oldDelegate) {
-    return oldDelegate.lines != lines;
+    return oldDelegate.lines != lines || oldDelegate.sourceHeight != sourceHeight;
   }
 }
