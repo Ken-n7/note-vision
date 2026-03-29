@@ -5,6 +5,7 @@ import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
 
 import '../../preprocessing/domain/preprocessed_result.dart';
+import '../domain/detected_staff.dart';
 import '../domain/detected_symbol.dart';
 import '../domain/detection_result.dart';
 import '../domain/music_symbol.dart';
@@ -47,7 +48,10 @@ class TfliteSymbolDetector implements SymbolDetector {
 
     _interpreter!.run(inputTensor, output);
 
-    return DetectionResult(symbols: _parseOutput(output[0] as List<List<double>>));
+    final symbols = _parseOutput(output[0] as List<List<double>>);
+    final staffs = _deriveStaffsFromSymbols(symbols);
+
+    return DetectionResult(staffs: staffs, symbols: symbols);
   }
 
   List<List<List<List<double>>>> _imageToTensor(Uint8List bytes) {
@@ -94,6 +98,78 @@ class TfliteSymbolDetector implements SymbolDetector {
     }
 
     return _nms(detections);
+  }
+
+
+  List<DetectedStaff> _deriveStaffsFromSymbols(List<DetectedSymbol> symbols) {
+    final lineCenters = symbols
+        .where((s) => s.musicSymbol == MusicSymbol.staffLine)
+        .map((s) {
+          final box = s.boundingBox;
+          if (box == null) return null;
+          return box.top + (box.height / 2);
+        })
+        .whereType<double>()
+        .toList()
+      ..sort();
+
+    if (lineCenters.length < 5) return const [];
+
+    final mergedCenters = <double>[];
+    const mergeTol = 2.5;
+
+    for (final y in lineCenters) {
+      if (mergedCenters.isEmpty) {
+        mergedCenters.add(y);
+        continue;
+      }
+      final last = mergedCenters.last;
+      if ((y - last).abs() <= mergeTol) {
+        mergedCenters[mergedCenters.length - 1] = (last + y) / 2;
+      } else {
+        mergedCenters.add(y);
+      }
+    }
+
+    if (mergedCenters.length < 5) return const [];
+
+    final staffs = <DetectedStaff>[];
+    var index = 0;
+
+    while (index <= mergedCenters.length - 5) {
+      final candidate = mergedCenters.sublist(index, index + 5);
+      final gaps = <double>[];
+      for (var i = 0; i < 4; i++) {
+        gaps.add(candidate[i + 1] - candidate[i]);
+      }
+
+      final avgGap = gaps.reduce((a, b) => a + b) / gaps.length;
+      if (avgGap <= 0) {
+        index++;
+        continue;
+      }
+
+      final spacingConsistent =
+          gaps.every((g) => ((g - avgGap).abs() / avgGap) <= 0.35);
+
+      if (!spacingConsistent) {
+        index++;
+        continue;
+      }
+
+      staffs.add(
+        DetectedStaff(
+          id: 'staff-${staffs.length}',
+          topY: candidate.first,
+          bottomY: candidate.last,
+          lineYs: candidate,
+        ),
+      );
+
+      index += 5;
+    }
+
+    return staffs;
   }
 
   List<DetectedSymbol> _nms(List<DetectedSymbol> detections) {
