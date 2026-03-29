@@ -96,7 +96,9 @@ void main() {
 
       expect(states, [
         ScanState.preprocessing,
-        ScanState.detecting,
+        ScanState.staffLineDetection,
+        ScanState.staffLineRemoval,
+        ScanState.symbolDetectionClassification,
         ScanState.done,
       ]);
       expect(viewModel.state, ScanState.done);
@@ -110,7 +112,7 @@ void main() {
     });
 
     test(
-      'stores mapper output so the UI can consume reconstructed score data',
+      'walks through assignment/pitch/rhythm/measure/assembly states when mapper is present',
       () async {
         final preprocessed = PreprocessedResult(
           bytes: Uint8List.fromList(const [1, 2, 3]),
@@ -153,8 +155,23 @@ void main() {
           mapper: const _FakeScoreMapperService(mappingResult),
         );
 
+        final states = <ScanState>[];
+        viewModel.addListener(() => states.add(viewModel.state));
+
         await viewModel.run(Uint8List.fromList(const [1, 2, 3]));
 
+        expect(states, [
+          ScanState.preprocessing,
+          ScanState.staffLineDetection,
+          ScanState.staffLineRemoval,
+          ScanState.symbolDetectionClassification,
+          ScanState.symbolToStaffAssignment,
+          ScanState.pitchReconstruction,
+          ScanState.rhythmReconstruction,
+          ScanState.measureGrouping,
+          ScanState.scoreAssembly,
+          ScanState.done,
+        ]);
         expect(viewModel.state, ScanState.done);
         expect(viewModel.mappingResult, isNotNull);
         expect(viewModel.mappingResult?.score.id, 'mapped-score');
