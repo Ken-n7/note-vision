@@ -6,6 +6,7 @@ import 'package:note_vision/core/services/image_storage_service.dart';
 import 'package:note_vision/features/collection/presentation/collection_screen.dart';
 import 'package:note_vision/features/collection/presentation/widgets/empty_collection.dart';
 import 'package:note_vision/features/collection/presentation/widgets/score_card.dart';
+import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 
 class FakeImageStorageService extends ImageStorageService {
   FakeImageStorageService(this.paths);
@@ -97,6 +98,35 @@ void main() {
       expect(find.text('Info'), findsOneWidget);
       expect(find.text('Edit'), findsOneWidget);
       expect(find.text('Result'), findsOneWidget);
+    });
+
+    testWidgets('opens editor route when score card is tapped', (
+      WidgetTester tester,
+    ) async {
+      final service = FakeImageStorageService(
+        Future.value(['/fake/path/image1.jpg']),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          onGenerateRoute: (settings) {
+            if (settings.name == EditorShellScreen.routeName) {
+              return MaterialPageRoute<void>(
+                builder: (_) => const Scaffold(body: Text('Editor Route Opened')),
+              );
+            }
+            return MaterialPageRoute<void>(
+              builder: (_) => CollectionScreen(imageStorageService: service),
+            );
+          },
+        ),
+      );
+
+      await pumpLoadedState(tester);
+      await tester.tap(find.byType(ScoreCard));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Editor Route Opened'), findsOneWidget);
     });
   });
 }

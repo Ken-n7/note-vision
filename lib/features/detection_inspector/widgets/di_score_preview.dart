@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 import '../controller/detection_inspector_controller.dart';
 import 'di_section_card.dart';
 
@@ -12,11 +13,19 @@ class DiScorePreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final debug = controller.scoreDebugOutput;
+    final score = controller.mappingResult?.score;
 
     return DiSectionCard(
-      label: 'SCOREMODEL DEBUG OUTPUT',
+      label: 'SCOREMODEL NOTATION PREVIEW',
       trailing: _CopyButton(text: debug),
-      child: _MonoBlock(text: debug),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ScoreNotationViewer(score: score),
+          const SizedBox(height: 12),
+          _MonoBlock(text: debug),
+        ],
+      ),
     );
   }
 }
