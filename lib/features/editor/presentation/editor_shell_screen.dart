@@ -384,16 +384,16 @@ class _StatusStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: EdgeInsets.fromLTRB(horizontalPadding, 8, horizontalPadding, 8),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: EdgeInsets.fromLTRB(horizontalPadding, 4, horizontalPadding, 4), // ↓ from 8
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), // ↓ from 12 / 10
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(8), // ↓ from 12
+        border: Border.all(color: AppColors.border, width: 0.8), // slightly thinner
       ),
       child: Wrap(
-        spacing: 12,
-        runSpacing: 8,
+        spacing: 8, // ↓ from 12
+        runSpacing: 4, // ↓ from 8
         children: [
           _StatusItem(label: 'Type', value: symbolType),
           _StatusItem(label: 'Pitch', value: pitch),

@@ -19,8 +19,8 @@ class PaletteItem extends StatelessWidget {
       feedback: Material(
         color: Colors.transparent,
         child: Transform.scale(
-          scale: 1.55,
-          child: _buildSymbolContainer(symbol, scale: 1.55),
+          scale: 1.4, // slightly reduced from 1.55
+          child: _buildSymbolContainer(symbol, scale: 1.4),
         ),
       ),
       childWhenDragging: Opacity(
@@ -34,20 +34,20 @@ class PaletteItem extends StatelessWidget {
 
   Widget _buildSymbolContainer(MusicalSymbol sym, {double scale = 1.0}) {
     return Container(
-      width: 74,
-      margin: const EdgeInsets.symmetric(horizontal: 6),
+      width: 56, // reduced from 74
+      margin: const EdgeInsets.symmetric(horizontal: 4), // tighter spacing
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            height: 70,
+            height: 52, // reduced from 70
             decoration: BoxDecoration(
               color: const Color(0xFF2C2C2C),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(8), // slightly tighter radius
             ),
             child: Center(
               child: CustomPaint(
-                size: Size(48 * scale, 54 * scale),
+                size: Size(34 * scale, 40 * scale), // scaled-down painter
                 painter: MusicalSymbolPainter(
                   symbol: sym,
                   color: Colors.white,
@@ -55,11 +55,11 @@ class PaletteItem extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4), // reduced spacing
           Text(
             sym.label,
             style: const TextStyle(
-              fontSize: 10,
+              fontSize: 9, // smaller text
               color: Color(0xFF8A8A8A),
               fontWeight: FontWeight.w500,
               height: 1.1,
