@@ -109,7 +109,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           builder: (context, constraints) {
             final horizontalPadding = ResponsiveLayout.horizontalPadding(constraints.maxWidth);
             final isLandscape = constraints.maxWidth > constraints.maxHeight;
-            final controlPanelWidth = (constraints.maxWidth * 0.32).clamp(280.0, 360.0) as double;
+            final controlPanelWidth = (constraints.maxWidth * 0.32).clamp(280.0, 360.0);
             final notationPanel = Container(
               decoration: BoxDecoration(
                 color: AppColors.surface,

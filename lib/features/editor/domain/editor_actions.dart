@@ -1,6 +1,6 @@
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/rest.dart';
-import 'package:note_vision/core/models/score.dart';
+// import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/model/editor_state_history.dart';
