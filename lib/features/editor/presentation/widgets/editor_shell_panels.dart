@@ -323,12 +323,12 @@ class EditorActionBarPanel extends StatelessWidget {
             children: [
               _ControlButton(
                 icon: Icons.arrow_upward_rounded,
-                label: 'Up',
+                label: 'Move Up',
                 onPressed: hasSelection ? onMoveUp : null,
               ),
               _ControlButton(
                 icon: Icons.arrow_downward_rounded,
-                label: 'Down',
+                label: 'Move Down',
                 onPressed: hasSelection ? onMoveDown : null,
               ),
               _ControlButton(
@@ -421,7 +421,7 @@ class _InsertDropdown extends StatelessWidget {
         );
       }).toList(),
       builder: (context, controller, child) {
-        return OutlinedButton.icon(
+        return OutlinedButton(
           onPressed: enabled
               ? () {
                   if (controller.isOpen) {
@@ -431,14 +431,9 @@ class _InsertDropdown extends StatelessWidget {
                   }
                 }
               : null,
-          icon: Icon(icon, size: 16),
-          label: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Insert $label'),
-              const SizedBox(width: 4),
-              const Icon(Icons.arrow_drop_down_rounded, size: 18),
-            ],
+          child: Text(
+            'Insert $label',
+            overflow: TextOverflow.ellipsis,
           ),
           style: OutlinedButton.styleFrom(
             backgroundColor: enabled ? AppColors.surface : AppColors.surfaceAlt,
