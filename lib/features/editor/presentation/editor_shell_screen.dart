@@ -132,6 +132,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     }
 
     if (measureTarget == null) return null;
+    final resolvedMeasureTarget = measureTarget;
 
     final symbolTargets = ScoreNotationPainter.buildSymbolTargets(
       measures: measures,
@@ -140,13 +141,13 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       rowHeight: _viewerRowHeight,
       padding: _viewerPadding,
       rowPrefixWidth: layout.rowPrefixWidth,
-    ).where((entry) => entry.measureIndex == measureTarget.measureIndex).toList()
+    ).where((entry) => entry.measureIndex == resolvedMeasureTarget.measureIndex).toList()
       ..sort((a, b) => a.center.dx.compareTo(b.center.dx));
 
     final insertIndex = _insertionIndexForX(localPosition.dx, symbolTargets);
 
     return _DropInsertionTarget(
-      measureTarget: measureTarget,
+      measureTarget: resolvedMeasureTarget,
       insertIndex: insertIndex,
       localPosition: localPosition,
     );
@@ -323,7 +324,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           builder: (context, constraints) {
             final horizontalPadding = ResponsiveLayout.horizontalPadding(constraints.maxWidth);
             final isLandscape = constraints.maxWidth > constraints.maxHeight;
-            final controlPanelWidth = (constraints.maxWidth * 0.32).clamp(280.0, 360.0) as double;
+            final controlPanelWidth = (constraints.maxWidth * 0.32).clamp(280.0, 360.0);
             final notationPanel = Container(
               decoration: BoxDecoration(
                 color: AppColors.surface,

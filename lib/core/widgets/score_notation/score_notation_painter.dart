@@ -398,9 +398,9 @@ class ScoreNotationPainter extends CustomPainter {
       }
     }
 
-    if (showInsertionIndicator && insertion != null) {
+    if (showInsertionIndicator) {
       final insertionX = _insertionXForIndex(
-        insertIndex: insertion.insertIndex,
+        insertIndex: insertion!.insertIndex,
         symbolCount: symbolCount,
         measureStartX: measureStartX,
         measureEndX: measureEndX,
