@@ -4,10 +4,12 @@ import 'musical_symbol_painter.dart';
 
 class PaletteItem extends StatelessWidget {
   final MusicalSymbol symbol;
+  final bool showLabel;
 
   const PaletteItem({
     super.key,
     required this.symbol,
+    this.showLabel = true,
   });
 
   @override
@@ -58,38 +60,21 @@ class PaletteItem extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            Text(
-              _paletteLabel(sym),
-              style: const TextStyle(
-                fontSize: 10,
-                color: Color(0xFF8A8A8A),
-                fontWeight: FontWeight.w500,
-                height: 1.1,
+            if (showLabel)
+              Text(
+                sym.label,
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: Color(0xFF8A8A8A),
+                  fontWeight: FontWeight.w500,
+                  height: 1.1,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
+            if (!showLabel) const SizedBox(height: 14),
           ],
         ),
       ),
     );
-  }
-
-  String _paletteLabel(MusicalSymbol sym) {
-    switch (sym) {
-      case MusicalSymbol.wholeNote:
-        return 'W Note';
-      case MusicalSymbol.halfNote:
-        return 'H Note';
-      case MusicalSymbol.quarterNote:
-        return 'Q Note';
-      case MusicalSymbol.eighthNote:
-        return '8th Note';
-      case MusicalSymbol.wholeRest:
-        return 'W Rest';
-      case MusicalSymbol.halfRest:
-        return 'H Rest';
-      case MusicalSymbol.quarterRest:
-        return 'Q Rest';
-    }
   }
 }

@@ -253,7 +253,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                                 child: Column(
                                   children: [
                                     Expanded(child: notationPanel),
-                                    const MusicSymbolPalette(),
+                                    const MusicSymbolPalette(showLabels: false),
                                   ],
                                 ),
                               ),
@@ -274,7 +274,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                         : Column(
                             children: [
                               Expanded(child: notationPanel),
-                              const MusicSymbolPalette(),
+                              const MusicSymbolPalette(showLabels: false),
                               statusStrip,
                               actionBar,
                             ],

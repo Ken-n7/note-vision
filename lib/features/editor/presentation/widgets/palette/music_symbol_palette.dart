@@ -3,7 +3,9 @@ import '../../../domain/model/musical_symbol.dart';
 import 'palette_item.dart';
 
 class MusicSymbolPalette extends StatelessWidget {
-  const MusicSymbolPalette({super.key});
+  const MusicSymbolPalette({super.key, this.showLabels = true});
+
+  final bool showLabels;
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +32,7 @@ class MusicSymbolPalette extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         child: Row(
           children: symbols
-              .map((symbol) => PaletteItem(symbol: symbol))
+              .map((symbol) => PaletteItem(symbol: symbol, showLabel: showLabels))
               .toList(),
         ),
       ),
