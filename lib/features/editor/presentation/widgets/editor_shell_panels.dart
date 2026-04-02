@@ -253,46 +253,16 @@ class EditorActionBarPanel extends StatelessWidget {
               Expanded(
                 child: _InsertDropdown(
                   label: 'Note',
-                  icon: Icons.music_note_rounded,
                   enabled: hasMeasureContext,
-                  items: const ['Whole', 'Half', 'Quarter', 'Eighth'],
-                  onSelected: (value) {
-                    // First insert, then set duration based on selection
-                    onInsertNote();
-                    switch (value) {
-                      case 'Whole':
-                        onWhole();
-                      case 'Half':
-                        onHalf();
-                      case 'Quarter':
-                        onQuarter();
-                      case 'Eighth':
-                        onEighth();
-                    }
-                  },
+                  onPressed: onInsertNote,
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: _InsertDropdown(
                   label: 'Rest',
-                  icon: Icons.pause_rounded,
                   enabled: hasMeasureContext,
-                  items: const ['Whole', 'Half', 'Quarter', 'Eighth'],
-                  onSelected: (value) {
-                    // First insert, then set duration based on selection
-                    onInsertRest();
-                    switch (value) {
-                      case 'Whole':
-                        onWhole();
-                      case 'Half':
-                        onHalf();
-                      case 'Quarter':
-                        onQuarter();
-                      case 'Eighth':
-                        onEighth();
-                    }
-                  },
+                  onPressed: onInsertRest,
                 ),
               ),
             ],
@@ -394,76 +364,31 @@ class _SectionLabel extends StatelessWidget {
 class _InsertDropdown extends StatelessWidget {
   const _InsertDropdown({
     required this.label,
-    required this.icon,
     required this.enabled,
-    required this.items,
-    required this.onSelected,
+    required this.onPressed,
   });
 
   final String label;
-  final IconData icon;
   final bool enabled;
-  final List<String> items;
-  final void Function(String value) onSelected;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return MenuAnchor(
-      menuChildren: items.map((item) {
-        return MenuItemButton(
-          onPressed: enabled ? () => onSelected(item) : null,
-          leadingIcon: Icon(
-            _durationIcon(item),
-            size: 16,
-            color: AppColors.textSecondary,
-          ),
-          child: Text(
-            item,
-            style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
-          ),
-        );
-      }).toList(),
-      builder: (context, controller, child) {
-        return OutlinedButton(
-          onPressed: enabled
-              ? () {
-                  if (controller.isOpen) {
-                    controller.close();
-                  } else {
-                    controller.open();
-                  }
-                }
-              : null,
-          style: OutlinedButton.styleFrom(
-            backgroundColor: enabled ? AppColors.surface : AppColors.surfaceAlt,
-            foregroundColor: enabled ? AppColors.textPrimary : AppColors.textSecondary,
-            side: BorderSide(
-              color: enabled ? AppColors.accent.withValues(alpha: 0.6) : AppColors.border,
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          ),
-          child: Text(
-            'Insert $label',
-            overflow: TextOverflow.ellipsis,
-          ),
-        );
-      },
+    return OutlinedButton(
+      onPressed: enabled ? onPressed : null,
+      style: OutlinedButton.styleFrom(
+        backgroundColor: enabled ? AppColors.surface : AppColors.surfaceAlt,
+        foregroundColor: enabled ? AppColors.textPrimary : AppColors.textSecondary,
+        side: BorderSide(
+          color: enabled ? AppColors.accent.withValues(alpha: 0.6) : AppColors.border,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      ),
+      child: Text(
+        'Insert $label',
+        overflow: TextOverflow.ellipsis,
+      ),
     );
-  }
-
-  IconData _durationIcon(String duration) {
-    switch (duration) {
-      case 'Whole':
-        return Icons.radio_button_unchecked_rounded;
-      case 'Half':
-        return Icons.looks_two_outlined;
-      case 'Quarter':
-        return Icons.looks_one_outlined;
-      case 'Eighth':
-        return Icons.looks_3_outlined;
-      default:
-        return Icons.music_note_rounded;
-    }
   }
 }
 
