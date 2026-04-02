@@ -3,6 +3,7 @@ import 'package:note_vision/core/theme/app_theme.dart';
 
 class EditorHeaderPanel extends StatelessWidget {
   const EditorHeaderPanel({
+    super.key,
     required this.title,
     required this.hasUnsavedChanges,
     required this.horizontalPadding,
@@ -83,6 +84,7 @@ class EditorHeaderPanel extends StatelessWidget {
 
 class EditorStatusStrip extends StatelessWidget {
   const EditorStatusStrip({
+    super.key,
     required this.horizontalPadding,
     required this.symbolType,
     required this.pitch,
@@ -195,6 +197,7 @@ class _StatusItem extends StatelessWidget {
 
 class EditorActionBarPanel extends StatelessWidget {
   const EditorActionBarPanel({
+    super.key,
     required this.horizontalPadding,
     required this.hasSelection,
     required this.hasMeasureContext,
@@ -431,10 +434,6 @@ class _InsertDropdown extends StatelessWidget {
                   }
                 }
               : null,
-          child: Text(
-            'Insert $label',
-            overflow: TextOverflow.ellipsis,
-          ),
           style: OutlinedButton.styleFrom(
             backgroundColor: enabled ? AppColors.surface : AppColors.surfaceAlt,
             foregroundColor: enabled ? AppColors.textPrimary : AppColors.textSecondary,
@@ -442,6 +441,10 @@ class _InsertDropdown extends StatelessWidget {
               color: enabled ? AppColors.accent.withValues(alpha: 0.6) : AppColors.border,
             ),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          ),
+          child: Text(
+            'Insert $label',
+            overflow: TextOverflow.ellipsis,
           ),
         );
       },

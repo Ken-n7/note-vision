@@ -7,7 +7,6 @@ import '../../models/key_signature.dart';
 import '../../models/measure.dart';
 import '../../models/note.dart';
 import '../../models/rest.dart';
-import '../../models/score_symbol.dart';
 import '../../models/time_signature.dart';
 import 'notation_glyph_painter.dart';
 import 'score_notation_layout_models.dart';
