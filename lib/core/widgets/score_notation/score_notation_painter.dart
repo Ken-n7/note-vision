@@ -2,12 +2,15 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+export 'score_notation_layout_models.dart';
 import '../../models/key_signature.dart';
 import '../../models/measure.dart';
 import '../../models/note.dart';
 import '../../models/rest.dart';
 import '../../models/score_symbol.dart';
 import '../../models/time_signature.dart';
+import 'notation_glyph_painter.dart';
+import 'score_notation_layout_models.dart';
 import 'staff_pitch_mapper.dart';
 
 class ScoreNotationPainter extends CustomPainter {
@@ -44,7 +47,7 @@ class ScoreNotationPainter extends CustomPainter {
     }
   }
 
-  List<_RowMetrics> _buildRowMetrics() {
+  List<RowMetrics> _buildRowMetrics() {
     return _buildRowMetricsStatic(
       measures: measures,
       measuresPerRow: measuresPerRow,
@@ -55,7 +58,7 @@ class ScoreNotationPainter extends CustomPainter {
     );
   }
 
-  static List<_RowMetrics> _buildRowMetricsStatic({
+  static List<RowMetrics> _buildRowMetricsStatic({
     required List<Measure> measures,
     required int measuresPerRow,
     required double rowHeight,
@@ -63,7 +66,7 @@ class ScoreNotationPainter extends CustomPainter {
     required double rowPrefixWidth,
     required double minMeasureWidth,
   }) {
-    final rows = <_RowMetrics>[];
+    final rows = <RowMetrics>[];
     final rowCount = (measures.length / measuresPerRow).ceil();
 
     for (var rowIndex = 0; rowIndex < rowCount; rowIndex++) {
@@ -78,7 +81,7 @@ class ScoreNotationPainter extends CustomPainter {
       final rowEndX = contentStartX + (rowMeasures.length * minMeasureWidth);
 
       rows.add(
-        _RowMetrics(
+        RowMetrics(
           rowIndex: rowIndex,
           globalStartMeasureIndex: rowStartMeasure,
           measures: rowMeasures,
@@ -129,7 +132,7 @@ class ScoreNotationPainter extends CustomPainter {
           final symbol = measure.symbols[symbolIndex];
           final progress = (symbolIndex + 1) / (measure.symbols.length + 1);
           final x = measureStartX + innerPadding + (drawableWidth * progress);
-          final y = _symbolCenterY(symbol, row.staffTop, row.staffBottom);
+          final y = NotationGlyphPainter.symbolCenterY(symbol: symbol, staffTop: row.staffTop, staffBottom: row.staffBottom, staffLineSpacing: staffLineSpacing);
           targets.add(
             NotationSymbolTarget(
               measureIndex: row.globalStartMeasureIndex + measureInRow,
@@ -148,27 +151,8 @@ class ScoreNotationPainter extends CustomPainter {
     return targets;
   }
 
-  static double _symbolCenterY(ScoreSymbol symbol, double staffTop, double staffBottom) {
-    if (symbol is Note) {
-      return StaffPitchMapper.yForPitch(
-        step: symbol.step,
-        octave: symbol.octave,
-        bottomLineY: staffBottom,
-        lineSpacing: staffLineSpacing,
-      );
-    }
 
-    final restType = symbol is Rest ? symbol.type.trim().toLowerCase() : '';
-    if (restType == 'whole') {
-      return staffTop + (staffLineSpacing * 3) + 4.3;
-    }
-    if (restType == 'half') {
-      return staffTop + (staffLineSpacing * 2) - 3.0;
-    }
-    return staffTop + (staffLineSpacing * 1.35) + 8.0;
-  }
-
-  void _drawRow(Canvas canvas, _RowMetrics row) {
+  void _drawRow(Canvas canvas, RowMetrics row) {
     final linePaint = Paint()
       ..color = const Color(0xFF111827)
       ..strokeWidth = 1.1
@@ -200,7 +184,7 @@ class ScoreNotationPainter extends CustomPainter {
     _drawMeasures(canvas, row, thinBarPaint);
   }
 
-  void _drawRowSignatures(Canvas canvas, _RowMetrics row) {
+  void _drawRowSignatures(Canvas canvas, RowMetrics row) {
     if (row.rowIndex != 0 || row.measures.isEmpty) return;
 
     final firstMeasure = row.measures.first;
@@ -227,7 +211,7 @@ class ScoreNotationPainter extends CustomPainter {
     }
   }
 
-  void _drawMeasures(Canvas canvas, _RowMetrics row, Paint barPaint) {
+  void _drawMeasures(Canvas canvas, RowMetrics row, Paint barPaint) {
     const measureNumberStyle = TextStyle(
       color: Color(0xFF374151),
       fontSize: 11,
@@ -329,184 +313,40 @@ class ScoreNotationPainter extends CustomPainter {
             selectedMeasureIndex == absoluteMeasureIndex &&
             selectedSymbolIndex == i;
         if (isSelected) {
-          _drawSelectionHighlight(canvas, Offset(x, y));
+          NotationGlyphPainter.drawSelectionHighlight(canvas, Offset(x, y));
         }
-        _drawNote(canvas, symbol, x: x, y: y, middleLineY: middleLineY);
+        NotationGlyphPainter.drawNote(canvas, symbol, x: x, y: y, middleLineY: middleLineY, staffLineSpacing: staffLineSpacing);
       } else if (symbol is Rest) {
-        final y = _symbolCenterY(symbol, staffTop, staffBottom);
+        final y = NotationGlyphPainter.symbolCenterY(symbol: symbol, staffTop: staffTop, staffBottom: staffBottom, staffLineSpacing: staffLineSpacing);
         final isSelected =
             selectedMeasureIndex == absoluteMeasureIndex &&
             selectedSymbolIndex == i;
         if (isSelected) {
-          _drawSelectionHighlight(canvas, Offset(x, y));
+          NotationGlyphPainter.drawSelectionHighlight(canvas, Offset(x, y));
         }
-        _drawRest(canvas, symbol, x: x, staffTop: staffTop);
+        NotationGlyphPainter.drawRest(canvas, symbol, x: x, staffTop: staffTop, staffLineSpacing: staffLineSpacing);
       }
     }
 
     if (!hasDragInMeasure || draggedSymbol == null) return;
 
-    final dragY = _symbolCenterY(draggedSymbol, staffTop, staffBottom) - 8;
+    final dragY = NotationGlyphPainter.symbolCenterY(symbol: draggedSymbol, staffTop: staffTop, staffBottom: staffBottom, staffLineSpacing: staffLineSpacing) - 8;
     if (draggedSymbol is Note) {
-      _drawSelectionHighlight(canvas, Offset(clampedDragX, dragY), radius: 16);
-      _drawNote(
+      NotationGlyphPainter.drawSelectionHighlight(canvas, Offset(clampedDragX, dragY), radius: 16);
+      NotationGlyphPainter.drawNote(
         canvas,
         draggedSymbol,
         x: clampedDragX,
         y: dragY,
         middleLineY: middleLineY,
+        staffLineSpacing: staffLineSpacing,
       );
     } else if (draggedSymbol is Rest) {
-      _drawSelectionHighlight(canvas, Offset(clampedDragX, dragY), radius: 16);
-      _drawRest(canvas, draggedSymbol, x: clampedDragX, staffTop: staffTop - 8);
+      NotationGlyphPainter.drawSelectionHighlight(canvas, Offset(clampedDragX, dragY), radius: 16);
+      NotationGlyphPainter.drawRest(canvas, draggedSymbol, x: clampedDragX, staffTop: staffTop - 8, staffLineSpacing: staffLineSpacing);
     }
   }
 
-  void _drawSelectionHighlight(Canvas canvas, Offset center, {double radius = 14}) {
-    final paint = Paint()
-      ..color = const Color(0xFFD4A96A).withValues(alpha: 0.26)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(center, radius, paint);
-  }
-
-  void _drawNote(
-    Canvas canvas,
-    Note note, {
-    required double x,
-    required double y,
-    required double middleLineY,
-  }) {
-    final normalizedType = note.type.trim().toLowerCase();
-    final isWhole = normalizedType == 'whole';
-    final isHalf = normalizedType == 'half';
-    final isEighth = normalizedType == 'eighth' ||
-        normalizedType == 'flag8thup' ||
-        normalizedType == 'flag8thdown';
-
-    final headWidth = isWhole ? 14.0 : 12.5;
-    final headHeight = isWhole ? 9.8 : 8.8;
-
-    final fillPaint = Paint()
-      ..color = const Color(0xFF111827)
-      ..style = PaintingStyle.fill;
-
-    final strokePaint = Paint()
-      ..color = const Color(0xFF111827)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-
-    canvas.save();
-    canvas.translate(x, y);
-    canvas.rotate(-0.35);
-    final noteRect = Rect.fromCenter(
-      center: Offset.zero,
-      width: headWidth,
-      height: headHeight,
-    );
-    if (isWhole || isHalf) {
-      canvas.drawOval(noteRect, strokePaint);
-    } else {
-      canvas.drawOval(noteRect, fillPaint);
-    }
-    canvas.restore();
-
-    if (isWhole) return;
-
-    final stemUp = y > middleLineY;
-    _drawStemAndFlag(
-      canvas,
-      x: x,
-      y: y,
-      stemUp: stemUp,
-      drawFlag: isEighth,
-    );
-  }
-
-  void _drawStemAndFlag(
-    Canvas canvas, {
-    required double x,
-    required double y,
-    required bool stemUp,
-    required bool drawFlag,
-  }) {
-    final stemPaint = Paint()
-      ..color = const Color(0xFF111827)
-      ..strokeWidth = 1.3;
-
-    final stemLength = staffLineSpacing * 3.4;
-    final stemX = stemUp ? x + 6 : x - 6;
-    final endY = stemUp ? y - stemLength : y + stemLength;
-
-    canvas.drawLine(Offset(stemX, y), Offset(stemX, endY), stemPaint);
-
-    if (!drawFlag) return;
-
-    final path = Path();
-    if (stemUp) {
-      path.moveTo(stemX, endY + 0.5);
-      path.quadraticBezierTo(stemX + 10, endY + 2, stemX + 6, endY + 12);
-      path.quadraticBezierTo(stemX + 8, endY + 8, stemX + 1, endY + 6);
-    } else {
-      path.moveTo(stemX, endY - 0.5);
-      path.quadraticBezierTo(stemX - 10, endY - 2, stemX - 6, endY - 12);
-      path.quadraticBezierTo(stemX - 8, endY - 8, stemX - 1, endY - 6);
-    }
-
-    final flagPaint = Paint()
-      ..color = const Color(0xFF111827)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-    canvas.drawPath(path, flagPaint);
-  }
-
-  void _drawRest(
-    Canvas canvas,
-    Rest rest, {
-    required double x,
-    required double staffTop,
-  }) {
-    final type = rest.type.trim().toLowerCase();
-    final paint = Paint()
-      ..color = const Color(0xFF111827)
-      ..style = PaintingStyle.fill;
-
-    if (type == 'whole') {
-      final line4Y = staffTop + (staffLineSpacing * 3);
-      final rect = Rect.fromCenter(
-        center: Offset(x, line4Y + 4.3),
-        width: 16,
-        height: 4.8,
-      );
-      canvas.drawRect(rect, paint);
-      return;
-    }
-
-    if (type == 'half') {
-      final line3Y = staffTop + (staffLineSpacing * 2);
-      final rect = Rect.fromCenter(
-        center: Offset(x, line3Y - 3.0),
-        width: 16,
-        height: 4.8,
-      );
-      canvas.drawRect(rect, paint);
-      return;
-    }
-
-    final y = staffTop + (staffLineSpacing * 1.35);
-    final path = Path()
-      ..moveTo(x - 3, y - 5)
-      ..lineTo(x + 3, y - 1)
-      ..lineTo(x - 2, y + 4)
-      ..lineTo(x + 3, y + 9)
-      ..lineTo(x - 1, y + 14)
-      ..lineTo(x + 3, y + 19)
-      ..lineTo(x - 4, y + 22)
-      ..lineTo(x - 1, y + 16)
-      ..lineTo(x - 6, y + 11)
-      ..lineTo(x - 1, y + 5)
-      ..close();
-    canvas.drawPath(path, paint);
-  }
 
   void _drawMeasureNumber(
     Canvas canvas, {
@@ -654,71 +494,4 @@ class ScoreNotationPainter extends CustomPainter {
         oldDelegate.selectedSymbolIndex != selectedSymbolIndex ||
         oldDelegate.dragFeedback != dragFeedback;
   }
-}
-
-class NotationSymbolTarget {
-  const NotationSymbolTarget({
-    required this.measureIndex,
-    required this.symbolIndex,
-    required this.center,
-    required this.hitRect,
-  });
-
-  final int measureIndex;
-  final int symbolIndex;
-  final Offset center;
-  final Rect hitRect;
-}
-
-class NotationDragFeedback {
-  const NotationDragFeedback({
-    required this.measureIndex,
-    required this.draggedSymbolIndex,
-    required this.targetSymbolIndex,
-    required this.dragX,
-  });
-
-  final int measureIndex;
-  final int draggedSymbolIndex;
-  final int targetSymbolIndex;
-  final double dragX;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is NotationDragFeedback &&
-          runtimeType == other.runtimeType &&
-          measureIndex == other.measureIndex &&
-          draggedSymbolIndex == other.draggedSymbolIndex &&
-          targetSymbolIndex == other.targetSymbolIndex &&
-          dragX == other.dragX;
-
-  @override
-  int get hashCode =>
-      measureIndex.hashCode ^
-      draggedSymbolIndex.hashCode ^
-      targetSymbolIndex.hashCode ^
-      dragX.hashCode;
-}
-
-class _RowMetrics {
-  const _RowMetrics({
-    required this.rowIndex,
-    required this.globalStartMeasureIndex,
-    required this.measures,
-    required this.staffTop,
-    required this.staffBottom,
-    required this.rowStartX,
-    required this.contentStartX,
-    required this.rowEndX,
-  });
-
-  final int rowIndex;
-  final int globalStartMeasureIndex;
-  final List<Measure> measures;
-  final double staffTop;
-  final double staffBottom;
-  final double rowStartX;
-  final double contentStartX;
-  final double rowEndX;
 }

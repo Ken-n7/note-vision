@@ -6,6 +6,7 @@ import 'package:note_vision/core/utils/image_picker_helper.dart';
 import 'package:note_vision/core/widgets/drawer.dart';
 import 'package:note_vision/features/scan/presentation/scan_screen.dart';
 import 'package:note_vision/features/capture/presentation/import_score_screen.dart';
+import 'package:note_vision/features/capture/presentation/widgets/capture_shared_widgets.dart';
 
 class CaptureScreen extends StatefulWidget {
   const CaptureScreen({super.key});
@@ -170,7 +171,7 @@ class _CaptureScreenState extends State<CaptureScreen>
     required VoidCallback onPressed,
   }) {
     return Expanded(
-      child: _TappableButton(
+      child: CaptureTappableButton(
         onPressed: onPressed,
         child: Container(
           height: 52,
@@ -205,7 +206,7 @@ class _CaptureScreenState extends State<CaptureScreen>
     required VoidCallback onPressed,
   }) {
     return Expanded(
-      child: _TappableButton(
+      child: CaptureTappableButton(
         onPressed: onPressed,
         child: Container(
           height: 52,
@@ -235,7 +236,7 @@ class _CaptureScreenState extends State<CaptureScreen>
   }
 
   Widget _buildContinueButton() {
-    return _TappableButton(
+    return CaptureTappableButton(
       onPressed: () async {
         final bytes = await _selectedImage!.readAsBytes();
         if (!mounted) return;
@@ -306,7 +307,7 @@ class _CaptureScreenState extends State<CaptureScreen>
       children: [
         _buildContinueButton(),
         const SizedBox(height: 10),
-        _TappableButton(
+        CaptureTappableButton(
           onPressed: _cancelSelection,
           child: Container(
             width: double.infinity,
@@ -442,13 +443,13 @@ class _CaptureScreenState extends State<CaptureScreen>
           height: 60,
           child: Row(
             children: [
-              _BottomNavItem(
+              CaptureBottomNavItem(
                 icon: Icons.camera_alt_outlined,
                 label: 'Scan',
                 isSelected: true,
                 onTap: () {},
               ),
-              _BottomNavItem(
+              CaptureBottomNavItem(
                 icon: Icons.upload_file_outlined,
                 label: 'Import',
                 isSelected: false,
@@ -470,90 +471,3 @@ class _CaptureScreenState extends State<CaptureScreen>
 }
 
 // ─── Bottom nav item ──────────────────────────────────────────────────────────
-
-class _BottomNavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _BottomNavItem({
-    required this.icon,
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  static const _accent = Color(0xFFD4A96A);
-  static const _textSecondary = Color(0xFF8A8A8A);
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 22,
-              color: isSelected ? _accent : _textSecondary,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                color: isSelected ? _accent : _textSecondary,
-                fontWeight:
-                    isSelected ? FontWeight.w600 : FontWeight.w400,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Tappable button wrapper ──────────────────────────────────────────────────
-
-class _TappableButton extends StatefulWidget {
-  final Widget child;
-  final VoidCallback? onPressed;
-
-  const _TappableButton({required this.child, required this.onPressed});
-
-  @override
-  State<_TappableButton> createState() => _TappableButtonState();
-}
-
-class _TappableButtonState extends State<_TappableButton> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: widget.onPressed == null ? null : (_) => setState(() => _pressed = true),
-      onTapCancel: widget.onPressed == null ? null : () => setState(() => _pressed = false),
-      onTap: widget.onPressed == null
-          ? null
-          : () {
-              setState(() => _pressed = false);
-              widget.onPressed!();
-            },
-      child: AnimatedScale(
-        scale: _pressed ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 100),
-        child: AnimatedOpacity(
-          opacity: _pressed ? 0.85 : 1.0,
-          duration: const Duration(milliseconds: 100),
-          child: widget.child,
-        ),
-      ),
-    );
-  }
-}
