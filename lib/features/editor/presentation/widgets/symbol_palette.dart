@@ -22,9 +22,7 @@ class PaletteDragData {
 }
 
 class SymbolPalette extends StatelessWidget {
-  const SymbolPalette({super.key, this.isCompact = false});
-
-  final bool isCompact;
+  const SymbolPalette({super.key});
 
   static const List<_PaletteItemData> _items = [
     _PaletteItemData(type: PaletteSymbolType.wholeNote, label: 'Whole'),
@@ -38,66 +36,41 @@ class SymbolPalette extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final paletteHeight = isCompact ? 132.0 : 100.0;
     return Container(
       key: const ValueKey('symbol-palette'),
-      height: paletteHeight,
+      height: 100,
       decoration: const BoxDecoration(
         color: _paletteBackground,
         border: Border(
           top: BorderSide(color: _paletteTopBorder, width: 1),
         ),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compactLayout = isCompact || constraints.maxWidth < 480;
-          if (!compactLayout) {
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(
-                children: _items
-                    .map(
-                      (item) => Padding(
-                        padding: const EdgeInsets.only(right: 12),
-                        child: _PaletteDraggableItem(item: item),
-                      ),
-                    )
-                    .toList(growable: false),
-              ),
-            );
-          }
-
-          return SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _items
-                  .map(
-                    (item) => _PaletteDraggableItem(
-                      item: item,
-                      compact: true,
-                    ),
-                  )
-                  .toList(growable: false),
-            ),
-          );
-        },
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: _items
+              .map(
+                (item) => Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: _PaletteDraggableItem(item: item),
+                ),
+              )
+              .toList(growable: false),
+        ),
       ),
     );
   }
 }
 
 class _PaletteDraggableItem extends StatelessWidget {
-  const _PaletteDraggableItem({required this.item, this.compact = false});
+  const _PaletteDraggableItem({required this.item});
 
   final _PaletteItemData item;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    final core = _PaletteVisual(item: item, compact: compact);
+    final core = _PaletteVisual(item: item);
     return LongPressDraggable<PaletteDragData>(
       data: PaletteDragData(type: item.type),
       feedback: Material(
@@ -114,27 +87,26 @@ class _PaletteDraggableItem extends StatelessWidget {
 }
 
 class _PaletteVisual extends StatelessWidget {
-  const _PaletteVisual({required this.item, this.compact = false});
+  const _PaletteVisual({required this.item});
 
   final _PaletteItemData item;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: compact ? 56 : 64,
+      width: 64,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           CustomPaint(
-            size: Size(compact ? 28 : 32, compact ? 34 : 42),
+            size: const Size(32, 42),
             painter: _PaletteSymbolPainter(type: item.type),
           ),
-          SizedBox(height: compact ? 2 : 4),
+          const SizedBox(height: 4),
           Text(
             item.label,
-            style: TextStyle(
-              fontSize: compact ? 9 : 10,
+            style: const TextStyle(
+              fontSize: 10,
               color: _paletteLabelColor,
               fontWeight: FontWeight.w500,
             ),

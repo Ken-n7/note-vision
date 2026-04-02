@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/rest.dart';
@@ -35,11 +33,7 @@ enum _BottomPanelTab { tools, symbols, file }
 
 class _EditorShellScreenState extends State<EditorShellScreen> {
   late EditorState _editorState;
-  double _canvasZoom = 1.0;
   _BottomPanelTab? _activeBottomTab;
-  double _scaleStartZoom = 1.0;
-  bool _showZoomBadge = false;
-  Timer? _zoomBadgeTimer;
 
   @override
   void initState() {
@@ -154,25 +148,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     );
   }
 
-  void _showZoomIndicator() {
-    setState(() => _showZoomBadge = true);
-    _zoomBadgeTimer?.cancel();
-    _zoomBadgeTimer = Timer(const Duration(seconds: 2), () {
-      if (!mounted) return;
-      setState(() => _showZoomBadge = false);
-    });
-  }
-
   void _togglePanel(_BottomPanelTab tab) {
     setState(() {
       _activeBottomTab = _activeBottomTab == tab ? null : tab;
     });
-  }
-
-  @override
-  void dispose() {
-    _zoomBadgeTimer?.cancel();
-    super.dispose();
   }
 
   @override
@@ -192,7 +171,6 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final horizontalPadding = ResponsiveLayout.horizontalPadding(constraints.maxWidth);
-            final baseMeasureWidth = math.max(140.0, constraints.maxWidth * 0.58);
             final notationPanel = Container(
               decoration: BoxDecoration(
                 color: AppColors.surface,
@@ -204,7 +182,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   padding: const EdgeInsets.all(8),
                   child: ScoreNotationViewer(
                     score: _editorState.score,
-                    minMeasureWidth: baseMeasureWidth * _canvasZoom,
+                    minMeasureWidth: 220,
                     selectedMeasureIndex: _editorState.selectedMeasureIndex,
                     selectedSymbolIndex: _editorState.selectedSymbolIndex,
                     canAcceptExternalDrop: (data) => data is PaletteDragData,
@@ -231,47 +209,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
             );
 
 
-            final canvasView = GestureDetector(
-              onScaleStart: (details) {
-                _scaleStartZoom = _canvasZoom;
-              },
-              onScaleUpdate: (details) {
-                if (details.pointerCount < 2) return;
-                setState(() {
-                  _canvasZoom = (_scaleStartZoom * details.scale).clamp(0.75, 2.0).toDouble();
-                });
-                _showZoomIndicator();
-              },
-              child: Stack(
-                children: [
-                  Positioned.fill(child: notationPanel),
-                  Positioned(
-                    top: 10,
-                    right: 10,
-                    child: AnimatedOpacity(
-                      opacity: _showZoomBadge ? 0.9 : 0.25,
-                      duration: const Duration(milliseconds: 220),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceAlt.withValues(alpha: 0.88),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: Text(
-                          '${(_canvasZoom * 100).round()}%',
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
+            final canvasView = notationPanel;
 
             final statusStrip = _StatusStrip(
               horizontalPadding: 0,
@@ -357,7 +295,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                                 ],
                               ),
                             ),
-                            symbolsPanel: SymbolPalette(isCompact: constraints.maxWidth < 520),
+                            symbolsPanel: const SymbolPalette(),
                             filePanel: _FilePanel(
                               onSave: () {},
                               onExport: () {},
