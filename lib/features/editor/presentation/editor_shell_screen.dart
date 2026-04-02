@@ -349,64 +349,85 @@ class _EditorHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.fromLTRB(horizontalPadding, 12, horizontalPadding, 8),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          children: [
-            IconButton(
-              onPressed: onBack,
-              icon: const Icon(Icons.arrow_back_ios_new, size: 16),
-              color: AppColors.textPrimary,
-              tooltip: 'Back',
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isCompact = constraints.maxWidth < 520;
+          final titleStyle = TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: isCompact ? 16 : 18,
+            fontWeight: FontWeight.w700,
+          );
+
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.border),
             ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    hasUnsavedChanges ? '$title *' : title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: onBack,
+                      icon: const Icon(Icons.arrow_back_ios_new, size: 16),
                       color: AppColors.textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
+                      tooltip: 'Back',
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  const Text(
-                    'Editor Workspace',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            hasUnsavedChanges ? '$title *' : title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: titleStyle,
+                          ),
+                          const SizedBox(height: 2),
+                          const Text(
+                            'Editor Workspace',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.end,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: () {},
+                        icon: const Icon(Icons.save_outlined, size: 18),
+                        label: const Text('Save'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: () {},
+                        icon: const Icon(Icons.ios_share_outlined, size: 16),
+                        label: const Text('Export'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.textPrimary,
+                          side: const BorderSide(color: AppColors.border),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            FilledButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.save_outlined, size: 18),
-              label: const Text('Save'),
-            ),
-            const SizedBox(width: 8),
-            OutlinedButton.icon(
-              onPressed: () {},
-              icon: const Icon(Icons.ios_share_outlined, size: 16),
-              label: const Text('Export'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.textPrimary,
-                side: const BorderSide(color: AppColors.border),
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -441,23 +462,28 @@ class _StatusStrip extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border),
       ),
-      child: Wrap(
-        spacing: 12,
-        runSpacing: 8,
-        children: [
-          _StatusItem(label: 'Type', value: symbolType),
-          _StatusItem(label: 'Pitch', value: pitch),
-          _StatusItem(label: 'Duration', value: durationType),
-          _StatusItem(label: 'Measure', value: measure),
-          _StatusNavButton(
-            icon: Icons.chevron_left_rounded,
-            onPressed: onPrevMeasure,
-          ),
-          _StatusNavButton(
-            icon: Icons.chevron_right_rounded,
-            onPressed: onNextMeasure,
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final cardWidth = ((constraints.maxWidth - 12) / 2).clamp(120.0, 200.0);
+          return Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            children: [
+              _StatusItem(label: 'Type', value: symbolType, width: cardWidth),
+              _StatusItem(label: 'Pitch', value: pitch, width: cardWidth),
+              _StatusItem(label: 'Duration', value: durationType, width: cardWidth),
+              _StatusItem(label: 'Measure', value: measure, width: cardWidth),
+              _StatusNavButton(
+                icon: Icons.chevron_left_rounded,
+                onPressed: onPrevMeasure,
+              ),
+              _StatusNavButton(
+                icon: Icons.chevron_right_rounded,
+                onPressed: onNextMeasure,
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -484,14 +510,16 @@ class _StatusNavButton extends StatelessWidget {
 }
 
 class _StatusItem extends StatelessWidget {
-  const _StatusItem({required this.label, required this.value});
+  const _StatusItem({required this.label, required this.value, required this.width});
 
   final String label;
   final String value;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: width,
       constraints: const BoxConstraints(minWidth: 82),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
