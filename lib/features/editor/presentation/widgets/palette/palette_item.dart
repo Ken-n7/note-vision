@@ -27,7 +27,7 @@ class PaletteItem extends StatelessWidget {
         opacity: 0.32,
         child: _buildSymbolContainer(symbol),
       ),
-      dragAnchorStrategy: childDragAnchorStrategy,
+      dragAnchorStrategy: pointerDragAnchorStrategy,
       child: _buildSymbolContainer(symbol),
     );
   }

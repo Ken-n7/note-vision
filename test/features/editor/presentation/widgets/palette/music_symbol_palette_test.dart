@@ -55,6 +55,7 @@ void main() {
     final draggable = tester.widget<LongPressDraggable<MusicalSymbol>>(
       find.byType(LongPressDraggable<MusicalSymbol>),
     );
+    expect(draggable.dragAnchorStrategy, pointerDragAnchorStrategy);
     final feedbackMaterial = draggable.feedback as Material;
     final feedbackTransform = feedbackMaterial.child as Transform;
     expect(feedbackTransform.transform.getMaxScaleOnAxis(), closeTo(1.5, 0.001));
