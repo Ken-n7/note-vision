@@ -4,6 +4,7 @@ import '../models/measure.dart';
 import '../models/score.dart';
 import 'score_notation/notation_layout.dart';
 import 'score_notation/score_notation_painter.dart';
+import 'score_notation/staff_pitch_mapper.dart';
 
 export 'score_notation/staff_pitch_mapper.dart';
 
@@ -428,7 +429,7 @@ class _NotationCanvasFrame extends StatelessWidget {
         if (box == null) return;
         onExternalAccept!(box.globalToLocal(details.offset), details.data);
       },
-      builder: (context, _, __) => Container(
+      builder: (context, _, _) => Container(
         decoration: BoxDecoration(
           color: backgroundColor,
           borderRadius: BorderRadius.circular(10),
