@@ -31,6 +31,7 @@ class EditorShellScreen extends StatefulWidget {
 
 class _EditorShellScreenState extends State<EditorShellScreen> {
   late EditorState _editorState;
+  double _canvasZoom = 1.0;
 
   @override
   void initState() {
@@ -145,6 +146,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     );
   }
 
+  void _changeZoom(double delta) {
+    setState(() {
+      _canvasZoom = (_canvasZoom + delta).clamp(0.75, 2.0).toDouble();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final selected = _editorState.selectedSymbol;
@@ -175,6 +182,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   padding: const EdgeInsets.all(8),
                   child: ScoreNotationViewer(
                     score: _editorState.score,
+                    minMeasureWidth: 220 * _canvasZoom,
                     selectedMeasureIndex: _editorState.selectedMeasureIndex,
                     selectedSymbolIndex: _editorState.selectedSymbolIndex,
                     canAcceptExternalDrop: (data) => data is PaletteDragData,
@@ -203,6 +211,17 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
             final notationWithPalette = Column(
               children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: _ZoomControls(
+                      zoomPercent: (_canvasZoom * 100).round(),
+                      onZoomOut: _canvasZoom > 0.75 ? () => _changeZoom(-0.1) : null,
+                      onZoomIn: _canvasZoom < 2.0 ? () => _changeZoom(0.1) : null,
+                    ),
+                  ),
+                ),
                 Expanded(child: notationPanel),
                 const SymbolPalette(),
               ],
@@ -494,6 +513,57 @@ class _StatusItem extends StatelessWidget {
               fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ZoomControls extends StatelessWidget {
+  const _ZoomControls({
+    required this.zoomPercent,
+    required this.onZoomOut,
+    required this.onZoomIn,
+  });
+
+  final int zoomPercent;
+  final VoidCallback? onZoomOut;
+  final VoidCallback? onZoomIn;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.remove, size: 16),
+            visualDensity: VisualDensity.compact,
+            splashRadius: 14,
+            onPressed: onZoomOut,
+            tooltip: 'Zoom out',
+          ),
+          Text(
+            'Zoom $zoomPercent%',
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.add, size: 16),
+            visualDensity: VisualDensity.compact,
+            splashRadius: 14,
+            onPressed: onZoomIn,
+            tooltip: 'Zoom in',
           ),
         ],
       ),

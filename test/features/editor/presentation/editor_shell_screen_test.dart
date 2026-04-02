@@ -66,6 +66,7 @@ void main() {
     expect(find.text('Delete'), findsOneWidget);
     expect(find.text('Undo'), findsOneWidget);
     expect(find.text('Redo'), findsOneWidget);
+    expect(find.text('Zoom 100%'), findsOneWidget);
   });
 
   testWidgets('renders draggable symbol palette with seven items', (tester) async {
@@ -168,6 +169,30 @@ void main() {
     expect(find.text('None'), findsOneWidget);
     expect(find.text('Note'), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('zoom controls update canvas zoom level', (tester) async {
+    final score = buildScore();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EditorShellScreen(
+          args: EditorShellArgs(
+            score: score,
+            initialState: EditorState(score: score),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Zoom 100%'), findsOneWidget);
+    await tester.tap(find.byTooltip('Zoom in'));
+    await tester.pumpAndSettle();
+    expect(find.text('Zoom 110%'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Zoom out'));
+    await tester.pumpAndSettle();
+    expect(find.text('Zoom 100%'), findsOneWidget);
   });
 
   testWidgets('keeps insert actions enabled with default measure context', (
@@ -370,7 +395,7 @@ Offset _symbolCenterOffset(
   required int symbolIndex,
 }) {
   const measuresPerRow = 4;
-  const minMeasureWidth = 140.0;
+  const minMeasureWidth = 220.0;
   const rowHeight = 140.0;
   const padding = EdgeInsets.all(16);
 
