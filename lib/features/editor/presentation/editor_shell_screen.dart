@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/rest.dart';
@@ -171,6 +172,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
             final horizontalPadding = ResponsiveLayout.horizontalPadding(constraints.maxWidth);
             final isLandscape = constraints.maxWidth > constraints.maxHeight;
             final controlPanelWidth = (constraints.maxWidth * 0.32).clamp(280.0, 360.0);
+            final baseMeasureWidth = math.max(140.0, constraints.maxWidth * (isLandscape ? 0.35 : 0.58));
             final notationPanel = Container(
               decoration: BoxDecoration(
                 color: AppColors.surface,
@@ -182,7 +184,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   padding: const EdgeInsets.all(8),
                   child: ScoreNotationViewer(
                     score: _editorState.score,
-                    minMeasureWidth: 220 * _canvasZoom,
+                    minMeasureWidth: baseMeasureWidth * _canvasZoom,
                     selectedMeasureIndex: _editorState.selectedMeasureIndex,
                     selectedSymbolIndex: _editorState.selectedSymbolIndex,
                     canAcceptExternalDrop: (data) => data is PaletteDragData,
@@ -223,7 +225,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   ),
                 ),
                 Expanded(child: notationPanel),
-                const SymbolPalette(),
+                SymbolPalette(isCompact: constraints.maxWidth < 520),
               ],
             );
 
