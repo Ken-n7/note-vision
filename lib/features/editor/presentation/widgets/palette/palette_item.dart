@@ -59,7 +59,7 @@ class PaletteItem extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              sym.label,
+              _paletteLabel(sym),
               style: const TextStyle(
                 fontSize: 10,
                 color: Color(0xFF8A8A8A),
@@ -72,5 +72,24 @@ class PaletteItem extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _paletteLabel(MusicalSymbol sym) {
+    switch (sym) {
+      case MusicalSymbol.wholeNote:
+        return 'W Note';
+      case MusicalSymbol.halfNote:
+        return 'H Note';
+      case MusicalSymbol.quarterNote:
+        return 'Q Note';
+      case MusicalSymbol.eighthNote:
+        return '8th Note';
+      case MusicalSymbol.wholeRest:
+        return 'W Rest';
+      case MusicalSymbol.halfRest:
+        return 'H Rest';
+      case MusicalSymbol.quarterRest:
+        return 'Q Rest';
+    }
   }
 }
