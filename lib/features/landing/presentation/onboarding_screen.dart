@@ -4,8 +4,10 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
-import '../../../features/collection/presentation/collection_screen.dart';
+
 import '../../../core/services/user_profile_service.dart';
+import '../../../core/utils/name_validator.dart';
+import '../../collection/presentation/collection_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -22,7 +24,13 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
   File? _selectedPhoto;
   bool _isLoading = false;
-  bool _isContinueEnabled = false;
+
+  // Validation state
+  String? _nameError;
+  bool get _isContinueEnabled =>
+      _nameError == null &&
+      _nameController.text.trim().isNotEmpty &&
+      !_isLoading;
 
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
@@ -32,17 +40,16 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   void initState() {
     super.initState();
     _nameController.addListener(_onNameChanged);
+    _nameFocusNode.addListener(() => setState(() {})); // rebuild border on focus
 
     _animController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 900),
     );
-
     _fadeAnim = CurvedAnimation(
       parent: _animController,
       curve: const Interval(0.0, 0.7, curve: Curves.easeOut),
     );
-
     _slideAnim = Tween<Offset>(
       begin: const Offset(0, 0.12),
       end: Offset.zero,
@@ -64,11 +71,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   void _onNameChanged() {
-    final trimmed = _nameController.text.trim();
-    final enabled = trimmed.length >= 1 && trimmed.length <= 30;
-    if (enabled != _isContinueEnabled) {
-      setState(() => _isContinueEnabled = enabled);
-    }
+    final error = NameValidator.validate(_nameController.text);
+    setState(() => _nameError = error);
   }
 
   Future<void> _pickPhoto() async {
@@ -79,9 +83,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         maxHeight: 512,
         imageQuality: 85,
       );
-
-      if (image == null) return; // User cancelled — no crash
-
+      if (image == null) return;
       setState(() => _selectedPhoto = File(image.path));
     } on PlatformException catch (e) {
       debugPrint('Image picker error: $e');
@@ -90,19 +92,16 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     }
   }
 
-  void _removePhoto() {
-    setState(() => _selectedPhoto = null);
-  }
+  void _removePhoto() => setState(() => _selectedPhoto = null);
 
   Future<void> _onContinue() async {
-    if (!_isContinueEnabled || _isLoading) return;
-
+    if (!_isContinueEnabled) return;
     setState(() => _isLoading = true);
 
     try {
       final name = _nameController.text.trim();
-
       String? savedPhotoPath;
+
       if (_selectedPhoto != null) {
         final docsDir = await getApplicationDocumentsDirectory();
         final ext = p.extension(_selectedPhoto!.path).isNotEmpty
@@ -113,10 +112,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         savedPhotoPath = destPath;
       }
 
-      await UserProfileService.saveProfile(
-        name: name,
-        photoPath: savedPhotoPath,
-      );
+      await UserProfileService.saveProfile(name: name, photoPath: savedPhotoPath);
 
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
@@ -159,8 +155,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     _buildAvatarSection(),
                     const SizedBox(height: 48),
                     _buildNameField(),
-                    const SizedBox(height: 12),
-                    _buildCharCounter(),
                     const SizedBox(height: 48),
                     _buildContinueButton(),
                     const SizedBox(height: 32),
@@ -321,10 +315,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   const SizedBox(height: 4),
                   const Text(
                     'Optional — you can skip this',
-                    style: TextStyle(
-                      color: Color(0xFF555555),
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: Color(0xFF555555), fontSize: 12),
                   ),
                 ],
               ),
@@ -336,6 +327,13 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   Widget _buildNameField() {
+    final hasError = _nameError != null && _nameController.text.isNotEmpty;
+    final borderColor = hasError
+        ? const Color(0xFFE05252)
+        : _nameFocusNode.hasFocus
+            ? const Color(0xFFE8C547).withOpacity(0.6)
+            : const Color(0xFF2A2A2A);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -349,23 +347,22 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           ),
         ),
         const SizedBox(height: 12),
+
+        // ── Text field ──────────────────────────────────────────────
         Container(
           decoration: BoxDecoration(
             color: const Color(0xFF1A1A1A),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: _nameFocusNode.hasFocus
-                  ? const Color(0xFFE8C547).withOpacity(0.6)
-                  : const Color(0xFF2A2A2A),
-              width: 1.5,
-            ),
+            border: Border.all(color: borderColor, width: 1.5),
           ),
           child: TextField(
             controller: _nameController,
             focusNode: _nameFocusNode,
-            maxLength: 30,
+            maxLength: NameValidator.maxLength,
             maxLengthEnforcement: MaxLengthEnforcement.enforced,
             textCapitalization: TextCapitalization.words,
+            // Block numbers, special chars, and emoji at the input level
+            inputFormatters: [NameValidator.inputFormatter],
             style: const TextStyle(
               color: Color(0xFFF5F5F5),
               fontSize: 18,
@@ -402,29 +399,47 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             onChanged: (_) => setState(() {}),
           ),
         ),
-      ],
-    );
-  }
 
-  Widget _buildCharCounter() {
-    final length = _nameController.text.trim().length;
-    final isOverLimit = length > 30;
-    final color = isOverLimit
-        ? const Color(0xFFE05252)
-        : length >= 1
-            ? const Color(0xFF555555)
-            : const Color(0xFF333333);
+        // ── Error / char counter row ────────────────────────────────
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // Error message (left)
+            if (hasError)
+              Row(
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    size: 13,
+                    color: Color(0xFFE05252),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _nameError!,
+                    style: const TextStyle(
+                      color: Color(0xFFE05252),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
+              )
+            else
+              const SizedBox.shrink(),
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        Text(
-          '$length / 30',
-          style: TextStyle(
-            color: color,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
+            // Char counter (right)
+            Text(
+              '${_nameController.text.trim().length} / ${NameValidator.maxLength}',
+              style: TextStyle(
+                color: hasError
+                    ? const Color(0xFFE05252)
+                    : const Color(0xFF555555),
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ],
     );

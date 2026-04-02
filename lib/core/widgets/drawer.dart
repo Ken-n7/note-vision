@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:note_vision/core/services/user_profile_service.dart';
+import 'package:note_vision/core/utils/name_validator.dart';
 import 'package:note_vision/core/widgets/user_avatar.dart';
 
 class CollectionDrawer extends StatelessWidget {
@@ -30,10 +31,8 @@ class CollectionDrawer extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Profile header (stateful — reloads after edits) ──────
               const _ProfileHeader(),
 
-              // ── Divider ──────────────────────────────────────────────
               Container(
                 height: 0.5,
                 margin: const EdgeInsets.symmetric(horizontal: 24),
@@ -42,7 +41,6 @@ class CollectionDrawer extends StatelessWidget {
 
               const SizedBox(height: 12),
 
-              // ── Section label ────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
                 child: Text(
@@ -56,7 +54,6 @@ class CollectionDrawer extends StatelessWidget {
                 ),
               ),
 
-              // ── Menu items ───────────────────────────────────────────
               _DrawerItem(
                 icon: Icons.edit_outlined,
                 title: 'Digital Writing',
@@ -82,7 +79,7 @@ class CollectionDrawer extends StatelessWidget {
   }
 }
 
-// ─── Profile header (stateful so it reloads after edit sheet closes) ─────────
+// ─── Profile header ───────────────────────────────────────────────────────────
 
 class _ProfileHeader extends StatefulWidget {
   const _ProfileHeader();
@@ -117,10 +114,8 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
     );
 
     if (updated != null) {
-      // ✅ Instant update — no disk read needed
       if (mounted) setState(() => _profile = updated);
     } else {
-      // User dismissed without saving — reload anyway just in case
       await _reload();
     }
   }
@@ -136,7 +131,6 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Tappable avatar with edit badge ──────────────────────────
           GestureDetector(
             onTap: _onAvatarTap,
             child: Stack(
@@ -204,7 +198,6 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
 
 class _EditProfileSheet extends StatefulWidget {
   final UserProfile? profile;
-
   const _EditProfileSheet({this.profile});
 
   @override
@@ -220,11 +213,13 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
   static const _textSecondary = Color(0xFF8A8A8A);
 
   late final TextEditingController _nameController;
+  final FocusNode _nameFocusNode = FocusNode();
   final ImagePicker _picker = ImagePicker();
 
-  File? _newPhoto;          // newly picked file, not yet persisted
-  bool _clearPhoto = false; // user explicitly removed the existing photo
-  bool _isSaving   = false;
+  File? _newPhoto;
+  bool  _clearPhoto = false;
+  bool  _isSaving   = false;
+  String? _nameError;
 
   bool get _hasChanges {
     final nameChanged = _nameController.text.trim() != (widget.profile?.name ?? '');
@@ -233,18 +228,28 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
   }
 
   bool get _canSave =>
-      _nameController.text.trim().length >= 1 && !_isSaving && _hasChanges;
+      _nameError == null &&
+      _nameController.text.trim().isNotEmpty &&
+      !_isSaving &&
+      _hasChanges;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.profile?.name ?? '');
-    _nameController.addListener(() => setState(() {}));
+    _nameController.addListener(_onNameChanged);
+    _nameFocusNode.addListener(() => setState(() {}));
+  }
+
+  void _onNameChanged() {
+    final error = NameValidator.validate(_nameController.text);
+    setState(() => _nameError = error);
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _nameFocusNode.dispose();
     super.dispose();
   }
 
@@ -280,7 +285,6 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
       String? photoPath;
 
       if (_newPhoto != null) {
-        // Copy new photo to permanent app documents directory
         final docsDir = await getApplicationDocumentsDirectory();
         final ext = p.extension(_newPhoto!.path).isNotEmpty
             ? p.extension(_newPhoto!.path)
@@ -290,18 +294,15 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
         await _newPhoto!.copy(dest);
         photoPath = dest;
       } else if (_clearPhoto) {
-        photoPath = null; // saveProfile will remove the key
+        photoPath = null;
       } else {
-        photoPath = widget.profile?.photoPath; // unchanged
+        photoPath = widget.profile?.photoPath;
       }
 
       await UserProfileService.saveProfile(name: name, photoPath: photoPath);
 
       if (mounted) {
-        // ✅ Return the updated profile directly — no disk read needed
-        Navigator.of(context).pop(
-          UserProfile(name: name, photoPath: photoPath),
-        );
+        Navigator.of(context).pop(UserProfile(name: name, photoPath: photoPath));
       }
     } catch (e) {
       debugPrint('Profile save error: $e');
@@ -329,6 +330,12 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final hasError = _nameError != null && _nameController.text.isNotEmpty;
+    final borderColor = hasError
+        ? const Color(0xFFE05252)
+        : _nameFocusNode.hasFocus
+            ? _accent.withValues(alpha: 0.5)
+            : _border;
 
     return Container(
       decoration: const BoxDecoration(
@@ -340,7 +347,7 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Handle bar ────────────────────────────────────────────
+          // ── Handle ────────────────────────────────────────────────
           Center(
             child: Container(
               width: 36,
@@ -400,9 +407,7 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
                   ],
                 ),
               ),
-
               const SizedBox(width: 16),
-
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -447,7 +452,7 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
 
           const SizedBox(height: 24),
 
-          // ── Name field ─────────────────────────────────────────────
+          // ── Name label ─────────────────────────────────────────────
           const Text(
             'NAME',
             style: TextStyle(
@@ -460,17 +465,20 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
 
           const SizedBox(height: 10),
 
+          // ── Name field ─────────────────────────────────────────────
           Container(
             decoration: BoxDecoration(
               color: _surface,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _border),
+              border: Border.all(color: borderColor, width: 1.5),
             ),
             child: TextField(
               controller: _nameController,
-              maxLength: 30,
+              focusNode: _nameFocusNode,
+              maxLength: NameValidator.maxLength,
               maxLengthEnforcement: MaxLengthEnforcement.enforced,
               textCapitalization: TextCapitalization.words,
+              inputFormatters: [NameValidator.inputFormatter],
               style: const TextStyle(
                 color: _textPrimary,
                 fontSize: 16,
@@ -486,16 +494,49 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
                   horizontal: 16,
                   vertical: 14,
                 ),
-                suffixText: '${_nameController.text.trim().length}/30',
-                suffixStyle: const TextStyle(
-                  color: _textSecondary,
-                  fontSize: 11,
-                ),
               ),
             ),
           ),
 
-          const SizedBox(height: 28),
+          // ── Error / char counter row ────────────────────────────────
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              if (hasError)
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.error_outline,
+                      size: 13,
+                      color: Color(0xFFE05252),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _nameError!,
+                      style: const TextStyle(
+                        color: Color(0xFFE05252),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                )
+              else
+                const SizedBox.shrink(),
+
+              Text(
+                '${_nameController.text.trim().length} / ${NameValidator.maxLength}',
+                style: TextStyle(
+                  color: hasError
+                      ? const Color(0xFFE05252)
+                      : _textSecondary,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
 
           // ── Save button ────────────────────────────────────────────
           SizedBox(
