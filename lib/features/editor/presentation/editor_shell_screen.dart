@@ -815,12 +815,12 @@ class _EditorActionBar extends StatelessWidget {
             children: [
               _ControlButton(
                 icon: Icons.arrow_upward_rounded,
-                label: 'Up',
+                label: 'Move Up',
                 onPressed: hasSelection ? onMoveUp : null,
               ),
               _ControlButton(
                 icon: Icons.arrow_downward_rounded,
-                label: 'Down',
+                label: 'Move Down',
                 onPressed: hasSelection ? onMoveDown : null,
               ),
               _ControlButton(
