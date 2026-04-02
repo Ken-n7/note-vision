@@ -1,27 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 
-// No internal imports needed — this is the base widget other files depend on.
-
-/// A circular avatar that shows a profile [photoPath] when available, or falls
-/// back to displaying [initial] on a dark background.
-///
-/// Used in both CollectionHeader and AppDrawerHeader so rendering logic
-/// lives in exactly one place.
 class UserAvatar extends StatelessWidget {
-  /// Absolute path to the saved profile photo. May be null if no photo chosen.
   final String? photoPath;
-
-  /// First letter of the username — shown when [photoPath] is absent.
   final String initial;
-
-  /// Diameter of the circular avatar.
   final double size;
-
-  /// Border colour. Defaults to a subtle dark ring.
   final Color? borderColor;
-
-  /// Border thickness. Set to 0 to remove the border.
   final double borderWidth;
 
   const UserAvatar({
@@ -57,6 +41,11 @@ class UserAvatar extends StatelessWidget {
                 fit: BoxFit.cover,
                 width: size,
                 height: size,
+                key: ValueKey(
+                  photoFile.existsSync()
+                      ? photoFile.lastModifiedSync().millisecondsSinceEpoch
+                      : photoPath,
+                ),
                 errorBuilder: (_, __, ___) => _buildInitial(),
               )
             : _buildInitial(),

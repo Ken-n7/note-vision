@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/theme/responsive_layout.dart';
+import 'package:note_vision/core/services/user_profile_service.dart';
+import 'package:note_vision/features/collection/presentation/collection_screen.dart';
 import 'package:note_vision/features/musicxml_inspector/music_inspector_screen.dart';
 import 'package:note_vision/features/landing/presentation/onboarding_screen.dart';
 
@@ -56,6 +58,19 @@ class _LandingScreenState extends State<LandingScreen>
     super.dispose();
   }
 
+  Future<void> _onGetStarted(BuildContext context) async {
+    final isDone = await UserProfileService.isOnboardingComplete();
+
+    if (!mounted) return;
+
+    Navigator.push(
+      context,
+      _fadeRoute(
+        isDone ? const CollectionScreen() : const OnboardingScreen(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -74,7 +89,7 @@ class _LandingScreenState extends State<LandingScreen>
             child: Container(
               width: size.width * 1.4,
               height: size.height * 0.55,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 shape: BoxShape.circle,
               ),
             ),
@@ -201,10 +216,7 @@ class _LandingScreenState extends State<LandingScreen>
   Widget _buildPrimaryAction(BuildContext context) {
     return _PrimaryButton(
       label: 'Get Started',
-      onPressed: () => Navigator.push(
-        context,
-        _fadeRoute(const OnboardingScreen()),
-      ),
+      onPressed: () => _onGetStarted(context),
     );
   }
 

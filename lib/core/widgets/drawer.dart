@@ -109,14 +109,20 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
   }
 
   Future<void> _onAvatarTap() async {
-    await showModalBottomSheet(
+    final updated = await showModalBottomSheet<UserProfile>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _EditProfileSheet(profile: _profile),
     );
-    // Reload regardless — user may have saved changes
-    await _reload();
+
+    if (updated != null) {
+      // ✅ Instant update — no disk read needed
+      if (mounted) setState(() => _profile = updated);
+    } else {
+      // User dismissed without saving — reload anyway just in case
+      await _reload();
+    }
   }
 
   @override
@@ -216,7 +222,7 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
   late final TextEditingController _nameController;
   final ImagePicker _picker = ImagePicker();
 
-  File? _newPhoto;         // newly picked file, not yet persisted
+  File? _newPhoto;          // newly picked file, not yet persisted
   bool _clearPhoto = false; // user explicitly removed the existing photo
   bool _isSaving   = false;
 
@@ -280,6 +286,7 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
             ? p.extension(_newPhoto!.path)
             : '.jpg';
         final dest = p.join(docsDir.path, 'profile_photo$ext');
+        imageCache.evict(FileImage(File(dest)));
         await _newPhoto!.copy(dest);
         photoPath = dest;
       } else if (_clearPhoto) {
@@ -290,7 +297,12 @@ class _EditProfileSheetState extends State<_EditProfileSheet> {
 
       await UserProfileService.saveProfile(name: name, photoPath: photoPath);
 
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) {
+        // ✅ Return the updated profile directly — no disk read needed
+        Navigator.of(context).pop(
+          UserProfile(name: name, photoPath: photoPath),
+        );
+      }
     } catch (e) {
       debugPrint('Profile save error: $e');
       if (mounted) {

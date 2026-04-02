@@ -241,8 +241,6 @@ class _CollectionScreenState extends State<CollectionScreen>
     );
   }
 
-  /// AppBar bottom: shows "MY COLLECTION" label on the left and, if a profile
-  /// is loaded, the username + small avatar on the right.
   PreferredSizeWidget _buildAppBarBottom(bool isLandscape, double horizontalPadding) {
     return PreferredSize(
       preferredSize: Size.fromHeight(isLandscape ? 42 : 48),
@@ -256,7 +254,6 @@ class _CollectionScreenState extends State<CollectionScreen>
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // ── Left: section label ──────────────────────────────────
             Text(
               'MY COLLECTION',
               style: TextStyle(
@@ -266,8 +263,6 @@ class _CollectionScreenState extends State<CollectionScreen>
                 letterSpacing: 2.0,
               ),
             ),
-
-            // ── Right: username + avatar (replaces old item count) ───
             if (_userProfile != null)
               Row(
                 children: [
@@ -290,7 +285,6 @@ class _CollectionScreenState extends State<CollectionScreen>
                 ],
               )
             else if (!_isLoading && _imagePaths.isNotEmpty)
-              // Fallback: show item count if profile hasn't loaded yet
               Text(
                 '${_imagePaths.length} items',
                 style: TextStyle(
@@ -399,6 +393,10 @@ class _CollectionScreenState extends State<CollectionScreen>
     return Scaffold(
       key: const ValueKey('collectionAppBar'),
       backgroundColor: AppColors.background,
+      // ✅ Reload profile whenever the drawer closes (covers both save and dismiss)
+      onEndDrawerChanged: (isOpen) {
+        if (!isOpen) _loadProfile();
+      },
       endDrawer: const CollectionDrawer(),
       floatingActionButton: _imagePaths.isNotEmpty ? _buildFab() : null,
       appBar: AppBar(
