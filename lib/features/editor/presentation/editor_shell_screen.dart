@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/rest.dart';
+import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/theme/responsive_layout.dart';
+import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
+import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
+import 'package:note_vision/features/detection/domain/detected_staff.dart';
+import 'package:note_vision/features/detection/domain/detected_symbol.dart';
 import 'package:note_vision/features/editor/domain/editor_actions.dart';
-import 'package:note_vision/features/editor/model/editor_state.dart';
-import 'package:note_vision/features/editor/presentation/widgets/palette/music_symbol_palette.dart';
 import 'package:note_vision/features/editor/domain/model/musical_symbol.dart';
+import 'package:note_vision/features/editor/model/editor_state.dart';
+import 'package:note_vision/features/mapping/domain/internal/pitch_calculator.dart';
+import 'package:note_vision/features/editor/presentation/widgets/palette/music_symbol_palette.dart';
 
 class EditorShellArgs {
   const EditorShellArgs({required this.score, required this.initialState});
@@ -30,24 +37,159 @@ class EditorShellScreen extends StatefulWidget {
 
 class _EditorShellScreenState extends State<EditorShellScreen> {
   late EditorState _editorState;
+  final GlobalKey _notationDropKey = GlobalKey();
+  final PitchCalculator _pitchCalculator = const PitchCalculator();
+  final NotationLayoutCalculator _layoutCalculator = const NotationLayoutCalculator();
+  _PaletteDropCandidate? _paletteHoverCandidate;
 
   void _handleSymbolDrop(MusicalSymbol symbol, Offset globalPosition) {
-  // For now, just insert at the end of current measure as placeholder
-  _updateState((state) {
-    if (symbol.isRest) {
-      return state.insertRestAfterSelection();
-    } else {
-      return state.insertNoteAfterSelection();
+    final candidate = _resolveDropCandidate(globalPosition);
+    if (candidate == null) {
+      if (_paletteHoverCandidate != null) {
+        setState(() => _paletteHoverCandidate = null);
+      }
+      return;
     }
-  });
 
-  // Later (ticket 56): improve position-based insertion using globalPosition
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Dropped ${symbol.label} — position logic coming in ticket 56'),
-        duration: const Duration(seconds: 1),
+    final symbolToInsert = _scoreSymbolFromPalette(
+      paletteSymbol: symbol,
+      candidate: candidate,
+    );
+    if (symbolToInsert == null) return;
+
+    _updateState(
+      (state) => state.insertSymbolAtPosition(
+        measureIndex: candidate.measureIndex,
+        symbolIndex: candidate.insertIndex,
+        symbol: symbolToInsert,
       ),
     );
+    if (_paletteHoverCandidate != null) {
+      setState(() => _paletteHoverCandidate = null);
+    }
+  }
+
+  void _handleDragMove(Offset globalPosition) {
+    final candidate = _resolveDropCandidate(globalPosition);
+    if (candidate == _paletteHoverCandidate) return;
+    setState(() {
+      _paletteHoverCandidate = candidate;
+    });
+  }
+
+  _PaletteDropCandidate? _resolveDropCandidate(Offset globalPosition) {
+    final box = _notationDropKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return null;
+    final local = box.globalToLocal(globalPosition);
+    final score = _editorState.score;
+    if (score.parts.isEmpty) return null;
+    final measures = score.parts.first.measures;
+    if (measures.isEmpty) return null;
+
+    final layout = _layoutCalculator.calculate(
+      measures: measures,
+      measuresPerRow: 4,
+      minMeasureWidth: 140,
+      rowHeight: 140,
+      padding: const EdgeInsets.all(16),
+    );
+    final measureTargets = ScoreNotationPainter.buildMeasureTargets(
+      measures: measures,
+      measuresPerRow: layout.measuresPerRow,
+      minMeasureWidth: 140,
+      rowHeight: 140,
+      padding: const EdgeInsets.all(16),
+      rowPrefixWidth: layout.rowPrefixWidth,
+    );
+    NotationMeasureTarget? target;
+    for (final candidate in measureTargets) {
+      if (candidate.measureRect.contains(local)) {
+        target = candidate;
+        break;
+      }
+    }
+    if (target == null) return null;
+    final insertIndex = _insertIndexForX(local.dx, target);
+    return _PaletteDropCandidate(
+      measureIndex: target.measureIndex,
+      insertIndex: insertIndex,
+      dropY: local.dy,
+      staffLineYs: target.lineYs,
+    );
+  }
+
+  int _insertIndexForX(double dropX, NotationMeasureTarget target) {
+    final centers = target.symbolCentersX;
+    if (centers.isEmpty) return 0;
+    if (dropX <= centers.first) return 0;
+    for (var index = 0; index < centers.length - 1; index++) {
+      final midpoint = (centers[index] + centers[index + 1]) / 2;
+      if (dropX < midpoint) return index + 1;
+    }
+    return centers.length;
+  }
+
+  ScoreSymbol? _scoreSymbolFromPalette({
+    required MusicalSymbol paletteSymbol,
+    required _PaletteDropCandidate candidate,
+  }) {
+    final spec = _durationForPaletteSymbol(paletteSymbol);
+    if (paletteSymbol.isRest) {
+      return Rest(duration: spec.$2, type: spec.$1);
+    }
+
+    final pitch = _pitchForDrop(candidate);
+    if (pitch == null) return null;
+    return Note(
+      step: pitch.$1,
+      octave: pitch.$2,
+      duration: spec.$2,
+      type: spec.$1,
+    );
+  }
+
+  (String, int) _durationForPaletteSymbol(MusicalSymbol symbol) {
+    switch (symbol) {
+      case MusicalSymbol.wholeNote:
+      case MusicalSymbol.wholeRest:
+        return ('whole', 4);
+      case MusicalSymbol.halfNote:
+      case MusicalSymbol.halfRest:
+        return ('half', 2);
+      case MusicalSymbol.eighthNote:
+        return ('eighth', 1);
+      case MusicalSymbol.quarterNote:
+      case MusicalSymbol.quarterRest:
+        return ('quarter', 1);
+    }
+  }
+
+  (String, int)? _pitchForDrop(_PaletteDropCandidate candidate) {
+    final lineYs = candidate.staffLineYs;
+    if (lineYs.length < 2) return null;
+    final sortedLineYs = [...lineYs]..sort();
+    final staff = DetectedStaff(
+      id: 'editor-drop-target',
+      topY: sortedLineYs.first,
+      bottomY: sortedLineYs.last,
+      lineYs: sortedLineYs,
+    );
+    final y = candidate.dropY;
+    final symbol = DetectedSymbol(
+      id: 'editor-drop-symbol',
+      type: 'notehead',
+      x: 0,
+      y: y,
+      width: 0,
+      height: 0,
+    );
+    final pitch = _pitchCalculator.calculate(
+      symbol: symbol,
+      staff: staff,
+      clef: const Clef(sign: 'G', line: 2),
+    );
+    if (pitch == null) return null;
+    return (pitch.step, pitch.octave);
   }
 
   @override
@@ -132,48 +274,60 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
             final isLandscape = constraints.maxWidth > constraints.maxHeight;
             final controlPanelWidth = (constraints.maxWidth * 0.32).clamp(280.0, 360.0) as double;
             final notationPanel = Container(
+              key: _notationDropKey,
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: AppColors.border),
               ),
               child: DragTarget<MusicalSymbol>(
-              onWillAcceptWithDetails: (details) => true,
-              onAcceptWithDetails: (details) {
-                final symbol = details.data;
-                final globalPosition = details.offset;
-                _handleSymbolDrop(symbol, globalPosition);
-              },
-              builder: (context, candidateData, rejectedData) {
-                return SingleChildScrollView(
-                  child: Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: ScoreNotationViewer(
-                      score: _editorState.score,
-                      selectedMeasureIndex: _editorState.selectedMeasureIndex,
-                      selectedSymbolIndex: _editorState.selectedSymbolIndex,
-                      onSymbolTap: (target) {
-                        if (target == null) {
-                          _updateState((state) => _clearSymbolSelection(state));
-                          return;
-                        }
-                        _onNotationSymbolTap(target.measureIndex, target.symbolIndex);
-                      },
-                      onSymbolReorder: (event) {
-                        _updateState(
-                          (state) => state.reorderSymbolWithinMeasure(
-                            measureIndex: event.measureIndex,
-                            fromSymbolIndex: event.fromSymbolIndex,
-                            toSymbolIndex: event.toSymbolIndex,
-                          ),
-                        );
-                      },
+                onWillAcceptWithDetails: (_) => true,
+                onMove: (details) => _handleDragMove(details.offset),
+                onLeave: (_) {
+                  if (_paletteHoverCandidate == null) return;
+                  setState(() => _paletteHoverCandidate = null);
+                },
+                onAcceptWithDetails: (details) {
+                  final symbol = details.data;
+                  final globalPosition = details.offset;
+                  _handleSymbolDrop(symbol, globalPosition);
+                },
+                builder: (context, candidateData, rejectedData) {
+                  return SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: ScoreNotationViewer(
+                        score: _editorState.score,
+                        selectedMeasureIndex: _editorState.selectedMeasureIndex,
+                        selectedSymbolIndex: _editorState.selectedSymbolIndex,
+                        insertionIndicator: _paletteHoverCandidate == null
+                            ? null
+                            : NotationInsertionIndicator(
+                                measureIndex: _paletteHoverCandidate!.measureIndex,
+                                insertIndex: _paletteHoverCandidate!.insertIndex,
+                              ),
+                        onSymbolTap: (target) {
+                          if (target == null) {
+                            _updateState((state) => _clearSymbolSelection(state));
+                            return;
+                          }
+                          _onNotationSymbolTap(target.measureIndex, target.symbolIndex);
+                        },
+                        onSymbolReorder: (event) {
+                          _updateState(
+                            (state) => state.reorderSymbolWithinMeasure(
+                              measureIndex: event.measureIndex,
+                              fromSymbolIndex: event.fromSymbolIndex,
+                              toSymbolIndex: event.toSymbolIndex,
+                            ),
+                          );
+                        },
+                      ),
                     ),
-                  ),
-                );
-              },
-            )
-          );
+                  );
+                },
+              ),
+            );
 
 
             final statusStrip = _StatusStrip(
@@ -836,5 +990,46 @@ class _ControlButton extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _PaletteDropCandidate {
+  const _PaletteDropCandidate({
+    required this.measureIndex,
+    required this.insertIndex,
+    required this.dropY,
+    required this.staffLineYs,
+  });
+
+  final int measureIndex;
+  final int insertIndex;
+  final double dropY;
+  final List<double> staffLineYs;
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is _PaletteDropCandidate &&
+        other.measureIndex == measureIndex &&
+        other.insertIndex == insertIndex &&
+        other.dropY == dropY &&
+        _listEquals(other.staffLineYs, staffLineYs);
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        measureIndex,
+        insertIndex,
+        dropY,
+        Object.hashAll(staffLineYs),
+      );
+
+  static bool _listEquals(List<double> a, List<double> b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 }

@@ -9,6 +9,7 @@ import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
 import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart';
+import 'package:note_vision/features/editor/domain/model/musical_symbol.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 
@@ -212,6 +213,191 @@ void main() {
     expect(find.text('C4'), findsOneWidget);
   });
 
+  testWidgets('palette note drop inserts by x index and y pitch, and undo restores', (
+    tester,
+  ) async {
+    final score = Score(
+      id: 'score-drop-note',
+      title: 'Test Score',
+      composer: 'Composer',
+      parts: [
+        Part(
+          id: 'P1',
+          name: 'Part 1',
+          measures: [
+            Measure(
+              number: 1,
+              symbols: const [
+                Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                Rest(duration: 1, type: 'quarter'),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EditorShellScreen(
+          args: EditorShellArgs(
+            score: score,
+            initialState: EditorState(score: score),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final indicatorBefore = tester.widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer));
+    expect(indicatorBefore.insertionIndicator, isNull);
+
+    final notationOrigin = tester.getTopLeft(find.byType(ScoreNotationViewer));
+    final dropOffset = notationOrigin +
+        _measureDropOffset(
+          score,
+          measureIndex: 0,
+          dropX: 66,
+          dropY: 76,
+        );
+    await _dragPaletteTo(
+      tester,
+      symbol: MusicalSymbol.quarterNote,
+      dropOffset: dropOffset,
+    );
+    await tester.pump();
+
+    final indicatorDuring = tester.widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer));
+    expect(indicatorDuring.insertionIndicator, isNotNull);
+
+    await tester.pumpAndSettle();
+
+    final expectedAfterInsert = Score(
+      id: score.id,
+      title: score.title,
+      composer: score.composer,
+      parts: [
+        Part(
+          id: 'P1',
+          name: 'Part 1',
+          measures: [
+            Measure(
+              number: 1,
+              symbols: const [
+                Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                Note(step: 'E', octave: 4, duration: 1, type: 'quarter'),
+                Rest(duration: 1, type: 'quarter'),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    final origin = tester.getTopLeft(find.byType(ScoreNotationViewer));
+    await tester.tapAt(
+      origin + _symbolCenterOffset(expectedAfterInsert, measureIndex: 0, symbolIndex: 1),
+    );
+    await tester.pump();
+    expect(find.text('Note'), findsOneWidget);
+    expect(find.text('E4'), findsOneWidget);
+
+    final undoButton = find.widgetWithText(OutlinedButton, 'Undo');
+    await tester.ensureVisible(undoButton);
+    await tester.tap(undoButton);
+    await tester.pumpAndSettle();
+
+    await tester.tapAt(origin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 1));
+    await tester.pump();
+    expect(find.text('Rest'), findsOneWidget);
+  });
+
+  testWidgets('palette rest drop ignores y and inserts in empty measure at index 0', (
+    tester,
+  ) async {
+    final score = buildScore(withSymbols: false);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EditorShellScreen(
+          args: EditorShellArgs(
+            score: score,
+            initialState: EditorState(score: score),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final notationOrigin = tester.getTopLeft(find.byType(ScoreNotationViewer));
+    await _dragPaletteTo(
+      tester,
+      symbol: MusicalSymbol.halfRest,
+      dropOffset: notationOrigin +
+          _measureDropOffset(
+            score,
+            measureIndex: 0,
+            dropX: 40,
+            dropY: 52,
+          ),
+    );
+    await tester.pumpAndSettle();
+
+    final expected = Score(
+      id: score.id,
+      title: score.title,
+      composer: score.composer,
+      parts: [
+        Part(
+          id: 'P1',
+          name: 'Part 1',
+          measures: [
+            Measure(
+              number: 1,
+              symbols: const [Rest(duration: 2, type: 'half')],
+            ),
+          ],
+        ),
+      ],
+    );
+    final origin = tester.getTopLeft(find.byType(ScoreNotationViewer));
+    await tester.tapAt(origin + _symbolCenterOffset(expected, measureIndex: 0, symbolIndex: 0));
+    await tester.pump();
+
+    expect(find.text('Rest'), findsOneWidget);
+    expect(find.text('—'), findsWidgets);
+    expect(find.text('half'), findsOneWidget);
+  });
+
+  testWidgets('dropping outside measure boundaries is ignored', (tester) async {
+    final score = buildScore();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EditorShellScreen(
+          args: EditorShellArgs(
+            score: score,
+            initialState: EditorState(score: score),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final notationOrigin = tester.getTopLeft(find.byType(ScoreNotationViewer));
+    await _dragPaletteTo(
+      tester,
+      symbol: MusicalSymbol.quarterNote,
+      dropOffset: notationOrigin + const Offset(8, 8),
+    );
+    await tester.pumpAndSettle();
+
+    final origin = tester.getTopLeft(find.byType(ScoreNotationViewer));
+    await tester.tapAt(origin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 1));
+    await tester.pump();
+
+    expect(find.text('Rest'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('landscape keeps controls beside notation without overlap', (
     tester,
   ) async {
@@ -239,6 +425,50 @@ void main() {
     expect(symbolLabelRect.left, greaterThan(notationRect.right));
     expect(tester.takeException(), isNull);
   });
+}
+
+Future<void> _dragPaletteTo(
+  WidgetTester tester, {
+  required MusicalSymbol symbol,
+  required Offset dropOffset,
+}) async {
+  final paletteFinder = find.bySemanticsLabel('${symbol.label} palette symbol');
+  expect(paletteFinder, findsOneWidget);
+  final start = tester.getCenter(paletteFinder);
+  final gesture = await tester.startGesture(start);
+  await tester.pump(kLongPressTimeout + const Duration(milliseconds: 80));
+  await gesture.moveTo(dropOffset);
+  await tester.pump();
+  await gesture.up();
+}
+
+Offset _measureDropOffset(
+  Score score, {
+  required int measureIndex,
+  required double dropX,
+  required double dropY,
+}) {
+  const measuresPerRow = 4;
+  const minMeasureWidth = 140.0;
+  const rowHeight = 140.0;
+  const padding = EdgeInsets.all(16);
+  final measures = score.parts.first.measures;
+  final layout = const NotationLayoutCalculator().calculate(
+    measures: measures,
+    measuresPerRow: measuresPerRow,
+    minMeasureWidth: minMeasureWidth,
+    rowHeight: rowHeight,
+    padding: padding,
+  );
+  final target = ScoreNotationPainter.buildMeasureTargets(
+    measures: measures,
+    measuresPerRow: layout.measuresPerRow,
+    minMeasureWidth: minMeasureWidth,
+    rowHeight: rowHeight,
+    padding: padding,
+    rowPrefixWidth: layout.rowPrefixWidth,
+  ).firstWhere((entry) => entry.measureIndex == measureIndex);
+  return target.measureRect.topLeft + Offset(dropX, dropY);
 }
 
 Offset _symbolCenterOffset(

@@ -98,6 +98,35 @@ extension EditorActions on EditorState {
     );
   }
 
+  EditorState insertSymbolAtPosition({
+    required int measureIndex,
+    required int symbolIndex,
+    required ScoreSymbol symbol,
+    int partIndex = 0,
+  }) {
+    if (partIndex < 0 || partIndex >= score.parts.length) return this;
+    final measures = score.parts[partIndex].measures;
+    if (measureIndex < 0 || measureIndex >= measures.length) return this;
+    if (symbolIndex < 0 || symbolIndex > measures[measureIndex].symbols.length) {
+      return this;
+    }
+
+    final nextScore = score.insertSymbolAt(
+      partIndex,
+      measureIndex,
+      symbolIndex,
+      symbol,
+    );
+
+    return applyEdit(
+      score: nextScore,
+      selectedPartIndex: partIndex,
+      selectedMeasureIndex: measureIndex,
+      selectedSymbolIndex: symbolIndex,
+      selectedSymbol: symbol,
+    );
+  }
+
   EditorState deleteSelectedSymbol() {
     if (!hasSelection) return this;
 
