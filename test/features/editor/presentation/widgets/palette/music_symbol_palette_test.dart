@@ -55,7 +55,8 @@ void main() {
     final draggable = tester.widget<LongPressDraggable<MusicalSymbol>>(
       find.byType(LongPressDraggable<MusicalSymbol>),
     );
-    final feedbackTransform = draggable.feedback as Transform;
+    final feedbackMaterial = draggable.feedback as Material;
+    final feedbackTransform = feedbackMaterial.child as Transform;
     expect(feedbackTransform.transform.getMaxScaleOnAxis(), closeTo(1.5, 0.001));
 
     final draggingGhost = draggable.childWhenDragging as Opacity;
