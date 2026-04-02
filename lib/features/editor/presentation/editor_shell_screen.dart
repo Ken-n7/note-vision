@@ -248,7 +248,14 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                         ? Row(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Expanded(child: notationPanel),
+                              Expanded(
+                                child: Column(
+                                  children: [
+                                    Expanded(child: notationPanel),
+                                    const MusicSymbolPalette(),
+                                  ],
+                                ),
+                              ),
                               const SizedBox(width: 12),
                               SizedBox(
                                 width: controlPanelWidth,
@@ -266,8 +273,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                         : Column(
                             children: [
                               Expanded(child: notationPanel),
-                              statusStrip,
                               const MusicSymbolPalette(),
+                              statusStrip,
                               actionBar,
                             ],
                           ),
