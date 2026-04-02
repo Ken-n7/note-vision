@@ -11,6 +11,7 @@ import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
 import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
+import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.dart';
 
 void main() {
   Score buildScore({bool withSymbols = true}) {
@@ -56,15 +57,38 @@ void main() {
     expect(find.text('Save'), findsOneWidget);
     expect(find.text('Move Up'), findsOneWidget);
     expect(find.text('Move Down'), findsOneWidget);
-    expect(find.text('Whole'), findsOneWidget);
-    expect(find.text('Half'), findsOneWidget);
-    expect(find.text('Quarter'), findsOneWidget);
-    expect(find.text('Eighth'), findsOneWidget);
+    expect(find.text('Whole'), findsWidgets);
+    expect(find.text('Half'), findsWidgets);
+    expect(find.text('Quarter'), findsWidgets);
+    expect(find.text('Eighth'), findsWidgets);
     expect(find.text('Insert Note'), findsOneWidget);
     expect(find.text('Insert Rest'), findsOneWidget);
     expect(find.text('Delete'), findsOneWidget);
     expect(find.text('Undo'), findsOneWidget);
     expect(find.text('Redo'), findsOneWidget);
+  });
+
+  testWidgets('renders draggable symbol palette with seven items', (tester) async {
+    final score = buildScore();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EditorShellScreen(
+          args: EditorShellArgs(
+            score: score,
+            initialState: EditorState(score: score),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('symbol-palette')), findsOneWidget);
+    expect(find.text('W Rest'), findsOneWidget);
+    expect(find.text('H Rest'), findsOneWidget);
+    expect(find.text('Q Rest'), findsOneWidget);
+
+    final draggables = find.byWidgetPredicate((widget) => widget is LongPressDraggable<PaletteDragData>);
+    expect(draggables, findsNWidgets(7));
   });
 
   testWidgets('keeps insert actions enabled with default measure context', (

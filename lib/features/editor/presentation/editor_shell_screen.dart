@@ -7,6 +7,7 @@ import 'package:note_vision/core/theme/responsive_layout.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
+import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.dart';
 
 class EditorShellArgs {
   const EditorShellArgs({required this.score, required this.initialState});
@@ -144,6 +145,14 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               ),
             );
 
+
+            final notationWithPalette = Column(
+              children: [
+                Expanded(child: notationPanel),
+                const SymbolPalette(),
+              ],
+            );
+
             final statusStrip = _StatusStrip(
               horizontalPadding: isLandscape ? 0 : horizontalPadding,
               symbolType: selected == null ? 'None' : selected is Note ? 'Note' : 'Rest',
@@ -216,7 +225,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                         ? Row(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Expanded(child: notationPanel),
+                              Expanded(child: notationWithPalette),
                               const SizedBox(width: 12),
                               SizedBox(
                                 width: controlPanelWidth,
@@ -233,7 +242,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                           )
                         : Column(
                             children: [
-                              Expanded(child: notationPanel),
+                              Expanded(child: notationWithPalette),
                               statusStrip,
                               actionBar,
                             ],
