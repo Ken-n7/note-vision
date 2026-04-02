@@ -40,7 +40,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   void initState() {
     super.initState();
     _nameController.addListener(_onNameChanged);
-    _nameFocusNode.addListener(() => setState(() {})); // rebuild border on focus
+    _nameFocusNode.addListener(() => setState(() {}));
 
     _animController = AnimationController(
       vsync: this,
@@ -176,7 +176,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           width: 36,
           height: 4,
           decoration: BoxDecoration(
-            color: const Color(0xFFE8C547),
+            color: const Color.fromARGB(255, 212, 169, 106), // Changed
             borderRadius: BorderRadius.circular(2),
           ),
         ),
@@ -237,7 +237,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       color: const Color(0xFF1A1A1A),
                       border: Border.all(
                         color: _selectedPhoto != null
-                            ? const Color(0xFFE8C547)
+                            ? const Color.fromARGB(255, 212, 169, 106) // Changed
                             : const Color(0xFF2A2A2A),
                         width: 2,
                       ),
@@ -255,7 +255,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                 name.isNotEmpty ? initial : '+',
                                 style: TextStyle(
                                   color: name.isNotEmpty
-                                      ? const Color(0xFFE8C547)
+                                      ? const Color.fromARGB(255, 212, 169, 106) // Changed
                                       : const Color(0xFF444444),
                                   fontSize: name.isNotEmpty ? 34 : 28,
                                   fontWeight: FontWeight.w700,
@@ -305,7 +305,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                           ? 'Change photo'
                           : 'Choose from gallery',
                       style: const TextStyle(
-                        color: Color(0xFFE8C547),
+                        color: Color.fromARGB(255, 212, 169, 106), // Changed
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0.2,
@@ -331,7 +331,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     final borderColor = hasError
         ? const Color(0xFFE05252)
         : _nameFocusNode.hasFocus
-            ? const Color(0xFFE8C547).withOpacity(0.6)
+            ? const Color.fromARGB(255, 212, 169, 106).withOpacity(0.6) // Changed
             : const Color(0xFF2A2A2A);
 
     return Column(
@@ -348,7 +348,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         ),
         const SizedBox(height: 12),
 
-        // ── Text field ──────────────────────────────────────────────
         Container(
           decoration: BoxDecoration(
             color: const Color(0xFF1A1A1A),
@@ -361,7 +360,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             maxLength: NameValidator.maxLength,
             maxLengthEnforcement: MaxLengthEnforcement.enforced,
             textCapitalization: TextCapitalization.words,
-            // Block numbers, special chars, and emoji at the input level
             inputFormatters: [NameValidator.inputFormatter],
             style: const TextStyle(
               color: Color(0xFFF5F5F5),
@@ -400,12 +398,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           ),
         ),
 
-        // ── Error / char counter row ────────────────────────────────
         const SizedBox(height: 8),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // Error message (left)
             if (hasError)
               Row(
                 children: [
@@ -428,7 +424,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             else
               const SizedBox.shrink(),
 
-            // Char counter (right)
             Text(
               '${_nameController.text.trim().length} / ${NameValidator.maxLength}',
               style: TextStyle(
@@ -455,8 +450,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         child: ElevatedButton(
           onPressed: _isContinueEnabled ? _onContinue : null,
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFE8C547),
-            disabledBackgroundColor: const Color(0xFFE8C547),
+            backgroundColor: const Color.fromARGB(255, 212, 169, 106), // Changed
+            disabledBackgroundColor: const Color.fromARGB(255, 212, 169, 106), // Changed
             foregroundColor: const Color(0xFF0F0F0F),
             disabledForegroundColor: const Color(0xFF0F0F0F),
             elevation: 0,
@@ -470,8 +465,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   height: 22,
                   child: CircularProgressIndicator(
                     strokeWidth: 2.5,
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(Color(0xFF0F0F0F)),
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0F0F0F)),
                   ),
                 )
               : const Text(
