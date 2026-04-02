@@ -924,13 +924,13 @@ class _InsertDropdown extends StatelessWidget {
                 }
               : null,
           icon: Icon(icon, size: 16),
-          label: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Insert $label'),
-              const SizedBox(width: 4),
-              const Icon(Icons.arrow_drop_down_rounded, size: 18),
-            ],
+          label: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              'Insert $label',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
           style: OutlinedButton.styleFrom(
             backgroundColor: enabled ? AppColors.surface : AppColors.surfaceAlt,
@@ -938,7 +938,7 @@ class _InsertDropdown extends StatelessWidget {
             side: BorderSide(
               color: enabled ? AppColors.accent.withValues(alpha: 0.6) : AppColors.border,
             ),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
           ),
         );
       },
