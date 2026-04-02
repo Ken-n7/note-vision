@@ -37,7 +37,7 @@ class EditorShellScreen extends StatefulWidget {
 
 class _EditorShellScreenState extends State<EditorShellScreen> {
   late EditorState _editorState;
-  final GlobalKey _notationDropKey = GlobalKey();
+  final GlobalKey _notationViewerKey = GlobalKey();
   final PitchCalculator _pitchCalculator = const PitchCalculator();
   final NotationLayoutCalculator _layoutCalculator = const NotationLayoutCalculator();
   _PaletteDropCandidate? _paletteHoverCandidate;
@@ -78,7 +78,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   }
 
   _PaletteDropCandidate? _resolveDropCandidate(Offset globalPosition) {
-    final box = _notationDropKey.currentContext?.findRenderObject() as RenderBox?;
+    final box = _notationViewerKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return null;
     final local = box.globalToLocal(globalPosition);
     final score = _editorState.score;
@@ -274,7 +274,6 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
             final isLandscape = constraints.maxWidth > constraints.maxHeight;
             final controlPanelWidth = (constraints.maxWidth * 0.32).clamp(280.0, 360.0) as double;
             final notationPanel = Container(
-              key: _notationDropKey,
               decoration: BoxDecoration(
                 color: AppColors.surface,
                 borderRadius: BorderRadius.circular(14),
@@ -297,6 +296,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                     child: Padding(
                       padding: const EdgeInsets.all(8),
                       child: ScoreNotationViewer(
+                        key: _notationViewerKey,
                         score: _editorState.score,
                         selectedMeasureIndex: _editorState.selectedMeasureIndex,
                         selectedSymbolIndex: _editorState.selectedSymbolIndex,

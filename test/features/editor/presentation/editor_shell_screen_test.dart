@@ -253,13 +253,8 @@ void main() {
     expect(indicatorBefore.insertionIndicator, isNull);
 
     final notationOrigin = tester.getTopLeft(find.byType(ScoreNotationViewer));
-    final dropOffset = notationOrigin +
-        _measureDropOffset(
-          score,
-          measureIndex: 0,
-          dropX: 66,
-          dropY: 76,
-        );
+    final target = _measureTarget(score, measureIndex: 0);
+    final dropOffset = notationOrigin + Offset(66, target.lineYs.last);
     await _dragPaletteTo(
       tester,
       symbol: MusicalSymbol.quarterNote,
@@ -329,16 +324,11 @@ void main() {
     await tester.pumpAndSettle();
 
     final notationOrigin = tester.getTopLeft(find.byType(ScoreNotationViewer));
+    final target = _measureTarget(score, measureIndex: 0);
     await _dragPaletteTo(
       tester,
       symbol: MusicalSymbol.halfRest,
-      dropOffset: notationOrigin +
-          _measureDropOffset(
-            score,
-            measureIndex: 0,
-            dropX: 40,
-            dropY: 52,
-          ),
+      dropOffset: notationOrigin + Offset(40, target.lineYs.first),
     );
     await tester.pumpAndSettle();
 
@@ -442,12 +432,7 @@ Future<void> _dragPaletteTo(
   await gesture.up();
 }
 
-Offset _measureDropOffset(
-  Score score, {
-  required int measureIndex,
-  required double dropX,
-  required double dropY,
-}) {
+NotationMeasureTarget _measureTarget(Score score, {required int measureIndex}) {
   const measuresPerRow = 4;
   const minMeasureWidth = 140.0;
   const rowHeight = 140.0;
@@ -468,7 +453,7 @@ Offset _measureDropOffset(
     padding: padding,
     rowPrefixWidth: layout.rowPrefixWidth,
   ).firstWhere((entry) => entry.measureIndex == measureIndex);
-  return target.measureRect.topLeft + Offset(dropX, dropY);
+  return target;
 }
 
 Offset _symbolCenterOffset(
