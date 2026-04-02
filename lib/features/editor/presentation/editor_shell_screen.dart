@@ -2,13 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/theme/responsive_layout.dart';
+import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
+import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
+import 'package:note_vision/features/detection/domain/detected_staff.dart';
+import 'package:note_vision/features/detection/domain/detected_symbol.dart';
 import 'package:note_vision/features/editor/domain/editor_actions.dart';
+import 'package:note_vision/features/editor/domain/editor_actions.dart' as editor_actions;
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/widgets/palette/music_symbol_palette.dart';
 import 'package:note_vision/features/editor/domain/model/musical_symbol.dart';
+import 'package:note_vision/features/mapping/domain/internal/pitch_calculator.dart';
+import 'package:note_vision/features/mapping/domain/internal/mapping_types.dart';
+import 'package:note_vision/core/models/clef.dart';
 
 class EditorShellArgs {
   const EditorShellArgs({required this.score, required this.initialState});
@@ -29,25 +38,187 @@ class EditorShellScreen extends StatefulWidget {
 }
 
 class _EditorShellScreenState extends State<EditorShellScreen> {
+  static const _viewerMeasuresPerRow = 4;
+  static const _viewerMinMeasureWidth = 140.0;
+  static const _viewerRowHeight = 140.0;
+  static const _viewerPadding = EdgeInsets.all(16);
+
+  final GlobalKey _notationViewerKey = GlobalKey();
+  final NotationLayoutCalculator _notationLayoutCalculator =
+      const NotationLayoutCalculator();
+  final PitchCalculator _pitchCalculator = const PitchCalculator();
   late EditorState _editorState;
+  NotationInsertionFeedback? _dropInsertionFeedback;
 
   void _handleSymbolDrop(MusicalSymbol symbol, Offset globalPosition) {
-  // For now, just insert at the end of current measure as placeholder
-  _updateState((state) {
-    if (symbol.isRest) {
-      return state.insertRestAfterSelection();
-    } else {
-      return state.insertNoteAfterSelection();
+    final insertion = _resolveInsertionTarget(globalPosition);
+    if (insertion == null) {
+      _setDropInsertionFeedback(null);
+      return;
     }
-  });
 
-  // Later (ticket 56): improve position-based insertion using globalPosition
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Dropped ${symbol.label} — position logic coming in ticket 56'),
-        duration: const Duration(seconds: 1),
+    final droppedSymbol = _toDroppedSymbol(
+      symbol: symbol,
+      localY: insertion.localPosition.dy,
+      lineYs: insertion.measureTarget.lineYs,
+    );
+    if (droppedSymbol == null) {
+      _setDropInsertionFeedback(null);
+      return;
+    }
+
+    _updateState(
+      (state) => state.insertSymbolAt(
+        partIndex: 0,
+        measureIndex: insertion.measureTarget.measureIndex,
+        symbolIndex: insertion.insertIndex,
+        symbol: droppedSymbol,
       ),
     );
+    _setDropInsertionFeedback(null);
+  }
+
+  void _handleDragHover(Offset globalPosition) {
+    final insertion = _resolveInsertionTarget(globalPosition);
+    final feedback = insertion == null
+        ? null
+        : NotationInsertionFeedback(
+            measureIndex: insertion.measureTarget.measureIndex,
+            insertIndex: insertion.insertIndex,
+          );
+    _setDropInsertionFeedback(feedback);
+  }
+
+  void _setDropInsertionFeedback(NotationInsertionFeedback? feedback) {
+    if (_dropInsertionFeedback == feedback) return;
+    setState(() {
+      _dropInsertionFeedback = feedback;
+    });
+  }
+
+  _DropInsertionTarget? _resolveInsertionTarget(Offset globalPosition) {
+    final viewerContext = _notationViewerKey.currentContext;
+    final renderObject = viewerContext?.findRenderObject();
+    if (renderObject is! RenderBox) return null;
+
+    final localPosition = renderObject.globalToLocal(globalPosition);
+    final part = _editorState.score.parts.isEmpty ? null : _editorState.score.parts.first;
+    final measures = part?.measures ?? const [];
+    if (measures.isEmpty) return null;
+
+    final layout = _notationLayoutCalculator.calculate(
+      measures: measures,
+      measuresPerRow: _viewerMeasuresPerRow,
+      minMeasureWidth: _viewerMinMeasureWidth,
+      rowHeight: _viewerRowHeight,
+      padding: _viewerPadding,
+    );
+
+    NotationMeasureTarget? measureTarget;
+    for (final entry in ScoreNotationPainter.buildMeasureTargets(
+      measures: measures,
+      measuresPerRow: layout.measuresPerRow,
+      minMeasureWidth: _viewerMinMeasureWidth,
+      rowHeight: _viewerRowHeight,
+      padding: _viewerPadding,
+      rowPrefixWidth: layout.rowPrefixWidth,
+    )) {
+      if (entry.dropRect.contains(localPosition)) {
+        measureTarget = entry;
+        break;
+      }
+    }
+
+    if (measureTarget == null) return null;
+
+    final symbolTargets = ScoreNotationPainter.buildSymbolTargets(
+      measures: measures,
+      measuresPerRow: layout.measuresPerRow,
+      minMeasureWidth: _viewerMinMeasureWidth,
+      rowHeight: _viewerRowHeight,
+      padding: _viewerPadding,
+      rowPrefixWidth: layout.rowPrefixWidth,
+    ).where((entry) => entry.measureIndex == measureTarget.measureIndex).toList()
+      ..sort((a, b) => a.center.dx.compareTo(b.center.dx));
+
+    final insertIndex = _insertionIndexForX(localPosition.dx, symbolTargets);
+
+    return _DropInsertionTarget(
+      measureTarget: measureTarget,
+      insertIndex: insertIndex,
+      localPosition: localPosition,
+    );
+  }
+
+  int _insertionIndexForX(double dropX, List<NotationSymbolTarget> targets) {
+    if (targets.isEmpty) return 0;
+    for (var i = 0; i < targets.length; i++) {
+      if (dropX < targets[i].center.dx) {
+        return i;
+      }
+    }
+    return targets.length;
+  }
+
+  Pitch? _pitchForY(double y, List<double> lineYs) {
+    if (lineYs.length < 2) return null;
+    final sorted = [...lineYs]..sort();
+    final staff = DetectedStaff(
+      id: 'editor-drop',
+      topY: sorted.first,
+      bottomY: sorted.last,
+      lineYs: sorted,
+    );
+    final symbol = DetectedSymbol(
+      id: 'editor-drop-symbol',
+      type: 'noteheadBlack',
+      x: 0,
+      y: y,
+      width: 0,
+      height: 0,
+    );
+    return _pitchCalculator.calculate(
+      symbol: symbol,
+      staff: staff,
+      clef: const Clef(sign: 'G', line: 2),
+    );
+  }
+
+  ScoreSymbol? _toDroppedSymbol({
+    required MusicalSymbol symbol,
+    required double localY,
+    required List<double> lineYs,
+  }) {
+    if (symbol.isRest) {
+      final spec = _durationFor(symbol);
+      return Rest(duration: spec.divisions, type: spec.type);
+    }
+
+    final pitch = _pitchForY(localY, lineYs);
+    if (pitch == null) return null;
+    final spec = _durationFor(symbol);
+    return Note(
+      step: pitch.step,
+      octave: pitch.octave,
+      duration: spec.divisions,
+      type: spec.type,
+    );
+  }
+
+  editor_actions.DurationSpec _durationFor(MusicalSymbol symbol) {
+    switch (symbol) {
+      case MusicalSymbol.wholeNote:
+      case MusicalSymbol.wholeRest:
+        return wholeDuration;
+      case MusicalSymbol.halfNote:
+      case MusicalSymbol.halfRest:
+        return halfDuration;
+      case MusicalSymbol.eighthNote:
+        return eighthDuration;
+      case MusicalSymbol.quarterNote:
+      case MusicalSymbol.quarterRest:
+        return quarterDuration;
+    }
   }
 
   @override
@@ -138,7 +309,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 border: Border.all(color: AppColors.border),
               ),
               child: DragTarget<MusicalSymbol>(
-              onWillAcceptWithDetails: (details) => true,
+              onWillAcceptWithDetails: (details) {
+                _handleDragHover(details.offset);
+                return true;
+              },
+              onMove: (details) => _handleDragHover(details.offset),
+              onLeave: (_) => _setDropInsertionFeedback(null),
               onAcceptWithDetails: (details) {
                 final symbol = details.data;
                 final globalPosition = details.offset;
@@ -149,9 +325,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   child: Padding(
                     padding: const EdgeInsets.all(8),
                     child: ScoreNotationViewer(
+                      key: _notationViewerKey,
                       score: _editorState.score,
                       selectedMeasureIndex: _editorState.selectedMeasureIndex,
                       selectedSymbolIndex: _editorState.selectedSymbolIndex,
+                      insertionFeedback: _dropInsertionFeedback,
                       onSymbolTap: (target) {
                         if (target == null) {
                           _updateState((state) => _clearSymbolSelection(state));
@@ -837,4 +1015,16 @@ class _ControlButton extends StatelessWidget {
       ),
     );
   }
+}
+
+class _DropInsertionTarget {
+  const _DropInsertionTarget({
+    required this.measureTarget,
+    required this.insertIndex,
+    required this.localPosition,
+  });
+
+  final NotationMeasureTarget measureTarget;
+  final int insertIndex;
+  final Offset localPosition;
 }

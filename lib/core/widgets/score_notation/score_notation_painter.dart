@@ -21,6 +21,7 @@ class ScoreNotationPainter extends CustomPainter {
     this.selectedMeasureIndex,
     this.selectedSymbolIndex,
     this.dragFeedback,
+    this.insertionFeedback,
   });
 
   final List<Measure> measures;
@@ -32,6 +33,7 @@ class ScoreNotationPainter extends CustomPainter {
   final int? selectedMeasureIndex;
   final int? selectedSymbolIndex;
   final NotationDragFeedback? dragFeedback;
+  final NotationInsertionFeedback? insertionFeedback;
 
   static const double staffLineSpacing = 12;
   static const double tapTargetSize = 24;
@@ -145,6 +147,55 @@ class ScoreNotationPainter extends CustomPainter {
         }
       }
     }
+    return targets;
+  }
+
+  static List<NotationMeasureTarget> buildMeasureTargets({
+    required List<Measure> measures,
+    required int measuresPerRow,
+    required double minMeasureWidth,
+    required double rowHeight,
+    required EdgeInsets padding,
+    required double rowPrefixWidth,
+  }) {
+    final rows = _buildRowMetricsStatic(
+      measures: measures,
+      measuresPerRow: measuresPerRow,
+      rowHeight: rowHeight,
+      padding: padding,
+      rowPrefixWidth: rowPrefixWidth,
+      minMeasureWidth: minMeasureWidth,
+    );
+    final targets = <NotationMeasureTarget>[];
+
+    for (final row in rows) {
+      for (var measureInRow = 0; measureInRow < row.measures.length; measureInRow++) {
+        final measureStartX = row.contentStartX + (measureInRow * minMeasureWidth);
+        final measureEndX = measureStartX + minMeasureWidth;
+        final lineYs = List<double>.generate(
+          5,
+          (index) => row.staffTop + (index * staffLineSpacing),
+          growable: false,
+        );
+        targets.add(
+          NotationMeasureTarget(
+            measureIndex: row.globalStartMeasureIndex + measureInRow,
+            dropRect: Rect.fromLTRB(
+              measureStartX,
+              row.staffTop - 32,
+              measureEndX,
+              row.staffBottom + 32,
+            ),
+            measureStartX: measureStartX,
+            measureEndX: measureEndX,
+            staffTop: row.staffTop,
+            staffBottom: row.staffBottom,
+            lineYs: lineYs,
+          ),
+        );
+      }
+    }
+
     return targets;
   }
 
@@ -276,8 +327,6 @@ class ScoreNotationPainter extends CustomPainter {
     required double staffTop,
     required double staffBottom,
   }) {
-    if (measure.symbols.isEmpty) return;
-
     final symbolCount = measure.symbols.length;
     const innerPadding = 16.0;
     final drawableWidth = math.max(
@@ -303,6 +352,11 @@ class ScoreNotationPainter extends CustomPainter {
             measureEndX - innerPadding,
           )
         : 0.0;
+    final insertion = insertionFeedback;
+    final showInsertionIndicator = insertion != null &&
+        insertion.measureIndex == absoluteMeasureIndex &&
+        insertion.insertIndex >= 0 &&
+        insertion.insertIndex <= symbolCount;
 
     for (var i = 0; i < symbolCount; i++) {
       if (activeDrag != null && i == activeDrag.draggedSymbolIndex) {
@@ -344,6 +398,18 @@ class ScoreNotationPainter extends CustomPainter {
       }
     }
 
+    if (showInsertionIndicator && insertion != null) {
+      final insertionX = _insertionXForIndex(
+        insertIndex: insertion.insertIndex,
+        symbolCount: symbolCount,
+        measureStartX: measureStartX,
+        measureEndX: measureEndX,
+        innerPadding: innerPadding,
+        drawableWidth: drawableWidth,
+      );
+      _drawInsertionIndicator(canvas, insertionX, staffTop, staffBottom);
+    }
+
     if (!hasDragInMeasure || draggedSymbol == null) return;
 
     final dragY = _symbolCenterY(draggedSymbol, staffTop, staffBottom) - 8;
@@ -360,6 +426,48 @@ class ScoreNotationPainter extends CustomPainter {
       _drawSelectionHighlight(canvas, Offset(clampedDragX, dragY), radius: 16);
       _drawRest(canvas, draggedSymbol, x: clampedDragX, staffTop: staffTop - 8);
     }
+
+  }
+
+  double _insertionXForIndex({
+    required int insertIndex,
+    required int symbolCount,
+    required double measureStartX,
+    required double measureEndX,
+    required double innerPadding,
+    required double drawableWidth,
+  }) {
+    final leftBound = measureStartX + innerPadding;
+    final rightBound = measureEndX - innerPadding;
+
+    if (symbolCount <= 0) {
+      return (leftBound + rightBound) / 2;
+    }
+
+    final centers = List<double>.generate(symbolCount, (index) {
+      final progress = (index + 1) / (symbolCount + 1);
+      return measureStartX + innerPadding + (drawableWidth * progress);
+    }, growable: false);
+
+    if (insertIndex <= 0) return (leftBound + centers.first) / 2;
+    if (insertIndex >= symbolCount) return (centers.last + rightBound) / 2;
+    return (centers[insertIndex - 1] + centers[insertIndex]) / 2;
+  }
+
+  void _drawInsertionIndicator(
+    Canvas canvas,
+    double x,
+    double staffTop,
+    double staffBottom,
+  ) {
+    final paint = Paint()
+      ..color = const Color(0xFF2563EB)
+      ..strokeWidth = 2;
+    canvas.drawLine(
+      Offset(x, staffTop - 8),
+      Offset(x, staffBottom + 8),
+      paint,
+    );
   }
 
   void _drawSelectionHighlight(Canvas canvas, Offset center, {double radius = 14}) {
@@ -652,7 +760,8 @@ class ScoreNotationPainter extends CustomPainter {
         oldDelegate.rowPrefixWidth != rowPrefixWidth ||
         oldDelegate.selectedMeasureIndex != selectedMeasureIndex ||
         oldDelegate.selectedSymbolIndex != selectedSymbolIndex ||
-        oldDelegate.dragFeedback != dragFeedback;
+        oldDelegate.dragFeedback != dragFeedback ||
+        oldDelegate.insertionFeedback != insertionFeedback;
   }
 }
 
@@ -699,6 +808,47 @@ class NotationDragFeedback {
       draggedSymbolIndex.hashCode ^
       targetSymbolIndex.hashCode ^
       dragX.hashCode;
+}
+
+class NotationInsertionFeedback {
+  const NotationInsertionFeedback({
+    required this.measureIndex,
+    required this.insertIndex,
+  });
+
+  final int measureIndex;
+  final int insertIndex;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NotationInsertionFeedback &&
+          runtimeType == other.runtimeType &&
+          measureIndex == other.measureIndex &&
+          insertIndex == other.insertIndex;
+
+  @override
+  int get hashCode => Object.hash(measureIndex, insertIndex);
+}
+
+class NotationMeasureTarget {
+  const NotationMeasureTarget({
+    required this.measureIndex,
+    required this.dropRect,
+    required this.measureStartX,
+    required this.measureEndX,
+    required this.staffTop,
+    required this.staffBottom,
+    required this.lineYs,
+  });
+
+  final int measureIndex;
+  final Rect dropRect;
+  final double measureStartX;
+  final double measureEndX;
+  final double staffTop;
+  final double staffBottom;
+  final List<double> lineYs;
 }
 
 class _RowMetrics {

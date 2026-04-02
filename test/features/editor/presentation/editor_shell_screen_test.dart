@@ -212,6 +212,110 @@ void main() {
     expect(find.text('C4'), findsOneWidget);
   });
 
+  testWidgets('palette drop inserts note by x index and y pitch', (tester) async {
+    final score = Score(
+      id: 'score-drop-note',
+      title: 'Drop Note',
+      composer: 'Composer',
+      parts: [
+        Part(
+          id: 'P1',
+          name: 'Part 1',
+          measures: [
+            Measure(
+              number: 1,
+              symbols: const [
+                Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                Note(step: 'G', octave: 4, duration: 1, type: 'quarter'),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EditorShellScreen(
+          args: EditorShellArgs(
+            score: score,
+            initialState: EditorState(score: score),
+          ),
+        ),
+      ),
+    );
+
+    final origin = tester.getTopLeft(find.byType(ScoreNotationViewer));
+    final target = _measureTargetOffset(score, measureIndex: 0);
+    final symbolA = _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 0);
+    final symbolB = _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 1);
+    final dropX = (symbolA.dx + symbolB.dx) / 2;
+    final dropY = target.lineYs.last;
+    final dropPoint = origin + Offset(dropX, dropY);
+
+    final dragGesture = await tester.startGesture(
+      tester.getCenter(find.bySemanticsLabel('Quarter palette symbol')),
+    );
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 120));
+    await dragGesture.moveTo(dropPoint);
+    await tester.pump();
+    await dragGesture.up();
+    await tester.pumpAndSettle();
+
+    final expectedScore = score.insertSymbolAt(
+      0,
+      0,
+      1,
+      const Note(step: 'E', octave: 4, duration: 1, type: 'quarter'),
+    );
+    await tester.tapAt(
+      origin + _symbolCenterOffset(expectedScore, measureIndex: 0, symbolIndex: 1),
+    );
+    await tester.pump();
+
+    expect(find.text('E4'), findsOneWidget);
+  });
+
+  testWidgets('palette drop inserts rest in empty measure and undo restores empty', (
+    tester,
+  ) async {
+    final score = buildScore(withSymbols: false);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EditorShellScreen(
+          args: EditorShellArgs(
+            score: score,
+            initialState: EditorState(score: score),
+          ),
+        ),
+      ),
+    );
+
+    final origin = tester.getTopLeft(find.byType(ScoreNotationViewer));
+    final target = _measureTargetOffset(score, measureIndex: 0);
+    final dropPoint = origin + Offset(target.measureCenterX, target.lineYs.first - 20);
+
+    final dragGesture = await tester.startGesture(
+      tester.getCenter(find.bySemanticsLabel('H Rest palette symbol')),
+    );
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 120));
+    await dragGesture.moveTo(dropPoint);
+    await tester.pump();
+    await dragGesture.up();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Rest'), findsOneWidget);
+    expect(find.text('half'), findsOneWidget);
+
+    final undoButton = find.widgetWithText(OutlinedButton, 'Undo');
+    await tester.ensureVisible(undoButton);
+    await tester.tap(undoButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('None'), findsOneWidget);
+  });
+
   testWidgets('landscape keeps controls beside notation without overlap', (
     tester,
   ) async {
@@ -272,4 +376,45 @@ Offset _symbolCenterOffset(
   );
 
   return target.center;
+}
+
+_MeasureTargetOffset _measureTargetOffset(
+  Score score, {
+  required int measureIndex,
+}) {
+  const measuresPerRow = 4;
+  const minMeasureWidth = 140.0;
+  const rowHeight = 140.0;
+  const padding = EdgeInsets.all(16);
+
+  final measures = score.parts.first.measures;
+  final layout = const NotationLayoutCalculator().calculate(
+    measures: measures,
+    measuresPerRow: measuresPerRow,
+    minMeasureWidth: minMeasureWidth,
+    rowHeight: rowHeight,
+    padding: padding,
+  );
+  final target = ScoreNotationPainter.buildMeasureTargets(
+    measures: measures,
+    measuresPerRow: layout.measuresPerRow,
+    minMeasureWidth: minMeasureWidth,
+    rowHeight: rowHeight,
+    padding: padding,
+    rowPrefixWidth: layout.rowPrefixWidth,
+  ).firstWhere((entry) => entry.measureIndex == measureIndex);
+  return _MeasureTargetOffset(
+    measureCenterX: (target.measureStartX + target.measureEndX) / 2,
+    lineYs: target.lineYs,
+  );
+}
+
+class _MeasureTargetOffset {
+  const _MeasureTargetOffset({
+    required this.measureCenterX,
+    required this.lineYs,
+  });
+
+  final double measureCenterX;
+  final List<double> lineYs;
 }

@@ -133,6 +133,29 @@ extension EditorActions on EditorState {
 
   EditorState applyRedo() => redo();
 
+  EditorState insertSymbolAt({
+    required int partIndex,
+    required int measureIndex,
+    required int symbolIndex,
+    required ScoreSymbol symbol,
+  }) {
+    final nextScore = score.insertSymbolAt(
+      partIndex,
+      measureIndex,
+      symbolIndex,
+      symbol,
+    );
+    if (identical(nextScore, score)) return this;
+
+    return applyEdit(
+      score: nextScore,
+      selectedPartIndex: partIndex,
+      selectedMeasureIndex: measureIndex,
+      selectedSymbolIndex: symbolIndex,
+      selectedSymbol: symbol,
+    );
+  }
+
   EditorState moveSelectedSymbolToMeasureOffset(int offset) {
     if (!hasSelection || offset == 0) return this;
 

@@ -23,6 +23,7 @@ class ScoreNotationViewer extends StatefulWidget {
     this.selectedSymbolIndex,
     this.onSymbolTap,
     this.onSymbolReorder,
+    this.insertionFeedback,
   });
 
   final Score? score;
@@ -35,6 +36,7 @@ class ScoreNotationViewer extends StatefulWidget {
   final int? selectedSymbolIndex;
   final ValueChanged<NotationSymbolTarget?>? onSymbolTap;
   final ValueChanged<NotationSymbolReorder>? onSymbolReorder;
+  final NotationInsertionFeedback? insertionFeedback;
 
   @override
   State<ScoreNotationViewer> createState() => _ScoreNotationViewerState();
@@ -117,6 +119,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
                 targetSymbolIndex: _dragSession!.toSymbolIndex,
                 dragX: _dragSession!.dragPosition.dx,
               ),
+        insertionFeedback: widget.insertionFeedback,
       ),
     );
   }
