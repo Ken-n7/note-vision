@@ -316,6 +316,46 @@ void main() {
     expect(find.text('None'), findsOneWidget);
   });
 
+  testWidgets('palette note drop pitch clamps to C4-G5 demo range', (tester) async {
+    final score = buildScore(withSymbols: false);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EditorShellScreen(
+          args: EditorShellArgs(
+            score: score,
+            initialState: EditorState(score: score),
+          ),
+        ),
+      ),
+    );
+
+    final origin = tester.getTopLeft(find.byType(ScoreNotationViewer));
+    final target = _measureTargetOffset(score, measureIndex: 0);
+
+    final highDrop = origin + Offset(target.measureCenterX, target.lineYs.first - 260);
+    var dragGesture = await tester.startGesture(
+      tester.getCenter(find.bySemanticsLabel('Quarter palette symbol')),
+    );
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 120));
+    await dragGesture.moveTo(highDrop);
+    await tester.pump();
+    await dragGesture.up();
+    await tester.pumpAndSettle();
+    expect(find.text('G5'), findsOneWidget);
+
+    final lowDrop = origin + Offset(target.measureCenterX, target.lineYs.last + 260);
+    dragGesture = await tester.startGesture(
+      tester.getCenter(find.bySemanticsLabel('Quarter palette symbol')),
+    );
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 120));
+    await dragGesture.moveTo(lowDrop);
+    await tester.pump();
+    await dragGesture.up();
+    await tester.pumpAndSettle();
+    expect(find.text('C4'), findsOneWidget);
+  });
+
   testWidgets('landscape keeps controls beside notation without overlap', (
     tester,
   ) async {

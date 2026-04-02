@@ -49,6 +49,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   final PitchCalculator _pitchCalculator = const PitchCalculator();
   late EditorState _editorState;
   NotationInsertionFeedback? _dropInsertionFeedback;
+  double _notationHorizontalScrollOffset = 0;
 
   void _handleSymbolDrop(MusicalSymbol symbol, Offset globalPosition) {
     final insertion = _resolveInsertionTarget(globalPosition);
@@ -101,7 +102,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     final renderObject = viewerContext?.findRenderObject();
     if (renderObject is! RenderBox) return null;
 
-    final localPosition = renderObject.globalToLocal(globalPosition);
+    final localPosition =
+        renderObject.globalToLocal(globalPosition).translate(_notationHorizontalScrollOffset, 0);
     final part = _editorState.score.parts.isEmpty ? null : _editorState.score.parts.first;
     final measures = part?.measures ?? const [];
     if (measures.isEmpty) return null;
@@ -196,13 +198,33 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
     final pitch = _pitchForY(localY, lineYs);
     if (pitch == null) return null;
+    final clampedPitch = _clampToDemoTrebleRange(pitch);
     final spec = _durationFor(symbol);
     return Note(
-      step: pitch.step,
-      octave: pitch.octave,
+      step: clampedPitch.step,
+      octave: clampedPitch.octave,
       duration: spec.divisions,
       type: spec.type,
     );
+  }
+
+  Pitch _clampToDemoTrebleRange(Pitch pitch) {
+    const minPitch = Pitch(step: 'C', octave: 4);
+    const maxPitch = Pitch(step: 'G', octave: 5);
+    if (_comparePitch(pitch, minPitch) < 0) return minPitch;
+    if (_comparePitch(pitch, maxPitch) > 0) return maxPitch;
+    return pitch;
+  }
+
+  int _comparePitch(Pitch left, Pitch right) {
+    const steps = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+    final leftIndex = steps.indexOf(left.step.toUpperCase());
+    final rightIndex = steps.indexOf(right.step.toUpperCase());
+    final normalizedLeft = leftIndex < 0 ? 0 : leftIndex;
+    final normalizedRight = rightIndex < 0 ? 0 : rightIndex;
+    final leftAbsolute = (left.octave * steps.length) + normalizedLeft;
+    final rightAbsolute = (right.octave * steps.length) + normalizedRight;
+    return leftAbsolute.compareTo(rightAbsolute);
   }
 
   editor_actions.DurationSpec _durationFor(MusicalSymbol symbol) {
@@ -330,6 +352,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       selectedMeasureIndex: _editorState.selectedMeasureIndex,
                       selectedSymbolIndex: _editorState.selectedSymbolIndex,
                       insertionFeedback: _dropInsertionFeedback,
+                      onHorizontalScrollOffsetChanged: (offset) {
+                        _notationHorizontalScrollOffset = offset;
+                      },
                       onSymbolTap: (target) {
                         if (target == null) {
                           _updateState((state) => _clearSymbolSelection(state));

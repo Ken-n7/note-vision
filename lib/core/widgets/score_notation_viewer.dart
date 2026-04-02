@@ -24,6 +24,7 @@ class ScoreNotationViewer extends StatefulWidget {
     this.onSymbolTap,
     this.onSymbolReorder,
     this.insertionFeedback,
+    this.onHorizontalScrollOffsetChanged,
   });
 
   final Score? score;
@@ -37,6 +38,7 @@ class ScoreNotationViewer extends StatefulWidget {
   final ValueChanged<NotationSymbolTarget?>? onSymbolTap;
   final ValueChanged<NotationSymbolReorder>? onSymbolReorder;
   final NotationInsertionFeedback? insertionFeedback;
+  final ValueChanged<double>? onHorizontalScrollOffsetChanged;
 
   @override
   State<ScoreNotationViewer> createState() => _ScoreNotationViewerState();
@@ -49,9 +51,20 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   _NotationDragSession? _dragSession;
 
   @override
+  void initState() {
+    super.initState();
+    _horizontalController.addListener(_notifyHorizontalOffset);
+  }
+
+  @override
   void dispose() {
+    _horizontalController.removeListener(_notifyHorizontalOffset);
     _horizontalController.dispose();
     super.dispose();
+  }
+
+  void _notifyHorizontalOffset() {
+    widget.onHorizontalScrollOffsetChanged?.call(_horizontalController.offset);
   }
 
   @override
