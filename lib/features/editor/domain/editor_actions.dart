@@ -231,6 +231,33 @@ extension EditorActions on EditorState {
     );
   }
 
+  EditorState insertSymbolAtMeasureIndex({
+    required int measureIndex,
+    required int insertIndex,
+    required ScoreSymbol symbol,
+  }) {
+    if (score.parts.isEmpty) return this;
+    const partIndex = 0;
+    final measures = score.parts[partIndex].measures;
+    if (measureIndex < 0 || measureIndex >= measures.length) return this;
+    if (insertIndex < 0 || insertIndex > measures[measureIndex].symbols.length) return this;
+
+    final nextScore = score.insertSymbolAt(
+      partIndex,
+      measureIndex,
+      insertIndex,
+      symbol,
+    );
+
+    return applyEdit(
+      score: nextScore,
+      selectedPartIndex: partIndex,
+      selectedMeasureIndex: measureIndex,
+      selectedSymbolIndex: insertIndex,
+      selectedSymbol: symbol,
+    );
+  }
+
   EditorState _replaceSelectedSymbol(ScoreSymbol symbol) {
     final partIndex = selectedPartIndex!;
     final measureIndex = selectedMeasureIndex!;

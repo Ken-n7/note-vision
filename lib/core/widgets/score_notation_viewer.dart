@@ -23,6 +23,8 @@ class ScoreNotationViewer extends StatefulWidget {
     this.selectedSymbolIndex,
     this.onSymbolTap,
     this.onSymbolReorder,
+    this.canAcceptExternalDrop,
+    this.onExternalDrop,
   });
 
   final Score? score;
@@ -35,6 +37,8 @@ class ScoreNotationViewer extends StatefulWidget {
   final int? selectedSymbolIndex;
   final ValueChanged<NotationSymbolTarget?>? onSymbolTap;
   final ValueChanged<NotationSymbolReorder>? onSymbolReorder;
+  final bool Function(Object data)? canAcceptExternalDrop;
+  final void Function(NotationInsertTarget target, Object data)? onExternalDrop;
 
   @override
   State<ScoreNotationViewer> createState() => _ScoreNotationViewerState();
@@ -45,6 +49,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   final NotationLayoutCalculator _layoutCalculator =
       const NotationLayoutCalculator();
   _NotationDragSession? _dragSession;
+  NotationInsertTarget? _externalInsertTarget;
 
   @override
   void dispose() {
@@ -72,6 +77,43 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
       backgroundColor: widget.backgroundColor,
       horizontalController: _horizontalController,
       size: layout.size,
+      canAcceptExternalData: widget.canAcceptExternalDrop,
+      onExternalDragMove: (position, data) {
+        if (widget.canAcceptExternalDrop?.call(data) == false) return;
+        final adjusted = _adjustForHorizontalScroll(position);
+        final target = _resolveInsertTarget(
+          measures: measures,
+          layout: layout,
+          position: adjusted,
+        );
+        if (target == _externalInsertTarget) return;
+        setState(() {
+          _externalInsertTarget = target;
+        });
+      },
+      onExternalDragLeave: () {
+        if (_externalInsertTarget == null) return;
+        setState(() {
+          _externalInsertTarget = null;
+        });
+      },
+      onExternalAccept: (position, data) {
+        if (widget.canAcceptExternalDrop?.call(data) == false) return;
+        final adjusted = _adjustForHorizontalScroll(position);
+        final target = _resolveInsertTarget(
+          measures: measures,
+          layout: layout,
+          position: adjusted,
+        );
+        if (target != null) {
+          widget.onExternalDrop?.call(target, data);
+        }
+        if (_externalInsertTarget != null) {
+          setState(() {
+            _externalInsertTarget = null;
+          });
+        }
+      },
       onTapUp: widget.onSymbolTap == null
           ? null
           : (position) {
@@ -117,6 +159,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
                 targetSymbolIndex: _dragSession!.toSymbolIndex,
                 dragX: _dragSession!.dragPosition.dx,
               ),
+        insertionTarget: _externalInsertTarget,
       ),
     );
   }
@@ -240,6 +283,70 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     return insertIndex.clamp(0, symbolCount - 1);
   }
 
+  NotationInsertTarget? _resolveInsertTarget({
+    required List<Measure> measures,
+    required NotationLayout layout,
+    required Offset position,
+  }) {
+    final rowCount = (measures.length / layout.measuresPerRow).ceil();
+    final contentStartX = widget.padding.left + layout.rowPrefixWidth;
+    const innerPadding = 16.0;
+
+    for (var rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+      final rowStartMeasure = rowIndex * layout.measuresPerRow;
+      final rowEndExclusive =
+          (rowStartMeasure + layout.measuresPerRow).clamp(0, measures.length).toInt();
+      if (rowStartMeasure >= rowEndExclusive) continue;
+
+      final staffTop = widget.padding.top + rowIndex * widget.rowHeight + 28;
+      final staffBottom = staffTop + ScoreNotationPainter.staffLineSpacing * 4;
+      final isWithinRowBand = position.dy >= (staffTop - 28) && position.dy <= (staffBottom + 28);
+      if (!isWithinRowBand) continue;
+
+      for (var measureInRow = 0; measureInRow < rowEndExclusive - rowStartMeasure; measureInRow++) {
+        final absoluteMeasureIndex = rowStartMeasure + measureInRow;
+        final measureStartX = contentStartX + (measureInRow * widget.minMeasureWidth);
+        final measureEndX = measureStartX + widget.minMeasureWidth;
+        if (position.dx < measureStartX || position.dx > measureEndX) continue;
+
+        final measure = measures[absoluteMeasureIndex];
+        final drawableWidth = ((measureEndX - measureStartX) - (innerPadding * 2))
+            .clamp(12.0, double.infinity)
+            .toDouble();
+        final clampedX = position.dx
+            .clamp(measureStartX + innerPadding, measureEndX - innerPadding)
+            .toDouble();
+        final symbolCount = measure.symbols.length;
+        var insertIndex = 0;
+
+        for (var i = 0; i < symbolCount; i++) {
+          final progress = (i + 1) / (symbolCount + 1);
+          final symbolX = measureStartX + innerPadding + (drawableWidth * progress);
+          if (clampedX > symbolX) {
+            insertIndex++;
+          }
+        }
+
+        final indicatorProgress = (insertIndex + 1) / (symbolCount + 2);
+        final indicatorX = measureStartX + innerPadding + (drawableWidth * indicatorProgress);
+        final pitch = StaffPitchMapper.pitchForY(
+          y: position.dy,
+          bottomLineY: staffBottom,
+          lineSpacing: ScoreNotationPainter.staffLineSpacing,
+        );
+
+        return NotationInsertTarget(
+          measureIndex: absoluteMeasureIndex,
+          insertIndex: insertIndex,
+          indicatorX: indicatorX,
+          step: pitch.step,
+          octave: pitch.octave,
+        );
+      }
+    }
+    return null;
+  }
+
   Offset _adjustForHorizontalScroll(Offset position) {
     return position.translate(
       _horizontalController.hasClients ? _horizontalController.offset : 0,
@@ -281,6 +388,10 @@ class _NotationCanvasFrame extends StatelessWidget {
     this.onLongPressMoveUpdate,
     this.onLongPressEnd,
     this.onLongPressCancel,
+    this.canAcceptExternalData,
+    this.onExternalDragMove,
+    this.onExternalDragLeave,
+    this.onExternalAccept,
   });
 
   final Color backgroundColor;
@@ -292,31 +403,54 @@ class _NotationCanvasFrame extends StatelessWidget {
   final ValueChanged<Offset>? onLongPressMoveUpdate;
   final ValueChanged<Offset>? onLongPressEnd;
   final VoidCallback? onLongPressCancel;
+  final bool Function(Object data)? canAcceptExternalData;
+  final void Function(Offset position, Object data)? onExternalDragMove;
+  final VoidCallback? onExternalDragLeave;
+  final void Function(Offset position, Object data)? onExternalAccept;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapUp: onTapUp == null ? null : (details) => onTapUp!(details.localPosition),
-        onLongPressStart: onLongPressStart == null
-            ? null
-            : (details) => onLongPressStart!(details.localPosition),
-        onLongPressMoveUpdate: onLongPressMoveUpdate == null
-            ? null
-            : (details) => onLongPressMoveUpdate!(details.localPosition),
-        onLongPressEnd:
-            onLongPressEnd == null ? null : (details) => onLongPressEnd!(details.localPosition),
-        onLongPressCancel: onLongPressCancel,
-        child: SingleChildScrollView(
-          controller: horizontalController,
-          scrollDirection: Axis.horizontal,
-          child: CustomPaint(size: size, painter: painter),
+    return DragTarget<Object>(
+      onWillAcceptWithDetails: (details) {
+        if (canAcceptExternalData == null) return false;
+        return canAcceptExternalData!(details.data);
+      },
+      onMove: (details) {
+        if (onExternalDragMove == null) return;
+        final box = context.findRenderObject() as RenderBox?;
+        if (box == null) return;
+        onExternalDragMove!(box.globalToLocal(details.offset), details.data);
+      },
+      onLeave: (_) => onExternalDragLeave?.call(),
+      onAcceptWithDetails: (details) {
+        if (onExternalAccept == null) return;
+        final box = context.findRenderObject() as RenderBox?;
+        if (box == null) return;
+        onExternalAccept!(box.globalToLocal(details.offset), details.data);
+      },
+      builder: (context, _, __) => Container(
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapUp: onTapUp == null ? null : (details) => onTapUp!(details.localPosition),
+          onLongPressStart: onLongPressStart == null
+              ? null
+              : (details) => onLongPressStart!(details.localPosition),
+          onLongPressMoveUpdate: onLongPressMoveUpdate == null
+              ? null
+              : (details) => onLongPressMoveUpdate!(details.localPosition),
+          onLongPressEnd:
+              onLongPressEnd == null ? null : (details) => onLongPressEnd!(details.localPosition),
+          onLongPressCancel: onLongPressCancel,
+          child: SingleChildScrollView(
+            controller: horizontalController,
+            scrollDirection: Axis.horizontal,
+            child: CustomPaint(size: size, painter: painter),
+          ),
         ),
       ),
     );

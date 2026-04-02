@@ -21,6 +21,7 @@ class ScoreNotationPainter extends CustomPainter {
     this.selectedMeasureIndex,
     this.selectedSymbolIndex,
     this.dragFeedback,
+    this.insertionTarget,
   });
 
   final List<Measure> measures;
@@ -32,6 +33,7 @@ class ScoreNotationPainter extends CustomPainter {
   final int? selectedMeasureIndex;
   final int? selectedSymbolIndex;
   final NotationDragFeedback? dragFeedback;
+  final NotationInsertTarget? insertionTarget;
 
   static const double staffLineSpacing = 12;
   static const double tapTargetSize = 24;
@@ -276,6 +278,21 @@ class ScoreNotationPainter extends CustomPainter {
     required double staffTop,
     required double staffBottom,
   }) {
+    final insertTarget = insertionTarget;
+    if (insertTarget != null && insertTarget.measureIndex == absoluteMeasureIndex) {
+      final linePaint = Paint()
+        ..color = const Color(0xFF60A5FA)
+        ..strokeWidth = 2.0;
+      final x = insertTarget.indicatorX
+          .clamp(measureStartX + 2, measureEndX - 2)
+          .toDouble();
+      canvas.drawLine(
+        Offset(x, staffTop - 8),
+        Offset(x, staffBottom + 8),
+        linePaint,
+      );
+    }
+
     if (measure.symbols.isEmpty) return;
 
     final symbolCount = measure.symbols.length;
@@ -652,7 +669,8 @@ class ScoreNotationPainter extends CustomPainter {
         oldDelegate.rowPrefixWidth != rowPrefixWidth ||
         oldDelegate.selectedMeasureIndex != selectedMeasureIndex ||
         oldDelegate.selectedSymbolIndex != selectedSymbolIndex ||
-        oldDelegate.dragFeedback != dragFeedback;
+        oldDelegate.dragFeedback != dragFeedback ||
+        oldDelegate.insertionTarget != insertionTarget;
   }
 }
 
@@ -699,6 +717,41 @@ class NotationDragFeedback {
       draggedSymbolIndex.hashCode ^
       targetSymbolIndex.hashCode ^
       dragX.hashCode;
+}
+
+class NotationInsertTarget {
+  const NotationInsertTarget({
+    required this.measureIndex,
+    required this.insertIndex,
+    required this.indicatorX,
+    required this.step,
+    required this.octave,
+  });
+
+  final int measureIndex;
+  final int insertIndex;
+  final double indicatorX;
+  final String step;
+  final int octave;
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is NotationInsertTarget &&
+        other.measureIndex == measureIndex &&
+        other.insertIndex == insertIndex &&
+        other.indicatorX == indicatorX &&
+        other.step == step &&
+        other.octave == octave;
+  }
+
+  @override
+  int get hashCode =>
+      measureIndex.hashCode ^
+      insertIndex.hashCode ^
+      indicatorX.hashCode ^
+      step.hashCode ^
+      octave.hashCode;
 }
 
 class _RowMetrics {

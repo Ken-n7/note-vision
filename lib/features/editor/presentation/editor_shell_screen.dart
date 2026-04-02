@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/models/score_symbol.dart';
+import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/theme/responsive_layout.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
@@ -71,6 +73,57 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     });
   }
 
+  void _onPaletteDrop(NotationInsertTarget target, Object data) {
+    if (data is! PaletteDragData) return;
+    final symbol = _buildDroppedSymbol(data.type, target);
+    _updateState(
+      (state) => state.insertSymbolAtMeasureIndex(
+        measureIndex: target.measureIndex,
+        insertIndex: target.insertIndex,
+        symbol: symbol,
+      ),
+    );
+  }
+
+  ScoreSymbol _buildDroppedSymbol(PaletteSymbolType type, NotationInsertTarget target) {
+    switch (type) {
+      case PaletteSymbolType.wholeNote:
+        return Note(
+          step: target.step,
+          octave: target.octave.clamp(1, 7).toInt(),
+          duration: 4,
+          type: 'whole',
+        );
+      case PaletteSymbolType.halfNote:
+        return Note(
+          step: target.step,
+          octave: target.octave.clamp(1, 7).toInt(),
+          duration: 2,
+          type: 'half',
+        );
+      case PaletteSymbolType.quarterNote:
+        return Note(
+          step: target.step,
+          octave: target.octave.clamp(1, 7).toInt(),
+          duration: 1,
+          type: 'quarter',
+        );
+      case PaletteSymbolType.eighthNote:
+        return Note(
+          step: target.step,
+          octave: target.octave.clamp(1, 7).toInt(),
+          duration: 1,
+          type: 'eighth',
+        );
+      case PaletteSymbolType.wholeRest:
+        return const Rest(duration: 4, type: 'whole');
+      case PaletteSymbolType.halfRest:
+        return const Rest(duration: 2, type: 'half');
+      case PaletteSymbolType.quarterRest:
+        return const Rest(duration: 1, type: 'quarter');
+    }
+  }
+
   EditorState _withDefaultMeasureContext(EditorState state) {
     if (state.selectedPartIndex != null && state.selectedMeasureIndex != null) {
       return state;
@@ -124,6 +177,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                     score: _editorState.score,
                     selectedMeasureIndex: _editorState.selectedMeasureIndex,
                     selectedSymbolIndex: _editorState.selectedSymbolIndex,
+                    canAcceptExternalDrop: (data) => data is PaletteDragData,
+                    onExternalDrop: _onPaletteDrop,
                     onSymbolTap: (target) {
                       if (target == null) {
                         _updateState((state) => _clearSymbolSelection(state));

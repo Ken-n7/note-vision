@@ -31,4 +31,26 @@ class StaffPitchMapper {
     final offset = offsetFromTrebleBottomLine(step: step, octave: octave);
     return bottomLineY - (offset * (lineSpacing / 2));
   }
+
+  static StaffPitch pitchForY({
+    required double y,
+    required double bottomLineY,
+    required double lineSpacing,
+  }) {
+    const e4Index = 2;
+    const e4Absolute = 4 * 7 + e4Index;
+
+    final offset = ((bottomLineY - y) / (lineSpacing / 2)).round();
+    final absolute = e4Absolute + offset;
+    final stepIndex = ((absolute % _steps.length) + _steps.length) % _steps.length;
+    final octave = (absolute - stepIndex) ~/ _steps.length;
+    return StaffPitch(step: _steps[stepIndex], octave: octave);
+  }
+}
+
+class StaffPitch {
+  const StaffPitch({required this.step, required this.octave});
+
+  final String step;
+  final int octave;
 }

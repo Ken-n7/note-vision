@@ -91,6 +91,85 @@ void main() {
     expect(draggables, findsNWidgets(7));
   });
 
+  testWidgets('dropping palette note inserts by drop and undo restores previous state', (
+    tester,
+  ) async {
+    final score = buildScore(withSymbols: false);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EditorShellScreen(
+          args: EditorShellArgs(
+            score: score,
+            initialState: EditorState(score: score),
+          ),
+        ),
+      ),
+    );
+
+    await _dragPaletteItemToNotation(
+      tester,
+      label: 'Quarter',
+      dropOffset: const Offset(88, 92),
+    );
+
+    expect(find.text('Note'), findsOneWidget);
+    expect(find.text('None'), findsNothing);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Undo'));
+    await tester.pumpAndSettle();
+    expect(find.text('None'), findsOneWidget);
+  });
+
+  testWidgets('dropping rest inserts rest and ignores pitch mapping', (tester) async {
+    final score = buildScore(withSymbols: false);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EditorShellScreen(
+          args: EditorShellArgs(
+            score: score,
+            initialState: EditorState(score: score),
+          ),
+        ),
+      ),
+    );
+
+    await _dragPaletteItemToNotation(
+      tester,
+      label: 'H Rest',
+      dropOffset: const Offset(106, 68),
+    );
+
+    expect(find.text('Rest'), findsOneWidget);
+    expect(find.text('—'), findsWidgets);
+  });
+
+  testWidgets('dropping outside measure boundary is ignored', (tester) async {
+    final score = buildScore(withSymbols: false);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EditorShellScreen(
+          args: EditorShellArgs(
+            score: score,
+            initialState: EditorState(score: score),
+          ),
+        ),
+      ),
+    );
+
+    await _dragPaletteItemToNotation(
+      tester,
+      label: 'Quarter',
+      dropOffset: const Offset(16, 92),
+    );
+
+    expect(find.text('None'), findsOneWidget);
+    expect(find.text('Note'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('keeps insert actions enabled with default measure context', (
     tester,
   ) async {
@@ -263,6 +342,26 @@ void main() {
     expect(symbolLabelRect.left, greaterThan(notationRect.right));
     expect(tester.takeException(), isNull);
   });
+}
+
+Future<void> _dragPaletteItemToNotation(
+  WidgetTester tester, {
+  required String label,
+  required Offset dropOffset,
+}) async {
+  final paletteItem = find.descendant(
+    of: find.byKey(const ValueKey('symbol-palette')),
+    matching: find.text(label),
+  );
+  expect(paletteItem, findsOneWidget);
+
+  final notationOrigin = tester.getTopLeft(find.byType(ScoreNotationViewer));
+  final gesture = await tester.startGesture(tester.getCenter(paletteItem));
+  await tester.pump(kLongPressTimeout + const Duration(milliseconds: 20));
+  await gesture.moveTo(notationOrigin + dropOffset);
+  await tester.pump();
+  await gesture.up();
+  await tester.pumpAndSettle();
 }
 
 Offset _symbolCenterOffset(
