@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/theme/responsive_layout.dart';
 import 'package:note_vision/features/musicxml_inspector/music_inspector_screen.dart';
-import '../../../features/collection/presentation/collection_screen.dart';
 import 'package:note_vision/features/landing/presentation/onboarding_screen.dart';
 
 class LandingScreen extends StatefulWidget {
