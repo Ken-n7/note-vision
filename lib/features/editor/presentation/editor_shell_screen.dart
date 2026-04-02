@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/rest.dart';
@@ -30,9 +31,15 @@ class EditorShellScreen extends StatefulWidget {
   State<EditorShellScreen> createState() => _EditorShellScreenState();
 }
 
+enum _BottomPanelTab { tools, symbols, file }
+
 class _EditorShellScreenState extends State<EditorShellScreen> {
   late EditorState _editorState;
   double _canvasZoom = 1.0;
+  _BottomPanelTab? _activeBottomTab;
+  double _scaleStartZoom = 1.0;
+  bool _showZoomBadge = false;
+  Timer? _zoomBadgeTimer;
 
   @override
   void initState() {
@@ -147,10 +154,25 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     );
   }
 
-  void _changeZoom(double delta) {
-    setState(() {
-      _canvasZoom = (_canvasZoom + delta).clamp(0.75, 2.0).toDouble();
+  void _showZoomIndicator() {
+    setState(() => _showZoomBadge = true);
+    _zoomBadgeTimer?.cancel();
+    _zoomBadgeTimer = Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      setState(() => _showZoomBadge = false);
     });
+  }
+
+  void _togglePanel(_BottomPanelTab tab) {
+    setState(() {
+      _activeBottomTab = _activeBottomTab == tab ? null : tab;
+    });
+  }
+
+  @override
+  void dispose() {
+    _zoomBadgeTimer?.cancel();
+    super.dispose();
   }
 
   @override
@@ -170,9 +192,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             final horizontalPadding = ResponsiveLayout.horizontalPadding(constraints.maxWidth);
-            final isLandscape = constraints.maxWidth > constraints.maxHeight;
-            final controlPanelWidth = (constraints.maxWidth * 0.32).clamp(280.0, 360.0);
-            final baseMeasureWidth = math.max(140.0, constraints.maxWidth * (isLandscape ? 0.35 : 0.58));
+            final baseMeasureWidth = math.max(140.0, constraints.maxWidth * 0.58);
             final notationPanel = Container(
               decoration: BoxDecoration(
                 color: AppColors.surface,
@@ -211,26 +231,50 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
             );
 
 
-            final notationWithPalette = Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: _ZoomControls(
-                      zoomPercent: (_canvasZoom * 100).round(),
-                      onZoomOut: _canvasZoom > 0.75 ? () => _changeZoom(-0.1) : null,
-                      onZoomIn: _canvasZoom < 2.0 ? () => _changeZoom(0.1) : null,
+            final canvasView = GestureDetector(
+              onScaleStart: (details) {
+                _scaleStartZoom = _canvasZoom;
+              },
+              onScaleUpdate: (details) {
+                if (details.pointerCount < 2) return;
+                setState(() {
+                  _canvasZoom = (_scaleStartZoom * details.scale).clamp(0.75, 2.0).toDouble();
+                });
+                _showZoomIndicator();
+              },
+              child: Stack(
+                children: [
+                  Positioned.fill(child: notationPanel),
+                  Positioned(
+                    top: 10,
+                    right: 10,
+                    child: AnimatedOpacity(
+                      opacity: _showZoomBadge ? 0.9 : 0.25,
+                      duration: const Duration(milliseconds: 220),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceAlt.withValues(alpha: 0.88),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Text(
+                          '${(_canvasZoom * 100).round()}%',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                ),
-                Expanded(child: notationPanel),
-                SymbolPalette(isCompact: constraints.maxWidth < 520),
-              ],
+                ],
+              ),
             );
 
             final statusStrip = _StatusStrip(
-              horizontalPadding: isLandscape ? 0 : horizontalPadding,
+              horizontalPadding: 0,
               symbolType: selected == null ? 'None' : selected is Note ? 'Note' : 'Rest',
               pitch: selected is Note ? selected.pitch : '—',
               durationType: selected == null
@@ -264,7 +308,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
             );
 
             final actionBar = _EditorActionBar(
-              horizontalPadding: isLandscape ? 0 : horizontalPadding,
+              horizontalPadding: 0,
               hasSelection: hasSelection,
               hasMeasureContext: hasMeasureContext,
               canUndo: _editorState.canUndo,
@@ -297,32 +341,37 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 Expanded(
                   child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-                    child: isLandscape
-                        ? Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(child: notationWithPalette),
-                              const SizedBox(width: 12),
-                              SizedBox(
-                                width: controlPanelWidth,
-                                child: SingleChildScrollView(
-                                  child: Column(
-                                    children: [
-                                      statusStrip,
-                                      actionBar,
-                                    ],
-                                  ),
-                                ),
+                    child: Column(
+                      children: [
+                        Expanded(child: canvasView),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 220),
+                          child: _BottomPanelHost(
+                            key: ValueKey(_activeBottomTab),
+                            activeTab: _activeBottomTab,
+                            toolsPanel: SingleChildScrollView(
+                              child: Column(
+                                children: [
+                                  statusStrip,
+                                  actionBar,
+                                ],
                               ),
-                            ],
-                          )
-                        : Column(
-                            children: [
-                              Expanded(child: notationWithPalette),
-                              statusStrip,
-                              actionBar,
-                            ],
+                            ),
+                            symbolsPanel: SymbolPalette(isCompact: constraints.maxWidth < 520),
+                            filePanel: _FilePanel(
+                              onSave: () {},
+                              onExport: () {},
+                            ),
                           ),
+                        ),
+                        _BottomTabBar(
+                          activeTab: _activeBottomTab,
+                          onTapTools: () => _togglePanel(_BottomPanelTab.tools),
+                          onTapSymbols: () => _togglePanel(_BottomPanelTab.symbols),
+                          onTapFile: () => _togglePanel(_BottomPanelTab.file),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -400,31 +449,6 @@ class _EditorHeader extends StatelessWidget {
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    alignment: WrapAlignment.end,
-                    children: [
-                      FilledButton.icon(
-                        onPressed: () {},
-                        icon: const Icon(Icons.save_outlined, size: 18),
-                        label: const Text('Save'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: () {},
-                        icon: const Icon(Icons.ios_share_outlined, size: 16),
-                        label: const Text('Export'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.textPrimary,
-                          side: const BorderSide(color: AppColors.border),
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ],
             ),
@@ -550,50 +574,165 @@ class _StatusItem extends StatelessWidget {
   }
 }
 
-class _ZoomControls extends StatelessWidget {
-  const _ZoomControls({
-    required this.zoomPercent,
-    required this.onZoomOut,
-    required this.onZoomIn,
+class _BottomPanelHost extends StatelessWidget {
+  const _BottomPanelHost({
+    super.key,
+    required this.activeTab,
+    required this.toolsPanel,
+    required this.symbolsPanel,
+    required this.filePanel,
   });
 
-  final int zoomPercent;
-  final VoidCallback? onZoomOut;
-  final VoidCallback? onZoomIn;
+  final _BottomPanelTab? activeTab;
+  final Widget toolsPanel;
+  final Widget symbolsPanel;
+  final Widget filePanel;
+
+  @override
+  Widget build(BuildContext context) {
+    if (activeTab == null) return const SizedBox.shrink();
+
+    Widget child;
+    switch (activeTab!) {
+      case _BottomPanelTab.tools:
+        child = toolsPanel;
+        break;
+      case _BottomPanelTab.symbols:
+        child = symbolsPanel;
+        break;
+      case _BottomPanelTab.file:
+        child = filePanel;
+        break;
+    }
+
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 300),
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceAlt,
+        border: Border(
+          top: BorderSide(color: AppColors.border),
+        ),
+      ),
+      child: child,
+    );
+  }
+}
+
+class _BottomTabBar extends StatelessWidget {
+  const _BottomTabBar({
+    required this.activeTab,
+    required this.onTapTools,
+    required this.onTapSymbols,
+    required this.onTapFile,
+  });
+
+  final _BottomPanelTab? activeTab;
+  final VoidCallback onTapTools;
+  final VoidCallback onTapSymbols;
+  final VoidCallback onTapFile;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
+      height: 64,
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.border)),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            icon: const Icon(Icons.remove, size: 16),
-            visualDensity: VisualDensity.compact,
-            splashRadius: 14,
-            onPressed: onZoomOut,
-            tooltip: 'Zoom out',
-          ),
-          Text(
-            'Zoom $zoomPercent%',
-            style: const TextStyle(
-              fontSize: 11,
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w600,
+          Expanded(
+            child: _BottomTabButton(
+              label: 'Tools',
+              icon: Icons.build_outlined,
+              isActive: activeTab == _BottomPanelTab.tools,
+              onPressed: onTapTools,
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.add, size: 16),
-            visualDensity: VisualDensity.compact,
-            splashRadius: 14,
-            onPressed: onZoomIn,
-            tooltip: 'Zoom in',
+          const SizedBox(width: 8),
+          Expanded(
+            child: _BottomTabButton(
+              label: 'Symbols',
+              icon: Icons.music_note_outlined,
+              isActive: activeTab == _BottomPanelTab.symbols,
+              onPressed: onTapSymbols,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _BottomTabButton(
+              label: 'File',
+              icon: Icons.folder_open_outlined,
+              isActive: activeTab == _BottomPanelTab.file,
+              onPressed: onTapFile,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BottomTabButton extends StatelessWidget {
+  const _BottomTabButton({
+    required this.label,
+    required this.icon,
+    required this.isActive,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool isActive;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 16),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        backgroundColor: isActive ? AppColors.accent.withValues(alpha: 0.14) : AppColors.surfaceAlt,
+        foregroundColor: AppColors.textPrimary,
+        side: BorderSide(color: isActive ? AppColors.accent : AppColors.border),
+      ),
+    );
+  }
+}
+
+class _FilePanel extends StatelessWidget {
+  const _FilePanel({required this.onSave, required this.onExport});
+
+  final VoidCallback onSave;
+  final VoidCallback onExport;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: onSave,
+              icon: const Icon(Icons.save_outlined, size: 16),
+              label: const Text('Save'),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: onExport,
+              icon: const Icon(Icons.ios_share_outlined, size: 16),
+              label: const Text('Export'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.textPrimary,
+                side: const BorderSide(color: AppColors.border),
+              ),
+            ),
           ),
         ],
       ),
