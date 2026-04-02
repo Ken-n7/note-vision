@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:note_vision/core/services/user_profile_service.dart';
+import 'package:note_vision/core/widgets/user_avatar.dart';
 
 class CollectionDrawer extends StatelessWidget {
   const CollectionDrawer({super.key});
 
-  // ── Design tokens ──────────────────────────────────────────────────────────
   static const _bg            = Color(0xFF0D0D0D);
-  // static const _surface       = Color(0xFF1A1A1A);
   static const _border        = Color(0xFF2C2C2C);
-  // static const _accent        = Color(0xFFD4A96A);
-  static const _textPrimary   = Color(0xFFFFFFFF);
   static const _textSecondary = Color(0xFF8A8A8A);
 
   @override
@@ -27,39 +25,8 @@ class CollectionDrawer extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Header ───────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Image.asset(
-                      'assets/images/notevision.png',
-                      height: 32,
-                      colorBlendMode: BlendMode.srcIn,
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Note Vision',
-                      style: TextStyle(
-                        fontFamily: 'MaturaMTScriptCapitals',
-                        fontSize: 20,
-                        color: _textPrimary,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Music sheet scanner',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: _textSecondary.withValues(alpha: 0.6),
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              // ── Profile header ───────────────────────────────────────
+              _ProfileHeader(),
 
               // ── Divider ──────────────────────────────────────────────
               Container(
@@ -110,6 +77,71 @@ class CollectionDrawer extends StatelessWidget {
   }
 }
 
+// ─── Profile header ───────────────────────────────────────────────────────────
+
+class _ProfileHeader extends StatelessWidget {
+  static const _textPrimary   = Color(0xFFFFFFFF);
+  static const _textSecondary = Color(0xFF8A8A8A);
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<UserProfile?>(
+      future: UserProfileService.loadProfile(),
+      builder: (context, snapshot) {
+        final profile = snapshot.data;
+        final name    = profile?.name ?? '';
+        final initial = profile?.initial ?? '?';
+        final photo   = profile?.photoPath;
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Avatar ──────────────────────────────────────────────
+              UserAvatar(
+                initial: initial,
+                photoPath: photo,
+                size: 56,
+                borderColor: const Color(0xFF2C2C2C),
+                borderWidth: 2,
+              ),
+
+              const SizedBox(height: 16),
+
+              // ── Name ────────────────────────────────────────────────
+              if (name.isNotEmpty) ...[
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'MaturaMTScriptCapitals',
+                    fontSize: 20,
+                    color: _textPrimary,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 4),
+              ],
+
+              // ── Subtitle ─────────────────────────────────────────────
+              Text(
+                'Music sheet scanner',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: _textSecondary.withValues(alpha: 0.6),
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
 // ─── Drawer item ──────────────────────────────────────────────────────────────
 
 class _DrawerItem extends StatefulWidget {
@@ -130,8 +162,8 @@ class _DrawerItem extends StatefulWidget {
 class _DrawerItemState extends State<_DrawerItem> {
   bool _hovered = false;
 
-  static const _surface = Color(0xFF1A1A1A);
-  static const _accent  = Color(0xFFD4A96A);
+  static const _surface       = Color(0xFF1A1A1A);
+  static const _accent        = Color(0xFFD4A96A);
   static const _textPrimary   = Color(0xFFFFFFFF);
   static const _textSecondary = Color(0xFF8A8A8A);
 

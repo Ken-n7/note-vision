@@ -4,9 +4,11 @@ import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/services/image_storage_service.dart';
+import 'package:note_vision/core/services/user_profile_service.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/theme/responsive_layout.dart';
 import 'package:note_vision/core/widgets/drawer.dart';
+import 'package:note_vision/core/widgets/user_avatar.dart';
 import 'package:note_vision/features/capture/presentation/capture_screen.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
@@ -28,6 +30,7 @@ class _CollectionScreenState extends State<CollectionScreen>
   int _currentIndex = 0;
   List<String> _imagePaths = [];
   bool _isLoading = true;
+  UserProfile? _userProfile;
 
   late final ImageStorageService _service;
   late AnimationController _fadeController;
@@ -50,12 +53,18 @@ class _CollectionScreenState extends State<CollectionScreen>
     _fadeIn = CurvedAnimation(parent: _fadeController, curve: Curves.easeOut);
 
     _loadImages();
+    _loadProfile();
   }
 
   @override
   void dispose() {
     _fadeController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadProfile() async {
+    final profile = await UserProfileService.loadProfile();
+    if (mounted) setState(() => _userProfile = profile);
   }
 
   Future<void> _loadImages() async {
@@ -232,6 +241,70 @@ class _CollectionScreenState extends State<CollectionScreen>
     );
   }
 
+  /// AppBar bottom: shows "MY COLLECTION" label on the left and, if a profile
+  /// is loaded, the username + small avatar on the right.
+  PreferredSizeWidget _buildAppBarBottom(bool isLandscape, double horizontalPadding) {
+    return PreferredSize(
+      preferredSize: Size.fromHeight(isLandscape ? 42 : 48),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          horizontalPadding,
+          0,
+          horizontalPadding,
+          isLandscape ? 8 : 12,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            // ── Left: section label ──────────────────────────────────
+            Text(
+              'MY COLLECTION',
+              style: TextStyle(
+                fontSize: isLandscape ? 10 : 11,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+                letterSpacing: 2.0,
+              ),
+            ),
+
+            // ── Right: username + avatar (replaces old item count) ───
+            if (_userProfile != null)
+              Row(
+                children: [
+                  Text(
+                    _userProfile!.name,
+                    style: TextStyle(
+                      fontSize: isLandscape ? 10 : 11,
+                      color: AppColors.textSecondary,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  UserAvatar(
+                    initial: _userProfile!.initial,
+                    photoPath: _userProfile!.photoPath,
+                    size: 24,
+                    borderColor: const Color(0xFF2A2A2A),
+                    borderWidth: 1.5,
+                  ),
+                ],
+              )
+            else if (!_isLoading && _imagePaths.isNotEmpty)
+              // Fallback: show item count if profile hasn't loaded yet
+              Text(
+                '${_imagePaths.length} items',
+                style: TextStyle(
+                  fontSize: isLandscape ? 10 : 11,
+                  color: AppColors.textSecondary,
+                  letterSpacing: 0.3,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildBottomNav() {
     final items = [
       (Icons.add_circle_outline, 'Add Files'),
@@ -347,35 +420,7 @@ class _CollectionScreenState extends State<CollectionScreen>
           ),
         ),
         centerTitle: true,
-        bottom: PreferredSize(
-          preferredSize: Size.fromHeight(isLandscape ? 42 : 48),
-          child: Padding(
-            padding: EdgeInsets.fromLTRB(horizontalPadding, 0, horizontalPadding, isLandscape ? 8 : 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'MY COLLECTION',
-                  style: TextStyle(
-                    fontSize: isLandscape ? 10 : 11,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textSecondary,
-                    letterSpacing: 2.0,
-                  ),
-                ),
-                if (!_isLoading && _imagePaths.isNotEmpty)
-                  Text(
-                    '${_imagePaths.length} items',
-                    style: TextStyle(
-                      fontSize: isLandscape ? 10 : 11,
-                      color: AppColors.textSecondary,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
+        bottom: _buildAppBarBottom(isLandscape, horizontalPadding),
         actions: [
           Builder(
             builder: (context) => IconButton(
