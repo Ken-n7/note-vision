@@ -12,9 +12,9 @@ class DurationSpec {
   final int divisions;
 }
 
-const DurationSpec wholeDuration = DurationSpec('whole', 4);
-const DurationSpec halfDuration = DurationSpec('half', 2);
-const DurationSpec quarterDuration = DurationSpec('quarter', 1);
+const DurationSpec wholeDuration = DurationSpec('whole', 8);
+const DurationSpec halfDuration = DurationSpec('half', 4);
+const DurationSpec quarterDuration = DurationSpec('quarter', 2);
 const DurationSpec eighthDuration = DurationSpec('eighth', 1);
 
 extension EditorActions on EditorState {
@@ -86,7 +86,7 @@ extension EditorActions on EditorState {
     if (selectedPartIndex == null || selectedMeasureIndex == null) return this;
 
     return _appendToSelectedMeasure(
-      const Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+      const Note(step: 'C', octave: 4, duration: 2, type: 'quarter'),
     );
   }
 
@@ -94,7 +94,7 @@ extension EditorActions on EditorState {
     if (selectedPartIndex == null || selectedMeasureIndex == null) return this;
 
     return _appendToSelectedMeasure(
-      const Rest(duration: 1, type: 'quarter'),
+      const Rest(duration: 2, type: 'quarter'),
     );
   }
 

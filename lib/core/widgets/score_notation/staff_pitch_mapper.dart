@@ -1,34 +1,45 @@
 class StaffPitchMapper {
   static const List<String> _steps = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
-  /// Returns the diatonic step offset from E4 (treble bottom line).
-  ///
-  /// Every +1 offset means one staff step upward (line->space or space->line).
-  ///
-  /// Formula:
-  /// absoluteDiatonic = octave * 7 + stepIndex(C=0..B=6)
-  /// offsetFromE4 = absoluteDiatonic - absoluteDiatonic(E4)
-  static int offsetFromTrebleBottomLine({
+  /// Returns the bottom staff line reference note for a given clef sign.
+  /// - G (treble) clef: bottom line = E4
+  /// - F (bass) clef:   bottom line = G2
+  static ({String step, int octave}) bottomLineRef(String clefSign) {
+    if (clefSign.toUpperCase() == 'F') return (step: 'G', octave: 2);
+    return (step: 'E', octave: 4);
+  }
+
+  /// Returns the diatonic step offset from the bottom line of the given clef.
+  static int offsetFromBottomLine({
     required String step,
     required int octave,
+    String clefSign = 'G',
   }) {
+    final ref = bottomLineRef(clefSign);
     final normalized = step.trim().toUpperCase();
     final stepIndex = _steps.indexOf(normalized);
     if (stepIndex < 0) return 0;
-
-    const e4Index = 2; // E in C D E F G A B.
-    const e4Absolute = 4 * 7 + e4Index;
+    final refIndex = _steps.indexOf(ref.step);
     final absolute = octave * 7 + stepIndex;
-    return absolute - e4Absolute;
+    final refAbsolute = ref.octave * 7 + refIndex;
+    return absolute - refAbsolute;
   }
+
+  /// Legacy name — kept for backward compatibility. Assumes treble clef.
+  static int offsetFromTrebleBottomLine({
+    required String step,
+    required int octave,
+  }) =>
+      offsetFromBottomLine(step: step, octave: octave, clefSign: 'G');
 
   static double yForPitch({
     required String step,
     required int octave,
     required double bottomLineY,
     required double lineSpacing,
+    String clefSign = 'G',
   }) {
-    final offset = offsetFromTrebleBottomLine(step: step, octave: octave);
+    final offset = offsetFromBottomLine(step: step, octave: octave, clefSign: clefSign);
     return bottomLineY - (offset * (lineSpacing / 2));
   }
 
@@ -36,12 +47,14 @@ class StaffPitchMapper {
     required double y,
     required double bottomLineY,
     required double lineSpacing,
+    String clefSign = 'G',
   }) {
-    const e4Index = 2;
-    const e4Absolute = 4 * 7 + e4Index;
+    final ref = bottomLineRef(clefSign);
+    final refIndex = _steps.indexOf(ref.step);
+    final refAbsolute = ref.octave * 7 + refIndex;
 
     final offset = ((bottomLineY - y) / (lineSpacing / 2)).round();
-    final absolute = e4Absolute + offset;
+    final absolute = refAbsolute + offset;
     final stepIndex = ((absolute % _steps.length) + _steps.length) % _steps.length;
     final octave = (absolute - stepIndex) ~/ _steps.length;
     return StaffPitch(step: _steps[stepIndex], octave: octave);

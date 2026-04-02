@@ -22,7 +22,9 @@ class ScoreNotationViewer extends StatefulWidget {
     this.backgroundColor = const Color(0xFFF9FAFB),
     this.selectedMeasureIndex,
     this.selectedSymbolIndex,
+    this.insertMode = false,
     this.onSymbolTap,
+    this.onInsertTap,
     this.onSymbolReorder,
     this.canAcceptExternalDrop,
     this.onExternalDrop,
@@ -36,7 +38,11 @@ class ScoreNotationViewer extends StatefulWidget {
   final Color backgroundColor;
   final int? selectedMeasureIndex;
   final int? selectedSymbolIndex;
+  /// When true, taps resolve to [NotationInsertTarget] via [onInsertTap]
+  /// instead of the normal symbol-selection [onSymbolTap].
+  final bool insertMode;
   final ValueChanged<NotationSymbolTarget?>? onSymbolTap;
+  final ValueChanged<NotationInsertTarget?>? onInsertTap;
   final ValueChanged<NotationSymbolReorder>? onSymbolReorder;
   final bool Function(Object data)? canAcceptExternalDrop;
   final void Function(NotationInsertTarget target, Object data)? onExternalDrop;
@@ -115,23 +121,32 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
           });
         }
       },
-      onTapUp: widget.onSymbolTap == null
+      onTapUp: (widget.onSymbolTap == null && widget.onInsertTap == null)
           ? null
           : (position) {
               final adjusted = position.translate(
                 _horizontalController.hasClients ? _horizontalController.offset : 0,
                 0,
               );
-              final targets = ScoreNotationPainter.buildSymbolTargets(
-                measures: measures,
-                measuresPerRow: layout.measuresPerRow,
-                minMeasureWidth: widget.minMeasureWidth,
-                rowHeight: widget.rowHeight,
-                padding: widget.padding,
-                rowPrefixWidth: layout.rowPrefixWidth,
-              );
-              final tapped = _nearestTarget(adjusted, targets);
-              widget.onSymbolTap?.call(tapped);
+              if (widget.insertMode) {
+                final target = _resolveInsertTarget(
+                  measures: measures,
+                  layout: layout,
+                  position: adjusted,
+                );
+                widget.onInsertTap?.call(target);
+              } else {
+                final targets = ScoreNotationPainter.buildSymbolTargets(
+                  measures: measures,
+                  measuresPerRow: layout.measuresPerRow,
+                  minMeasureWidth: widget.minMeasureWidth,
+                  rowHeight: widget.rowHeight,
+                  padding: widget.padding,
+                  rowPrefixWidth: layout.rowPrefixWidth,
+                );
+                final tapped = _nearestTarget(adjusted, targets);
+                widget.onSymbolTap?.call(tapped);
+              }
             },
       onLongPressStart: widget.onSymbolReorder == null
           ? null
