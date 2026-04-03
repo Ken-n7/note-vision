@@ -4,6 +4,7 @@ import '../models/measure.dart';
 import '../models/score.dart';
 import 'score_notation/notation_layout.dart';
 import 'score_notation/score_notation_painter.dart';
+import 'score_notation/staff_pitch_mapper.dart';
 
 export 'score_notation/staff_pitch_mapper.dart';
 
@@ -21,8 +22,12 @@ class ScoreNotationViewer extends StatefulWidget {
     this.backgroundColor = const Color(0xFFF9FAFB),
     this.selectedMeasureIndex,
     this.selectedSymbolIndex,
+    this.insertMode = false,
     this.onSymbolTap,
+    this.onInsertTap,
     this.onSymbolReorder,
+    this.canAcceptExternalDrop,
+    this.onExternalDrop,
   });
 
   final Score? score;
@@ -33,8 +38,14 @@ class ScoreNotationViewer extends StatefulWidget {
   final Color backgroundColor;
   final int? selectedMeasureIndex;
   final int? selectedSymbolIndex;
+  /// When true, taps resolve to [NotationInsertTarget] via [onInsertTap]
+  /// instead of the normal symbol-selection [onSymbolTap].
+  final bool insertMode;
   final ValueChanged<NotationSymbolTarget?>? onSymbolTap;
+  final ValueChanged<NotationInsertTarget?>? onInsertTap;
   final ValueChanged<NotationSymbolReorder>? onSymbolReorder;
+  final bool Function(Object data)? canAcceptExternalDrop;
+  final void Function(NotationInsertTarget target, Object data)? onExternalDrop;
 
   @override
   State<ScoreNotationViewer> createState() => _ScoreNotationViewerState();
@@ -45,6 +56,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   final NotationLayoutCalculator _layoutCalculator =
       const NotationLayoutCalculator();
   _NotationDragSession? _dragSession;
+  NotationInsertTarget? _externalInsertTarget;
 
   @override
   void dispose() {
@@ -72,23 +84,51 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
       backgroundColor: widget.backgroundColor,
       horizontalController: _horizontalController,
       size: layout.size,
-      onTapUp: widget.onSymbolTap == null
+      canAcceptExternalData: widget.canAcceptExternalDrop,
+      onExternalDragMove: (position, data) {
+        if (widget.canAcceptExternalDrop?.call(data) == false) return;
+        final adjusted = _adjustForHorizontalScroll(position);
+        final target = _resolveInsertTarget(measures: measures, layout: layout, position: adjusted);
+        if (target == _externalInsertTarget) return;
+        setState(() => _externalInsertTarget = target);
+      },
+      onExternalDragLeave: () {
+        if (_externalInsertTarget == null) return;
+        setState(() => _externalInsertTarget = null);
+      },
+      onExternalAccept: (position, data) {
+        if (widget.canAcceptExternalDrop?.call(data) == false) return;
+        final adjusted = _adjustForHorizontalScroll(position);
+        final target = _resolveInsertTarget(measures: measures, layout: layout, position: adjusted);
+        if (target != null) widget.onExternalDrop?.call(target, data);
+        if (_externalInsertTarget != null) setState(() => _externalInsertTarget = null);
+      },
+      onTapUp: (widget.onSymbolTap == null && widget.onInsertTap == null)
           ? null
           : (position) {
               final adjusted = position.translate(
                 _horizontalController.hasClients ? _horizontalController.offset : 0,
                 0,
               );
-              final targets = ScoreNotationPainter.buildSymbolTargets(
-                measures: measures,
-                measuresPerRow: layout.measuresPerRow,
-                minMeasureWidth: widget.minMeasureWidth,
-                rowHeight: widget.rowHeight,
-                padding: widget.padding,
-                rowPrefixWidth: layout.rowPrefixWidth,
-              );
-              final tapped = _nearestTarget(adjusted, targets);
-              widget.onSymbolTap?.call(tapped);
+              if (widget.insertMode) {
+                final target = _resolveInsertTarget(
+                  measures: measures,
+                  layout: layout,
+                  position: adjusted,
+                );
+                widget.onInsertTap?.call(target);
+              } else {
+                final targets = ScoreNotationPainter.buildSymbolTargets(
+                  measures: measures,
+                  measuresPerRow: layout.measuresPerRow,
+                  minMeasureWidth: widget.minMeasureWidth,
+                  rowHeight: widget.rowHeight,
+                  padding: widget.padding,
+                  rowPrefixWidth: layout.rowPrefixWidth,
+                );
+                final tapped = _nearestTarget(adjusted, targets);
+                widget.onSymbolTap?.call(tapped);
+              }
             },
       onLongPressStart: widget.onSymbolReorder == null
           ? null
@@ -117,6 +157,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
                 targetSymbolIndex: _dragSession!.toSymbolIndex,
                 dragX: _dragSession!.dragPosition.dx,
               ),
+        insertionTarget: _externalInsertTarget,
       ),
     );
   }
@@ -264,6 +305,69 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     return best;
   }
 
+  NotationInsertTarget? _resolveInsertTarget({
+    required List<Measure> measures,
+    required NotationLayout layout,
+    required Offset position,
+  }) {
+    final rowCount = (measures.length / layout.measuresPerRow).ceil();
+    final contentStartX = widget.padding.left + layout.rowPrefixWidth;
+    const innerPadding = 16.0;
+
+    for (var rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+      final rowStartMeasure = rowIndex * layout.measuresPerRow;
+      final rowEndExclusive =
+          (rowStartMeasure + layout.measuresPerRow).clamp(0, measures.length).toInt();
+      if (rowStartMeasure >= rowEndExclusive) continue;
+
+      final staffTop = widget.padding.top + rowIndex * widget.rowHeight + 28;
+      final staffBottom = staffTop + ScoreNotationPainter.staffLineSpacing * 4;
+      if (position.dy < staffTop - 28 || position.dy > staffBottom + 28) continue;
+
+      for (var measureInRow = 0; measureInRow < rowEndExclusive - rowStartMeasure; measureInRow++) {
+        final absoluteMeasureIndex = rowStartMeasure + measureInRow;
+        final measureStartX = contentStartX + (measureInRow * widget.minMeasureWidth);
+        final measureEndX = measureStartX + widget.minMeasureWidth;
+        if (position.dx < measureStartX || position.dx > measureEndX) continue;
+
+        final measure = measures[absoluteMeasureIndex];
+        final drawableWidth = ((measureEndX - measureStartX) - (innerPadding * 2))
+            .clamp(12.0, double.infinity)
+            .toDouble();
+        final clampedX = position.dx
+            .clamp(measureStartX + innerPadding, measureEndX - innerPadding)
+            .toDouble();
+        final symbolCount = measure.symbols.length;
+        var insertIndex = 0;
+
+        for (var i = 0; i < symbolCount; i++) {
+          final progress = (i + 1) / (symbolCount + 1);
+          final symbolX = measureStartX + innerPadding + (drawableWidth * progress);
+          if (clampedX > symbolX) insertIndex++;
+        }
+
+        final indicatorProgress = (insertIndex + 1) / (symbolCount + 2);
+        final indicatorX = measureStartX + innerPadding + (drawableWidth * indicatorProgress);
+        final clefSign = measure.clef?.sign ?? 'G';
+        final pitch = StaffPitchMapper.pitchForY(
+          y: position.dy,
+          bottomLineY: staffBottom,
+          lineSpacing: ScoreNotationPainter.staffLineSpacing,
+          clefSign: clefSign,
+        );
+
+        return NotationInsertTarget(
+          measureIndex: absoluteMeasureIndex,
+          insertIndex: insertIndex,
+          indicatorX: indicatorX,
+          step: pitch.step,
+          octave: pitch.octave,
+        );
+      }
+    }
+    return null;
+  }
+
   List<Measure> _measuresFor(Score? score) {
     final part = (score?.parts.isNotEmpty ?? false) ? score!.parts.first : null;
     return part?.measures ?? const <Measure>[];
@@ -281,6 +385,10 @@ class _NotationCanvasFrame extends StatelessWidget {
     this.onLongPressMoveUpdate,
     this.onLongPressEnd,
     this.onLongPressCancel,
+    this.canAcceptExternalData,
+    this.onExternalDragMove,
+    this.onExternalDragLeave,
+    this.onExternalAccept,
   });
 
   final Color backgroundColor;
@@ -292,10 +400,14 @@ class _NotationCanvasFrame extends StatelessWidget {
   final ValueChanged<Offset>? onLongPressMoveUpdate;
   final ValueChanged<Offset>? onLongPressEnd;
   final VoidCallback? onLongPressCancel;
+  final bool Function(Object data)? canAcceptExternalData;
+  final void Function(Offset position, Object data)? onExternalDragMove;
+  final VoidCallback? onExternalDragLeave;
+  final void Function(Offset position, Object data)? onExternalAccept;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final canvas = Container(
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(10),
@@ -319,6 +431,27 @@ class _NotationCanvasFrame extends StatelessWidget {
           child: CustomPaint(size: size, painter: painter),
         ),
       ),
+    );
+
+    if (canAcceptExternalData == null) return canvas;
+
+    return DragTarget<Object>(
+      onWillAcceptWithDetails: (details) =>
+          canAcceptExternalData?.call(details.data) ?? false,
+      onMove: (details) {
+        if (onExternalDragMove == null) return;
+        final box = context.findRenderObject() as RenderBox?;
+        if (box == null) return;
+        onExternalDragMove!(box.globalToLocal(details.offset), details.data);
+      },
+      onLeave: (_) => onExternalDragLeave?.call(),
+      onAcceptWithDetails: (details) {
+        if (onExternalAccept == null) return;
+        final box = context.findRenderObject() as RenderBox?;
+        if (box == null) return;
+        onExternalAccept!(box.globalToLocal(details.offset), details.data);
+      },
+      builder: (context, _, _) => canvas,
     );
   }
 }

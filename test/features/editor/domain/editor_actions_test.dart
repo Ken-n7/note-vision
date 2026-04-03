@@ -53,7 +53,7 @@ void main() {
 
     test('duration change to same value is a no-op and does not push undo', () {
       final state = _selectedState(
-        const Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+        const Note(step: 'C', octave: 4, duration: 2, type: 'quarter'),
       );
 
       final next = state.setSelectedDuration(quarterDuration);
