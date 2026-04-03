@@ -9,6 +9,7 @@ import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.dart';
+import 'package:note_vision/features/musicXML/musicxml_export_service.dart';
 
 class EditorShellArgs {
   const EditorShellArgs({required this.score, required this.initialState});
@@ -253,6 +254,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   onBack: () => Navigator.of(context).maybePop(),
                   onUndo: () => _updateState((s) => s.applyUndo()),
                   onRedo: () => _updateState((s) => s.applyRedo()),
+                  onExport: () => const MusicXmlExportService().exportAndShare(_editorState.score),
                 ),
                 Expanded(
                   child: isLandscape
@@ -313,6 +315,7 @@ class _EditorHeader extends StatelessWidget {
     required this.onBack,
     required this.onUndo,
     required this.onRedo,
+    required this.onExport,
   });
 
   final String title;
@@ -322,6 +325,7 @@ class _EditorHeader extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback onUndo;
   final VoidCallback onRedo;
+  final VoidCallback onExport;
 
   @override
   Widget build(BuildContext context) {
@@ -410,6 +414,14 @@ class _EditorHeader extends StatelessWidget {
               minimumSize: const Size(0, 34),
               padding: const EdgeInsets.symmetric(horizontal: 12),
             ),
+          ),
+          const SizedBox(width: 6),
+          IconButton(
+            onPressed: onExport,
+            icon: const Icon(Icons.ios_share_rounded, size: 18),
+            color: AppColors.textPrimary,
+            tooltip: 'Export MusicXML',
+            visualDensity: VisualDensity.compact,
           ),
           const SizedBox(width: 4),
         ],

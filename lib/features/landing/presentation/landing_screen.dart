@@ -61,10 +61,10 @@ class _LandingScreenState extends State<LandingScreen>
   Future<void> _onGetStarted(BuildContext context) async {
     final isDone = await UserProfileService.isOnboardingComplete();
 
-    if (!context.mounted) return;
+    if (!mounted) return;
 
     Navigator.push(
-      context,
+      this.context,
       _fadeRoute(
         isDone ? const CollectionScreen() : const OnboardingScreen(),
       ),

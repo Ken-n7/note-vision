@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_vision/features/collection/presentation/collection_screen.dart';
 import 'package:note_vision/features/landing/presentation/landing_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   Widget makeTestableWidget(Widget child) {
@@ -24,6 +25,8 @@ void main() {
   testWidgets('Pressing Get Started navigates to CollectionScreen', (
     WidgetTester tester,
   ) async {
+    SharedPreferences.setMockInitialValues({'onboarding_complete': true});
+
     await tester.pumpWidget(makeTestableWidget(const LandingScreen()));
     await tester.pump();
 
