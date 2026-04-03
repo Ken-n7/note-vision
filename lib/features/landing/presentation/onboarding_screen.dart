@@ -331,7 +331,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     final borderColor = hasError
         ? const Color(0xFFE05252)
         : _nameFocusNode.hasFocus
-            ? const Color.fromARGB(255, 212, 169, 106).withOpacity(0.6) // Changed
+            ? const Color.fromARGB(255, 212, 169, 106).withValues(alpha: 0.6)
             : const Color(0xFF2A2A2A);
 
     return Column(

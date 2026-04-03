@@ -46,7 +46,7 @@ class UserAvatar extends StatelessWidget {
                       ? photoFile.lastModifiedSync().millisecondsSinceEpoch
                       : photoPath,
                 ),
-                errorBuilder: (_, __, ___) => _buildInitial(),
+                errorBuilder: (_, _, _) => _buildInitial(),
               )
             : _buildInitial(),
       ),
