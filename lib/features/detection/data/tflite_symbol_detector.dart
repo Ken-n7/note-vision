@@ -47,6 +47,10 @@ class TfliteSymbolDetector implements SymbolDetector {
     final List<DetectedSymbol> allSymbols;
 
     if (staves.isNotEmpty) {
+      debugPrint(
+        '[TfliteSymbolDetector] ${staves.length} stave(s) detected:\n'
+        '${staves.map((s) => '  ${s.id}: lineYs=${s.lineYs.map((y) => y.toStringAsFixed(1)).toList()}').join('\n')}',
+      );
       // Stave-based tiling: one inference per stave.
       final symbols = <DetectedSymbol>[];
       for (final staff in staves) {

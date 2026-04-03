@@ -378,7 +378,7 @@ reorderSymbol(partIndex, measureIndex, fromIndex, toIndex)
 |---|--------|-------|----------|--------|
 | 55 | Build symbol palette widget | Boleche | 2H | ✅ Done |
 | 56 | Build drag-from-palette-to-staff + hit-test insert | Canete | 4H | ✅ Done |
-| 57 | Connect real TFLite detection to reconstruction + staff line pre-pass | Canete | 2H | ⏳ Not started |
+| 57 | Connect real TFLite detection to reconstruction + staff line pre-pass | Canete | 2H | ✅ Done |
 | 58 | IT: Real detection + reconstruction end-to-end | Canete | 1H | ⏳ Not started |
 | 59 | Expand reconstruction: key sigs, time sigs, accidentals, beams | Canete | 2H | ⏳ Not started |
 | 60 | Build MusicXML export service + ScoreModel converter | Canete | 2H | ✅ Done |
