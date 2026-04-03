@@ -381,7 +381,7 @@ reorderSymbol(partIndex, measureIndex, fromIndex, toIndex)
 | 57 | Connect real TFLite detection to reconstruction + staff line pre-pass | Canete | 2H | ⏳ Not started |
 | 58 | IT: Real detection + reconstruction end-to-end | Canete | 1H | ⏳ Not started |
 | 59 | Expand reconstruction: key sigs, time sigs, accidentals, beams | Canete | 2H | ⏳ Not started |
-| 60 | Build MusicXML export service + ScoreModel converter | Canete | 2H | ⏳ Not started |
+| 60 | Build MusicXML export service + ScoreModel converter | Canete | 2H | ✅ Done |
 | 61 | IT: Import → edit → MusicXML export round-trip | Boleche | 2H | ⏳ Not started |
 | 62 | Build accidental toggle in editor | Canete | 2H | ⏳ Not started |
 | 63 | Build username onboarding + profile photo + display in header | Boleche | 2H | ⏳ Not started |
@@ -468,6 +468,23 @@ Update this file whenever:
 Do not let this file get stale — an outdated CONTEXT.md is worse than no CONTEXT.md.
 
 claude and I can update this from time to time when changes are final
+
+---
+
+## BGC-60 Delivery Notes (Sprint 6, branch BGC-55-56)
+
+- **`MusicXmlExportService`** — new file `lib/features/musicXML/musicxml_export_service.dart`
+  - `toMusicXml(Score)` — pure function, returns valid MusicXML 3.1 string (no I/O, fully unit-testable)
+  - `exportAndShare(Score)` — writes `.musicxml` to temp dir, opens system share sheet via `share_plus`
+  - Builds: `<work>`, `<identification>` (with `<encoding>`), `<part-list>`, `<part>` → `<measure>` → `<attributes>` (on first measure or when clef/key/time present) → `<note>` / `<rest>`
+  - `divisions` hardcoded to `2` (matching our quarter=2 convention); `alter` omitted when null or 0
+  - `voice` and `staff` elements emitted only when present on the model
+  - XML DOCTYPE header prepended manually (xml package doesn't support DOCTYPE nodes)
+  - `_safeFileName` replaces non-word characters with underscores for safe file naming
+- **Export button wired into editor** — `_EditorHeader` in `editor_shell_screen.dart` has a new `ios_share_rounded` icon button after Save, wired to `MusicXmlExportService().exportAndShare(score)`
+- **`share_plus: ^12.0.2` added** to pubspec (resolved by `flutter pub add` due to web package conflict with file_picker)
+- **Landing screen test fix** — `Pressing Get Started navigates to CollectionScreen` required `SharedPreferences.setMockInitialValues({'onboarding_complete': true})` because `UserProfileService.isOnboardingComplete()` reads SharedPreferences asynchronously
+- **`!mounted` / `this.context` pattern** — `landing_screen.dart` now correctly guards async gap with `State.mounted` (`if (!mounted) return`) then uses `this.context` (State's own context), not `context.mounted` on the parameter
 
 ---
 
