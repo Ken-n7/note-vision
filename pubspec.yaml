@@ -75,6 +75,7 @@ flutter:
     - assets/images/
     - assets/fonts/
     - assets/models/omr_model.tflite
+    - assets/models/best_int8.tflite
   fonts:
     - family: MaturaMTScriptCapitals
       fonts:

@@ -143,7 +143,7 @@ lib/
     detection_inspector/             Dev tool — Detection pipeline inspector
 
 assets/
-  models/omr_model.tflite            YOLO model (currently 416×416 — needs reconversion to 640)
+  models/best_int8.tflite            YOLO model — 640×640 int8 quantized (replaces omr_model.tflite)
   fonts/                             MaturaMTScriptCapitals
   images/                            notevision.png logo
 
@@ -174,7 +174,7 @@ All screens use the same dark theme. Never use light colors unless it is a notat
 
 These are final unless explicitly changed:
 
-- **Model input size:** 640×640 (currently 416 — reconversion pending in ticket 37)
+- **Model input size:** 640×640 int8 — model is `assets/models/best_int8.tflite` (ticket 37 done)
 - **Tiling strategy:** Stave-based tiling — crop each stave, resize to 640×640, no padding. Replaces letterbox.
 - **Staff line detection:** Horizontal projection pre-pass — builds lineYs for pitch AND stave crop boundaries in one pass
 - **Notation renderer:** CustomPainter — not a text list, not an SVG library
@@ -354,7 +354,7 @@ reorderSymbol(partIndex, measureIndex, fromIndex, toIndex)
 ### Sprint 5 🔄 In Progress
 | # | Ticket | Owner | Status |
 |---|--------|-------|--------|
-| 37 | Reconvert YOLO model to 640×640 TFLite | Canete | ❌ Not started |
+| 37 | Reconvert YOLO model to 640×640 TFLite | Canete | ✅ Done — int8 model at assets/models/best_int8.tflite |
 | 38 | Prepare Sprint 5 editor test assets | Galanza | ⚠️ Partial |
 | 39 | Build CustomPainter staff notation viewer | Boleche | ✅ Done |
 | 40 | Define editor state model | Canete | ✅ Done |

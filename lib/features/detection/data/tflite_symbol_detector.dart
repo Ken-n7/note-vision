@@ -5,16 +5,17 @@ import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
 
 import '../../preprocessing/domain/preprocessed_result.dart';
+import '../domain/detected_staff.dart';
 import '../domain/detected_symbol.dart';
 import '../domain/detection_result.dart';
 import '../domain/music_symbol.dart';
 import '../domain/symbol_detector.dart';
 
 class TfliteSymbolDetector implements SymbolDetector {
-  static const String _modelPath = 'assets/models/omr_model.tflite';
+  static const String _modelPath = 'assets/models/best_int8.tflite';
   static const double _confidenceThreshold = 0.75;
   static const double _iouThreshold = 0.4;
-  static const int _inputSize = 416;
+  static const int _inputSize = 640;
 
   Interpreter? _interpreter;
 
@@ -35,10 +36,88 @@ class TfliteSymbolDetector implements SymbolDetector {
   }
 
   @override
-  Future<DetectionResult> detect(PreprocessedResult input) async {
+  Future<DetectionResult> detect(
+    PreprocessedResult input,
+    List<DetectedStaff> staves,
+  ) async {
     if (_interpreter == null) await init();
 
-    final inputTensor = _imageToTensor(input.bytes);
+    final img.Image fullImage = img.decodeImage(input.bytes)!;
+
+    final List<DetectedSymbol> allSymbols;
+
+    if (staves.isNotEmpty) {
+      // Stave-based tiling: one inference per stave.
+      final symbols = <DetectedSymbol>[];
+      for (final staff in staves) {
+        final tileSymbols = await _detectStave(fullImage, staff);
+        symbols.addAll(tileSymbols);
+      }
+      allSymbols = _nms(symbols);
+    } else {
+      // Fallback: resize whole image to 640×640 and run single inference.
+      debugPrint(
+        '[TfliteSymbolDetector] No staff lines detected — falling back to '
+        'full-image inference. lineYs will be empty; pitch reconstruction '
+        'will produce warnings.',
+      );
+      final tile = img.copyResize(
+        fullImage,
+        width: _inputSize,
+        height: _inputSize,
+        interpolation: img.Interpolation.linear,
+      );
+      final scaleX = fullImage.width / _inputSize;
+      final scaleY = fullImage.height / _inputSize;
+      final raw = _runInference(tile);
+      allSymbols = _nms(
+        _parseOutput(raw, offsetX: 0, offsetY: 0, scaleX: scaleX, scaleY: scaleY),
+      );
+    }
+
+    return DetectionResult(symbols: allSymbols, staffs: staves);
+  }
+
+  /// Runs inference on a single stave crop and maps detections back to
+  /// original-image coordinates.
+  Future<List<DetectedSymbol>> _detectStave(
+    img.Image fullImage,
+    DetectedStaff staff,
+  ) async {
+    final cropY = staff.topY.round().clamp(0, fullImage.height - 1);
+    final cropH =
+        (staff.bottomY.round() - cropY).clamp(1, fullImage.height - cropY);
+
+    final crop = img.copyCrop(
+      fullImage,
+      x: 0,
+      y: cropY,
+      width: fullImage.width,
+      height: cropH,
+    );
+
+    final tile = img.copyResize(
+      crop,
+      width: _inputSize,
+      height: _inputSize,
+      interpolation: img.Interpolation.linear,
+    );
+
+    final scaleX = fullImage.width / _inputSize;
+    final scaleY = cropH / _inputSize;
+
+    final raw = _runInference(tile);
+    return _parseOutput(
+      raw,
+      offsetX: 0,
+      offsetY: cropY.toDouble(),
+      scaleX: scaleX,
+      scaleY: scaleY,
+    );
+  }
+
+  List<List<double>> _runInference(img.Image tile) {
+    final inputTensor = _imageToTensor(tile);
 
     final output = List.generate(
       300,
@@ -47,26 +126,41 @@ class TfliteSymbolDetector implements SymbolDetector {
 
     _interpreter!.run(inputTensor, output);
 
-    return DetectionResult(symbols: _parseOutput(output[0] as List<List<double>>));
+    return output[0] as List<List<double>>;
   }
 
-  List<List<List<List<double>>>> _imageToTensor(Uint8List bytes) {
-    final img.Image image = img.decodeImage(bytes)!;
-
-    return List.generate(
-      1,
-      (_) => List.generate(
-        _inputSize,
-        (y) => List.generate(_inputSize, (x) {
-          final pixel = image.getPixel(x, y);
-          return [pixel.r / 255.0, pixel.g / 255.0, pixel.b / 255.0];
-        }),
-      ),
-    );
+  /// Builds the int8-quantised input tensor from a 640×640 RGB image.
+  ///
+  /// The model expects [1, 640, 640, 3] int8 (values in 0–255 stored as
+  /// signed bytes). We pass them as a flat [Int8List] which tflite_flutter
+  /// accepts as a reshaped [1, 640, 640, 3] input.
+  Int8List _imageToTensor(img.Image tile) {
+    final data = Int8List(_inputSize * _inputSize * 3);
+    int idx = 0;
+    for (int y = 0; y < _inputSize; y++) {
+      for (int x = 0; x < _inputSize; x++) {
+        final pixel = tile.getPixel(x, y);
+        // Cast 0–255 to signed byte (int8 wraps: values > 127 become negative).
+        data[idx++] = pixel.r.toInt().toSigned(8);
+        data[idx++] = pixel.g.toInt().toSigned(8);
+        data[idx++] = pixel.b.toInt().toSigned(8);
+      }
+    }
+    return data;
   }
 
-  List<DetectedSymbol> _parseOutput(List<List<double>> rawOutput) {
+  /// Converts raw model output rows into [DetectedSymbol]s remapped to
+  /// original-image pixel space via [offsetX]/[offsetY] (the crop origin)
+  /// and [scaleX]/[scaleY] (crop-to-original scale factors).
+  List<DetectedSymbol> _parseOutput(
+    List<List<double>> rawOutput, {
+    required double offsetX,
+    required double offsetY,
+    required double scaleX,
+    required double scaleY,
+  }) {
     final detections = <DetectedSymbol>[];
+    int counter = 0;
 
     for (final detection in rawOutput) {
       final confidence = detection[4];
@@ -75,25 +169,27 @@ class TfliteSymbolDetector implements SymbolDetector {
       final classIndex = detection[5].toInt();
       if (classIndex < 0 || classIndex >= MusicSymbol.values.length) continue;
 
-      // Convert normalized coordinates (0–1) → pixels
-      final x1 = detection[0] * _inputSize;
-      final y1 = detection[1] * _inputSize;
-      final x2 = detection[2] * _inputSize;
-      final y2 = detection[3] * _inputSize;
+      // Model outputs normalized 0–1 coordinates relative to the 640×640 tile.
+      // Remap to original-image pixel space.
+      final x1 = detection[0] * _inputSize * scaleX + offsetX;
+      final y1 = detection[1] * _inputSize * scaleY + offsetY;
+      final x2 = detection[2] * _inputSize * scaleX + offsetX;
+      final y2 = detection[3] * _inputSize * scaleY + offsetY;
 
       if (x2 <= x1 || y2 <= y1) continue;
 
       detections.add(
         DetectedSymbol.fromMusicSymbol(
-          id: 'symbol-${detections.length}',
+          id: 'symbol-$counter',
           symbol: MusicSymbol.values[classIndex],
           boundingBox: Rect.fromLTRB(x1, y1, x2, y2),
           confidence: confidence,
         ),
       );
+      counter++;
     }
 
-    return _nms(detections);
+    return detections;
   }
 
   List<DetectedSymbol> _nms(List<DetectedSymbol> detections) {

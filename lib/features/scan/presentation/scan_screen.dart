@@ -10,6 +10,7 @@ import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 import 'package:note_vision/features/detection/data/tflite_symbol_detector.dart';
 import 'package:note_vision/features/preprocessing/data/basic_image_preprocessor.dart';
+import 'package:note_vision/features/preprocessing/data/horizontal_projection_staff_detector.dart';
 import 'package:note_vision/features/scan/presentation/scan_viewmodel.dart';
 import 'widgets/scan_actions.dart';
 import 'widgets/scan_image_view.dart';
@@ -65,6 +66,11 @@ class _ScanScreenState extends State<ScanScreen> {
             icon: Icons.tune_outlined,
             message: 'Preprocessing image',
             subMessage: 'Cleaning up and preparing your scan…',
+          ),
+        ScanState.detectingStaves => const _PipelineStatus(
+            icon: Icons.grid_4x4_outlined,
+            message: 'Detecting staff lines',
+            subMessage: 'Finding stave boundaries…',
           ),
         ScanState.detecting    => const _PipelineStatus(
             icon: Icons.image_search_outlined,
@@ -384,6 +390,7 @@ class ScanScreenProvider extends StatelessWidget {
     return ChangeNotifierProvider(
       create: (_) => ScanViewModel(
         BasicImagePreprocessor(),
+        const HorizontalProjectionStaffDetector(),
         TfliteSymbolDetector(),
       ),
       child: ScanScreen(imageBytes: imageBytes),

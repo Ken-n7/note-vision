@@ -24,13 +24,24 @@ class _FakeImagePreprocessor implements ImagePreprocessor {
   Future<PreprocessedResult> preprocess(Uint8List bytes) async => result;
 }
 
+class _FakeStaffLineDetector implements StaffLineDetector {
+  const _FakeStaffLineDetector();
+
+  @override
+  List<DetectedStaff> detect(Uint8List pngBytes) => const [];
+}
+
 class _FakeSymbolDetector implements SymbolDetector {
   _FakeSymbolDetector(this.result);
 
   final DetectionResult result;
 
   @override
-  Future<DetectionResult> detect(PreprocessedResult input) async => result;
+  Future<DetectionResult> detect(
+    PreprocessedResult input,
+    List<DetectedStaff> staves,
+  ) async =>
+      result;
 }
 
 class _FakeScoreMapperService extends ScoreMapperService {
@@ -86,6 +97,7 @@ void main() {
 
       final viewModel = ScanViewModel(
         _FakeImagePreprocessor(preprocessed),
+        const _FakeStaffLineDetector(),
         _FakeSymbolDetector(detection),
       );
 
@@ -96,6 +108,7 @@ void main() {
 
       expect(states, [
         ScanState.preprocessing,
+        ScanState.detectingStaves,
         ScanState.detecting,
         ScanState.done,
       ]);
@@ -149,59 +162,7 @@ void main() {
 
         final viewModel = ScanViewModel(
           _FakeImagePreprocessor(preprocessed),
-          _FakeSymbolDetector(detection),
-          mapper: const _FakeScoreMapperService(mappingResult),
-        );
-
-        await viewModel.run(Uint8List.fromList(const [1, 2, 3]));
-
-        expect(viewModel.state, ScanState.done);
-        expect(viewModel.mappingResult, isNotNull);
-        expect(viewModel.mappingResult?.score.id, 'mapped-score');
-        expect(viewModel.mappingResult?.warnings, ['warning']);
-      },
-    );
-
-    test(
-      'stores mapper output so the UI can consume reconstructed score data',
-      () async {
-        final preprocessed = PreprocessedResult(
-          bytes: Uint8List.fromList(const [1, 2, 3]),
-          width: 416,
-          height: 416,
-          scale: 1,
-          padX: 0,
-          padY: 0,
-        );
-        const detection = DetectionResult(
-          imageId: 'scan-2',
-          staffs: [
-            DetectedStaff(
-              id: 'staff-1',
-              topY: 50,
-              bottomY: 90,
-              lineYs: [50, 60, 70, 80, 90],
-            ),
-          ],
-        );
-        const mappingResult = MappingResult(
-          score: Score(
-            id: 'mapped-score',
-            title: '',
-            composer: '',
-            parts: [
-              Part(
-                id: 'P1',
-                name: 'Detected Part',
-                measures: [Measure(number: 1, symbols: [])],
-              ),
-            ],
-          ),
-          warnings: ['warning'],
-        );
-
-        final viewModel = ScanViewModel(
-          _FakeImagePreprocessor(preprocessed),
+          const _FakeStaffLineDetector(),
           _FakeSymbolDetector(detection),
           mapper: const _FakeScoreMapperService(mappingResult),
         );
@@ -218,6 +179,7 @@ void main() {
     test('moves to error state when preprocessing throws', () async {
       final viewModel = ScanViewModel(
         _ThrowingImagePreprocessor(),
+        const _FakeStaffLineDetector(),
         _FakeSymbolDetector(const DetectionResult()),
       );
 
@@ -240,6 +202,7 @@ void main() {
             padY: 0,
           ),
         ),
+        const _FakeStaffLineDetector(),
         _FakeSymbolDetector(
           const DetectionResult(
             symbols: [

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/features/detection/domain/detected_staff.dart';
 import 'package:note_vision/features/detection/domain/detection_result.dart';
 import 'package:note_vision/features/detection/domain/detected_symbol.dart';
 import 'package:note_vision/features/detection/domain/symbol_detector.dart';
@@ -31,9 +32,17 @@ class _FakeImagePreprocessor implements ImagePreprocessor {
   }
 }
 
+class _FakeStaffLineDetector implements StaffLineDetector {
+  @override
+  List<DetectedStaff> detect(Uint8List pngBytes) => const [];
+}
+
 class _FakeSymbolDetector implements SymbolDetector {
   @override
-  Future<DetectionResult> detect(PreprocessedResult input) async {
+  Future<DetectionResult> detect(
+    PreprocessedResult input,
+    List<DetectedStaff> staves,
+  ) async {
     return const DetectionResult(
       imageId: 'scan-test',
       symbols: [
@@ -81,6 +90,7 @@ void main() {
   testWidgets('continue opens editor shell route from scan screen', (tester) async {
     final vm = ScanViewModel(
       _FakeImagePreprocessor(),
+      _FakeStaffLineDetector(),
       _FakeSymbolDetector(),
       mapper: const _FakeScoreMapperService(),
     );
