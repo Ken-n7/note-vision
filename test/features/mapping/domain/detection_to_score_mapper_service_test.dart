@@ -455,10 +455,12 @@ void main() {
 
       expect(result.score.parts.single.measures.single.symbols, isEmpty);
       expect(result.warnings, isNotEmpty);
+      // beam symbols are now consumed by the pipeline (no longer "unsupported")
       expect(
         result.warnings.any((warning) => warning.contains('Unsupported symbol "beam"')),
-        isTrue,
+        isFalse,
       );
+      // the notehead has no stem → note value cannot be inferred
       expect(
         result.warnings.any((warning) => warning.contains('Could not infer a supported note value')),
         isTrue,
@@ -494,14 +496,14 @@ void main() {
       expect(result.score.parts.single.measures.single.notes, isEmpty);
       expect(
         result.warnings.any(
-          (warning) => warning.contains('Could not infer a supported treble-clef pitch'),
+          (warning) => warning.contains('Could not calculate pitch for'),
         ),
         isTrue,
       );
       expect(
         result.warnings.any(
           (warning) => warning.contains(
-            'No supported treble clef detected; pitch reconstruction is unsupported for this measure.',
+            'No clef detected; pitch reconstruction is unsupported for this measure.',
           ),
         ),
         isTrue,

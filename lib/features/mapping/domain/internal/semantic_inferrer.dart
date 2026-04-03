@@ -29,6 +29,8 @@ class SemanticInferrer {
         .map((measure) {
           final signatureSymbols = _signatureInferrer
               .collectLeadingSignatureSymbols(measure.symbols);
+          final signatureIds =
+              signatureSymbols.map((e) => e.symbol.id).toSet();
 
           final inferredClef = _signatureInferrer.inferClef(
             signatureSymbols,
@@ -46,16 +48,36 @@ class SemanticInferrer {
             warnings: warnings,
           );
 
+          // Accidentals that are NOT in the signature zone are note-level
+          // accidentals (e.g. a sharp before a single notehead mid-measure).
+          final bodyAccidentals = measure.symbols
+              .where(
+                (e) =>
+                    SymbolClassifier.isAnyAccidental(e.symbol.type) &&
+                    !signatureIds.contains(e.symbol.id),
+              )
+              .toList();
+          final noteAlters = _matchAccidentalsToNoteheads(
+            bodyAccidentals,
+            measure.symbols,
+          );
+
           final ordered = <OrderedScoreSymbol>[];
 
           for (final entry in measure.symbols) {
             final type = entry.symbol.type;
 
-            if (SymbolClassifier.isSignatureSymbol(type) ||
-                type == 'stem' ||
-                SymbolClassifier.isSupportedFlag(type)) {
+            // Signature-zone symbols already consumed above.
+            if (signatureIds.contains(entry.symbol.id)) continue;
+            // Stems and flags consumed by StemAssociator.
+            if (type == 'stem' || SymbolClassifier.isSupportedFlag(type)) {
               continue;
             }
+            // All accidentals (body or otherwise) are pre-processed; skip.
+            if (SymbolClassifier.isAnyAccidental(type)) continue;
+            // Beams consumed by StemAssociator (via hasBeam flag).
+            if (type == 'beam') continue;
+
             if (SymbolClassifier.isSupportedRest(type)) {
               ordered.add(
                 OrderedScoreSymbol(
@@ -72,6 +94,7 @@ class SemanticInferrer {
                 entry: entry,
                 activeClef: clef,
                 link: link,
+                alter: noteAlters[entry.symbol.id],
                 warnings: warnings,
               );
               if (note != null) {
@@ -82,9 +105,7 @@ class SemanticInferrer {
               continue;
             }
 
-            warnings.add(
-              'Unsupported symbol "$type" was ignored during Sprint 4 mapping.',
-            );
+            warnings.add('Unsupported symbol "$type" was ignored during mapping.');
           }
 
           _warnAboutClef(clef, measure, warnings);
@@ -101,20 +122,69 @@ class SemanticInferrer {
         .toList(growable: false);
   }
 
+  /// For each body accidental, finds the nearest notehead immediately to its
+  /// right (within 2× notehead widths + 20 px) and returns a map from
+  /// notehead ID to the corresponding MusicXML `alter` value.
+  Map<String, int> _matchAccidentalsToNoteheads(
+    List<StaffOwnedSymbol> accidentals,
+    List<StaffOwnedSymbol> allSymbols,
+  ) {
+    if (accidentals.isEmpty) return const {};
+
+    final noteheads = allSymbols
+        .where((e) => SymbolClassifier.isNotehead(e.symbol.type))
+        .toList()
+      ..sort((a, b) => a.symbolCenterX.compareTo(b.symbolCenterX));
+
+    final result = <String, int>{};
+
+    for (final acc in accidentals) {
+      final alter = SymbolClassifier.alterFor(acc.symbol.type);
+      if (alter == null) continue;
+
+      final accRight = acc.symbol.x + (acc.symbol.width ?? 8.0);
+
+      StaffOwnedSymbol? nearest;
+      double? nearestDist;
+
+      for (final notehead in noteheads) {
+        final dist = notehead.symbol.x - accRight;
+        if (dist < 0) continue; // accidental must be to the left
+        final threshold =
+            (notehead.symbol.width ?? 12.0) * 2 + 20;
+        if (dist > threshold) continue;
+
+        if (nearestDist == null || dist < nearestDist) {
+          nearestDist = dist;
+          nearest = notehead;
+        }
+      }
+
+      if (nearest != null) {
+        result[nearest.symbol.id] = alter;
+      }
+    }
+
+    return result;
+  }
+
   Note? _buildNote({
     required StaffOwnedSymbol entry,
     required Clef? activeClef,
     required StemLink link,
+    required int? alter,
     required List<String> warnings,
   }) {
     final type = entry.symbol.type;
     final hasStem = link.stem != null;
     final hasFlag = link.flag != null;
+    final hasBeam = link.hasBeam;
 
     final noteType = switch (type) {
       'noteheadWhole' => 'whole',
       'noteheadHalf' when hasStem => 'half',
-      'noteheadBlack' when hasStem && hasFlag => 'eighth',
+      // Flag OR beam both indicate an eighth note.
+      'noteheadBlack' when hasStem && (hasFlag || hasBeam) => 'eighth',
       'noteheadBlack' when hasStem => 'quarter',
       _ => null,
     };
@@ -133,7 +203,7 @@ class SemanticInferrer {
     );
     if (pitch == null) {
       warnings.add(
-        'Could not infer a supported treble-clef pitch for ${entry.symbol.id}; skipping.',
+        'Could not calculate pitch for ${entry.symbol.id}; skipping.',
       );
       return null;
     }
@@ -141,6 +211,7 @@ class SemanticInferrer {
     return Note(
       step: pitch.step,
       octave: pitch.octave,
+      alter: alter,
       duration: SymbolClassifier.durationFor(noteType),
       type: noteType,
       staff: _defaultStaff,
@@ -151,6 +222,8 @@ class SemanticInferrer {
     final restType = switch (type) {
       'restWhole' => 'whole',
       'restHalf' => 'half',
+      'rest8th' => 'eighth',
+      'rest16th' => 'sixteenth',
       _ => 'quarter',
     };
     return Rest(
@@ -168,12 +241,9 @@ class SemanticInferrer {
 
     if (clef == null) {
       warnings.add(
-        'No supported treble clef detected; pitch reconstruction is unsupported for this measure.',
-      );
-    } else if (clef.sign == 'F') {
-      warnings.add(
-        'Bass-clef notes detected; Sprint 4 pitch reconstruction supports treble clef only.',
+        'No clef detected; pitch reconstruction is unsupported for this measure.',
       );
     }
+    // G and F clefs are both supported — no warning needed for either.
   }
 }
