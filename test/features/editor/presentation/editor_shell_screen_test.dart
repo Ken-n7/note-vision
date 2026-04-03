@@ -13,6 +13,36 @@ import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 
 void main() {
+  Future<void> pumpEditorShell(
+    WidgetTester tester, {
+    required Score score,
+  }) async {
+    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EditorShellScreen(
+          args: EditorShellArgs(
+            score: score,
+            initialState: EditorState(score: score),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  InkWell actionTileForLabel(WidgetTester tester, String label) {
+    final finder = find.ancestor(
+      of: find.text(label),
+      matching: find.byType(InkWell),
+    );
+    return tester.widget<InkWell>(finder.first);
+  }
+
   Score buildScore({bool withSymbols = true}) {
     return Score(
       id: 'score-1',
@@ -41,30 +71,21 @@ void main() {
   testWidgets('renders editor shell sections and action buttons', (tester) async {
     final score = buildScore();
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: EditorShellScreen(
-          args: EditorShellArgs(
-            score: score,
-            initialState: EditorState(score: score),
-          ),
-        ),
-      ),
-    );
+    await pumpEditorShell(tester, score: score);
 
     expect(find.text('Test Score'), findsOneWidget);
     expect(find.text('Save'), findsOneWidget);
-    expect(find.text('Move Up'), findsOneWidget);
-    expect(find.text('Move Down'), findsOneWidget);
-    expect(find.text('Whole'), findsOneWidget);
-    expect(find.text('Half'), findsOneWidget);
-    expect(find.text('Quarter'), findsOneWidget);
-    expect(find.text('Eighth'), findsOneWidget);
-    expect(find.text('Insert Note'), findsOneWidget);
-    expect(find.text('Insert Rest'), findsOneWidget);
+    expect(find.text('Up'), findsOneWidget);
+    expect(find.text('Down'), findsOneWidget);
+    expect(find.text('Whole'), findsWidgets);
+    expect(find.text('Half'), findsWidgets);
+    expect(find.text('Qtr'), findsOneWidget);
+    expect(find.text('8th'), findsOneWidget);
+    expect(find.text('Note'), findsOneWidget);
+    expect(find.text('Rest'), findsWidgets);
     expect(find.text('Delete'), findsOneWidget);
-    expect(find.text('Undo'), findsOneWidget);
-    expect(find.text('Redo'), findsOneWidget);
+    expect(find.byTooltip('Undo'), findsOneWidget);
+    expect(find.byTooltip('Redo'), findsOneWidget);
   });
 
   testWidgets('keeps insert actions enabled with default measure context', (
@@ -72,52 +93,33 @@ void main() {
   ) async {
     final score = buildScore(withSymbols: false);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: EditorShellScreen(
-          args: EditorShellArgs(
-            score: score,
-            initialState: EditorState(score: score),
-          ),
-        ),
-      ),
-    );
+    await pumpEditorShell(tester, score: score);
 
-    final moveUpButton = tester.widget<OutlinedButton>(
-      find.widgetWithText(OutlinedButton, 'Move Up'),
-    );
-    expect(moveUpButton.onPressed, isNull);
+    final moveUpButton = actionTileForLabel(tester, 'Up');
+    expect(moveUpButton.onTap, isNull);
 
-    final insertNoteButton = tester.widget<OutlinedButton>(
-      find.widgetWithText(OutlinedButton, 'Insert Note'),
-    );
-    expect(insertNoteButton.onPressed, isNotNull);
+    final insertNoteButton = actionTileForLabel(tester, 'Note');
+    expect(insertNoteButton.onTap, isNotNull);
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Move Up'));
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Insert Note'));
+    await tester.tap(find.text('Up'));
+    await tester.tap(find.text('Note').first);
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Note'), findsOneWidget);
+    expect(find.text('SELECTION'), findsOneWidget);
     expect(find.text('C4'), findsOneWidget);
   });
 
   testWidgets('tapping symbols selects, reselects, and deselects', (tester) async {
     final score = buildScore();
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: EditorShellScreen(
-          args: EditorShellArgs(
-            score: score,
-            initialState: EditorState(score: score),
-          ),
-        ),
-      ),
-    );
+    await pumpEditorShell(tester, score: score);
 
-    final moveUpButtonFinder = find.widgetWithText(OutlinedButton, 'Move Up');
-    expect(tester.widget<OutlinedButton>(moveUpButtonFinder).onPressed, isNull);
+    final moveUpButtonFinder = find.ancestor(
+      of: find.text('Up'),
+      matching: find.byType(InkWell),
+    );
+    expect(tester.widget<InkWell>(moveUpButtonFinder.first).onTap, isNull);
 
     final notationOrigin = tester.getTopLeft(find.byType(ScoreNotationViewer));
 
@@ -125,23 +127,23 @@ void main() {
       notationOrigin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 0),
     );
     await tester.pump();
-    expect(find.text('Note'), findsOneWidget);
+    expect(find.text('SELECTION'), findsOneWidget);
     expect(find.text('C4'), findsOneWidget);
-    expect(tester.widget<OutlinedButton>(moveUpButtonFinder).onPressed, isNotNull);
+    expect(tester.widget<InkWell>(moveUpButtonFinder.first).onTap, isNotNull);
 
     await tester.tapAt(
       notationOrigin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 1),
     );
     await tester.pump();
-    expect(find.text('Rest'), findsOneWidget);
-    expect(find.text('—'), findsWidgets);
+    expect(find.text('Rest'), findsWidgets);
+    expect(find.text('quarter'), findsOneWidget);
 
     await tester.tapAt(
       notationOrigin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 1),
     );
     await tester.pump();
-    expect(find.text('None'), findsOneWidget);
-    expect(tester.widget<OutlinedButton>(moveUpButtonFinder).onPressed, isNull);
+    expect(find.text('Tap a note or rest to select it'), findsOneWidget);
+    expect(tester.widget<InkWell>(moveUpButtonFinder.first).onTap, isNull);
   });
 
   testWidgets('drag reorder updates model order and undo restores original order', (
@@ -169,16 +171,7 @@ void main() {
       ],
     );
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: EditorShellScreen(
-          args: EditorShellArgs(
-            score: score,
-            initialState: EditorState(score: score),
-          ),
-        ),
-      ),
-    );
+    await pumpEditorShell(tester, score: score);
 
     final origin = tester.getTopLeft(find.byType(ScoreNotationViewer));
     final dragGesture = await tester.startGesture(
@@ -200,8 +193,7 @@ void main() {
     await tester.pump();
     expect(find.text('E4'), findsOneWidget);
 
-    final undoButton = find.widgetWithText(OutlinedButton, 'Undo');
-    await tester.ensureVisible(undoButton);
+    final undoButton = find.byTooltip('Undo');
     await tester.tap(undoButton);
     await tester.pump();
 
@@ -215,26 +207,11 @@ void main() {
   testWidgets('landscape keeps controls beside notation without overlap', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(1400, 800);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
     final score = buildScore();
-    await tester.pumpWidget(
-      MaterialApp(
-        home: EditorShellScreen(
-          args: EditorShellArgs(
-            score: score,
-            initialState: EditorState(score: score),
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
+    await pumpEditorShell(tester, score: score);
 
     final notationRect = tester.getRect(find.byType(ScoreNotationViewer));
-    final symbolLabelRect = tester.getRect(find.text('Type'));
+    final symbolLabelRect = tester.getRect(find.text('SELECTION'));
 
     expect(symbolLabelRect.left, greaterThan(notationRect.right));
     expect(tester.takeException(), isNull);
@@ -247,7 +224,7 @@ Offset _symbolCenterOffset(
   required int symbolIndex,
 }) {
   const measuresPerRow = 4;
-  const minMeasureWidth = 140.0;
+  const minMeasureWidth = 220.0;
   const rowHeight = 140.0;
   const padding = EdgeInsets.all(16);
 
