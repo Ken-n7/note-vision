@@ -59,54 +59,32 @@ class TfliteSymbolDetector implements SymbolDetector {
       }
       allSymbols = _nms(symbols);
     } else {
-      // Fallback: letterbox the full image into 640×640 (preserving aspect
-      // ratio) and run a single inference.  Letterboxing prevents the model
-      // from seeing a distorted view, which was the cause of detection
-      // misalignment when the image is tall (e.g. 736×1041).
+      // Fallback: stretch the full image to 640×640 and run a single inference.
+      // Training also stretched images to 640×640 (with 2×2 mosaic augmentation),
+      // so the model's weights are calibrated for stretched input — letterboxing
+      // would introduce grey padding regions never seen during training.
       debugPrint(
         '[TfliteSymbolDetector] No staff lines detected — falling back to '
-        'full-image letterbox inference. lineYs will be empty; pitch '
+        'full-image stretch inference. lineYs will be empty; pitch '
         'reconstruction will produce warnings.',
       );
-      final scale = _inputSize / fullImage.width < _inputSize / fullImage.height
-          ? _inputSize / fullImage.width
-          : _inputSize / fullImage.height;
-      final scaledW = (fullImage.width * scale).round();
-      final scaledH = (fullImage.height * scale).round();
-      final padX = (_inputSize - scaledW) ~/ 2;
-      final padY = (_inputSize - scaledH) ~/ 2;
-
-      final scaled = img.copyResize(
+      final tile = img.copyResize(
         fullImage,
-        width: scaledW,
-        height: scaledH,
-        interpolation: img.Interpolation.linear,
-      );
-      final tile = img.Image(
         width: _inputSize,
         height: _inputSize,
-        numChannels: 3,
-      );
-      img.fill(tile, color: img.ColorRgb8(114, 114, 114)); // YOLO grey padding
-      img.compositeImage(tile, scaled, dstX: padX, dstY: padY);
-
-      debugPrint(
-        '[TfliteSymbolDetector] Letterbox: scale=$scale '
-        'scaledW=$scaledW scaledH=$scaledH padX=$padX padY=$padY',
+        interpolation: img.Interpolation.linear,
       );
 
-      // Remap: tile_pixel = detection * _inputSize
-      // orig = (tile_pixel - pad) / scale
-      // Combined: orig = detection * _inputSize / scale - pad / scale
-      final invScale = 1.0 / scale;
+      // Remap: detection coords are normalized 0–1 relative to the 640×640
+      // stretched tile, so multiply by original image dimensions directly.
       final raw = _runInference(tile);
       allSymbols = _nms(
         _parseOutput(
           raw,
-          offsetX: -padX * invScale,
-          offsetY: -padY * invScale,
-          scaleX: _inputSize * invScale,
-          scaleY: _inputSize * invScale,
+          offsetX: 0,
+          offsetY: 0,
+          scaleX: fullImage.width / _inputSize,
+          scaleY: fullImage.height / _inputSize,
         ),
       );
     }
