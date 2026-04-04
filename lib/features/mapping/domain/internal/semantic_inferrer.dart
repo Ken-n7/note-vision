@@ -186,6 +186,12 @@ class SemanticInferrer {
       // Flag OR beam both indicate an eighth note.
       'noteheadBlack' when hasStem && (hasFlag || hasBeam) => 'eighth',
       'noteheadBlack' when hasStem => 'quarter',
+      // Beam detected even without a stem — beams are thicker and easier for
+      // the model to detect than thin stems; trust the beam evidence.
+      'noteheadBlack' when hasBeam => 'eighth',
+      // No stem and no beam — assume quarter (stems are thin and frequently
+      // missed; dropping the note is worse than a slightly wrong duration).
+      'noteheadBlack' => 'quarter',
       _ => null,
     };
 

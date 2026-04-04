@@ -95,7 +95,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
       onExternalDragMove: (position, data) {
         if (widget.canAcceptExternalDrop?.call(data) == false) return;
         final adjusted = _adjustForHorizontalScroll(position);
-        final target = _resolveInsertTarget(measures: activeMeasures, layout: layout, position: adjusted);
+        final target = _resolveInsertTarget(allParts: allParts, layout: layout, position: adjusted);
         if (target == _externalInsertTarget) return;
         setState(() => _externalInsertTarget = target);
       },
@@ -106,7 +106,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
       onExternalAccept: (position, data) {
         if (widget.canAcceptExternalDrop?.call(data) == false) return;
         final adjusted = _adjustForHorizontalScroll(position);
-        final target = _resolveInsertTarget(measures: activeMeasures, layout: layout, position: adjusted);
+        final target = _resolveInsertTarget(allParts: allParts, layout: layout, position: adjusted);
         if (target != null) widget.onExternalDrop?.call(target, data);
         if (_externalInsertTarget != null) setState(() => _externalInsertTarget = null);
       },
@@ -119,7 +119,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
               );
               if (widget.insertMode) {
                 final target = _resolveInsertTarget(
-                  measures: activeMeasures,
+                  allParts: allParts,
                   layout: layout,
                   position: adjusted,
                 );
@@ -314,63 +314,73 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   }
 
   NotationInsertTarget? _resolveInsertTarget({
-    required List<Measure> measures,
+    required List<List<Measure>> allParts,
     required NotationLayout layout,
     required Offset position,
   }) {
-    final rowCount = (measures.length / layout.measuresPerRow).ceil();
+    if (allParts.isEmpty) return null;
+    final partCount = allParts.length;
+    final rowCount = (allParts[0].length / layout.measuresPerRow).ceil();
     final contentStartX = widget.padding.left + layout.rowPrefixWidth;
     const innerPadding = 16.0;
 
-    for (var rowIndex = 0; rowIndex < rowCount; rowIndex++) {
-      final rowStartMeasure = rowIndex * layout.measuresPerRow;
-      final rowEndExclusive =
-          (rowStartMeasure + layout.measuresPerRow).clamp(0, measures.length).toInt();
-      if (rowStartMeasure >= rowEndExclusive) continue;
+    for (var systemIndex = 0; systemIndex < rowCount; systemIndex++) {
+      for (var partIdx = 0; partIdx < partCount; partIdx++) {
+        final measures = allParts[partIdx];
+        final rowStartMeasure = systemIndex * layout.measuresPerRow;
+        final rowEndExclusive =
+            (rowStartMeasure + layout.measuresPerRow).clamp(0, measures.length).toInt();
+        if (rowStartMeasure >= rowEndExclusive) continue;
 
-      final staffTop = widget.padding.top + rowIndex * widget.rowHeight + 28;
-      final staffBottom = staffTop + ScoreNotationPainter.staffLineSpacing * 4;
-      if (position.dy < staffTop - 28 || position.dy > staffBottom + 28) continue;
+        // Each system row is partCount * rowHeight tall; staves are stacked within.
+        final staffTop = widget.padding.top +
+            systemIndex * (partCount * widget.rowHeight) +
+            partIdx * widget.rowHeight +
+            28;
+        final staffBottom = staffTop + ScoreNotationPainter.staffLineSpacing * 4;
+        if (position.dy < staffTop - 28 || position.dy > staffBottom + 28) continue;
 
-      for (var measureInRow = 0; measureInRow < rowEndExclusive - rowStartMeasure; measureInRow++) {
-        final absoluteMeasureIndex = rowStartMeasure + measureInRow;
-        final measureStartX = contentStartX + (measureInRow * widget.minMeasureWidth);
-        final measureEndX = measureStartX + widget.minMeasureWidth;
-        if (position.dx < measureStartX || position.dx > measureEndX) continue;
+        for (var measureInRow = 0; measureInRow < rowEndExclusive - rowStartMeasure; measureInRow++) {
+          final absoluteMeasureIndex = rowStartMeasure + measureInRow;
+          final measureStartX = contentStartX + (measureInRow * widget.minMeasureWidth);
+          final measureEndX = measureStartX + widget.minMeasureWidth;
+          if (position.dx < measureStartX || position.dx > measureEndX) continue;
 
-        final measure = measures[absoluteMeasureIndex];
-        final drawableWidth = ((measureEndX - measureStartX) - (innerPadding * 2))
-            .clamp(12.0, double.infinity)
-            .toDouble();
-        final clampedX = position.dx
-            .clamp(measureStartX + innerPadding, measureEndX - innerPadding)
-            .toDouble();
-        final symbolCount = measure.symbols.length;
-        var insertIndex = 0;
+          final measure = measures[absoluteMeasureIndex];
+          final drawableWidth = ((measureEndX - measureStartX) - (innerPadding * 2))
+              .clamp(12.0, double.infinity)
+              .toDouble();
+          final clampedX = position.dx
+              .clamp(measureStartX + innerPadding, measureEndX - innerPadding)
+              .toDouble();
+          final symbolCount = measure.symbols.length;
+          var insertIndex = 0;
 
-        for (var i = 0; i < symbolCount; i++) {
-          final progress = (i + 1) / (symbolCount + 1);
-          final symbolX = measureStartX + innerPadding + (drawableWidth * progress);
-          if (clampedX > symbolX) insertIndex++;
+          for (var i = 0; i < symbolCount; i++) {
+            final progress = (i + 1) / (symbolCount + 1);
+            final symbolX = measureStartX + innerPadding + (drawableWidth * progress);
+            if (clampedX > symbolX) insertIndex++;
+          }
+
+          final indicatorProgress = (insertIndex + 1) / (symbolCount + 2);
+          final indicatorX = measureStartX + innerPadding + (drawableWidth * indicatorProgress);
+          final clefSign = measure.clef?.sign ?? 'G';
+          final pitch = StaffPitchMapper.pitchForY(
+            y: position.dy,
+            bottomLineY: staffBottom,
+            lineSpacing: ScoreNotationPainter.staffLineSpacing,
+            clefSign: clefSign,
+          );
+
+          return NotationInsertTarget(
+            partIndex: partIdx,
+            measureIndex: absoluteMeasureIndex,
+            insertIndex: insertIndex,
+            indicatorX: indicatorX,
+            step: pitch.step,
+            octave: pitch.octave,
+          );
         }
-
-        final indicatorProgress = (insertIndex + 1) / (symbolCount + 2);
-        final indicatorX = measureStartX + innerPadding + (drawableWidth * indicatorProgress);
-        final clefSign = measure.clef?.sign ?? 'G';
-        final pitch = StaffPitchMapper.pitchForY(
-          y: position.dy,
-          bottomLineY: staffBottom,
-          lineSpacing: ScoreNotationPainter.staffLineSpacing,
-          clefSign: clefSign,
-        );
-
-        return NotationInsertTarget(
-          measureIndex: absoluteMeasureIndex,
-          insertIndex: insertIndex,
-          indicatorX: indicatorX,
-          step: pitch.step,
-          octave: pitch.octave,
-        );
       }
     }
     return null;

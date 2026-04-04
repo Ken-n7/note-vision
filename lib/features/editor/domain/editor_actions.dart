@@ -98,6 +98,39 @@ extension EditorActions on EditorState {
     );
   }
 
+  EditorState deleteSelectedMeasureIfEmpty() {
+    if (selectedPartIndex == null || selectedMeasureIndex == null) return this;
+    final partIndex = selectedPartIndex!;
+    final measureIndex = selectedMeasureIndex!;
+    final measures = score.parts[partIndex].measures;
+    if (measures.length <= 1) return this; // keep at least one measure
+    if (measures[measureIndex].symbols.isNotEmpty) return this; // not empty
+
+    final nextScore = score.deleteMeasureFromAllParts(measureIndex);
+    final nextMeasureIndex = (measureIndex - 1).clamp(0, nextScore.parts[partIndex].measures.length - 1);
+    return applyEdit(
+      score: nextScore,
+      selectedPartIndex: partIndex,
+      selectedMeasureIndex: nextMeasureIndex,
+      selectedSymbolIndex: null,
+      selectedSymbol: null,
+    );
+  }
+
+  EditorState addMeasureAfterSelected() {
+    if (selectedPartIndex == null || selectedMeasureIndex == null) return this;
+    final measureIndex = selectedMeasureIndex!;
+    final nextScore = score.insertMeasureAfterInAllParts(measureIndex);
+    final newMeasureIndex = measureIndex + 1;
+    return applyEdit(
+      score: nextScore,
+      selectedPartIndex: selectedPartIndex,
+      selectedMeasureIndex: newMeasureIndex,
+      selectedSymbolIndex: null,
+      selectedSymbol: null,
+    );
+  }
+
   EditorState deleteSelectedSymbol() {
     if (!hasSelection) return this;
 
@@ -196,7 +229,7 @@ extension EditorActions on EditorState {
     required int toSymbolIndex,
   }) {
     if (score.parts.isEmpty) return this;
-    final partIndex = 0;
+    final partIndex = selectedPartIndex ?? 0;
     final measures = score.parts[partIndex].measures;
     if (measureIndex < 0 || measureIndex >= measures.length) return this;
 
@@ -272,12 +305,12 @@ extension EditorActions on EditorState {
   }
 
   EditorState insertSymbolAtMeasureIndex({
+    int partIndex = 0,
     required int measureIndex,
     required int insertIndex,
     required ScoreSymbol symbol,
   }) {
     if (score.parts.isEmpty) return this;
-    const partIndex = 0;
     final measures = score.parts[partIndex].measures;
     if (measureIndex < 0 || measureIndex >= measures.length) return this;
     if (insertIndex < 0 || insertIndex > measures[measureIndex].symbols.length) return this;

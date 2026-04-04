@@ -83,6 +83,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     final symbol = _buildSymbol(_insertSymbolType!, target);
     _updateState(
       (state) => state.insertSymbolAtMeasureIndex(
+        partIndex: target.partIndex,
         measureIndex: target.measureIndex,
         insertIndex: target.insertIndex,
         symbol: symbol,
@@ -95,6 +96,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     final symbol = _buildSymbol(data.type, target);
     _updateState(
       (state) => state.insertSymbolAtMeasureIndex(
+        partIndex: target.partIndex,
         measureIndex: target.measureIndex,
         insertIndex: target.insertIndex,
         symbol: symbol,
@@ -171,6 +173,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
             selectedPartIndex >= _editorState.score.parts.length
         ? 0
         : _editorState.score.parts[selectedPartIndex].measures.length;
+    final canDeleteMeasure = hasMeasureContext &&
+        measureCount > 1 &&
+        _editorState.score.parts[selectedPartIndex]
+            .measures[selectedMeasureIndex].symbols.isEmpty;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -221,7 +227,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               measureCount: measureCount,
               onPrevMeasure: selectedMeasureIndex > 0
                   ? () => _updateState((s) => s.copyWith(
-                        selectedPartIndex: 0,
+                        selectedPartIndex: selectedPartIndex,
                         selectedMeasureIndex: selectedMeasureIndex - 1,
                         selectedSymbolIndex: null,
                         selectedSymbol: null,
@@ -229,7 +235,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   : null,
               onNextMeasure: selectedMeasureIndex < measureCount - 1
                   ? () => _updateState((s) => s.copyWith(
-                        selectedPartIndex: 0,
+                        selectedPartIndex: selectedPartIndex,
                         selectedMeasureIndex: selectedMeasureIndex + 1,
                         selectedSymbolIndex: null,
                         selectedSymbol: null,
@@ -247,6 +253,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               onDelete: () => _updateState((s) => s.deleteSelectedSymbol()),
               onMoveToPrev: () => _updateState((s) => s.moveSelectedSymbolToMeasureOffset(-1)),
               onMoveToNext: () => _updateState((s) => s.moveSelectedSymbolToMeasureOffset(1)),
+              onAddMeasure: () => _updateState((s) => s.addMeasureAfterSelected()),
+              canDeleteMeasure: canDeleteMeasure,
+              onDeleteMeasure: () => _updateState((s) => s.deleteSelectedMeasureIfEmpty()),
             );
 
             return Column(
@@ -776,6 +785,9 @@ class _InspectorPanel extends StatelessWidget {
     required this.onDelete,
     required this.onMoveToPrev,
     required this.onMoveToNext,
+    required this.onAddMeasure,
+    required this.canDeleteMeasure,
+    required this.onDeleteMeasure,
   });
 
   final bool isLandscape;
@@ -798,6 +810,9 @@ class _InspectorPanel extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onMoveToPrev;
   final VoidCallback onMoveToNext;
+  final VoidCallback onAddMeasure;
+  final bool canDeleteMeasure;
+  final VoidCallback onDeleteMeasure;
 
   @override
   Widget build(BuildContext context) {
@@ -849,6 +864,8 @@ class _InspectorPanel extends StatelessWidget {
         children: [
           _ActionTile(icon: Icons.skip_previous_rounded, label: 'Prev', onPressed: hasSelection ? onMoveToPrev : null),
           _ActionTile(icon: Icons.skip_next_rounded, label: 'Next', onPressed: hasSelection ? onMoveToNext : null),
+          _ActionTile(icon: Icons.add_rounded, label: 'Add', onPressed: hasMeasureContext ? onAddMeasure : null),
+          _ActionTile(icon: Icons.remove_rounded, label: 'Del', onPressed: canDeleteMeasure ? onDeleteMeasure : null, danger: true),
         ],
       ),
       _ActionGroup(

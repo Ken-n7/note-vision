@@ -402,7 +402,10 @@ void main() {
 
       final result = mapper.map(detection);
 
-      expect(result.score.parts.single.measures.single.symbols, isEmpty);
+      // head-1 has no nearby stem (stem-1 is too far right) → assumed quarter.
+      expect(result.score.parts.single.measures.single.notes, hasLength(1));
+      expect(result.score.parts.single.measures.single.notes.single.type, 'quarter');
+      // StemAssociator still warns about the unpaired notehead and stray stem.
       expect(
         result.warnings.any((warning) => warning.contains('Could not confidently pair notehead head-1')),
         isTrue,
@@ -411,9 +414,10 @@ void main() {
         result.warnings.any((warning) => warning.contains('Stem stem-1 could not be paired')),
         isTrue,
       );
+      // No "could not infer" warning — stemless noteheadBlack is now a quarter.
       expect(
         result.warnings.any((warning) => warning.contains('Could not infer a supported note value from head-1')),
-        isTrue,
+        isFalse,
       );
     });
 
@@ -459,16 +463,21 @@ void main() {
 
       final result = mapper.map(detection);
 
+      // head-1 has no stem → assumed quarter, but no clef in this detection
+      // so pitch calculation fails → note is still skipped.
       expect(result.score.parts.single.measures.single.symbols, isEmpty);
-      expect(result.warnings, isNotEmpty);
-      // beam symbols are now consumed by the pipeline (no longer "unsupported")
+      // beam symbols are consumed by the pipeline (no longer "unsupported")
       expect(
         result.warnings.any((warning) => warning.contains('Unsupported symbol "beam"')),
         isFalse,
       );
-      // the notehead has no stem → note value cannot be inferred
+      // "could not infer note value" is gone — the new warning is about pitch
       expect(
         result.warnings.any((warning) => warning.contains('Could not infer a supported note value')),
+        isFalse,
+      );
+      expect(
+        result.warnings.any((warning) => warning.contains('Could not calculate pitch')),
         isTrue,
       );
     });

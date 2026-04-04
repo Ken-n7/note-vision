@@ -272,7 +272,7 @@ reorderSymbol(partIndex, measureIndex, fromIndex, toIndex)
 | Multi-stave (one Part per staff) | ✅ Works — BGC-57 |
 | Staff assignment | ✅ Works — model combStaff detections preferred, projector supplement, synthetic fallback |
 | Measure grouping from barlines | ✅ Works |
-| Note reconstruction (whole/half/quarter/eighth/sixteenth) | ✅ Works |
+| Note reconstruction (whole/half/quarter/eighth/sixteenth) | ✅ Works — noteheadBlack without stem assumed quarter (stems frequently missed by model) |
 | Rest reconstruction (whole/half/quarter/eighth/sixteenth) | ✅ Works — BGC-59 |
 | Pitch calculation from staff position | ✅ Works — treble + bass clef both supported |
 | Stem/flag/beam association | ✅ Works — BGC-59 beams |
@@ -521,6 +521,25 @@ Full expanded reconstruction pipeline. All spec criteria satisfied, several abov
 - **Double accidentals** — `isAnyAccidental` + `alterFor` handle `accidentalDoubleSharp`/`accidentalDoubleFlat` (above spec)
 - **`expanded_reconstruction_test.dart`** — 13 new tests across 4 groups: accidentals (5), beams (3), rests (2), bass clef (3)
 - **Sprint 4 test fixes** (3 tests) — updated for BGC-57 multi-part behavior: part name `'Detected Part'` → `'Treble'`; multi-staff test updated from `parts.single` to asserting two parts with correct content
+
+---
+
+## noteheadBlack Stem Assumption Heuristic (post-BGC-59, branch BGC-57)
+
+Implemented in `SemanticInferrer._buildNote()`:
+
+- **Problem:** YOLO frequently misses stems (thin vertical lines). A `noteheadBlack` with no detected stem was silently dropped — the note disappeared entirely from the reconstructed score.
+- **Fix:** Added a terminal fallback case `'noteheadBlack' => 'quarter'` in the `_buildNote` switch. When no stem is detected alongside a black notehead, the note is assumed to be a quarter note rather than discarded.
+- **Rationale:** A slightly-wrong duration (quarter instead of eighth/quarter) is far less damaging than a missing note. Pitch reconstruction is unaffected.
+- **Note still dropped if:** pitch calculation fails (e.g., no clef in the measure) — that guard is independent of this heuristic.
+- **Switch order (in priority):**
+  1. `noteheadBlack` with stem + flag/beam → eighth
+  2. `noteheadBlack` with stem (no flag/beam) → quarter
+  3. `noteheadBlack` with beam but no stem → eighth (beams are thicker, easier for model to detect than thin stems)
+  4. `noteheadBlack` (no stem, no beam) → quarter ← fallback
+- **Test impact:** Two tests in `detection_to_score_mapper_service_test.dart` updated:
+  - "ambiguous noteheads" — now asserts 1 quarter note produced (clef present, pitch succeeds); previously expected empty symbols + "Could not infer" warning
+  - "partial mapped score" — now asserts empty symbols with "Could not calculate pitch" warning (clef absent → pitch fails after switch succeeds); previously expected empty symbols + "Could not infer" warning
 
 ---
 

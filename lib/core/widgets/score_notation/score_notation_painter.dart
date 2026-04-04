@@ -782,6 +782,7 @@ class NotationDragFeedback {
 
 class NotationInsertTarget {
   const NotationInsertTarget({
+    this.partIndex = 0,
     required this.measureIndex,
     required this.insertIndex,
     required this.indicatorX,
@@ -789,6 +790,7 @@ class NotationInsertTarget {
     required this.octave,
   });
 
+  final int partIndex;
   final int measureIndex;
   final int insertIndex;
   final double indicatorX;
@@ -799,6 +801,7 @@ class NotationInsertTarget {
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     return other is NotationInsertTarget &&
+        other.partIndex == partIndex &&
         other.measureIndex == measureIndex &&
         other.insertIndex == insertIndex &&
         other.indicatorX == indicatorX &&
@@ -808,6 +811,7 @@ class NotationInsertTarget {
 
   @override
   int get hashCode =>
+      partIndex.hashCode ^
       measureIndex.hashCode ^
       insertIndex.hashCode ^
       indicatorX.hashCode ^

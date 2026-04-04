@@ -67,6 +67,70 @@ class Score {
     return _replaceMeasureSymbols(partIndex, measureIndex, symbols);
   }
 
+  /// Inserts a new empty measure immediately after [measureIndex] in every
+  /// part, then renumbers all measures in each part by their list position
+  /// (1-indexed). Clef/key/time are left null on the new measure — the active
+  /// clef flows forward from the preceding measure during reconstruction and
+  /// export, so no explicit carry-over is needed.
+  Score insertMeasureAfterInAllParts(int measureIndex) {
+    if (parts.isEmpty) return this;
+
+    final updatedParts = List<Part>.from(parts);
+    for (int pi = 0; pi < updatedParts.length; pi++) {
+      final part = updatedParts[pi];
+      final measures = List<Measure>.from(part.measures);
+      final insertAt = (measureIndex + 1).clamp(0, measures.length);
+      measures.insert(
+        insertAt,
+        Measure(number: insertAt + 1, symbols: const []),
+      );
+
+      // Renumber every measure by its new list position.
+      final renumbered = [
+        for (int i = 0; i < measures.length; i++)
+          Measure(
+            number: i + 1,
+            clef: measures[i].clef,
+            timeSignature: measures[i].timeSignature,
+            keySignature: measures[i].keySignature,
+            symbols: measures[i].symbols,
+          ),
+      ];
+
+      updatedParts[pi] = Part(id: part.id, name: part.name, measures: renumbered);
+    }
+
+    return Score(id: id, title: title, composer: composer, parts: updatedParts);
+  }
+
+  /// Removes the measure at [measureIndex] from every part and renumbers.
+  /// The caller is responsible for ensuring the measure is empty and that
+  /// more than one measure exists — this method does no safety checks.
+  Score deleteMeasureFromAllParts(int measureIndex) {
+    if (parts.isEmpty) return this;
+
+    final updatedParts = List<Part>.from(parts);
+    for (int pi = 0; pi < updatedParts.length; pi++) {
+      final part = updatedParts[pi];
+      final measures = List<Measure>.from(part.measures)..removeAt(measureIndex);
+
+      final renumbered = [
+        for (int i = 0; i < measures.length; i++)
+          Measure(
+            number: i + 1,
+            clef: measures[i].clef,
+            timeSignature: measures[i].timeSignature,
+            keySignature: measures[i].keySignature,
+            symbols: measures[i].symbols,
+          ),
+      ];
+
+      updatedParts[pi] = Part(id: part.id, name: part.name, measures: renumbered);
+    }
+
+    return Score(id: id, title: title, composer: composer, parts: updatedParts);
+  }
+
   Score reorderSymbol(
     int partIndex,
     int measureIndex,
