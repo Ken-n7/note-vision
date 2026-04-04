@@ -11,6 +11,7 @@ import 'package:note_vision/features/editor/presentation/editor_shell_screen.dar
 import 'package:note_vision/features/detection/data/tflite_symbol_detector.dart';
 import 'package:note_vision/features/preprocessing/data/basic_image_preprocessor.dart';
 import 'package:note_vision/features/preprocessing/data/horizontal_projection_staff_detector.dart';
+import 'package:note_vision/features/mapping/domain/detection_to_score_mapper_service.dart';
 import 'package:note_vision/features/scan/presentation/scan_viewmodel.dart';
 import 'widgets/scan_actions.dart';
 import 'widgets/scan_image_view.dart';
@@ -392,6 +393,7 @@ class ScanScreenProvider extends StatelessWidget {
         BasicImagePreprocessor(),
         const HorizontalProjectionStaffDetector(),
         TfliteSymbolDetector(),
+        mapper: const DetectionToScoreMapperService(),
       ),
       child: ScanScreen(imageBytes: imageBytes),
     );
