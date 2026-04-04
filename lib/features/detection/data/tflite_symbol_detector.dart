@@ -133,21 +133,23 @@ class TfliteSymbolDetector implements SymbolDetector {
     return output[0] as List<List<double>>;
   }
 
-  /// Builds the int8-quantised input tensor from a 640×640 RGB image.
+  /// Builds the input tensor from a 640×640 RGB image.
   ///
-  /// The model expects [1, 640, 640, 3] int8 (values in 0–255 stored as
-  /// signed bytes). We pass them as a flat [Int8List] which tflite_flutter
-  /// accepts as a reshaped [1, 640, 640, 3] input.
-  Int8List _imageToTensor(img.Image tile) {
-    final data = Int8List(_inputSize * _inputSize * 3);
+  /// The model expects [1, 640, 640, 3] int8 input. We return a [Uint8List]
+  /// (raw bytes 0–255) instead of [Int8List] because tflite_flutter 0.12.x
+  /// skips automatic input-shape detection only for [Uint8List], preventing
+  /// the interpreter from incorrectly resizing the input tensor to a 1-D shape
+  /// and causing a "bad state: failed precondition" error at invoke time.
+  /// The underlying byte values are identical to int8 (same bit patterns).
+  Uint8List _imageToTensor(img.Image tile) {
+    final data = Uint8List(_inputSize * _inputSize * 3);
     int idx = 0;
     for (int y = 0; y < _inputSize; y++) {
       for (int x = 0; x < _inputSize; x++) {
         final pixel = tile.getPixel(x, y);
-        // Cast 0–255 to signed byte (int8 wraps: values > 127 become negative).
-        data[idx++] = pixel.r.toInt().toSigned(8);
-        data[idx++] = pixel.g.toInt().toSigned(8);
-        data[idx++] = pixel.b.toInt().toSigned(8);
+        data[idx++] = pixel.r.toInt() & 0xFF;
+        data[idx++] = pixel.g.toInt() & 0xFF;
+        data[idx++] = pixel.b.toInt() & 0xFF;
       }
     }
     return data;
