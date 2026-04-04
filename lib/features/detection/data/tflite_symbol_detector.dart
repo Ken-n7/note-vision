@@ -53,26 +53,90 @@ class TfliteSymbolDetector implements SymbolDetector {
       interpolation: img.Interpolation.linear,
     );
 
-    debugPrint(
-      '[TfliteSymbolDetector] Running full-image inference '
-      '(${fullImage.width}×${fullImage.height} → $_inputSize×$_inputSize). '
-      '${staves.length} stave(s) available for pitch reconstruction.',
-    );
-
     final raw = _runInference(tile);
-
-    // Normalized 0–1 coords → original image pixel space.
-    // scaleX/Y = origDim / _inputSize, which simplifies to:
-    //   x_orig = detection * origW,  y_orig = detection * origH
-    final symbols = _nms(
-      _parseOutput(
-        raw,
-        scaleX: fullImage.width / _inputSize,
-        scaleY: fullImage.height / _inputSize,
-      ),
+    final allDetections = _parseOutput(
+      raw,
+      scaleX: fullImage.width / _inputSize,
+      scaleY: fullImage.height / _inputSize,
     );
 
-    return DetectionResult(symbols: symbols, staffs: staves);
+    // Partition detections by role before NMS to avoid cross-class suppression.
+    // combStaff → staff geometry; staffLine → structural (discarded);
+    // everything else → musical symbols shown in the editor.
+    final combStaffDetections = allDetections
+        .where((s) => s.musicSymbol == MusicSymbol.combStaff)
+        .toList();
+    final musicalDetections = allDetections
+        .where(
+          (s) =>
+              s.musicSymbol != MusicSymbol.combStaff &&
+              s.musicSymbol != MusicSymbol.staffLine,
+        )
+        .toList();
+
+    final mergedStaves = _mergeStaves(_nms(combStaffDetections), staves);
+    final symbols = _nms(musicalDetections);
+
+    debugPrint(
+      '[TfliteSymbolDetector] ${fullImage.width}×${fullImage.height} → '
+      '$_inputSize×$_inputSize | '
+      '${combStaffDetections.length} combStaff → ${mergedStaves.length} stave(s) | '
+      '${symbols.length} musical symbol(s)',
+    );
+
+    return DetectionResult(symbols: symbols, staffs: mergedStaves);
+  }
+
+  /// Builds the final staff list by preferring model-detected [combStaff]
+  /// bboxes and supplementing with [projectorStaves] from
+  /// [HorizontalProjectionStaffDetector] wherever the model missed a staff.
+  List<DetectedStaff> _mergeStaves(
+    List<DetectedSymbol> combStaffSymbols,
+    List<DetectedStaff> projectorStaves,
+  ) {
+    // Convert each combStaff bbox into a DetectedStaff. Assume the bbox spans
+    // exactly from the top staff line to the bottom staff line, giving 4 equal
+    // gaps between 5 lines.
+    final modelStaves = <DetectedStaff>[];
+    for (int i = 0; i < combStaffSymbols.length; i++) {
+      final box = combStaffSymbols[i].boundingBox;
+      if (box == null) continue;
+      final spacing = box.height / 4;
+      modelStaves.add(
+        DetectedStaff(
+          id: 'model-staff-$i',
+          topY: box.top,
+          bottomY: box.bottom,
+          lineYs: List.generate(5, (l) => box.top + l * spacing),
+        ),
+      );
+    }
+
+    // Add projector staves whose midpoint isn't already covered by a model staff.
+    final supplementary = <DetectedStaff>[];
+    for (final proj in projectorStaves) {
+      final midY = (proj.topY + proj.bottomY) / 2;
+      final covered = modelStaves.any(
+        (ms) => midY >= ms.topY && midY <= ms.bottomY,
+      );
+      if (!covered) supplementary.add(proj);
+    }
+
+    if (modelStaves.isEmpty && supplementary.isEmpty) {
+      debugPrint(
+        '[TfliteSymbolDetector] No staves from model or projector — '
+        'mapper will attempt SyntheticStaffBuilder.',
+      );
+    } else {
+      debugPrint(
+        '[TfliteSymbolDetector] Staves: ${modelStaves.length} model, '
+        '${supplementary.length} projector supplement.',
+      );
+    }
+
+    final merged = [...modelStaves, ...supplementary]
+      ..sort((a, b) => a.topY.compareTo(b.topY));
+    return merged;
   }
 
   List<List<double>> _runInference(img.Image tile) {

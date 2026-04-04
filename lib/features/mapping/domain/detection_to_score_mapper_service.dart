@@ -3,11 +3,13 @@
 // Drop-in replacement — adds mapWithPipeline() while keeping map() identical.
 
 import 'dart:math' as math;
+import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/features/detection/domain/detection_result.dart';
 import 'package:note_vision/features/detection_inspector/model/mapping_pipeline_state.dart';
 import 'mapping_confidence_summary.dart';
 import 'mapping_result.dart';
 import 'score_mapper_service.dart';
+import 'internal/mapping_types.dart';
 import 'internal/measure_grouper.dart';
 import 'internal/score_builder.dart';
 import 'internal/semantic_inferrer.dart';
@@ -87,31 +89,53 @@ class DetectionToScoreMapperService extends ScoreMapperService {
       );
     }
 
-    if (effectiveDetection.staffs.length > 1) {
-      warnings.add(
-        'Multiple staffs detected, but Sprint 4 supports only a single staff. '
-        'Using the best-matching staff assignments only.',
+    final assignments = _staffAssigner.assign(effectiveDetection, warnings: warnings);
+
+    // Run the full pipeline once per staff, producing one Part per staff.
+    final parts = <Part>[];
+    final allMeasures = <MeasureSymbols>[];
+    final allStemLinks = <String, StemLink>{};
+
+    for (int i = 0; i < effectiveDetection.staffs.length; i++) {
+      final staff = effectiveDetection.staffs[i];
+      final partLabel = switch (i) {
+        0 => 'Treble',
+        1 => 'Bass',
+        _ => 'Staff ${i + 1}',
+      };
+
+      final measures = _measureGrouper.group(
+        staff: staff,
+        detection: effectiveDetection,
+        assignments: assignments,
+        warnings: warnings,
       );
+      allMeasures.addAll(measures);
+
+      final stemLinks = _stemAssociator.associate(measures, warnings: warnings);
+      allStemLinks.addAll(stemLinks);
+
+      final semanticMeasures = _semanticInferrer.infer(
+        measures: measures,
+        stemLinks: stemLinks,
+        warnings: warnings,
+      );
+
+      parts.add(_scoreBuilder.buildPart(
+        semanticMeasures,
+        partId: 'P${i + 1}',
+        partName: partLabel,
+      ));
     }
 
-    final assignments = _staffAssigner.assign(effectiveDetection, warnings: warnings);
-    final measures = _measureGrouper.group(
-      detection: effectiveDetection,
-      assignments: assignments,
-      warnings: warnings,
-    );
-    final stemLinks = _stemAssociator.associate(measures, warnings: warnings);
-    final semanticMeasures = _semanticInferrer.infer(
-      measures: measures,
-      stemLinks: stemLinks,
-      warnings: warnings,
-    );
-    final score = _scoreBuilder.build(semanticMeasures);
+    final score = _scoreBuilder.buildFromParts(parts);
 
-    final mappedCount = semanticMeasures.fold<int>(
-      0,
-      (sum, m) => sum + m.symbols.length,
-    );
+    var mappedCount = 0;
+    for (final part in parts) {
+      for (final measure in part.measures) {
+        mappedCount += measure.symbols.length;
+      }
+    }
 
     if (mappedCount == 0) {
       warnings.add('No supported symbols were reconstructable.');
@@ -131,8 +155,8 @@ class DetectionToScoreMapperService extends ScoreMapperService {
     return MappingPipelineState(
       detection: effectiveDetection,
       assignments: assignments,
-      measures: measures,
-      stemLinks: stemLinks,
+      measures: allMeasures,
+      stemLinks: allStemLinks,
       result: result,
     );
   }

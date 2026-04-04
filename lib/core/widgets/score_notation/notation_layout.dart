@@ -28,6 +28,7 @@ class NotationLayoutCalculator {
     required double rowHeight,
     required EdgeInsets padding,
     double rowPrefixWidth = 86,
+    int partCount = 1,
   }) {
     final normalizedMeasuresPerRow = math.max(1, measuresPerRow);
     final longestRowCount = _longestRowCount(
@@ -41,7 +42,9 @@ class NotationLayoutCalculator {
     final rowCount = measures.isEmpty
         ? 0
         : (measures.length / normalizedMeasuresPerRow).ceil();
-    final height = padding.vertical + (rowCount * rowHeight);
+
+    // Each system row stacks partCount staves vertically.
+    final height = padding.vertical + (rowCount * partCount * rowHeight);
 
     return NotationLayout(
       size: Size(width, height),

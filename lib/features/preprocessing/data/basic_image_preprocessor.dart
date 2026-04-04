@@ -36,9 +36,8 @@ PreprocessedResult _processImage(Uint8List bytes) {
 
   processed = rgbImage;
 
-  // Step 3 — Return full-resolution image (no letterbox).
-  // Per-stave cropping and 640×640 resize happen inside TfliteSymbolDetector
-  // after the horizontal-projection staff pre-pass determines stave boundaries.
+  // Step 3 — Return full-resolution image (no resize).
+  // The 640×640 stretch happens inside TfliteSymbolDetector to match training.
   return PreprocessedResult(
     bytes: Uint8List.fromList(img.encodePng(processed)),
     width: processed.width,

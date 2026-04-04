@@ -49,24 +49,28 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     });
   }
 
-  void _onNotationSymbolTap(int measureIndex, int symbolIndex) {
+  void _onNotationSymbolTap(int partIndex, int measureIndex, int symbolIndex) {
     _updateState((state) {
       final isSame =
-          state.selectedPartIndex == 0 &&
+          state.selectedPartIndex == partIndex &&
           state.selectedMeasureIndex == measureIndex &&
           state.selectedSymbolIndex == symbolIndex;
       if (isSame) return _clearSymbolSelection(state);
 
       final parts = state.score.parts;
-      if (parts.isEmpty || measureIndex >= parts.first.measures.length) {
+      if (parts.isEmpty || partIndex >= parts.length) {
         return state.copyWith(clearSelection: true);
       }
-      final symbols = parts.first.measures[measureIndex].symbols;
+      final measures = parts[partIndex].measures;
+      if (measureIndex >= measures.length) {
+        return state.copyWith(clearSelection: true);
+      }
+      final symbols = measures[measureIndex].symbols;
       if (symbolIndex < 0 || symbolIndex >= symbols.length) {
         return _clearSymbolSelection(state);
       }
       return state.copyWith(
-        selectedPartIndex: 0,
+        selectedPartIndex: partIndex,
         selectedMeasureIndex: measureIndex,
         selectedSymbolIndex: symbolIndex,
         selectedSymbol: symbols[symbolIndex],
@@ -162,9 +166,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     final hasMeasureContext =
         _editorState.selectedPartIndex != null && _editorState.selectedMeasureIndex != null;
     final selectedMeasureIndex = _editorState.selectedMeasureIndex ?? 0;
-    final measureCount = _editorState.score.parts.isEmpty
+    final selectedPartIndex = _editorState.selectedPartIndex ?? 0;
+    final measureCount = _editorState.score.parts.isEmpty ||
+            selectedPartIndex >= _editorState.score.parts.length
         ? 0
-        : _editorState.score.parts.first.measures.length;
+        : _editorState.score.parts[selectedPartIndex].measures.length;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -190,7 +196,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 if (target == null) {
                   _updateState((s) => _clearSymbolSelection(s));
                 } else {
-                  _onNotationSymbolTap(target.measureIndex, target.symbolIndex);
+                  _onNotationSymbolTap(target.partIndex, target.measureIndex, target.symbolIndex);
                 }
               },
               onInsertTap: _onInsertTap,
@@ -484,6 +490,7 @@ class _NotationArea extends StatelessWidget {
                         padding: const EdgeInsets.all(8),
                         child: ScoreNotationViewer(
                           score: editorState.score,
+                          selectedPartIndex: editorState.selectedPartIndex ?? 0,
                           minMeasureWidth: 220 * canvasZoom,
                           selectedMeasureIndex: editorState.selectedMeasureIndex,
                           selectedSymbolIndex: editorState.selectedSymbolIndex,

@@ -89,7 +89,12 @@ class ScanImageView extends StatelessWidget {
                         ),
                         if (hasDetections)
                           Positioned.fill(
-                            child: DetectionOverlay(symbols: result.symbols),
+                            child: DetectionOverlay(
+                              symbols: result.symbols,
+                              staffs: result.detection.staffs,
+                              imageWidth: result.preprocessed.width,
+                              imageHeight: result.preprocessed.height,
+                            ),
                           ),
                       ],
                     ),

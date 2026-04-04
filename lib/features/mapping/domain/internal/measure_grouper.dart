@@ -1,3 +1,4 @@
+import 'package:note_vision/features/detection/domain/detected_staff.dart';
 import 'package:note_vision/features/detection/domain/detection_result.dart';
 import 'mapping_types.dart';
 
@@ -5,20 +6,20 @@ class MeasureGrouper {
   const MeasureGrouper();
 
   List<MeasureSymbols> group({
+    required DetectedStaff staff,
     required DetectionResult detection,
     required List<StaffOwnedSymbol> assignments,
     required List<String> warnings,
   }) {
     if (assignments.isEmpty) return const [];
 
-    final primaryStaff = detection.staffs.first;
     final staffSymbols = assignments
-        .where((e) => e.staff.id == primaryStaff.id)
+        .where((e) => e.staff.id == staff.id)
         .toList()
       ..sort((a, b) => a.symbolCenterX.compareTo(b.symbolCenterX));
 
     final barlines = detection.barlines
-        .where((b) => b.staffId == null || b.staffId == primaryStaff.id)
+        .where((b) => b.staffId == null || b.staffId == staff.id)
         .toList()
       ..sort((a, b) => a.x.compareTo(b.x));
 
@@ -36,7 +37,7 @@ class MeasureGrouper {
           symbol.symbolCenterX > barlines[barlineIndex].x) {
         measures.add(MeasureSymbols(
           number: measureNumber,
-          staff: primaryStaff,
+          staff: staff,
           symbols: List.unmodifiable(currentSymbols),
         ));
         currentSymbols = [];
@@ -48,7 +49,7 @@ class MeasureGrouper {
 
     measures.add(MeasureSymbols(
       number: measureNumber,
-      staff: primaryStaff,
+      staff: staff,
       symbols: List.unmodifiable(currentSymbols),
     ));
 
@@ -56,7 +57,7 @@ class MeasureGrouper {
       measureNumber++;
       measures.add(MeasureSymbols(
         number: measureNumber,
-        staff: primaryStaff,
+        staff: staff,
         symbols: const [],
       ));
       barlineIndex++;

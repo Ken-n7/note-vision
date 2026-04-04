@@ -15,6 +15,7 @@ class ScoreNotationViewer extends StatefulWidget {
   const ScoreNotationViewer({
     super.key,
     required this.score,
+    this.selectedPartIndex = 0,
     this.measuresPerRow = 4,
     this.minMeasureWidth = 140,
     this.rowHeight = 140,
@@ -31,6 +32,8 @@ class ScoreNotationViewer extends StatefulWidget {
   });
 
   final Score? score;
+  /// Which part index is active for editing/selection. All parts are displayed.
+  final int selectedPartIndex;
   final int measuresPerRow;
   final double minMeasureWidth;
   final double rowHeight;
@@ -66,18 +69,22 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
 
   @override
   Widget build(BuildContext context) {
-    final measures = _measuresFor(widget.score);
+    final allParts = _partsFor(widget.score);
+    // Use the active part's measures for insert/drag interactions.
+    final activeMeasures = _measuresFor(widget.score);
 
-    if (measures.isEmpty) {
+    if (allParts.isEmpty) {
       return _EmptyNotationState(backgroundColor: widget.backgroundColor);
     }
 
+    final partCount = allParts.length;
     final layout = _layoutCalculator.calculate(
-      measures: measures,
+      measures: activeMeasures,
       measuresPerRow: widget.measuresPerRow,
       minMeasureWidth: widget.minMeasureWidth,
       rowHeight: widget.rowHeight,
       padding: widget.padding,
+      partCount: partCount,
     );
 
     return _NotationCanvasFrame(
@@ -88,7 +95,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
       onExternalDragMove: (position, data) {
         if (widget.canAcceptExternalDrop?.call(data) == false) return;
         final adjusted = _adjustForHorizontalScroll(position);
-        final target = _resolveInsertTarget(measures: measures, layout: layout, position: adjusted);
+        final target = _resolveInsertTarget(measures: activeMeasures, layout: layout, position: adjusted);
         if (target == _externalInsertTarget) return;
         setState(() => _externalInsertTarget = target);
       },
@@ -99,7 +106,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
       onExternalAccept: (position, data) {
         if (widget.canAcceptExternalDrop?.call(data) == false) return;
         final adjusted = _adjustForHorizontalScroll(position);
-        final target = _resolveInsertTarget(measures: measures, layout: layout, position: adjusted);
+        final target = _resolveInsertTarget(measures: activeMeasures, layout: layout, position: adjusted);
         if (target != null) widget.onExternalDrop?.call(target, data);
         if (_externalInsertTarget != null) setState(() => _externalInsertTarget = null);
       },
@@ -112,14 +119,14 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
               );
               if (widget.insertMode) {
                 final target = _resolveInsertTarget(
-                  measures: measures,
+                  measures: activeMeasures,
                   layout: layout,
                   position: adjusted,
                 );
                 widget.onInsertTap?.call(target);
               } else {
                 final targets = ScoreNotationPainter.buildSymbolTargets(
-                  measures: measures,
+                  parts: allParts,
                   measuresPerRow: layout.measuresPerRow,
                   minMeasureWidth: widget.minMeasureWidth,
                   rowHeight: widget.rowHeight,
@@ -132,21 +139,22 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
             },
       onLongPressStart: widget.onSymbolReorder == null
           ? null
-          : (position) => _beginDrag(measures: measures, layout: layout, position: position),
+          : (position) => _beginDrag(measures: activeMeasures, layout: layout, position: position),
       onLongPressMoveUpdate: widget.onSymbolReorder == null
           ? null
-          : (position) => _updateDrag(measures: measures, layout: layout, position: position),
+          : (position) => _updateDrag(measures: activeMeasures, layout: layout, position: position),
       onLongPressEnd: widget.onSymbolReorder == null
           ? null
-          : (position) => _endDrag(measures: measures, layout: layout, position: position),
+          : (position) => _endDrag(measures: activeMeasures, layout: layout, position: position),
       onLongPressCancel: widget.onSymbolReorder == null ? null : _cancelDrag,
       painter: ScoreNotationPainter(
-        measures: measures,
+        parts: allParts,
         measuresPerRow: layout.measuresPerRow,
         minMeasureWidth: widget.minMeasureWidth,
         rowHeight: widget.rowHeight,
         padding: widget.padding,
         rowPrefixWidth: layout.rowPrefixWidth,
+        selectedPartIndex: widget.selectedPartIndex,
         selectedMeasureIndex: widget.selectedMeasureIndex,
         selectedSymbolIndex: widget.selectedSymbolIndex,
         dragFeedback: _dragSession == null
@@ -169,7 +177,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   }) {
     final adjusted = _adjustForHorizontalScroll(position);
     final targets = ScoreNotationPainter.buildSymbolTargets(
-      measures: measures,
+      parts: [measures],
       measuresPerRow: layout.measuresPerRow,
       minMeasureWidth: widget.minMeasureWidth,
       rowHeight: widget.rowHeight,
@@ -264,7 +272,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     }
 
     final targets = ScoreNotationPainter.buildSymbolTargets(
-      measures: measures,
+      parts: [measures],
       measuresPerRow: layout.measuresPerRow,
       minMeasureWidth: widget.minMeasureWidth,
       rowHeight: widget.rowHeight,
@@ -368,9 +376,18 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     return null;
   }
 
+  /// All parts for display — passed to the painter to render every staff.
+  List<List<Measure>> _partsFor(Score? score) {
+    if (score == null || score.parts.isEmpty) return const [];
+    return score.parts.map((p) => p.measures).toList(growable: false);
+  }
+
+  /// Active part's measures — used for insert/drag interactions only.
   List<Measure> _measuresFor(Score? score) {
-    final part = (score?.parts.isNotEmpty ?? false) ? score!.parts.first : null;
-    return part?.measures ?? const <Measure>[];
+    if (score == null || score.parts.isEmpty || widget.selectedPartIndex >= score.parts.length) {
+      return const <Measure>[];
+    }
+    return score.parts[widget.selectedPartIndex].measures;
   }
 }
 

@@ -12,24 +12,27 @@ import 'staff_pitch_mapper.dart';
 
 class ScoreNotationPainter extends CustomPainter {
   const ScoreNotationPainter({
-    required this.measures,
+    required this.parts,
     required this.measuresPerRow,
     required this.minMeasureWidth,
     required this.rowHeight,
     required this.padding,
     required this.rowPrefixWidth,
+    this.selectedPartIndex,
     this.selectedMeasureIndex,
     this.selectedSymbolIndex,
     this.dragFeedback,
     this.insertionTarget,
   });
 
-  final List<Measure> measures;
+  /// All parts — one inner list per part, each containing that part's measures.
+  final List<List<Measure>> parts;
   final int measuresPerRow;
   final double minMeasureWidth;
   final double rowHeight;
   final EdgeInsets padding;
   final double rowPrefixWidth;
+  final int? selectedPartIndex;
   final int? selectedMeasureIndex;
   final int? selectedSymbolIndex;
   final NotationDragFeedback? dragFeedback;
@@ -48,7 +51,7 @@ class ScoreNotationPainter extends CustomPainter {
 
   List<_RowMetrics> _buildRowMetrics() {
     return _buildRowMetricsStatic(
-      measures: measures,
+      parts: parts,
       measuresPerRow: measuresPerRow,
       rowHeight: rowHeight,
       padding: padding,
@@ -64,48 +67,69 @@ class ScoreNotationPainter extends CustomPainter {
     return 'G';
   }
 
+  /// Builds one [_RowMetrics] per (system, part) pair.
+  /// Each system row stacks [parts.length] staves vertically, aligned by
+  /// measure index — matching standard grand-staff notation layout.
   static List<_RowMetrics> _buildRowMetricsStatic({
-    required List<Measure> measures,
+    required List<List<Measure>> parts,
     required int measuresPerRow,
     required double rowHeight,
     required EdgeInsets padding,
     required double rowPrefixWidth,
     required double minMeasureWidth,
   }) {
+    if (parts.isEmpty) return [];
+
+    final partCount = parts.length;
+    final maxMeasureCount = parts.fold(0, (m, p) => math.max(m, p.length));
+    final systemCount = maxMeasureCount == 0
+        ? 0
+        : (maxMeasureCount / measuresPerRow).ceil();
+
     final rows = <_RowMetrics>[];
-    final rowCount = (measures.length / measuresPerRow).ceil();
 
-    for (var rowIndex = 0; rowIndex < rowCount; rowIndex++) {
-      final rowStartMeasure = rowIndex * measuresPerRow;
-      final rowEndExclusive = math.min(rowStartMeasure + measuresPerRow, measures.length);
-      final rowMeasures = measures.sublist(rowStartMeasure, rowEndExclusive);
-      final rowTop = padding.top + rowIndex * rowHeight + 28;
-      final staffTop = rowTop;
-      final staffBottom = staffTop + staffLineSpacing * 4;
-      final rowStartX = padding.left;
-      final contentStartX = rowStartX + rowPrefixWidth;
-      final rowEndX = contentStartX + (rowMeasures.length * minMeasureWidth);
+    for (var systemIndex = 0; systemIndex < systemCount; systemIndex++) {
+      final systemStartMeasure = systemIndex * measuresPerRow;
+      // Y origin for this system — each system occupies partCount * rowHeight.
+      final systemTopY = padding.top + systemIndex * (partCount * rowHeight);
 
-      rows.add(
-        _RowMetrics(
-          rowIndex: rowIndex,
-          globalStartMeasureIndex: rowStartMeasure,
-          measures: rowMeasures,
-          staffTop: staffTop,
-          staffBottom: staffBottom,
-          rowStartX: rowStartX,
-          contentStartX: contentStartX,
-          rowEndX: rowEndX,
-          clefSign: _clefSignForRow(rowMeasures),
-        ),
-      );
+      for (var partIdx = 0; partIdx < partCount; partIdx++) {
+        final partMeasures = parts[partIdx];
+        if (systemStartMeasure >= partMeasures.length) continue;
+
+        final rowEndExclusive =
+            math.min(systemStartMeasure + measuresPerRow, partMeasures.length);
+        final rowMeasures =
+            partMeasures.sublist(systemStartMeasure, rowEndExclusive);
+
+        final staffTop = systemTopY + partIdx * rowHeight + 28;
+        final staffBottom = staffTop + staffLineSpacing * 4;
+        final rowStartX = padding.left;
+        final contentStartX = rowStartX + rowPrefixWidth;
+        final rowEndX = contentStartX + (rowMeasures.length * minMeasureWidth);
+
+        rows.add(
+          _RowMetrics(
+            rowIndex: systemIndex,
+            partIndex: partIdx,
+            globalStartMeasureIndex: systemStartMeasure,
+            measures: rowMeasures,
+            staffTop: staffTop,
+            staffBottom: staffBottom,
+            rowStartX: rowStartX,
+            contentStartX: contentStartX,
+            rowEndX: rowEndX,
+            clefSign: _clefSignForRow(rowMeasures),
+          ),
+        );
+      }
     }
 
     return rows;
   }
 
   static List<NotationSymbolTarget> buildSymbolTargets({
-    required List<Measure> measures,
+    required List<List<Measure>> parts,
     required int measuresPerRow,
     required double minMeasureWidth,
     required double rowHeight,
@@ -113,7 +137,7 @@ class ScoreNotationPainter extends CustomPainter {
     required double rowPrefixWidth,
   }) {
     final rows = _buildRowMetricsStatic(
-      measures: measures,
+      parts: parts,
       measuresPerRow: measuresPerRow,
       rowHeight: rowHeight,
       padding: padding,
@@ -142,6 +166,7 @@ class ScoreNotationPainter extends CustomPainter {
           final y = _symbolCenterY(symbol, row.staffTop, row.staffBottom, row.clefSign);
           targets.add(
             NotationSymbolTarget(
+              partIndex: row.partIndex,
               measureIndex: row.globalStartMeasureIndex + measureInRow,
               symbolIndex: symbolIndex,
               center: Offset(x, y),
@@ -276,6 +301,7 @@ class ScoreNotationPainter extends CustomPainter {
       _drawMeasureSymbols(
         canvas,
         measure,
+        partIndex: row.partIndex,
         absoluteMeasureIndex: row.globalStartMeasureIndex + measureInRow,
         measureStartX: measureX,
         measureEndX: nextMeasureX,
@@ -289,6 +315,7 @@ class ScoreNotationPainter extends CustomPainter {
   void _drawMeasureSymbols(
     Canvas canvas,
     Measure measure, {
+    required int partIndex,
     required int absoluteMeasureIndex,
     required double measureStartX,
     required double measureEndX,
@@ -359,14 +386,16 @@ class ScoreNotationPainter extends CustomPainter {
           lineSpacing: staffLineSpacing,
           clefSign: clefSign,
         );
-        final isSelected =
-            selectedMeasureIndex == absoluteMeasureIndex && selectedSymbolIndex == i;
+        final isSelected = selectedPartIndex == partIndex &&
+            selectedMeasureIndex == absoluteMeasureIndex &&
+            selectedSymbolIndex == i;
         if (isSelected) _drawSelectionHighlight(canvas, Offset(x, y));
         _drawNote(canvas, symbol, x: x, y: y, middleLineY: middleLineY);
       } else if (symbol is Rest) {
         final y = _symbolCenterY(symbol, staffTop, staffBottom, clefSign);
-        final isSelected =
-            selectedMeasureIndex == absoluteMeasureIndex && selectedSymbolIndex == i;
+        final isSelected = selectedPartIndex == partIndex &&
+            selectedMeasureIndex == absoluteMeasureIndex &&
+            selectedSymbolIndex == i;
         if (isSelected) _drawSelectionHighlight(canvas, Offset(x, y));
         _drawRest(canvas, symbol, x: x, staffTop: staffTop);
       }
@@ -663,12 +692,13 @@ class ScoreNotationPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant ScoreNotationPainter oldDelegate) {
-    return oldDelegate.measures != measures ||
+    return oldDelegate.parts != parts ||
         oldDelegate.measuresPerRow != measuresPerRow ||
         oldDelegate.minMeasureWidth != minMeasureWidth ||
         oldDelegate.rowHeight != rowHeight ||
         oldDelegate.padding != padding ||
         oldDelegate.rowPrefixWidth != rowPrefixWidth ||
+        oldDelegate.selectedPartIndex != selectedPartIndex ||
         oldDelegate.selectedMeasureIndex != selectedMeasureIndex ||
         oldDelegate.selectedSymbolIndex != selectedSymbolIndex ||
         oldDelegate.dragFeedback != dragFeedback ||
@@ -678,12 +708,14 @@ class ScoreNotationPainter extends CustomPainter {
 
 class NotationSymbolTarget {
   const NotationSymbolTarget({
+    required this.partIndex,
     required this.measureIndex,
     required this.symbolIndex,
     required this.center,
     required this.hitRect,
   });
 
+  final int partIndex;
   final int measureIndex;
   final int symbolIndex;
   final Offset center;
@@ -759,6 +791,7 @@ class NotationInsertTarget {
 class _RowMetrics {
   const _RowMetrics({
     required this.rowIndex,
+    required this.partIndex,
     required this.globalStartMeasureIndex,
     required this.measures,
     required this.staffTop,
@@ -770,6 +803,7 @@ class _RowMetrics {
   });
 
   final int rowIndex;
+  final int partIndex;
   final int globalStartMeasureIndex;
   final List<Measure> measures;
   final double staffTop;
