@@ -5,7 +5,11 @@ class SymbolClassifier {
       type == 'gClef' || type == 'clefG' || type == 'fClef';
 
   static bool isSupportedRest(String type) =>
-      type == 'restQuarter' || type == 'restHalf' || type == 'restWhole';
+      type == 'restQuarter' ||
+      type == 'restHalf' ||
+      type == 'restWhole' ||
+      type == 'rest8th' ||
+      type == 'rest16th';
 
   static bool isSupportedFlag(String type) =>
       type == 'flag8thUp' || type == 'flag8thDown';
@@ -26,6 +30,26 @@ class SymbolClassifier {
       type == 'accidentalSharp' ||
       type == 'accidentalNatural';
 
+  /// Matches any accidental that can appear on an individual note (including
+  /// double variants). These may also appear in the key-signature zone.
+  static bool isAnyAccidental(String type) =>
+      type == 'accidentalFlat' ||
+      type == 'accidentalSharp' ||
+      type == 'accidentalNatural' ||
+      type == 'accidentalDoubleFlat' ||
+      type == 'accidentalDoubleSharp';
+
+  /// Maps an accidental type to its MusicXML `alter` value, or null if
+  /// the type is not a recognised accidental.
+  static int? alterFor(String type) => switch (type) {
+        'accidentalSharp' => 1,
+        'accidentalFlat' => -1,
+        'accidentalNatural' => 0,
+        'accidentalDoubleSharp' => 2,
+        'accidentalDoubleFlat' => -2,
+        _ => null,
+      };
+
   static bool isSignatureSymbol(String type) =>
       isSupportedClef(type) ||
       isTimeSignatureSymbol(type) ||
@@ -43,6 +67,7 @@ class SymbolClassifier {
         'half' => 2,
         'quarter' => 1,
         'eighth' => 1,
+        'sixteenth' => 1,
         _ => 1,
       };
 }

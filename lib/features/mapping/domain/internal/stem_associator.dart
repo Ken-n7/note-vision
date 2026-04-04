@@ -22,6 +22,9 @@ class StemAssociator {
       final flags = measure.symbols
           .where((e) => SymbolClassifier.isSupportedFlag(e.symbol.type))
           .toList();
+      final beams = measure.symbols
+          .where((e) => e.symbol.type == 'beam')
+          .toList();
 
       final usedStemIds = <String>{};
       final usedFlagIds = <String>{};
@@ -43,9 +46,12 @@ class StemAssociator {
         final flag = _pickClosestFlag(stem.symbol, flags, usedFlagIds);
         if (flag != null) usedFlagIds.add(flag.symbol.id);
 
+        final hasBeam = _hasNearbyBeam(stem.symbol, beams);
+
         result[notehead.symbol.id] = StemLink(
           stem: stem.symbol,
           flag: flag?.symbol,
+          hasBeam: hasBeam,
         );
       }
 
@@ -113,6 +119,25 @@ class StemAssociator {
     }
 
     return best;
+  }
+
+  /// Returns true when any beam symbol's X range overlaps the stem's X range,
+  /// meaning this stem is part of a beamed eighth-note group.
+  bool _hasNearbyBeam(DetectedSymbol stem, List<StaffOwnedSymbol> beams) {
+    final stemBox = stem.boundingBox;
+    if (stemBox == null) return false;
+
+    for (final beam in beams) {
+      final beamBox = beam.symbol.boundingBox;
+      if (beamBox == null) continue;
+      // A beam is a wide horizontal stroke that physically crosses its stems.
+      // A generous 1× stem-width tolerance handles slight misalignment.
+      if (beamBox.left <= stemBox.right + stemBox.width &&
+          beamBox.right >= stemBox.left - stemBox.width) {
+        return true;
+      }
+    }
+    return false;
   }
 
   StaffOwnedSymbol? _pickClosestFlag(

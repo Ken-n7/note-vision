@@ -11,7 +11,8 @@ class PitchCalculator {
     required DetectedStaff staff,
     required Clef? clef,
   }) {
-    if (clef == null || clef.sign != 'G') return null;
+    if (clef == null) return null;
+    if (clef.sign != 'G' && clef.sign != 'F') return null;
     if (staff.lineYs.length < 2) return null;
 
     final sortedLines = [...staff.lineYs]..sort();
@@ -25,7 +26,9 @@ class PitchCalculator {
       lineSpacing: spacing,
     );
 
-    return _fromTrebleOffset(diatonicOffset);
+    return clef.sign == 'G'
+        ? _fromTrebleOffset(diatonicOffset)
+        : _fromBassOffset(diatonicOffset);
   }
 
   double _averageSpacing(List<double> sortedLines) {
@@ -44,6 +47,25 @@ class PitchCalculator {
   }) {
     final halfStepSpacing = lineSpacing / 2;
     return ((bottomLineY - centerY) / halfStepSpacing).round();
+  }
+
+  /// Bass clef: F clef on line 4. Bottom staff line (line 1) = G2.
+  /// Offset 0 = G2, offset 2 = B2, offset 4 = D3, offset 6 = F3, offset 8 = A3.
+  Pitch _fromBassOffset(int diatonicOffset) {
+    const steps = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+    var stepIndex = 4 + diatonicOffset; // base: G2 → index 4
+    var octave = 2;
+
+    while (stepIndex < 0) {
+      stepIndex += steps.length;
+      octave--;
+    }
+    while (stepIndex >= steps.length) {
+      stepIndex -= steps.length;
+      octave++;
+    }
+
+    return Pitch(step: steps[stepIndex], octave: octave);
   }
 
   Pitch _fromTrebleOffset(int diatonicOffset) {
