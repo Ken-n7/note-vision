@@ -13,6 +13,7 @@ import 'internal/score_builder.dart';
 import 'internal/semantic_inferrer.dart';
 import 'internal/staff_assigner.dart';
 import 'internal/stem_associator.dart';
+import 'internal/synthetic_staff_builder.dart';
 
 class DetectionToScoreMapperService extends ScoreMapperService {
   final StaffAssigner _staffAssigner;
@@ -20,6 +21,7 @@ class DetectionToScoreMapperService extends ScoreMapperService {
   final StemAssociator _stemAssociator;
   final SemanticInferrer _semanticInferrer;
   final ScoreBuilder _scoreBuilder;
+  final SyntheticStaffBuilder _syntheticStaffBuilder;
 
   const DetectionToScoreMapperService({
     StaffAssigner staffAssigner = const StaffAssigner(),
@@ -27,11 +29,13 @@ class DetectionToScoreMapperService extends ScoreMapperService {
     StemAssociator stemAssociator = const StemAssociator(),
     SemanticInferrer semanticInferrer = const SemanticInferrer(),
     ScoreBuilder scoreBuilder = const ScoreBuilder(),
+    SyntheticStaffBuilder syntheticStaffBuilder = const SyntheticStaffBuilder(),
   })  : _staffAssigner = staffAssigner,
         _measureGrouper = measureGrouper,
         _stemAssociator = stemAssociator,
         _semanticInferrer = semanticInferrer,
-        _scoreBuilder = scoreBuilder;
+        _scoreBuilder = scoreBuilder,
+        _syntheticStaffBuilder = syntheticStaffBuilder;
 
   @override
   MappingResult map(DetectionResult detection) =>
@@ -42,36 +46,57 @@ class DetectionToScoreMapperService extends ScoreMapperService {
     final warnings = <String>[];
     final errors = <String>[];
 
+    String? staffSource;
+
+    DetectionResult effectiveDetection = detection;
     if (detection.staffs.isEmpty) {
-      warnings.add('No staff detected; returning an empty mapped score.');
-      final result = MappingResult(
-        score: _scoreBuilder.buildEmpty(),
-        warnings: warnings,
-        errors: errors,
-        confidenceSummary: _buildConfidenceSummary(
+      final syntheticStaff = _syntheticStaffBuilder.build(detection.symbols);
+      if (syntheticStaff == null) {
+        warnings.add(
+          'No staff detected and too few noteheads to estimate geometry; '
+          'returning an empty mapped score.',
+        );
+        final result = MappingResult(
+          score: _scoreBuilder.buildEmpty(),
+          warnings: warnings,
+          errors: errors,
+          confidenceSummary: _buildConfidenceSummary(
+            detection: detection,
+            mappedSymbolCount: 0,
+          ),
+        );
+        return MappingPipelineState(
           detection: detection,
-          mappedSymbolCount: 0,
-        ),
+          assignments: const [],
+          measures: const [],
+          stemLinks: const {},
+          result: result,
+        );
+      }
+
+      warnings.add(
+        'No staff detected; pitches are estimated from a synthetic staff '
+        'derived from symbol positions and may be inaccurate.',
       );
-      return MappingPipelineState(
-        detection: detection,
-        assignments: const [],
-        measures: const [],
-        stemLinks: const {},
-        result: result,
+      staffSource = 'synthetic';
+      effectiveDetection = DetectionResult(
+        imageId: detection.imageId,
+        staffs: [syntheticStaff],
+        barlines: detection.barlines,
+        symbols: detection.symbols,
       );
     }
 
-    if (detection.staffs.length > 1) {
+    if (effectiveDetection.staffs.length > 1) {
       warnings.add(
         'Multiple staffs detected, but Sprint 4 supports only a single staff. '
         'Using the best-matching staff assignments only.',
       );
     }
 
-    final assignments = _staffAssigner.assign(detection, warnings: warnings);
+    final assignments = _staffAssigner.assign(effectiveDetection, warnings: warnings);
     final measures = _measureGrouper.group(
-      detection: detection,
+      detection: effectiveDetection,
       assignments: assignments,
       warnings: warnings,
     );
@@ -97,13 +122,14 @@ class DetectionToScoreMapperService extends ScoreMapperService {
       warnings: warnings,
       errors: errors,
       confidenceSummary: _buildConfidenceSummary(
-        detection: detection,
+        detection: effectiveDetection,
         mappedSymbolCount: mappedCount,
       ),
+      staffSource: staffSource,
     );
 
     return MappingPipelineState(
-      detection: detection,
+      detection: effectiveDetection,
       assignments: assignments,
       measures: measures,
       stemLinks: stemLinks,
