@@ -56,32 +56,31 @@ mistakes in an editor, then exports or plays back the result. No internet. No se
 Camera / Gallery / MusicXML file
         ↓
 1. Preprocessing
-   BasicImagePreprocessor — grayscale → letterbox → 416×416
-   (Sprint 6: replace with stave-based tiling → 640×640, no padding)
+   BasicImagePreprocessor — grayscale, orientation-corrected, full resolution
         ↓
-2. Staff Line Detection  [Sprint 6 — not yet built]
-   Horizontal projection pre-pass — find 5 line Y positions per stave
+2. Staff Line Detection
+   HorizontalProjectionStaffDetector — finds 5 line Y positions per stave
    Populates DetectedStaff.lineYs for pitch reconstruction
         ↓
-3. Staff Line Removal  [Sprint 6 — not yet built]
-   Erase staff lines from image before detection
-   Gives model clean isolated symbols
+3. Symbol Detection
+   TfliteSymbolDetector — full image stretched to 640×640 (no tiling/letterbox)
+   YOLO on-device int8, NMS, confidence 0.75 threshold
+   combStaff detections → DetectedStaff (model-detected staves, preferred over projector)
+   musical symbol detections → DetectedSymbol list
+   SyntheticStaffBuilder fallback when neither source produces staves
         ↓
-4. Symbol Detection
-   TfliteSymbolDetector — YOLO on-device, NMS, confidence 0.75 threshold
-   Returns DetectionResult with DetectedSymbol list
-        ↓
-5. Reconstruction Pipeline
+4. Reconstruction Pipeline
    StaffAssigner → MeasureGrouper → StemAssociator
    → SignatureInferrer → SemanticInferrer → PitchCalculator → ScoreBuilder
+   One Part produced per detected staff (Treble, Bass, Staff N...)
    Returns ScoreModel
         ↓
-6. Editor
+5. Editor
    EditorShellScreen — CustomPainter notation viewer
-   Symbol selection, pitch move, delete, duration change,
+   Symbol selection, pitch move, accidental toggle, delete, duration change,
    insert note/rest, drag-to-reorder, undo/redo (50 levels)
         ↓
-7. Export / Playback  [Sprint 7]
+6. Export / Playback  [Sprint 7]
    MusicXML export, PDF export, flutter_midi_pro audio playback
 ```
 
@@ -124,6 +123,7 @@ lib/
           semantic_inferrer.dart
           pitch_calculator.dart
           score_builder.dart
+          synthetic_staff_builder.dart   Estimates staff geometry from notehead positions
     editor/                          EditorShellScreen, EditorState, EditorActions
       model/
         editor_state.dart            Immutable state — selection + undo/redo stacks
@@ -175,8 +175,8 @@ All screens use the same dark theme. Never use light colors unless it is a notat
 These are final unless explicitly changed:
 
 - **Model input size:** 640×640 int8 — model is `assets/models/best_int8.tflite` (ticket 37 done)
-- **Tiling strategy:** Stave-based tiling — crop each stave, resize to 640×640, no padding. Replaces letterbox.
-- **Staff line detection:** Horizontal projection pre-pass — builds lineYs for pitch AND stave crop boundaries in one pass
+- **Tiling strategy:** No tiling — full image always stretched to 640×640 (no letterbox, no stave-based cropping). Decided BGC-57: model was trained on full-page stretches.
+- **Staff detection:** Two sources merged — model `combStaff` detections (preferred) + `HorizontalProjectionStaffDetector` supplement + `SyntheticStaffBuilder` fallback. `SyntheticStaffBuilder` uses notehead Y distribution to estimate staff geometry when no staves detected.
 - **Notation renderer:** CustomPainter — not a text list, not an SVG library
 - **Undo/redo:** Whole-state snapshot, max 50 entries, new edit clears redo stack
 - **Insert default:** C4 quarter note / quarter rest, appended to end of selected measure, auto-selected after insert
@@ -207,15 +207,16 @@ List<EditorSnapshot> redoStack // Cleared on new edit
 bool hasUnsavedChanges         // Set true on edit, false after save
 
 // Key operations (all in editor_actions.dart)
-applyEdit(score, ...)          // Push to undo stack + update state
-undo()                         // Pop undo stack, push to redo stack
-redo()                         // Pop redo stack, push to undo stack
-moveSelectedSymbolUp/Down()    // Diatonic pitch move, preserves alter
-setSelectedDuration(spec)      // No-op if same duration
-deleteSelectedSymbol()         // Keeps measure context for re-insert
-insertNoteAfterSelection()     // Appends C4 quarter, auto-selects
-insertRestAfterSelection()     // Appends quarter rest, auto-selects
-reorderSymbolWithinMeasure()   // Cannot cross measure boundary
+applyEdit(score, ...)               // Push to undo stack + update state
+undo()                              // Pop undo stack, push to redo stack
+redo()                              // Pop redo stack, push to undo stack
+moveSelectedSymbolUp/Down()         // Diatonic pitch move, preserves alter
+setSelectedDuration(spec)           // No-op if same duration
+setSelectedNoteAccidental(int?)     // null=none 1=♯ -1=♭ 0=♮; no-op for rests/same value
+deleteSelectedSymbol()              // Keeps measure context for re-insert
+insertNoteAfterSelection()          // Appends C4 quarter, auto-selects
+insertRestAfterSelection()          // Appends quarter rest, auto-selects
+reorderSymbolWithinMeasure()        // Cannot cross measure boundary
 moveSelectedSymbolToMeasureOffset() // Move symbol to adjacent measure
 ```
 
@@ -242,9 +243,9 @@ Score
             Note
               step: String      C D E F G A B
               octave: int
-              alter: int?       -1=flat 0=natural 1=sharp
+              alter: int?       -2=𝄫 -1=♭ 0=♮ 1=♯ 2=𝄪 null=none
               duration: int     divisions
-              type: String      whole half quarter eighth
+              type: String      whole half quarter eighth sixteenth
               voice: int?
               staff: int?
             Rest
@@ -268,17 +269,19 @@ reorderSymbol(partIndex, measureIndex, fromIndex, toIndex)
 | Feature | Status |
 |---------|--------|
 | Single treble clef stave | ✅ Works |
-| Staff assignment | ✅ Works (mock lineYs) |
+| Multi-stave (one Part per staff) | ✅ Works — BGC-57 |
+| Staff assignment | ✅ Works — model combStaff detections preferred, projector supplement, synthetic fallback |
 | Measure grouping from barlines | ✅ Works |
-| Note reconstruction (whole/half/quarter/eighth) | ✅ Works |
-| Rest reconstruction (whole/half/quarter) | ✅ Works |
-| Pitch calculation from staff position | ✅ Works in tests, ⚠️ breaks on real images (lineYs empty) |
-| Stem/flag association | ✅ Works |
-| Key signature | ⚠️ Partial — Sprint 6 |
-| Time signature | ⚠️ Partial — Sprint 6 |
-| Accidentals on notes | ⚠️ Partial — Sprint 6 |
-| Beams | ⚠️ Partial — Sprint 6 |
-| Bass clef | ✅ Editor/viewer renders it — reconstruction pipeline does not yet detect it |
+| Note reconstruction (whole/half/quarter/eighth/sixteenth) | ✅ Works |
+| Rest reconstruction (whole/half/quarter/eighth/sixteenth) | ✅ Works — BGC-59 |
+| Pitch calculation from staff position | ✅ Works — treble + bass clef both supported |
+| Stem/flag/beam association | ✅ Works — BGC-59 beams |
+| Key signature | ✅ Works — accidental cluster count → fifths — BGC-59 |
+| Time signature | ✅ Works — digit pair + common/cut — BGC-59 |
+| Accidentals on individual notes | ✅ Works — proximity match to notehead — BGC-59 |
+| Beamed eighth notes | ✅ Works — hasBeam flag on StemLink — BGC-59 |
+| Bass clef (fClef) pitch reconstruction | ✅ Works — G2 base, _fromBassOffset — BGC-59 |
+| SyntheticStaffBuilder fallback | ✅ Works — estimates staff from notehead Y distribution |
 | Grand staff | ❌ Not supported |
 | Chords | ❌ Not supported |
 | Ties, slurs, tuplets | ❌ Not supported |
@@ -380,11 +383,11 @@ reorderSymbol(partIndex, measureIndex, fromIndex, toIndex)
 | 56 | Build drag-from-palette-to-staff + hit-test insert | Canete | 4H | ✅ Done |
 | 57 | Connect real TFLite detection to reconstruction + staff line pre-pass | Canete | 2H | ✅ Done |
 | 58 | IT: Real detection + reconstruction end-to-end | Canete | 1H | ⏳ Not started |
-| 59 | Expand reconstruction: key sigs, time sigs, accidentals, beams | Canete | 2H | ⏳ Not started |
+| 59 | Expand reconstruction: key sigs, time sigs, accidentals, beams | Canete | 2H | ✅ Done |
 | 60 | Build MusicXML export service + ScoreModel converter | Canete | 2H | ✅ Done |
 | 61 | IT: Import → edit → MusicXML export round-trip | Boleche | 2H | ⏳ Not started |
-| 62 | Build accidental toggle in editor | Canete | 2H | ⏳ Not started |
-| 63 | Build username onboarding + profile photo + display in header | Boleche | 2H | ⏳ Not started |
+| 62 | Build accidental toggle in editor | Canete | 2H | ✅ Done |
+| 63 | Build username onboarding + profile photo + display in header | Boleche | 2H | ✅ Done |
 | 64 | Prepare Sprint 6 test assets | Galanza | 2H | ⏳ Not started |
 | 65 | Execute Sprint 6 test cases | Galanza | 2H | ⏳ Not started |
 | 66 | Create Sprint 6 regression checklist | Galanza | 1H | ⏳ Not started |
@@ -468,6 +471,57 @@ Update this file whenever:
 Do not let this file get stale — an outdated CONTEXT.md is worse than no CONTEXT.md.
 
 claude and I can update this from time to time when changes are final
+
+---
+
+## BGC-62 Delivery Notes (Sprint 6, branch BGC-57 / 57-copy)
+
+- **`setSelectedNoteAccidental(int? alter)`** added to `EditorActions` extension in `editor_actions.dart`
+  - No-ops if not a Note, or if value is already the same (idempotent)
+  - Preserves all other note fields; undo tracked automatically via `_replaceSelectedSymbol`
+- **Accidental rendering in `ScoreNotationPainter._drawNote()`**
+  - Draws `♯ ♭ ♮ 𝄪 𝄫` immediately left of the notehead using `TextPainter`
+  - Positioned at `x - glyphWidth - 3px`, vertically centered on note Y
+  - Applies to all notes with `alter != null` including double accidentals from reconstruction
+- **ACCIDENTAL group added to `_InspectorPanel`** (between PITCH and DURATION)
+  - 4 tiles: `— None · ♯ Sharp · ♭ Flat · ♮ Natural`
+  - New `_AccTile` widget: same shape as `_DurTile` with `isActive` state
+  - Active tile highlighted with accent color `Color(0xFFD4A96A)` background + border
+  - Tiles disabled (greyed) when a Rest is selected or nothing is selected
+  - Active tile auto-updates when selection changes to a different note
+  - Tapping the active tile again is a no-op (direct select, not cycle toggle — better UX than spec)
+
+---
+
+## BGC-59 Delivery Notes (Sprint 6, branch BGC-59 merged into BGC-57)
+
+Full expanded reconstruction pipeline. All spec criteria satisfied, several above scope:
+
+- **Key signature** — `SignatureInferrer.inferKeySignature` counts leading accidentals → `KeySignature(fifths: ±count)`
+- **Time signature** — digit pairs split by staff midpoint; `timeSigCommon`→4/4, `timeSigCutCommon`→2/2
+- **Note-level accidentals** — `SemanticInferrer._matchAccidentalsToNoteheads` proximity-matches body accidentals to nearest notehead to the right; `SymbolClassifier.alterFor()` maps type → MusicXML alter value
+- **Beamed eighth notes** — `StemAssociator._hasNearbyBeam` sets `StemLink.hasBeam`; `SemanticInferrer._buildNote` treats `hasBeam || hasFlag` → `'eighth'`
+- **Bass clef pitch** — `PitchCalculator._fromBassOffset` with G2 as bottom-line base
+- **Expanded rest types** — `rest8th` → `'eighth'`, `rest16th` → `'sixteenth'`
+- **Double accidentals** — `isAnyAccidental` + `alterFor` handle `accidentalDoubleSharp`/`accidentalDoubleFlat` (above spec)
+- **`expanded_reconstruction_test.dart`** — 13 new tests across 4 groups: accidentals (5), beams (3), rests (2), bass clef (3)
+- **Sprint 4 test fixes** (3 tests) — updated for BGC-57 multi-part behavior: part name `'Detected Part'` → `'Treble'`; multi-staff test updated from `parts.single` to asserting two parts with correct content
+
+---
+
+## BGC-57 Delivery Notes (Sprint 6, branch BGC-57)
+
+Real TFLite detection connected to reconstruction pipeline end-to-end. Major changes:
+
+- **`TfliteSymbolDetector` — single inference path**: full image always stretched to 640×640, no tiling, no letterboxing. `_parseOutput` uses normalized (0–1) XYXY coords, scales back via `origW/640 × origH/640`.
+- **Detection overlay fix (`DetectionOverlay`)**: `LayoutBuilder` computes `scaleX = displayW / imageW`, `scaleY = displayH / imageH`; all `Positioned` coordinates multiplied by scale factors. Fixes misalignment caused by `InteractiveViewer(constrained: true)` squeezing child to viewport size while overlay used raw pixel coords.
+- **`DetectionOverlay` params**: now requires `imageWidth` and `imageHeight`; `_StaffOverlay` receives `scaleX`/`scaleY`.
+- **`_mergeStaves`**: model combStaff detections preferred; HorizontalProjectionStaffDetector staves used as supplement only when model missed a staff.
+- **`SyntheticStaffBuilder`**: estimates staff geometry from notehead Y distribution when neither source produces staves.
+- **Multi-part pipeline in `DetectionToScoreMapperService`**: iterates all staves, produces one `Part` per staff (`'Treble'`, `'Bass'`, `'Staff N'`). `ScoreBuilder.buildPart()` and `buildFromParts()` added.
+- **`MappingResult.staffSource`**: `'synthetic'` when SyntheticStaffBuilder was used, null otherwise.
+- **`ScoreNotationViewer`** updated to render multi-part scores (one staff row per part).
+- **`EditorShellScreen`** updated for multi-part `Score` structure.
 
 ---
 

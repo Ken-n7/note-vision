@@ -133,6 +133,25 @@ extension EditorActions on EditorState {
 
   EditorState applyRedo() => redo();
 
+  /// Sets the `alter` value of the selected note.
+  /// [alter] = 1 (♯), -1 (♭), 0 (♮), null (none). No-op for rests.
+  EditorState setSelectedNoteAccidental(int? alter) {
+    if (!hasSelection || selectedSymbol is! Note) return this;
+    final note = selectedSymbol as Note;
+    if (note.alter == alter) return this;
+    return _replaceSelectedSymbol(
+      Note(
+        step: note.step,
+        octave: note.octave,
+        alter: alter,
+        duration: note.duration,
+        type: note.type,
+        voice: note.voice,
+        staff: note.staff,
+      ),
+    );
+  }
+
   EditorState moveSelectedSymbolToMeasureOffset(int offset) {
     if (!hasSelection || offset == 0) return this;
 

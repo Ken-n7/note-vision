@@ -241,6 +241,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               onHalf: () => _updateState((s) => s.setSelectedDuration(halfDuration)),
               onQuarter: () => _updateState((s) => s.setSelectedDuration(quarterDuration)),
               onEighth: () => _updateState((s) => s.setSelectedDuration(eighthDuration)),
+              onSetAccidental: (alter) => _updateState((s) => s.setSelectedNoteAccidental(alter)),
               onInsertNote: () => _updateState((s) => s.insertNoteAfterSelection()),
               onInsertRest: () => _updateState((s) => s.insertRestAfterSelection()),
               onDelete: () => _updateState((s) => s.deleteSelectedSymbol()),
@@ -706,6 +707,7 @@ class _InspectorPanel extends StatelessWidget {
     required this.onHalf,
     required this.onQuarter,
     required this.onEighth,
+    required this.onSetAccidental,
     required this.onInsertNote,
     required this.onInsertRest,
     required this.onDelete,
@@ -727,6 +729,7 @@ class _InspectorPanel extends StatelessWidget {
   final VoidCallback onHalf;
   final VoidCallback onQuarter;
   final VoidCallback onEighth;
+  final void Function(int? alter) onSetAccidental;
   final VoidCallback onInsertNote;
   final VoidCallback onInsertRest;
   final VoidCallback onDelete;
@@ -745,12 +748,28 @@ class _InspectorPanel extends StatelessWidget {
       compact: !isLandscape,
     );
 
+    final isNoteSelected = selected is Note;
+    final currentAlter = isNoteSelected ? (selected as Note).alter : null;
+
     final groups = [
       _ActionGroup(
         label: 'PITCH',
         children: [
           _ActionTile(icon: Icons.keyboard_arrow_up_rounded, label: 'Up', onPressed: hasSelection ? onMoveUp : null),
           _ActionTile(icon: Icons.keyboard_arrow_down_rounded, label: 'Down', onPressed: hasSelection ? onMoveDown : null),
+        ],
+      ),
+      _ActionGroup(
+        label: 'ACCIDENTAL',
+        children: [
+          _AccTile(label: '—', sublabel: 'None', isActive: isNoteSelected && currentAlter == null,
+              onPressed: isNoteSelected ? () => onSetAccidental(null) : null),
+          _AccTile(label: '♯', sublabel: 'Sharp', isActive: isNoteSelected && currentAlter == 1,
+              onPressed: isNoteSelected ? () => onSetAccidental(1) : null),
+          _AccTile(label: '♭', sublabel: 'Flat', isActive: isNoteSelected && currentAlter == -1,
+              onPressed: isNoteSelected ? () => onSetAccidental(-1) : null),
+          _AccTile(label: '♮', sublabel: 'Natural', isActive: isNoteSelected && currentAlter == 0,
+              onPressed: isNoteSelected ? () => onSetAccidental(0) : null),
         ],
       ),
       _ActionGroup(
@@ -1222,6 +1241,87 @@ class _ActionTile extends StatelessWidget {
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AccTile extends StatelessWidget {
+  const _AccTile({
+    required this.label,
+    required this.sublabel,
+    required this.isActive,
+    required this.onPressed,
+  });
+
+  final String label;
+  final String sublabel;
+  final bool isActive;
+  final VoidCallback? onPressed;
+
+  static const _accent = Color(0xFFD4A96A);
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+
+    return Tooltip(
+      message: sublabel,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(8),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          width: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          decoration: BoxDecoration(
+            color: isActive
+                ? _accent.withValues(alpha: 0.15)
+                : enabled
+                    ? AppColors.surfaceAlt
+                    : AppColors.background,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isActive
+                  ? _accent.withValues(alpha: 0.6)
+                  : enabled
+                      ? AppColors.border
+                      : AppColors.border.withValues(alpha: 0.4),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: isActive
+                      ? _accent
+                      : enabled
+                          ? AppColors.textPrimary
+                          : AppColors.textSecondary.withValues(alpha: 0.35),
+                  fontWeight: FontWeight.w700,
+                  height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                sublabel,
+                style: TextStyle(
+                  fontSize: 9,
+                  color: isActive
+                      ? _accent.withValues(alpha: 0.8)
+                      : enabled
+                          ? AppColors.textSecondary.withValues(alpha: 0.7)
+                          : AppColors.textSecondary.withValues(alpha: 0.3),
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
               ),
             ],
           ),

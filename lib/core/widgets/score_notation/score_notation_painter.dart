@@ -446,6 +446,33 @@ class ScoreNotationPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.2;
 
+    // Draw accidental to the left of the notehead.
+    if (note.alter != null) {
+      final accidentalText = switch (note.alter) {
+        1 => '♯',
+        -1 => '♭',
+        0 => '♮',
+        2 => '𝄪',
+        -2 => '𝄫',
+        _ => null,
+      };
+      if (accidentalText != null) {
+        final tp = TextPainter(
+          text: TextSpan(
+            text: accidentalText,
+            style: const TextStyle(
+              fontSize: 16,
+              color: Color(0xFF111827),
+              fontWeight: FontWeight.w600,
+              height: 1,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        tp.paint(canvas, Offset(x - tp.width - 3, y - tp.height * 0.6));
+      }
+    }
+
     canvas.save();
     canvas.translate(x, y);
     canvas.rotate(-0.35);
