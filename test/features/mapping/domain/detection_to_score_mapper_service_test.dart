@@ -87,7 +87,7 @@ void main() {
 
       expect(result.errors, isEmpty);
       expect(result.score.title, isEmpty);
-      expect(part.name, 'Detected Part');
+      expect(part.name, 'Treble');
       expect(part.measureCount, 2);
       expect(part.measures.first.clef?.sign, 'G');
       expect(part.measures.first.notes.single.type, 'quarter');
@@ -371,16 +371,22 @@ void main() {
       );
 
       final result = mapper.map(detection);
-      final measure = result.score.parts.single.measures.single;
+      final parts = result.score.parts;
 
-      expect(
-        result.warnings,
-        contains(
-          'Multiple staffs detected, but Sprint 4 supports only a single staff. Using the best-matching staff assignments only.',
-        ),
-      );
-      expect(measure.notes, hasLength(1));
-      expect(measure.rests, isEmpty);
+      // Multi-staff pipeline: one Part per staff.
+      expect(parts, hasLength(2));
+      expect(parts[0].name, 'Treble');
+      expect(parts[1].name, 'Bass');
+
+      // head-1/stem-1 are near staff-1 → appear in Treble part.
+      final trebleMeasure = parts[0].measures.single;
+      expect(trebleMeasure.notes, hasLength(1));
+      expect(trebleMeasure.rests, isEmpty);
+
+      // rest-other is near staff-2 → appears in Bass part.
+      final bassMeasure = parts[1].measures.single;
+      expect(bassMeasure.rests, hasLength(1));
+      expect(bassMeasure.notes, isEmpty);
     });
 
     test('produces warnings instead of crashing for ambiguous noteheads and stray stems', () {

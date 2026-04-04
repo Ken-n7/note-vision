@@ -21,7 +21,7 @@ void main() {
       expect(score.title, isEmpty);
       expect(score.composer, isEmpty);
       expect(score.partCount, 1);
-      expect(part.name, 'Detected Part');
+      expect(part.name, 'Treble');
       expect(measure.number, 1);
       expect(measure.clef?.sign, 'G');
       expect(measure.notes.map((note) => note.pitch).toList(), ['E4', 'F4']);

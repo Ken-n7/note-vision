@@ -238,7 +238,7 @@ Offset _symbolCenterOffset(
   );
 
   final target = ScoreNotationPainter.buildSymbolTargets(
-    measures: measures,
+    parts: [measures],
     measuresPerRow: layout.measuresPerRow,
     minMeasureWidth: minMeasureWidth,
     rowHeight: rowHeight,
