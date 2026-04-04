@@ -121,35 +121,46 @@ class TfliteSymbolDetector implements SymbolDetector {
   }
 
   List<List<double>> _runInference(img.Image tile) {
-    final inputTensor = _imageToTensor(tile);
+    final inputData = _imageToTensor(tile);
+
+    // Wrap in nested list so tflite_flutter maps it to [1, 640, 640, 3].
+    final input = [
+      List.generate(
+        _inputSize,
+        (y) => List.generate(
+          _inputSize,
+          (x) {
+            final base = (y * _inputSize + x) * 3;
+            return [inputData[base], inputData[base + 1], inputData[base + 2]];
+          },
+        ),
+      ),
+    ];
 
     final output = List.generate(
       300,
       (_) => List.filled(6, 0.0),
     ).reshape([1, 300, 6]);
 
-    _interpreter!.run(inputTensor, output);
+    _interpreter!.run(input, output);
 
     return output[0] as List<List<double>>;
   }
 
   /// Builds the input tensor from a 640×640 RGB image.
   ///
-  /// The model expects [1, 640, 640, 3] int8 input. We return a [Uint8List]
-  /// (raw bytes 0–255) instead of [Int8List] because tflite_flutter 0.12.x
-  /// skips automatic input-shape detection only for [Uint8List], preventing
-  /// the interpreter from incorrectly resizing the input tensor to a 1-D shape
-  /// and causing a "bad state: failed precondition" error at invoke time.
-  /// The underlying byte values are identical to int8 (same bit patterns).
-  Uint8List _imageToTensor(img.Image tile) {
-    final data = Uint8List(_inputSize * _inputSize * 3);
+  /// The Ultralytics INT8 TFLite export keeps float32 I/O (internal ops are
+  /// quantized but the tensor interface remains float32). Pixels are normalized
+  /// to [0.0, 1.0].
+  Float32List _imageToTensor(img.Image tile) {
+    final data = Float32List(_inputSize * _inputSize * 3);
     int idx = 0;
     for (int y = 0; y < _inputSize; y++) {
       for (int x = 0; x < _inputSize; x++) {
         final pixel = tile.getPixel(x, y);
-        data[idx++] = pixel.r.toInt() & 0xFF;
-        data[idx++] = pixel.g.toInt() & 0xFF;
-        data[idx++] = pixel.b.toInt() & 0xFF;
+        data[idx++] = pixel.r.toInt() / 255.0;
+        data[idx++] = pixel.g.toInt() / 255.0;
+        data[idx++] = pixel.b.toInt() / 255.0;
       }
     }
     return data;
