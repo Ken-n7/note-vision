@@ -186,12 +186,12 @@ class TfliteSymbolDetector implements SymbolDetector {
       final classIndex = detection[5].toInt();
       if (classIndex < 0 || classIndex >= MusicSymbol.values.length) continue;
 
-      // Model outputs normalized 0–1 coordinates relative to the 640×640 tile.
-      // Remap to original-image pixel space.
-      final x1 = detection[0] * _inputSize * scaleX + offsetX;
-      final y1 = detection[1] * _inputSize * scaleY + offsetY;
-      final x2 = detection[2] * _inputSize * scaleX + offsetX;
-      final y2 = detection[3] * _inputSize * scaleY + offsetY;
+      // Ultralytics YOLO TFLite NMS output uses absolute pixel coordinates in
+      // the 0–inputSize range (not normalized). Scale to original-image space.
+      final x1 = detection[0] * scaleX + offsetX;
+      final y1 = detection[1] * scaleY + offsetY;
+      final x2 = detection[2] * scaleX + offsetX;
+      final y2 = detection[3] * scaleY + offsetY;
 
       if (x2 <= x1 || y2 <= y1) continue;
 

@@ -22,10 +22,9 @@ class DetectionOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // scale factor from 640x640 model space to actual widget size
-        final scaleX = constraints.maxWidth / 416;
-        final scaleY = constraints.maxHeight / 416;
-
+        // Symbol coordinates are already in original-image pixel space.
+        // The overlay Stack is sized to those same dimensions, so no scaling
+        // is needed — just position directly.
         return Stack(
           children: symbols.map((symbol) {
             final box = symbol.boundingBox;
@@ -35,10 +34,10 @@ class DetectionOverlay extends StatelessWidget {
             final color = _colorForSymbol(symbol);
 
             return Positioned(
-              left: box.left * scaleX,
-              top: box.top * scaleY,
-              width: box.width * scaleX,
-              height: box.height * scaleY,
+              left: box.left,
+              top: box.top,
+              width: box.width,
+              height: box.height,
               child: Tooltip(
                 message: '${symbol.type} (${((symbol.confidence ?? 0) * 100).toStringAsFixed(1)}%)',
                 child: Container(
