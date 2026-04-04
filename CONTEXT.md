@@ -386,6 +386,7 @@ reorderSymbol(partIndex, measureIndex, fromIndex, toIndex)
 | 59 | Expand reconstruction: key sigs, time sigs, accidentals, beams | Canete | 2H | ✅ Done |
 | 60 | Build MusicXML export service + ScoreModel converter | Canete | 2H | ✅ Done |
 | 61 | IT: Import → edit → MusicXML export round-trip | Boleche | 2H | ⏳ Not started |
+| 61b | Add Save to Device option to MusicXML export | Canete | — | ✅ Done |
 | 62 | Build accidental toggle in editor | Canete | 2H | ✅ Done |
 | 63 | Build username onboarding + profile photo + display in header | Boleche | 2H | ✅ Done |
 | 64 | Prepare Sprint 6 test assets | Galanza | 2H | ⏳ Not started |
@@ -474,6 +475,20 @@ claude and I can update this from time to time when changes are final
 
 ---
 
+## MusicXML Save to Device — Delivery Notes (Sprint 6, branch claude/musicxml-export-feature-zwSqL)
+
+- **`MusicXmlExportService.exportToDevice(Score) → Future<File>`** — new method alongside `exportAndShare`
+  - Android: writes to Downloads folder via `getDownloadsDirectory()`, falls back to `getApplicationDocumentsDirectory()` if null
+  - iOS: writes to app Documents directory, accessible via Files app under "On My iPhone"
+  - Returns the saved `File` so callers can display the path
+- **Editor header export button replaced with `PopupMenuButton`**
+  - Two items: "Share…" (existing share sheet) and "Save to Device" (new direct save)
+  - New `_ExportOption` enum and `_ExportMenuItem` widget added to `editor_shell_screen.dart`
+- **SnackBar feedback** — on success shows full file path for 4 seconds; on failure shows error message
+- All 124 tests pass
+
+---
+
 ## BGC-62 Delivery Notes (Sprint 6, branch BGC-57 / 57-copy)
 
 - **`setSelectedNoteAccidental(int? alter)`** added to `EditorActions` extension in `editor_actions.dart`
@@ -535,7 +550,7 @@ Real TFLite detection connected to reconstruction pipeline end-to-end. Major cha
   - `voice` and `staff` elements emitted only when present on the model
   - XML DOCTYPE header prepended manually (xml package doesn't support DOCTYPE nodes)
   - `_safeFileName` replaces non-word characters with underscores for safe file naming
-- **Export button wired into editor** — `_EditorHeader` in `editor_shell_screen.dart` has a new `ios_share_rounded` icon button after Save, wired to `MusicXmlExportService().exportAndShare(score)`
+- **Export button wired into editor** — `_EditorHeader` originally had a single `ios_share_rounded` icon, later replaced by a `PopupMenuButton` with "Share…" and "Save to Device" (see Save to Device delivery notes)
 - **`share_plus: ^12.0.2` added** to pubspec (resolved by `flutter pub add` due to web package conflict with file_picker)
 - **Landing screen test fix** — `Pressing Get Started navigates to CollectionScreen` required `SharedPreferences.setMockInitialValues({'onboarding_complete': true})` because `UserProfileService.isOnboardingComplete()` reads SharedPreferences asynchronously
 - **`!mounted` / `this.context` pattern** — `landing_screen.dart` now correctly guards async gap with `State.mounted` (`if (!mounted) return`) then uses `this.context` (State's own context), not `context.mounted` on the parameter
