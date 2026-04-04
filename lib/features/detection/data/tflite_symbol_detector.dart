@@ -186,13 +186,13 @@ class TfliteSymbolDetector implements SymbolDetector {
       final classIndex = detection[5].toInt();
       if (classIndex < 0 || classIndex >= MusicSymbol.values.length) continue;
 
-      // Ultralytics YOLO TFLite NMS output uses normalized 0–1 coordinates
-      // relative to the 640×640 input tile. Multiply by _inputSize first to
-      // get tile-pixel coords, then scale to original-image pixel space.
-      final x1 = detection[0] * _inputSize * scaleX + offsetX;
-      final y1 = detection[1] * _inputSize * scaleY + offsetY;
-      final x2 = detection[2] * _inputSize * scaleX + offsetX;
-      final y2 = detection[3] * _inputSize * scaleY + offsetY;
+      // Some exported YOLO TFLite graphs return 0..1 normalized xyxy while
+      // others return absolute tile pixels (0..640). Support both so bounding
+      // boxes map correctly regardless of exporter variant.
+      final x1 = _toTileCoordinate(detection[0]) * scaleX + offsetX;
+      final y1 = _toTileCoordinate(detection[1]) * scaleY + offsetY;
+      final x2 = _toTileCoordinate(detection[2]) * scaleX + offsetX;
+      final y2 = _toTileCoordinate(detection[3]) * scaleY + offsetY;
 
       if (x2 <= x1 || y2 <= y1) continue;
 
@@ -208,6 +208,13 @@ class TfliteSymbolDetector implements SymbolDetector {
     }
 
     return detections;
+  }
+
+  double _toTileCoordinate(double value) {
+    if (value.isNaN || value.isInfinite) return 0.0;
+    // Normalized coordinates are usually in 0..1 (with tiny epsilon noise).
+    // Absolute outputs are in pixel-space, typically 0.._inputSize.
+    return value <= 1.5 ? value * _inputSize : value;
   }
 
   List<DetectedSymbol> _nms(List<DetectedSymbol> detections) {
