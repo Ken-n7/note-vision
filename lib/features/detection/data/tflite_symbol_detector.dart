@@ -44,90 +44,35 @@ class TfliteSymbolDetector implements SymbolDetector {
 
     final img.Image fullImage = img.decodeImage(input.bytes)!;
 
-    final List<DetectedSymbol> allSymbols;
-
-    if (staves.isNotEmpty) {
-      debugPrint(
-        '[TfliteSymbolDetector] ${staves.length} stave(s) detected:\n'
-        '${staves.map((s) => '  ${s.id}: lineYs=${s.lineYs.map((y) => y.toStringAsFixed(1)).toList()}').join('\n')}',
-      );
-      // Stave-based tiling: one inference per stave.
-      final symbols = <DetectedSymbol>[];
-      for (final staff in staves) {
-        final tileSymbols = await _detectStave(fullImage, staff);
-        symbols.addAll(tileSymbols);
-      }
-      allSymbols = _nms(symbols);
-    } else {
-      // Fallback: stretch the full image to 640×640 and run a single inference.
-      // Training also stretched images to 640×640 (with 2×2 mosaic augmentation),
-      // so the model's weights are calibrated for stretched input — letterboxing
-      // would introduce grey padding regions never seen during training.
-      debugPrint(
-        '[TfliteSymbolDetector] No staff lines detected — falling back to '
-        'full-image stretch inference. lineYs will be empty; pitch '
-        'reconstruction will produce warnings.',
-      );
-      final tile = img.copyResize(
-        fullImage,
-        width: _inputSize,
-        height: _inputSize,
-        interpolation: img.Interpolation.linear,
-      );
-
-      // Remap: detection coords are normalized 0–1 relative to the 640×640
-      // stretched tile, so multiply by original image dimensions directly.
-      final raw = _runInference(tile);
-      allSymbols = _nms(
-        _parseOutput(
-          raw,
-          offsetX: 0,
-          offsetY: 0,
-          scaleX: fullImage.width / _inputSize,
-          scaleY: fullImage.height / _inputSize,
-        ),
-      );
-    }
-
-    return DetectionResult(symbols: allSymbols, staffs: staves);
-  }
-
-  /// Runs inference on a single stave crop and maps detections back to
-  /// original-image coordinates.
-  Future<List<DetectedSymbol>> _detectStave(
-    img.Image fullImage,
-    DetectedStaff staff,
-  ) async {
-    final cropY = staff.topY.round().clamp(0, fullImage.height - 1);
-    final cropH =
-        (staff.bottomY.round() - cropY).clamp(1, fullImage.height - cropY);
-
-    final crop = img.copyCrop(
-      fullImage,
-      x: 0,
-      y: cropY,
-      width: fullImage.width,
-      height: cropH,
-    );
-
+    // The model was trained on full music sheet pages stretched to 640×640
+    // (no letterboxing, no tiling). Always use the same preprocessing here.
     final tile = img.copyResize(
-      crop,
+      fullImage,
       width: _inputSize,
       height: _inputSize,
       interpolation: img.Interpolation.linear,
     );
 
-    final scaleX = fullImage.width / _inputSize;
-    final scaleY = cropH / _inputSize;
+    debugPrint(
+      '[TfliteSymbolDetector] Running full-image inference '
+      '(${fullImage.width}×${fullImage.height} → $_inputSize×$_inputSize). '
+      '${staves.length} stave(s) available for pitch reconstruction.',
+    );
 
     final raw = _runInference(tile);
-    return _parseOutput(
-      raw,
-      offsetX: 0,
-      offsetY: cropY.toDouble(),
-      scaleX: scaleX,
-      scaleY: scaleY,
+
+    // Normalized 0–1 coords → original image pixel space.
+    // scaleX/Y = origDim / _inputSize, which simplifies to:
+    //   x_orig = detection * origW,  y_orig = detection * origH
+    final symbols = _nms(
+      _parseOutput(
+        raw,
+        scaleX: fullImage.width / _inputSize,
+        scaleY: fullImage.height / _inputSize,
+      ),
     );
+
+    return DetectionResult(symbols: symbols, staffs: staves);
   }
 
   List<List<double>> _runInference(img.Image tile) {
@@ -176,13 +121,11 @@ class TfliteSymbolDetector implements SymbolDetector {
     return data;
   }
 
-  /// Converts raw model output rows into [DetectedSymbol]s remapped to
-  /// original-image pixel space via [offsetX]/[offsetY] (the crop origin)
-  /// and [scaleX]/[scaleY] (crop-to-original scale factors).
+  /// Converts raw model output rows into [DetectedSymbol]s in original-image
+  /// pixel space. [scaleX]/[scaleY] map from 640×640 tile space back to the
+  /// original image dimensions (origW/640 and origH/640 respectively).
   List<DetectedSymbol> _parseOutput(
     List<List<double>> rawOutput, {
-    required double offsetX,
-    required double offsetY,
     required double scaleX,
     required double scaleY,
   }) {
@@ -196,13 +139,12 @@ class TfliteSymbolDetector implements SymbolDetector {
       final classIndex = detection[5].toInt();
       if (classIndex < 0 || classIndex >= MusicSymbol.values.length) continue;
 
-      // Ultralytics YOLO TFLite NMS output uses normalized 0–1 coordinates
-      // relative to the 640×640 input tile. Multiply by _inputSize first to
-      // get tile-pixel coords, then scale to original-image pixel space.
-      final x1 = detection[0] * _inputSize * scaleX + offsetX;
-      final y1 = detection[1] * _inputSize * scaleY + offsetY;
-      final x2 = detection[2] * _inputSize * scaleX + offsetX;
-      final y2 = detection[3] * _inputSize * scaleY + offsetY;
+      // Ultralytics YOLO TFLite NMS output: normalized 0–1 coords relative to
+      // the 640×640 input. Multiply by _inputSize × scale to get original px.
+      final x1 = detection[0] * _inputSize * scaleX;
+      final y1 = detection[1] * _inputSize * scaleY;
+      final x2 = detection[2] * _inputSize * scaleX;
+      final y2 = detection[3] * _inputSize * scaleY;
 
       if (x2 <= x1 || y2 <= y1) continue;
 
