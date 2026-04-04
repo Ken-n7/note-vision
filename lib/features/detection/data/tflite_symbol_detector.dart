@@ -59,23 +59,55 @@ class TfliteSymbolDetector implements SymbolDetector {
       }
       allSymbols = _nms(symbols);
     } else {
-      // Fallback: resize whole image to 640×640 and run single inference.
+      // Fallback: letterbox the full image into 640×640 (preserving aspect
+      // ratio) and run a single inference.  Letterboxing prevents the model
+      // from seeing a distorted view, which was the cause of detection
+      // misalignment when the image is tall (e.g. 736×1041).
       debugPrint(
         '[TfliteSymbolDetector] No staff lines detected — falling back to '
-        'full-image inference. lineYs will be empty; pitch reconstruction '
-        'will produce warnings.',
+        'full-image letterbox inference. lineYs will be empty; pitch '
+        'reconstruction will produce warnings.',
       );
-      final tile = img.copyResize(
+      final scale = _inputSize / fullImage.width < _inputSize / fullImage.height
+          ? _inputSize / fullImage.width
+          : _inputSize / fullImage.height;
+      final scaledW = (fullImage.width * scale).round();
+      final scaledH = (fullImage.height * scale).round();
+      final padX = (_inputSize - scaledW) ~/ 2;
+      final padY = (_inputSize - scaledH) ~/ 2;
+
+      final scaled = img.copyResize(
         fullImage,
-        width: _inputSize,
-        height: _inputSize,
+        width: scaledW,
+        height: scaledH,
         interpolation: img.Interpolation.linear,
       );
-      final scaleX = fullImage.width / _inputSize;
-      final scaleY = fullImage.height / _inputSize;
+      final tile = img.Image(
+        width: _inputSize,
+        height: _inputSize,
+        numChannels: 3,
+      );
+      img.fill(tile, color: img.ColorRgb8(114, 114, 114)); // YOLO grey padding
+      img.compositeImage(tile, scaled, dstX: padX, dstY: padY);
+
+      debugPrint(
+        '[TfliteSymbolDetector] Letterbox: scale=$scale '
+        'scaledW=$scaledW scaledH=$scaledH padX=$padX padY=$padY',
+      );
+
+      // Remap: tile_pixel = detection * _inputSize
+      // orig = (tile_pixel - pad) / scale
+      // Combined: orig = detection * _inputSize / scale - pad / scale
+      final invScale = 1.0 / scale;
       final raw = _runInference(tile);
       allSymbols = _nms(
-        _parseOutput(raw, offsetX: 0, offsetY: 0, scaleX: scaleX, scaleY: scaleY),
+        _parseOutput(
+          raw,
+          offsetX: -padX * invScale,
+          offsetY: -padY * invScale,
+          scaleX: _inputSize * invScale,
+          scaleY: _inputSize * invScale,
+        ),
       );
     }
 
