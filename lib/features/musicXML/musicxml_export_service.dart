@@ -61,6 +61,30 @@ class MusicXmlExportService {
     );
   }
 
+  /// Saves the score as a .musicxml file directly to a user-accessible
+  /// location and returns the saved [File].
+  ///
+  /// - Android: Downloads folder (`/storage/emulated/0/Download`)
+  /// - iOS: app Documents directory (visible in Files app under "On My iPhone")
+  ///
+  /// Throws if the directory cannot be resolved or the write fails.
+  Future<File> exportToDevice(Score score) async {
+    final xml = toMusicXml(score);
+    final fileName = _safeFileName(score.title);
+
+    final Directory dir;
+    if (Platform.isAndroid) {
+      dir = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
+    } else {
+      // iOS: Documents directory is accessible via the Files app.
+      dir = await getApplicationDocumentsDirectory();
+    }
+
+    final file = File('${dir.path}/$fileName.musicxml');
+    await file.writeAsString(xml, flush: true);
+    return file;
+  }
+
   // ---------------------------------------------------------------------------
   // XML construction
   // ---------------------------------------------------------------------------

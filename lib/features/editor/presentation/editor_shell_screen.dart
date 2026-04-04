@@ -262,6 +262,23 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   onUndo: () => _updateState((s) => s.applyUndo()),
                   onRedo: () => _updateState((s) => s.applyRedo()),
                   onExport: () => const MusicXmlExportService().exportAndShare(_editorState.score),
+                  onSaveToDevice: () async {
+                    try {
+                      final file = await const MusicXmlExportService().exportToDevice(_editorState.score);
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Saved to ${file.path}'),
+                          duration: const Duration(seconds: 4),
+                        ),
+                      );
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Save failed: $e')),
+                      );
+                    }
+                  },
                 ),
                 Expanded(
                   child: isLandscape
@@ -313,6 +330,29 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 // Header
 // ---------------------------------------------------------------------------
 
+enum _ExportOption { share, saveToDevice }
+
+class _ExportMenuItem extends StatelessWidget {
+  const _ExportMenuItem({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: AppColors.textPrimary),
+        const SizedBox(width: 10),
+        Text(
+          label,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+        ),
+      ],
+    );
+  }
+}
+
 class _EditorHeader extends StatelessWidget {
   const _EditorHeader({
     required this.title,
@@ -323,6 +363,7 @@ class _EditorHeader extends StatelessWidget {
     required this.onUndo,
     required this.onRedo,
     required this.onExport,
+    required this.onSaveToDevice,
   });
 
   final String title;
@@ -333,6 +374,7 @@ class _EditorHeader extends StatelessWidget {
   final VoidCallback onUndo;
   final VoidCallback onRedo;
   final VoidCallback onExport;
+  final VoidCallback onSaveToDevice;
 
   @override
   Widget build(BuildContext context) {
@@ -423,12 +465,33 @@ class _EditorHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 6),
-          IconButton(
-            onPressed: onExport,
-            icon: const Icon(Icons.ios_share_rounded, size: 18),
-            color: AppColors.textPrimary,
+          PopupMenuButton<_ExportOption>(
+            onSelected: (option) {
+              if (option == _ExportOption.share) {
+                onExport();
+              } else {
+                onSaveToDevice();
+              }
+            },
             tooltip: 'Export MusicXML',
-            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.ios_share_rounded, size: 18),
+            color: AppColors.surface,
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: _ExportOption.share,
+                child: _ExportMenuItem(
+                  icon: Icons.ios_share_rounded,
+                  label: 'Share…',
+                ),
+              ),
+              const PopupMenuItem(
+                value: _ExportOption.saveToDevice,
+                child: _ExportMenuItem(
+                  icon: Icons.download_rounded,
+                  label: 'Save to Device',
+                ),
+              ),
+            ],
           ),
           const SizedBox(width: 4),
         ],
