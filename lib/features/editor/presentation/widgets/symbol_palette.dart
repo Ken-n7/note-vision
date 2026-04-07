@@ -85,11 +85,18 @@ class _PaletteDraggableItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final core = _PaletteVisual(item: item, isSelected: isSelected);
+    final dragFeedback = CustomPaint(
+      size: const Size(34, 40),
+      painter: _PaletteSymbolPainter(
+        type: item.type,
+        color: _paletteSymbolSelected,
+      ),
+    );
     return LongPressDraggable<PaletteDragData>(
       data: PaletteDragData(type: item.type),
       feedback: Material(
         color: Colors.transparent,
-        child: Transform.scale(scale: 1.5, child: core),
+        child: Transform.scale(scale: 1.7, child: dragFeedback),
       ),
       childWhenDragging: Opacity(opacity: 0.28, child: core),
       child: GestureDetector(onTap: onTap, child: core),

@@ -569,6 +569,7 @@ class _NotationArea extends StatelessWidget {
                           selectedSymbolIndex: editorState.selectedSymbolIndex,
                           insertMode: insertMode,
                           canAcceptExternalDrop: (data) => data is PaletteDragData,
+                          externalPreviewResolver: _previewGlyphForDragData,
                           onExternalDrop: onExternalDrop,
                           onSymbolTap: insertMode ? null : onSymbolTap,
                           onInsertTap: insertMode ? onInsertTap : null,
@@ -645,6 +646,19 @@ class _NotationArea extends StatelessWidget {
         PaletteSymbolType.halfRest => 'half rest',
         PaletteSymbolType.quarterRest => 'quarter rest',
       };
+
+  NotationPreviewGlyph? _previewGlyphForDragData(Object data) {
+    if (data is! PaletteDragData) return null;
+    return switch (data.type) {
+      PaletteSymbolType.wholeNote => NotationPreviewGlyph.wholeNote,
+      PaletteSymbolType.halfNote => NotationPreviewGlyph.halfNote,
+      PaletteSymbolType.quarterNote => NotationPreviewGlyph.quarterNote,
+      PaletteSymbolType.eighthNote => NotationPreviewGlyph.eighthNote,
+      PaletteSymbolType.wholeRest => NotationPreviewGlyph.wholeRest,
+      PaletteSymbolType.halfRest => NotationPreviewGlyph.halfRest,
+      PaletteSymbolType.quarterRest => NotationPreviewGlyph.quarterRest,
+    };
+  }
 }
 
 class _FloatingControls extends StatelessWidget {

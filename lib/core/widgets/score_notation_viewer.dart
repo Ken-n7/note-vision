@@ -29,6 +29,7 @@ class ScoreNotationViewer extends StatefulWidget {
     this.onSymbolReorder,
     this.canAcceptExternalDrop,
     this.onExternalDrop,
+    this.externalPreviewResolver,
   });
 
   final Score? score;
@@ -49,6 +50,7 @@ class ScoreNotationViewer extends StatefulWidget {
   final ValueChanged<NotationSymbolReorder>? onSymbolReorder;
   final bool Function(Object data)? canAcceptExternalDrop;
   final void Function(NotationInsertTarget target, Object data)? onExternalDrop;
+  final NotationPreviewGlyph? Function(Object data)? externalPreviewResolver;
 
   @override
   State<ScoreNotationViewer> createState() => _ScoreNotationViewerState();
@@ -60,6 +62,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
       const NotationLayoutCalculator();
   _NotationDragSession? _dragSession;
   NotationInsertTarget? _externalInsertTarget;
+  NotationPreviewGlyph? _externalPreviewGlyph;
 
   @override
   void dispose() {
@@ -96,19 +99,31 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
         if (widget.canAcceptExternalDrop?.call(data) == false) return;
         final adjusted = _adjustForHorizontalScroll(position);
         final target = _resolveInsertTarget(allParts: allParts, layout: layout, position: adjusted);
-        if (target == _externalInsertTarget) return;
-        setState(() => _externalInsertTarget = target);
+        final previewGlyph = target == null ? null : widget.externalPreviewResolver?.call(data);
+        if (target == _externalInsertTarget && previewGlyph == _externalPreviewGlyph) return;
+        setState(() {
+          _externalInsertTarget = target;
+          _externalPreviewGlyph = previewGlyph;
+        });
       },
       onExternalDragLeave: () {
-        if (_externalInsertTarget == null) return;
-        setState(() => _externalInsertTarget = null);
+        if (_externalInsertTarget == null && _externalPreviewGlyph == null) return;
+        setState(() {
+          _externalInsertTarget = null;
+          _externalPreviewGlyph = null;
+        });
       },
       onExternalAccept: (position, data) {
         if (widget.canAcceptExternalDrop?.call(data) == false) return;
         final adjusted = _adjustForHorizontalScroll(position);
         final target = _resolveInsertTarget(allParts: allParts, layout: layout, position: adjusted);
         if (target != null) widget.onExternalDrop?.call(target, data);
-        if (_externalInsertTarget != null) setState(() => _externalInsertTarget = null);
+        if (_externalInsertTarget != null || _externalPreviewGlyph != null) {
+          setState(() {
+            _externalInsertTarget = null;
+            _externalPreviewGlyph = null;
+          });
+        }
       },
       onTapUp: (widget.onSymbolTap == null && widget.onInsertTap == null)
           ? null
@@ -166,6 +181,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
                 dragX: _dragSession!.dragPosition.dx,
               ),
         insertionTarget: _externalInsertTarget,
+        insertionPreviewGlyph: _externalPreviewGlyph,
       ),
     );
   }

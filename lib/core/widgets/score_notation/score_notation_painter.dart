@@ -23,6 +23,7 @@ class ScoreNotationPainter extends CustomPainter {
     this.selectedSymbolIndex,
     this.dragFeedback,
     this.insertionTarget,
+    this.insertionPreviewGlyph,
   });
 
   /// All parts — one inner list per part, each containing that part's measures.
@@ -37,6 +38,7 @@ class ScoreNotationPainter extends CustomPainter {
   final int? selectedSymbolIndex;
   final NotationDragFeedback? dragFeedback;
   final NotationInsertTarget? insertionTarget;
+  final NotationPreviewGlyph? insertionPreviewGlyph;
 
   static const double staffLineSpacing = 12;
   static const double tapTargetSize = 24;
@@ -323,6 +325,7 @@ class ScoreNotationPainter extends CustomPainter {
     required double staffBottom,
     required String clefSign,
   }) {
+    final middleLineY = staffTop + staffLineSpacing * 2;
     final insertTarget = insertionTarget;
     if (insertTarget != null && insertTarget.measureIndex == absoluteMeasureIndex) {
       final linePaint = Paint()
@@ -336,6 +339,19 @@ class ScoreNotationPainter extends CustomPainter {
         Offset(x, staffBottom + 8),
         linePaint,
       );
+      final previewGlyph = insertionPreviewGlyph;
+      if (previewGlyph != null) {
+        _drawInsertionPreview(
+          canvas,
+          glyph: previewGlyph,
+          x: x,
+          target: insertTarget,
+          staffTop: staffTop,
+          staffBottom: staffBottom,
+          middleLineY: middleLineY,
+          clefSign: clefSign,
+        );
+      }
     }
 
     if (measure.symbols.isEmpty) return;
@@ -346,7 +362,6 @@ class ScoreNotationPainter extends CustomPainter {
       12.0,
       (measureEndX - measureStartX) - (innerPadding * 2),
     );
-    final middleLineY = staffTop + staffLineSpacing * 2;
     final drag = dragFeedback;
     final hasDragInMeasure =
         drag != null &&
@@ -418,6 +433,76 @@ class ScoreNotationPainter extends CustomPainter {
       ..color = const Color(0xFFD4A96A).withValues(alpha: 0.26)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, radius, paint);
+  }
+
+  void _drawInsertionPreview(
+    Canvas canvas, {
+    required NotationPreviewGlyph glyph,
+    required double x,
+    required NotationInsertTarget target,
+    required double staffTop,
+    required double staffBottom,
+    required double middleLineY,
+    required String clefSign,
+  }) {
+    final previewPaint = Paint()
+      ..color = const Color(0xFF2563EB).withValues(alpha: 0.24)
+      ..style = PaintingStyle.fill;
+    final y = switch (glyph) {
+      NotationPreviewGlyph.wholeRest => staffTop + (staffLineSpacing * 3) + 4.3,
+      NotationPreviewGlyph.halfRest => staffTop + (staffLineSpacing * 2) - 3.0,
+      NotationPreviewGlyph.quarterRest => staffTop + (staffLineSpacing * 1.35) + 8.0,
+      _ => StaffPitchMapper.yForPitch(
+          step: target.step,
+          octave: target.octave,
+          bottomLineY: staffBottom,
+          lineSpacing: staffLineSpacing,
+          clefSign: clefSign,
+        ),
+    };
+    _drawSelectionHighlight(canvas, Offset(x, y), radius: 15);
+    canvas.drawCircle(Offset(x, y), 15, previewPaint);
+
+    switch (glyph) {
+      case NotationPreviewGlyph.wholeNote:
+        _drawNote(
+          canvas,
+          const Note(step: 'B', octave: 4, duration: 8, type: 'whole'),
+          x: x,
+          y: y,
+          middleLineY: middleLineY,
+        );
+      case NotationPreviewGlyph.halfNote:
+        _drawNote(
+          canvas,
+          const Note(step: 'B', octave: 4, duration: 4, type: 'half'),
+          x: x,
+          y: y,
+          middleLineY: middleLineY,
+        );
+      case NotationPreviewGlyph.quarterNote:
+        _drawNote(
+          canvas,
+          const Note(step: 'B', octave: 4, duration: 2, type: 'quarter'),
+          x: x,
+          y: y,
+          middleLineY: middleLineY,
+        );
+      case NotationPreviewGlyph.eighthNote:
+        _drawNote(
+          canvas,
+          const Note(step: 'B', octave: 4, duration: 1, type: 'eighth'),
+          x: x,
+          y: y,
+          middleLineY: middleLineY,
+        );
+      case NotationPreviewGlyph.wholeRest:
+        _drawRest(canvas, const Rest(duration: 8, type: 'whole'), x: x, staffTop: staffTop);
+      case NotationPreviewGlyph.halfRest:
+        _drawRest(canvas, const Rest(duration: 4, type: 'half'), x: x, staffTop: staffTop);
+      case NotationPreviewGlyph.quarterRest:
+        _drawRest(canvas, const Rest(duration: 2, type: 'quarter'), x: x, staffTop: staffTop);
+    }
   }
 
   void _drawNote(
@@ -729,8 +814,19 @@ class ScoreNotationPainter extends CustomPainter {
         oldDelegate.selectedMeasureIndex != selectedMeasureIndex ||
         oldDelegate.selectedSymbolIndex != selectedSymbolIndex ||
         oldDelegate.dragFeedback != dragFeedback ||
-        oldDelegate.insertionTarget != insertionTarget;
+        oldDelegate.insertionTarget != insertionTarget ||
+        oldDelegate.insertionPreviewGlyph != insertionPreviewGlyph;
   }
+}
+
+enum NotationPreviewGlyph {
+  wholeNote,
+  halfNote,
+  quarterNote,
+  eighthNote,
+  wholeRest,
+  halfRest,
+  quarterRest,
 }
 
 class NotationSymbolTarget {
