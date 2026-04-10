@@ -2,9 +2,10 @@ import 'dart:async';
 
 import 'package:flutter_midi_pro/flutter_midi_pro.dart';
 
-import '../models/note.dart';
-import '../models/rest.dart';
 import '../models/score.dart';
+import 'playback_converter.dart';
+
+export 'playback_converter.dart' show PlaybackEvent, PlaybackConverter;
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -57,37 +58,14 @@ class PlaybackPosition {
 }
 
 // ---------------------------------------------------------------------------
-// Internal event model
-// ---------------------------------------------------------------------------
-
-class _PlaybackEvent {
-  const _PlaybackEvent({
-    required this.partIndex,
-    required this.measureIndex,
-    required this.symbolIndex,
-    required this.midiNote,
-    required this.baseDurationMs,
-  });
-
-  final int partIndex;
-  final int measureIndex;
-  final int symbolIndex;
-
-  /// -1 means this event is a rest — no MIDI note is sounded.
-  final int midiNote;
-
-  /// Duration in ms at [PlaybackService._defaultTempo] BPM.
-  final int baseDurationMs;
-
-  bool get isRest => midiNote < 0;
-}
-
-// ---------------------------------------------------------------------------
 // PlaybackService
 // ---------------------------------------------------------------------------
 
 /// Singleton service that synthesises a [Score] to MIDI audio via
 /// flutter_midi_pro (FluidSynth on Android, AVFoundation on iOS/macOS).
+///
+/// Score → event conversion is handled by [PlaybackConverter] (pure Dart,
+/// unit-testable without this class).
 ///
 /// Usage
 /// -----
@@ -120,28 +98,22 @@ class PlaybackService {
   static const int _bank = 0;
   static const int _program = 0; // acoustic grand piano
   static const int _velocity = 90;
-  static const int _defaultTempo = 120;
 
-  // ── Step → semitone offset (C = 0) ────────────────────────────────────
-  static const Map<String, int> _stepOffset = {
-    'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11,
-  };
-
-  // ── State ──────────────────────────────────────────────────────────────
+  // ── Dependencies ────────────────────────────────────────────────────────
   final MidiPro _midi = MidiPro();
+  final _converter = const PlaybackConverter();
   int? _sfId;
   bool _initialized = false;
 
-  int _tempo = _defaultTempo;
+  // ── Runtime state ───────────────────────────────────────────────────────
+  int _tempo = PlaybackConverter.defaultTempo;
   PlaybackStatus _status = PlaybackStatus.stopped;
 
-  // Playback loop control
   bool _shouldPlay = false;
   Timer? _noteTimer;
   Completer<bool>? _waitCompleter;
 
-  // Flat event list built on each play() call
-  List<_PlaybackEvent> _events = const [];
+  List<PlaybackEvent> _events = const [];
   int _currentEventIndex = 0;
 
   // ── Streams ────────────────────────────────────────────────────────────
@@ -194,7 +166,7 @@ class PlaybackService {
     if (!_initialized) await init();
     if (_status == PlaybackStatus.error) return;
 
-    _events = _buildEvents(score);
+    _events = _converter.buildEvents(score);
     if (_events.isEmpty) return;
 
     _currentEventIndex = 0;
@@ -268,10 +240,10 @@ class PlaybackService {
       }
 
       // Wait for duration, scaled to current tempo.
-      final durationMs = _scaledDuration(event.baseDurationMs);
-      final completed = await _waitMs(durationMs);
+      final ms = _converter.scaledDuration(event.baseDurationMs, _tempo);
+      final completed = await _waitMs(ms);
 
-      // Stop the note before advancing to the next event.
+      // Stop note before advancing.
       if (!event.isRest && _sfId != null) {
         await _midi.stopNote(
           sfId: _sfId!,
@@ -331,70 +303,4 @@ class PlaybackService {
     _status = status;
     _stateController.add(PlaybackState(status: status, error: error));
   }
-
-  /// Scales a base-120-BPM duration to the current [_tempo].
-  int _scaledDuration(int baseDurationMs) =>
-      (baseDurationMs * _defaultTempo / _tempo).round();
-
-  // ── Score → event list ─────────────────────────────────────────────────
-
-  /// Flattens the [Score] into a sequential list of [_PlaybackEvent]s.
-  ///
-  /// All parts are included in order. For a grand-staff score this means
-  /// treble part plays first, then bass part — adequate for a demo.
-  /// (Full interleaved simultaneous playback is a future improvement.)
-  List<_PlaybackEvent> _buildEvents(Score score) {
-    final events = <_PlaybackEvent>[];
-    for (var pi = 0; pi < score.parts.length; pi++) {
-      final part = score.parts[pi];
-      for (var mi = 0; mi < part.measures.length; mi++) {
-        final measure = part.measures[mi];
-        for (var si = 0; si < measure.symbols.length; si++) {
-          final symbol = measure.symbols[si];
-          if (symbol is Note) {
-            final midiNote = _noteToMidi(symbol);
-            if (midiNote < 0) continue; // invalid pitch — skip
-            events.add(_PlaybackEvent(
-              partIndex: pi,
-              measureIndex: mi,
-              symbolIndex: si,
-              midiNote: midiNote,
-              baseDurationMs: _durationMs(symbol.duration),
-            ));
-          } else if (symbol is Rest) {
-            events.add(_PlaybackEvent(
-              partIndex: pi,
-              measureIndex: mi,
-              symbolIndex: si,
-              midiNote: -1,
-              baseDurationMs: _durationMs(symbol.duration),
-            ));
-          }
-        }
-      }
-    }
-    return events;
-  }
-
-  /// Converts a [Note] to a MIDI key number (0–127).
-  ///
-  /// Formula:  (octave + 1) × 12  +  stepOffset  +  alter
-  ///   C4 → (4+1)×12 + 0       = 60  ✓ middle C
-  ///   A4 → (4+1)×12 + 9       = 69  ✓ concert A
-  int _noteToMidi(Note note) {
-    final offset = _stepOffset[note.step.toUpperCase()];
-    if (offset == null) return -1;
-    final midi = (note.octave + 1) * 12 + offset + (note.alter ?? 0);
-    return midi.clamp(0, 127);
-  }
-
-  /// Converts MusicXML division count to ms at [_defaultTempo] BPM.
-  ///
-  /// Project division convention: whole=8, half=4, quarter=2, eighth=1
-  ///
-  ///   durationMs = divisions × (60 000 / bpm) / 2
-  ///             = divisions × 30 000 / 120
-  ///             = divisions × 250  (at 120 BPM)
-  int _durationMs(int divisions) =>
-      (divisions * 30000 ~/ _defaultTempo).clamp(50, 16000);
 }

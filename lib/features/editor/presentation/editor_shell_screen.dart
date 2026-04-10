@@ -1,13 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
+import 'package:note_vision/core/services/playback_service.dart';
 import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
+import 'package:note_vision/features/editor/presentation/widgets/playback_controls_bar.dart';
 import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.dart';
 import 'package:note_vision/features/musicXML/musicxml_export_service.dart';
 
@@ -35,12 +39,32 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   bool _insertMode = false;
   PaletteSymbolType? _insertSymbolType;
 
+  // Playback
+  final _playback = PlaybackService.instance;
+  PlaybackPosition _playbackPosition = PlaybackPosition.none;
+  StreamSubscription<PlaybackPosition>? _positionSub;
+
   @override
   void initState() {
     super.initState();
     _editorState = _withDefaultMeasureContext(
       widget.args.initialState.copyWith(score: widget.args.score),
     );
+    _initPlayback();
+  }
+
+  Future<void> _initPlayback() async {
+    await _playback.init();
+    _positionSub = _playback.positionStream.listen((pos) {
+      if (mounted) setState(() => _playbackPosition = pos);
+    });
+  }
+
+  @override
+  void dispose() {
+    _positionSub?.cancel();
+    _playback.stop();
+    super.dispose();
   }
 
   void _updateState(EditorState Function(EditorState state) updater) {
@@ -190,6 +214,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               canvasZoom: _canvasZoom,
               insertMode: _insertMode,
               insertSymbolType: _insertSymbolType,
+              playbackPosition: _playbackPosition,
               onZoomIn: _canvasZoom < 2.0
                   ? () => setState(() => _canvasZoom = (_canvasZoom + 0.1).clamp(0.75, 2.0))
                   : null,
@@ -258,6 +283,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               onDeleteMeasure: () => _updateState((s) => s.deleteSelectedMeasureIfEmpty()),
             );
 
+            final scoreIsEmpty = _editorState.score.parts.isEmpty ||
+                _editorState.score.parts.every((p) => p.measures.every((m) => m.symbols.isEmpty));
+
             return Column(
               children: [
                 _EditorHeader(
@@ -325,6 +353,13 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                             ),
                           ],
                         ),
+                ),
+                PlaybackControlsBar(
+                  isEmpty: scoreIsEmpty,
+                  onPlay: () => _playback.play(_editorState.score),
+                  onPause: _playback.pause,
+                  onStop: _playback.stop,
+                  onTempoChanged: _playback.setTempo,
                 ),
               ],
             );
@@ -519,6 +554,7 @@ class _NotationArea extends StatelessWidget {
     required this.canvasZoom,
     required this.insertMode,
     required this.insertSymbolType,
+    required this.playbackPosition,
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onToggleInsertMode,
@@ -533,6 +569,7 @@ class _NotationArea extends StatelessWidget {
   final double canvasZoom;
   final bool insertMode;
   final PaletteSymbolType? insertSymbolType;
+  final PlaybackPosition playbackPosition;
   final VoidCallback? onZoomIn;
   final VoidCallback? onZoomOut;
   final VoidCallback onToggleInsertMode;
@@ -567,6 +604,9 @@ class _NotationArea extends StatelessWidget {
                           minMeasureWidth: 220 * canvasZoom,
                           selectedMeasureIndex: editorState.selectedMeasureIndex,
                           selectedSymbolIndex: editorState.selectedSymbolIndex,
+                          playbackPartIndex: playbackPosition.isNone ? null : playbackPosition.partIndex,
+                          playbackMeasureIndex: playbackPosition.isNone ? null : playbackPosition.measureIndex,
+                          playbackSymbolIndex: playbackPosition.isNone ? null : playbackPosition.symbolIndex,
                           insertMode: insertMode,
                           canAcceptExternalDrop: (data) => data is PaletteDragData,
                           externalPreviewResolver: _previewGlyphForDragData,

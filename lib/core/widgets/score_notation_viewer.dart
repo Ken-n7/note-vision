@@ -23,6 +23,9 @@ class ScoreNotationViewer extends StatefulWidget {
     this.backgroundColor = const Color(0xFFF9FAFB),
     this.selectedMeasureIndex,
     this.selectedSymbolIndex,
+    this.playbackPartIndex,
+    this.playbackMeasureIndex,
+    this.playbackSymbolIndex,
     this.insertMode = false,
     this.onSymbolTap,
     this.onInsertTap,
@@ -42,6 +45,13 @@ class ScoreNotationViewer extends StatefulWidget {
   final Color backgroundColor;
   final int? selectedMeasureIndex;
   final int? selectedSymbolIndex;
+
+  /// Currently playing symbol coordinates from PlaybackService.
+  /// All three must be non-null for the playback highlight to render.
+  final int? playbackPartIndex;
+  final int? playbackMeasureIndex;
+  final int? playbackSymbolIndex;
+
   /// When true, taps resolve to [NotationInsertTarget] via [onInsertTap]
   /// instead of the normal symbol-selection [onSymbolTap].
   final bool insertMode;
@@ -172,6 +182,9 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
         selectedPartIndex: widget.selectedPartIndex,
         selectedMeasureIndex: widget.selectedMeasureIndex,
         selectedSymbolIndex: widget.selectedSymbolIndex,
+        playbackPartIndex: widget.playbackPartIndex,
+        playbackMeasureIndex: widget.playbackMeasureIndex,
+        playbackSymbolIndex: widget.playbackSymbolIndex,
         dragFeedback: _dragSession == null
             ? null
             : NotationDragFeedback(

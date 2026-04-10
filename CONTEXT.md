@@ -393,20 +393,20 @@ reorderSymbol(partIndex, measureIndex, fromIndex, toIndex)
 | 65 | Execute Sprint 6 test cases | Galanza | 2H | ⏳ Not started |
 | 66 | Create Sprint 6 regression checklist | Galanza | 1H | ⏳ Not started |
 
-### Sprint 7 ⏳ Not Started
-| # | Ticket | Owner | Duration |
-|---|--------|-------|----------|
-| 67 | Build playback module (flutter_midi_pro) | Canete | 3H |
-| 68 | Build playback controls UI | Boleche | 2H |
-| 69 | IT: ScoreModel + playback end-to-end | Canete | 2H |
-| 70 | Build engraved PDF renderer | Canete | 4H |
-| 71 | Build PDF export service + share sheet | Boleche | 2H |
-| 72 | IT: ScoreModel + PDF export | Canete | 1H |
-| 73 | Define project data model + JSON storage | Canete | 1H |
-| 74 | Build save/load flow + score naming + project list UI | Boleche | 3H |
-| 75 | Prepare Sprint 7 test assets | Galanza | 3H |
-| 76 | Execute Sprint 7 test cases | Galanza | 3H |
-| 77 | Create Sprint 7 regression checklist | Galanza | 1H |
+### Sprint 7 🔄 In Progress
+| # | Ticket | Owner | Duration | Status |
+|---|--------|-------|----------|--------|
+| 67 | Build playback module (flutter_midi_pro) | Canete | 3H | ✅ Done |
+| 68 | Build playback controls UI | Boleche | 2H | ✅ Done |
+| 69 | IT: ScoreModel + playback end-to-end | Canete | 2H | ⏳ Not started |
+| 70 | Build engraved PDF renderer | Canete | 4H | ⏳ Not started |
+| 71 | Build PDF export service + share sheet | Boleche | 2H | ⏳ Not started |
+| 72 | IT: ScoreModel + PDF export | Canete | 1H | ⏳ Not started |
+| 73 | Define project data model + JSON storage | Canete | 1H | ⏳ Not started |
+| 74 | Build save/load flow + score naming + project list UI | Boleche | 3H | ⏳ Not started |
+| 75 | Prepare Sprint 7 test assets | Galanza | 3H | ⏳ Not started |
+| 76 | Execute Sprint 7 test cases | Galanza | 3H | ⏳ Not started |
+| 77 | Create Sprint 7 regression checklist | Galanza | 1H | ⏳ Not started |
 
 ### Sprint 8 ⏳ Not Started
 | # | Ticket | Owner | Duration |
@@ -472,6 +472,42 @@ Update this file whenever:
 Do not let this file get stale — an outdated CONTEXT.md is worse than no CONTEXT.md.
 
 claude and I can update this from time to time when changes are final
+
+---
+
+## Tickets 67 & 68 Delivery Notes (Sprint 7, branch playback)
+
+Audio playback module + controls UI. All spec criteria satisfied, several above scope:
+
+- **`PlaybackConverter`** — new file `lib/core/services/playback_converter.dart`
+  - Pure-Dart, zero platform dependencies — fully unit-testable
+  - `noteToMidi(Note)` — MIDI key formula: `(octave + 1) × 12 + stepOffset + alter`; C4=60, A4=69
+  - `durationMs(divisions)` — converts MusicXML divisions to ms at 120 BPM (whole=2000, half=1000, quarter=500, eighth=250)
+  - `scaledDuration(baseDurationMs, tempo)` — scales base duration to actual BPM
+  - `buildEvents(Score)` — flattens Score → `List<PlaybackEvent>` in part→measure→symbol order
+  - `PlaybackEvent` model: partIndex, measureIndex, symbolIndex, midiNote (-1=rest), baseDurationMs
+- **`PlaybackService`** — new file `lib/core/services/playback_service.dart`
+  - Singleton (`PlaybackService.instance`), delegates conversion to `PlaybackConverter`
+  - `init()` — loads soundfont asset via `flutter_midi_pro 3.1.6`, graceful error state if SF2 missing
+  - `play(Score)` — stops any in-progress playback, builds events, starts loop
+  - `pause()` / `resume()` / `stop()` — interrupt-safe via `Completer<bool>` + `Timer`
+  - `setTempo(bpm)` — clamps to 20–300, takes effect at next note boundary (real-time)
+  - `Stream<PlaybackState>` — emits stopped/playing/paused/error on every transition
+  - `Stream<PlaybackPosition>` — emits (partIndex, measureIndex, symbolIndex) per note; `PlaybackPosition.none` on stop
+  - Stops automatically when last symbol is reached
+- **`PlaybackControlsBar`** — new file `lib/features/editor/presentation/widgets/playback_controls_bar.dart`
+  - Play/pause toggle (icon changes with state), stop button, tempo slider 40–200 BPM with live BPM label
+  - All controls disabled + greyed when score has no symbols
+  - Error indicator (⚠ tooltip) shown when soundfont missing
+  - Pinned at the bottom of `EditorShellScreen` below the inspector panel (always visible)
+- **`ScoreNotationPainter`** — added `playbackPartIndex/MeasureIndex/SymbolIndex` params
+  - `_drawPlaybackHighlight()` — outer glow ring (radius 20, 18% opacity) + filled inner circle (radius 13, 45% opacity) + accent border (1.5 px) — visually distinct from editor selection highlight
+  - Drawn before notehead so symbol is still legible on top
+- **`ScoreNotationViewer`** — same three playback params forwarded to painter; `shouldRepaint` updated
+- **`EditorShellScreen`** — `_initPlayback()` on open, `_positionSub` stream subscription, `stop()` on dispose
+- **Soundfont required** — `assets/soundfonts/piano.sf2` (any standard GM SF2). README.txt in that directory. App shows error state + tooltip if missing.
+- **flutter_midi_pro 3.1.6 actual API** — `loadSoundfontAsset(assetPath:, bank:, program:)`, `selectInstrument(sfId:, channel:, bank:, program:)`, `playNote(sfId:, channel:, key:, velocity:)`, `stopNote(sfId:, channel:, key:)`, `unloadSoundfont(sfId)`
+- **Tests** — `test/core/services/playback_converter_test.dart` — 37 tests across 4 groups: noteToMidi (12), durationMs (7), scaledDuration (4), buildEvents (12), PlaybackPosition (2). All pass.
 
 ---
 

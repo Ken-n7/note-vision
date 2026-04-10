@@ -21,6 +21,9 @@ class ScoreNotationPainter extends CustomPainter {
     this.selectedPartIndex,
     this.selectedMeasureIndex,
     this.selectedSymbolIndex,
+    this.playbackPartIndex,
+    this.playbackMeasureIndex,
+    this.playbackSymbolIndex,
     this.dragFeedback,
     this.insertionTarget,
     this.insertionPreviewGlyph,
@@ -36,6 +39,13 @@ class ScoreNotationPainter extends CustomPainter {
   final int? selectedPartIndex;
   final int? selectedMeasureIndex;
   final int? selectedSymbolIndex;
+
+  /// Currently playing symbol position emitted by PlaybackService.
+  /// All three must be non-null for the playback highlight to render.
+  final int? playbackPartIndex;
+  final int? playbackMeasureIndex;
+  final int? playbackSymbolIndex;
+
   final NotationDragFeedback? dragFeedback;
   final NotationInsertTarget? insertionTarget;
   final NotationPreviewGlyph? insertionPreviewGlyph;
@@ -404,6 +414,10 @@ class ScoreNotationPainter extends CustomPainter {
         final isSelected = selectedPartIndex == partIndex &&
             selectedMeasureIndex == absoluteMeasureIndex &&
             selectedSymbolIndex == i;
+        final isPlaying = playbackPartIndex == partIndex &&
+            playbackMeasureIndex == absoluteMeasureIndex &&
+            playbackSymbolIndex == i;
+        if (isPlaying) _drawPlaybackHighlight(canvas, Offset(x, y));
         if (isSelected) _drawSelectionHighlight(canvas, Offset(x, y));
         _drawNote(canvas, symbol, x: x, y: y, middleLineY: middleLineY);
       } else if (symbol is Rest) {
@@ -411,6 +425,10 @@ class ScoreNotationPainter extends CustomPainter {
         final isSelected = selectedPartIndex == partIndex &&
             selectedMeasureIndex == absoluteMeasureIndex &&
             selectedSymbolIndex == i;
+        final isPlaying = playbackPartIndex == partIndex &&
+            playbackMeasureIndex == absoluteMeasureIndex &&
+            playbackSymbolIndex == i;
+        if (isPlaying) _drawPlaybackHighlight(canvas, Offset(x, y));
         if (isSelected) _drawSelectionHighlight(canvas, Offset(x, y));
         _drawRest(canvas, symbol, x: x, staffTop: staffTop);
       }
@@ -433,6 +451,29 @@ class ScoreNotationPainter extends CustomPainter {
       ..color = const Color(0xFFD4A96A).withValues(alpha: 0.26)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, radius, paint);
+  }
+
+  /// Playback highlight — a filled glow + outer ring in accent colour,
+  /// visually distinct from the editor selection highlight.
+  void _drawPlaybackHighlight(Canvas canvas, Offset center) {
+    // Outer glow ring
+    final ringPaint = Paint()
+      ..color = const Color(0xFFD4A96A).withValues(alpha: 0.18)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, 20, ringPaint);
+
+    // Inner solid fill
+    final fillPaint = Paint()
+      ..color = const Color(0xFFD4A96A).withValues(alpha: 0.45)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(center, 13, fillPaint);
+
+    // Accent border
+    final borderPaint = Paint()
+      ..color = const Color(0xFFD4A96A).withValues(alpha: 0.8)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    canvas.drawCircle(center, 13, borderPaint);
   }
 
   void _drawInsertionPreview(
@@ -813,6 +854,9 @@ class ScoreNotationPainter extends CustomPainter {
         oldDelegate.selectedPartIndex != selectedPartIndex ||
         oldDelegate.selectedMeasureIndex != selectedMeasureIndex ||
         oldDelegate.selectedSymbolIndex != selectedSymbolIndex ||
+        oldDelegate.playbackPartIndex != playbackPartIndex ||
+        oldDelegate.playbackMeasureIndex != playbackMeasureIndex ||
+        oldDelegate.playbackSymbolIndex != playbackSymbolIndex ||
         oldDelegate.dragFeedback != dragFeedback ||
         oldDelegate.insertionTarget != insertionTarget ||
         oldDelegate.insertionPreviewGlyph != insertionPreviewGlyph;
