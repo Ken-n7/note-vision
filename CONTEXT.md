@@ -403,7 +403,7 @@ reorderSymbol(partIndex, measureIndex, fromIndex, toIndex)
 | 71 | Build PDF export service + share sheet | Boleche | 2H | ⏳ Not started |
 | 72 | IT: ScoreModel + PDF export | Canete | 1H | ⏳ Not started |
 | 73 | Define project data model + JSON storage | Canete | 1H | ✅ Done |
-| 74 | Build save/load flow + score naming + project list UI | Boleche | 3H | ⏳ Not started |
+| 74 | Build save/load flow + score naming + project list UI | Boleche | 3H | ✅ Done |
 | 75 | Prepare Sprint 7 test assets | Galanza | 3H | ⏳ Not started |
 | 76 | Execute Sprint 7 test cases | Galanza | 3H | ⏳ Not started |
 | 77 | Create Sprint 7 regression checklist | Galanza | 1H | ⏳ Not started |
@@ -472,6 +472,28 @@ Update this file whenever:
 Do not let this file get stale — an outdated CONTEXT.md is worse than no CONTEXT.md.
 
 claude and I can update this from time to time when changes are final
+
+---
+
+## BGC-74 Delivery Notes (Sprint 7, branch BGC-73)
+
+- **Save button wired** — existing `FilledButton.icon(Icons.save_rounded)` in `_EditorHeader` now calls `onSave`; `_EditorShellScreenState._onSave()` drives the save flow
+- **First-save name dialog** — `_showNameDialog()` prompts with a text field defaulting to the score title; cancel aborts, empty name aborts; accepts Enter key or button tap
+- **Silent re-save** — `_currentProject` (type `Project?`) is tracked in state; if non-null, `copyWithUpdated(score:)` is called and saved with no dialog
+- **Save confirmation snackbar** — "Saved as [name]" appears for 2 seconds after every successful save; `hasUnsavedChanges` cleared immediately after save
+- **`EditorShellArgs.existingProject`** — optional `Project?` field added; set when opening from `ProjectListScreen` so the editor knows it already has a project id
+- **Unsaved changes guard** — `PopScope(canPop: !hasUnsavedChanges)` wraps the Scaffold; system back and header back button both route through `_handlePopAttempt()` which shows a "Leave without saving?" dialog
+- **`ProjectListScreen`** — `lib/features/projects/presentation/project_list_screen.dart`, route `/projects`
+  - Loads all projects via `ProjectStorageService.loadAllProjects()` (already sorted by `updatedAt` desc)
+  - Each tile shows: music note icon placeholder, project name, "Last modified Mar 20, 2026" date (manual formatter, no intl dep)
+  - Tap → decodes score, pushes editor with `existingProject` set; reloads list on return
+  - Long-press → delete confirm dialog ("Delete"=red, "Cancel"); removes from list and storage
+  - Corrupted project guard: `decodeScore()` wrapped in try/catch; shows snackbar, skips file
+  - Empty state: save icon + "No saved projects yet" message
+  - Full dark theme throughout
+- **Navigation entry points** — "Saved Projects" folder icon added to `CollectionScreen` AppBar actions; "Saved Projects" drawer item added at top of NAVIGATE section in `CollectionDrawer`
+- **Route registered** in `main.dart` `onGenerateRoute`
+- All 224 existing tests pass; no new test file (UI-only screen, integration tested manually per DoD)
 
 ---
 

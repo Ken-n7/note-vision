@@ -55,6 +55,14 @@ class CollectionDrawer extends StatelessWidget {
               ),
 
               _DrawerItem(
+                icon: Icons.folder_open_rounded,
+                title: 'Saved Projects',
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.pushNamed(context, '/projects');
+                },
+              ),
+              _DrawerItem(
                 icon: Icons.edit_outlined,
                 title: 'Digital Writing',
                 onTap: () => Navigator.pop(context),

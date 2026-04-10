@@ -420,6 +420,15 @@ class _CollectionScreenState extends State<CollectionScreen>
         centerTitle: true,
         bottom: _buildAppBarBottom(isLandscape, horizontalPadding),
         actions: [
+          IconButton(
+            icon: const Icon(
+              Icons.folder_open_rounded,
+              color: AppColors.textPrimary,
+              size: 20,
+            ),
+            tooltip: 'Saved Projects',
+            onPressed: () => Navigator.pushNamed(context, '/projects'),
+          ),
           Builder(
             builder: (context) => IconButton(
               icon: const Icon(Icons.menu, color: AppColors.textPrimary, size: 22),
