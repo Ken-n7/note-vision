@@ -41,6 +41,9 @@ dependencies:
   xml: ^6.5.0
   share_plus: ^12.0.2
 
+  # Audio playback (Sprint 7)
+  flutter_midi_pro: ^3.1.6
+
     # Storage & paths
   # path_provider: ^2.1.5
   # permission_handler: ^11.3.1
@@ -76,6 +79,7 @@ flutter:
     - assets/fonts/
     - assets/models/omr_model.tflite
     - assets/models/best_int8.tflite
+    - assets/soundfonts/
   fonts:
     - family: MaturaMTScriptCapitals
       fonts:
