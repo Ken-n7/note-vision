@@ -560,6 +560,22 @@ Full expanded reconstruction pipeline. All spec criteria satisfied, several abov
 
 ---
 
+## Multi-Staff Editor + Measure Management (branch `assume`, post-BGC-57)
+
+Session work committed on `assume` branch (not yet a formal ticket):
+
+- **`Score.insertMeasureAfterInAllParts(int measureIndex)`** — inserts an empty measure after the given index in every part simultaneously, then renumbers all measures 1-indexed. Keeps multi-part staves in sync.
+- **`Score.deleteMeasureFromAllParts(int measureIndex)`** — removes a measure from every part simultaneously, renumbers.
+- **`EditorActions.addMeasureAfterSelected()`** — inserts after the selected measure, selects the new measure.
+- **`EditorActions.deleteSelectedMeasureIfEmpty()`** — guards: measure count > 1 AND `symbols.isEmpty`. No-ops otherwise.
+- **Inspector panel** — MEASURE group gains two tiles: `Add` (always enabled when measure context exists) and `Del` (enabled only when measure is empty and count > 1, rendered red/danger).
+- **Multi-staff drag-drop fix** — `_resolveInsertTarget` in `score_notation_viewer.dart` was using a single-part Y formula (`padding.top + rowIndex * rowHeight`). Rewrote to iterate `systemRows × parts` with the correct multi-part formula: `padding.top + systemIndex * (partCount * rowHeight) + partIdx * rowHeight + 28`. Drag-drop and insert-mode tap now work on all staves.
+- **`NotationInsertTarget.partIndex`** — added field (default 0); wired through all 3 call sites in `score_notation_viewer.dart` and both handlers in `editor_shell_screen.dart`.
+- **Multi-staff operation fixes** — `reorderSymbolWithinMeasure` and `onPrevMeasure`/`onNextMeasure` callbacks were hardcoded to part 0; updated to use `selectedPartIndex`.
+- **Beam fallback** — see noteheadBlack heuristic section below (case 3 added this session).
+
+---
+
 ## noteheadBlack Stem Assumption Heuristic (post-BGC-59, branch BGC-57)
 
 Implemented in `SemanticInferrer._buildNote()`:
@@ -576,6 +592,23 @@ Implemented in `SemanticInferrer._buildNote()`:
 - **Test impact:** Two tests in `detection_to_score_mapper_service_test.dart` updated:
   - "ambiguous noteheads" — now asserts 1 quarter note produced (clef present, pitch succeeds); previously expected empty symbols + "Could not infer" warning
   - "partial mapped score" — now asserts empty symbols with "Could not calculate pitch" warning (clef absent → pitch fails after switch succeeds); previously expected empty symbols + "Could not infer" warning
+
+---
+
+## Barline Detection — WIP (branch `feature/barline-detection`, parked)
+
+Work-in-progress on branch `feature/barline-detection` (branched from `assume`). Not yet production-ready. **Do not merge to `assume` or `main` until tuned.**
+
+- **`VerticalProjectionBarlineDetector`** — per-column analysis inside each detected staff.
+  - Probes each of the 5 known `lineYs` positions (±`lineTolerancePx=2` px) for a dark pixel.
+  - Column is a barline candidate if it hits ≥ `minLineHits=4` of the 5 staff lines.
+  - Barlines cross all 5 lines; stems only touch 1–2 → strong discriminator.
+  - Clusters consecutive candidate columns into bands; filters by max band width (8px) and edge margin (4%) to remove boundary lines.
+- **`DetectionResult`** already carries `barlines: List<DetectedBarline>` (committed to main pipeline).
+- **`DetectionOverlay`** renders barlines as 2px amber vertical lines spanning staff height when present.
+- **Status:** Algorithm not yet tested on real data. Tuning levers:
+  - Too many → raise `minLineHits` to 5
+  - Too few → lower `minLineHits` to 3, or raise `lineTolerancePx` to 3
 
 ---
 
