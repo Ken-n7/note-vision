@@ -15,6 +15,22 @@ class Score {
     required this.parts,
   });
 
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'composer': composer,
+        'parts': parts.map((p) => p.toJson()).toList(),
+      };
+
+  factory Score.fromJson(Map<String, dynamic> json) => Score(
+        id: json['id'] as String,
+        title: json['title'] as String,
+        composer: json['composer'] as String,
+        parts: (json['parts'] as List<dynamic>)
+            .map((p) => Part.fromJson(p as Map<String, dynamic>))
+            .toList(),
+      );
+
   int get partCount => parts.length;
 
   int get totalMeasures =>

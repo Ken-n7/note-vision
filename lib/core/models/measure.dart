@@ -20,6 +20,43 @@ class Measure {
     required this.symbols,
   });
 
+  Map<String, dynamic> toJson() => {
+        'number': number,
+        if (clef != null) 'clef': clef!.toJson(),
+        if (timeSignature != null) 'timeSignature': timeSignature!.toJson(),
+        if (keySignature != null) 'keySignature': keySignature!.toJson(),
+        'symbols': symbols.map((s) => s.toJson()).toList(),
+      };
+
+  factory Measure.fromJson(Map<String, dynamic> json) => Measure(
+        number: json['number'] as int,
+        clef: json['clef'] != null
+            ? Clef.fromJson(json['clef'] as Map<String, dynamic>)
+            : null,
+        timeSignature: json['timeSignature'] != null
+            ? TimeSignature.fromJson(
+                json['timeSignature'] as Map<String, dynamic>)
+            : null,
+        keySignature: json['keySignature'] != null
+            ? KeySignature.fromJson(
+                json['keySignature'] as Map<String, dynamic>)
+            : null,
+        symbols: (json['symbols'] as List<dynamic>)
+            .map((s) => _symbolFromJson(s as Map<String, dynamic>))
+            .toList(),
+      );
+
+  static ScoreSymbol _symbolFromJson(Map<String, dynamic> json) {
+    return switch (json['symbolType'] as String) {
+      'note' => Note.fromJson(json),
+      'rest' => Rest.fromJson(json),
+      'clef' => Clef.fromJson(json),
+      'keySignature' => KeySignature.fromJson(json),
+      'timeSignature' => TimeSignature.fromJson(json),
+      final t => throw FormatException('Unknown symbolType: $t'),
+    };
+  }
+
   List<Note> get notes => symbols.whereType<Note>().toList();
 
   List<Rest> get rests => symbols.whereType<Rest>().toList();

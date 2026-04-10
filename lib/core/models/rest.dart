@@ -14,6 +14,22 @@ class Rest extends ScoreSymbol {
   });
 
   @override
+  Map<String, dynamic> toJson() => {
+        'symbolType': 'rest',
+        'duration': duration,
+        'type': type,
+        if (voice != null) 'voice': voice,
+        if (staff != null) 'staff': staff,
+      };
+
+  factory Rest.fromJson(Map<String, dynamic> json) => Rest(
+        duration: json['duration'] as int,
+        type: json['type'] as String,
+        voice: json['voice'] as int?,
+        staff: json['staff'] as int?,
+      );
+
+  @override
   String toString() =>
       'Rest(duration: $duration, type: $type'
       '${voice != null ? ', voice: $voice' : ''}'
