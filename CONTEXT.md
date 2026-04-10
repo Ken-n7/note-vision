@@ -104,6 +104,8 @@ lib/
     services/
       image_storage_service.dart     Save/load scanned image paths
       user_profile_service.dart      Username + photo in shared_preferences
+      playback_converter.dart        Pure-Dart Score→PlaybackEvent conversion (no platform deps)
+      playback_service.dart          Singleton MIDI playback service via flutter_midi_pro
 
   features/
     landing/                         LandingScreen — entry point
@@ -134,6 +136,7 @@ lib/
       presentation/
         editor_shell_screen.dart     Full editor UI
         widgets/symbol_palette.dart  Draggable note/rest palette (Sprint 6)
+        widgets/playback_controls_bar.dart  Play/pause/stop + BPM slider (Sprint 7)
     musicXML/                        Import pipeline
       musicxml_importer.dart         File pick + read + decompress
       musicxml_parser_service.dart   XML parse + validate
@@ -146,10 +149,13 @@ assets/
   models/best_int8.tflite            YOLO model — 640×640 int8 quantized (replaces omr_model.tflite)
   fonts/                             MaturaMTScriptCapitals
   images/                            notevision.png logo
+  soundfonts/piano.sf2               GM SF2 soundfont for MIDI playback (not committed — see README.txt)
 
 test/
   musicxml_testfiles/                7 XML test files (valid, invalid, edge cases)
   features/                          Unit + widget tests per feature
+  core/services/
+    playback_converter_test.dart     37 unit tests — noteToMidi, durationMs, scaledDuration, buildEvents
 ```
 
 ---
@@ -182,7 +188,7 @@ These are final unless explicitly changed:
 - **Insert default:** C4 quarter note / quarter rest, appended to end of selected measure, auto-selected after insert
 - **Drag insert:** LongPressDraggable from palette → DragTarget on staff. Drop Y → pitch via PitchCalculator. Drop X → insert index.
 - **PDF export:** `pdf` package with programmatic Canvas drawing — replicates CustomPainter logic
-- **Audio playback:** `flutter_midi_pro` — synthesizes from Note step+octave+duration directly
+- **Audio playback:** `flutter_midi_pro` — synthesizes from Note step+octave+duration directly. Requires `assets/soundfonts/piano.sf2` (any standard GM SF2 file, not committed). After adding the file run `flutter clean && flutter pub get` then do a full restart (not hot reload) to rebundle assets.
 - **Save/load:** JSON files in app documents directory via path_provider. Project index in shared_preferences.
 - **MusicXML export:** `xml` package, valid MusicXML 3.1, shared via share_plus
 - **Analytics:** Local only — scans, edits, exports, playbacks as integers in shared_preferences. No backend.
