@@ -10,5 +10,17 @@ class Clef extends ScoreSymbol {
   });
 
   @override
+  Map<String, dynamic> toJson() => {
+        'symbolType': 'clef',
+        'sign': sign,
+        'line': line,
+      };
+
+  factory Clef.fromJson(Map<String, dynamic> json) => Clef(
+        sign: json['sign'] as String,
+        line: json['line'] as int,
+      );
+
+  @override
   String toString() => 'Clef(sign: $sign, line: $line)';
 }

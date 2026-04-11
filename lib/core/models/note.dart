@@ -19,6 +19,28 @@ class Note extends ScoreSymbol {
     this.staff,
   });
 
+  @override
+  Map<String, dynamic> toJson() => {
+        'symbolType': 'note',
+        'step': step,
+        'octave': octave,
+        if (alter != null) 'alter': alter,
+        'duration': duration,
+        'type': type,
+        if (voice != null) 'voice': voice,
+        if (staff != null) 'staff': staff,
+      };
+
+  factory Note.fromJson(Map<String, dynamic> json) => Note(
+        step: json['step'] as String,
+        octave: json['octave'] as int,
+        alter: json['alter'] as int?,
+        duration: json['duration'] as int,
+        type: json['type'] as String,
+        voice: json['voice'] as int?,
+        staff: json['staff'] as int?,
+      );
+
   String get pitch {
     final accidental = switch (alter) {
       -2 => 'bb',

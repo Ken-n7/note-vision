@@ -5,6 +5,15 @@ class KeySignature extends ScoreSymbol {
 
   const KeySignature({required this.fifths});
 
+  @override
+  Map<String, dynamic> toJson() => {
+        'symbolType': 'keySignature',
+        'fifths': fifths,
+      };
+
+  factory KeySignature.fromJson(Map<String, dynamic> json) =>
+      KeySignature(fifths: json['fifths'] as int);
+
   String get name {
     const keyNames = <int, String>{
       -7: 'Cb major',

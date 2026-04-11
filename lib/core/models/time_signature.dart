@@ -10,5 +10,17 @@ class TimeSignature extends ScoreSymbol {
   });
 
   @override
+  Map<String, dynamic> toJson() => {
+        'symbolType': 'timeSignature',
+        'beats': beats,
+        'beatType': beatType,
+      };
+
+  factory TimeSignature.fromJson(Map<String, dynamic> json) => TimeSignature(
+        beats: json['beats'] as int,
+        beatType: json['beatType'] as int,
+      );
+
+  @override
   String toString() => 'TimeSignature($beats/$beatType)';
 }

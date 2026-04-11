@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/models/note.dart';
+import 'package:note_vision/core/models/project.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/services/playback_service.dart';
+import 'package:note_vision/core/services/project_storage_service.dart';
 import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
@@ -16,10 +18,18 @@ import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.
 import 'package:note_vision/features/musicXML/musicxml_export_service.dart';
 
 class EditorShellArgs {
-  const EditorShellArgs({required this.score, required this.initialState});
+  const EditorShellArgs({
+    required this.score,
+    required this.initialState,
+    this.existingProject,
+  });
 
   final Score score;
   final EditorState initialState;
+
+  /// Non-null when the editor was opened from the project list screen.
+  /// Used to perform silent re-saves without showing the name dialog again.
+  final Project? existingProject;
 }
 
 class EditorShellScreen extends StatefulWidget {
@@ -44,9 +54,13 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   PlaybackPosition _playbackPosition = PlaybackPosition.none;
   StreamSubscription<PlaybackPosition>? _positionSub;
 
+  final _storage = ProjectStorageService();
+  Project? _currentProject;
+
   @override
   void initState() {
     super.initState();
+    _currentProject = widget.args.existingProject;
     _editorState = _withDefaultMeasureContext(
       widget.args.initialState.copyWith(score: widget.args.score),
     );
@@ -65,6 +79,141 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     _positionSub?.cancel();
     _playback.stop();
     super.dispose();
+  }
+
+  // ── Save logic ─────────────────────────────────────────────────────────────
+
+  Future<void> _onSave() async {
+    if (_currentProject == null) {
+      // First save: prompt for a project name.
+      final defaultName = _editorState.score.title.trim().isEmpty
+          ? 'Untitled'
+          : _editorState.score.title.trim();
+      final name = await _showNameDialog(defaultName);
+      if (name == null || !mounted) return;
+
+      final project = Project.create(name: name, score: _editorState.score);
+      await _storage.saveProject(project);
+
+      if (!mounted) return;
+      setState(() {
+        _currentProject = project;
+        _editorState = _editorState.copyWith(hasUnsavedChanges: false);
+      });
+      _showSavedSnackbar(name);
+    } else {
+      // Subsequent save: silent, no dialog.
+      final updated =
+          _currentProject!.copyWithUpdated(score: _editorState.score);
+      await _storage.saveProject(updated);
+
+      if (!mounted) return;
+      setState(() {
+        _currentProject = updated;
+        _editorState = _editorState.copyWith(hasUnsavedChanges: false);
+      });
+      _showSavedSnackbar(updated.name);
+    }
+  }
+
+  Future<String?> _showNameDialog(String defaultName) {
+    final controller = TextEditingController(text: defaultName);
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text(
+          'Name your project',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          style: const TextStyle(color: AppColors.textPrimary),
+          decoration: const InputDecoration(
+            hintText: 'Project name',
+            hintStyle: TextStyle(color: AppColors.textSecondary),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: AppColors.border),
+            ),
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: AppColors.accent),
+            ),
+          ),
+          onSubmitted: (v) {
+            final trimmed = v.trim();
+            Navigator.of(ctx).pop(trimmed.isEmpty ? null : trimmed);
+          },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              final trimmed = controller.text.trim();
+              Navigator.of(ctx).pop(trimmed.isEmpty ? null : trimmed);
+            },
+            child: const Text(
+              'Save',
+              style: TextStyle(color: AppColors.accent),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSavedSnackbar(String name) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Saved as $name'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  Future<void> _handlePopAttempt() async {
+    final leave = await _showUnsavedChangesDialog();
+    if (leave && mounted) Navigator.of(context).pop();
+  }
+
+  Future<bool> _showUnsavedChangesDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text(
+          'Unsaved changes',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: const Text(
+          'You have unsaved changes. Leave without saving?',
+          style: TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Leave',
+              style: TextStyle(color: AppColors.accent),
+            ),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 
   void _updateState(EditorState Function(EditorState state) updater) {
@@ -202,7 +351,13 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         _editorState.score.parts[selectedPartIndex]
             .measures[selectedMeasureIndex].symbols.isEmpty;
 
-    return Scaffold(
+    return PopScope(
+      // Let the pop go through freely when there's nothing to lose.
+      canPop: !_editorState.hasUnsavedChanges,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _handlePopAttempt();
+      },
+      child: Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: LayoutBuilder(
@@ -298,6 +453,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   onBack: () => Navigator.of(context).maybePop(),
                   onUndo: () => _updateState((s) => s.applyUndo()),
                   onRedo: () => _updateState((s) => s.applyRedo()),
+                  onSave: _onSave,
                   onExport: () => const MusicXmlExportService().exportAndShare(_editorState.score),
                   onSaveToDevice: () async {
                     try {
@@ -366,7 +522,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           },
         ),
       ),
-    );
+    ),   // closes Scaffold
+    );   // closes PopScope
   }
 }
 
@@ -406,6 +563,7 @@ class _EditorHeader extends StatelessWidget {
     required this.onBack,
     required this.onUndo,
     required this.onRedo,
+    required this.onSave,
     required this.onExport,
     required this.onSaveToDevice,
   });
@@ -417,6 +575,7 @@ class _EditorHeader extends StatelessWidget {
   final VoidCallback onBack;
   final VoidCallback onUndo;
   final VoidCallback onRedo;
+  final VoidCallback onSave;
   final VoidCallback onExport;
   final VoidCallback onSaveToDevice;
 
@@ -500,7 +659,7 @@ class _EditorHeader extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           FilledButton.icon(
-            onPressed: () {},
+            onPressed: onSave,
             icon: const Icon(Icons.save_rounded, size: 15),
             label: const Text('Save', style: TextStyle(fontSize: 13)),
             style: FilledButton.styleFrom(

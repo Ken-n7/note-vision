@@ -408,8 +408,8 @@ reorderSymbol(partIndex, measureIndex, fromIndex, toIndex)
 | 70 | Build engraved PDF renderer | Canete | 4H | ⏳ Not started |
 | 71 | Build PDF export service + share sheet | Boleche | 2H | ⏳ Not started |
 | 72 | IT: ScoreModel + PDF export | Canete | 1H | ⏳ Not started |
-| 73 | Define project data model + JSON storage | Canete | 1H | ⏳ Not started |
-| 74 | Build save/load flow + score naming + project list UI | Boleche | 3H | ⏳ Not started |
+| 73 | Define project data model + JSON storage | Canete | 1H | ✅ Done |
+| 74 | Build save/load flow + score naming + project list UI | Boleche | 3H | ✅ Done |
 | 75 | Prepare Sprint 7 test assets | Galanza | 3H | ⏳ Not started |
 | 76 | Execute Sprint 7 test cases | Galanza | 3H | ⏳ Not started |
 | 77 | Create Sprint 7 regression checklist | Galanza | 1H | ⏳ Not started |
@@ -514,6 +514,48 @@ Audio playback module + controls UI. All spec criteria satisfied, several above 
 - **Soundfont required** — `assets/soundfonts/piano.sf2` (any standard GM SF2). README.txt in that directory. App shows error state + tooltip if missing.
 - **flutter_midi_pro 3.1.6 actual API** — `loadSoundfontAsset(assetPath:, bank:, program:)`, `selectInstrument(sfId:, channel:, bank:, program:)`, `playNote(sfId:, channel:, key:, velocity:)`, `stopNote(sfId:, channel:, key:)`, `unloadSoundfont(sfId)`
 - **Tests** — `test/core/services/playback_converter_test.dart` — 37 tests across 4 groups: noteToMidi (12), durationMs (7), scaledDuration (4), buildEvents (12), PlaybackPosition (2). All pass.
+
+---
+
+## BGC-74 Delivery Notes (Sprint 7, branch BGC-73)
+
+- **Save button wired** — existing `FilledButton.icon(Icons.save_rounded)` in `_EditorHeader` now calls `onSave`; `_EditorShellScreenState._onSave()` drives the save flow
+- **First-save name dialog** — `_showNameDialog()` prompts with a text field defaulting to the score title; cancel aborts, empty name aborts; accepts Enter key or button tap
+- **Silent re-save** — `_currentProject` (type `Project?`) is tracked in state; if non-null, `copyWithUpdated(score:)` is called and saved with no dialog
+- **Save confirmation snackbar** — "Saved as [name]" appears for 2 seconds after every successful save; `hasUnsavedChanges` cleared immediately after save
+- **`EditorShellArgs.existingProject`** — optional `Project?` field added; set when opening from `ProjectListScreen` so the editor knows it already has a project id
+- **Unsaved changes guard** — `PopScope(canPop: !hasUnsavedChanges)` wraps the Scaffold; system back and header back button both route through `_handlePopAttempt()` which shows a "Leave without saving?" dialog
+- **`ProjectListScreen`** — `lib/features/projects/presentation/project_list_screen.dart`, route `/projects`
+  - Loads all projects via `ProjectStorageService.loadAllProjects()` (already sorted by `updatedAt` desc)
+  - Each tile shows: music note icon placeholder, project name, "Last modified Mar 20, 2026" date (manual formatter, no intl dep)
+  - Tap → decodes score, pushes editor with `existingProject` set; reloads list on return
+  - Long-press → delete confirm dialog ("Delete"=red, "Cancel"); removes from list and storage
+  - Corrupted project guard: `decodeScore()` wrapped in try/catch; shows snackbar, skips file
+  - Empty state: save icon + "No saved projects yet" message
+  - Full dark theme throughout
+- **Navigation entry points** — "Saved Projects" folder icon added to `CollectionScreen` AppBar actions; "Saved Projects" drawer item added at top of NAVIGATE section in `CollectionDrawer`
+- **Route registered** in `main.dart` `onGenerateRoute`
+- All 224 existing tests pass; no new test file (UI-only screen, integration tested manually per DoD)
+
+---
+
+## BGC-73 Delivery Notes (Sprint 7, branch BGC-73)
+
+- **ScoreModel serialization** — `toJson()` added as abstract method on `ScoreSymbol`; all concrete types implement it with a `symbolType` discriminator field (`'note'`, `'rest'`, `'clef'`, `'keySignature'`, `'timeSignature'`). `fromJson()` factory added to each. `Measure._symbolFromJson()` does the dispatch. `Measure`, `Part`, and `Score` chain through children.
+- **`Project` model** — `lib/core/models/project.dart`
+  - Fields: `id` (millisecondsSinceEpoch string), `name`, `createdAt`, `updatedAt`, `scoreJson` (Score serialized as JSON string)
+  - `Project.create(name, score)` — factory that sets id + both timestamps to now
+  - `decodeScore()` — deserializes `scoreJson` back to a `Score`
+  - `copyWithUpdated({name, score})` — returns a copy with refreshed `updatedAt`; `createdAt` and `id` are preserved
+  - Full `toJson()` / `fromJson()` round-trip
+- **`ProjectStorageService`** — `lib/core/services/project_storage_service.dart`
+  - `saveProject(Project)` — writes `{docsDir}/projects/{id}.json`, upserts master index
+  - `loadProject(String id)` — reads and deserializes; returns null if file missing
+  - `loadAllProjects()` — reads index, loads all files, sorts by `updatedAt` descending
+  - `deleteProject(String id)` — deletes file + removes from index; no-ops silently if missing
+  - Master index in `SharedPreferences` key `project_index` as a JSON list of `{id, name}` maps
+  - Accepts injectable `projectsDirOverride` constructor param for testing (no platform mocking needed)
+- **Tests** — `test/core/models/project_serialization_test.dart` — 34 tests: per-type round-trips for all symbol classes, Measure/Part/Score deep round-trip, unknown symbolType throws FormatException, Project model lifecycle, full storage service behaviour; all 224 tests pass
 
 ---
 
