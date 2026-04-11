@@ -393,20 +393,20 @@ reorderSymbol(partIndex, measureIndex, fromIndex, toIndex)
 | 65 | Execute Sprint 6 test cases | Galanza | 2H | ⏳ Not started |
 | 66 | Create Sprint 6 regression checklist | Galanza | 1H | ⏳ Not started |
 
-### Sprint 7 ⏳ Not Started
-| # | Ticket | Owner | Duration |
-|---|--------|-------|----------|
-| 67 | Build playback module (flutter_midi_pro) | Canete | 3H |
-| 68 | Build playback controls UI | Boleche | 2H |
-| 69 | IT: ScoreModel + playback end-to-end | Canete | 2H |
-| 70 | Build engraved PDF renderer | Canete | 4H |
-| 71 | Build PDF export service + share sheet | Boleche | 2H |
-| 72 | IT: ScoreModel + PDF export | Canete | 1H |
-| 73 | Define project data model + JSON storage | Canete | 1H |
-| 74 | Build save/load flow + score naming + project list UI | Boleche | 3H |
-| 75 | Prepare Sprint 7 test assets | Galanza | 3H |
-| 76 | Execute Sprint 7 test cases | Galanza | 3H |
-| 77 | Create Sprint 7 regression checklist | Galanza | 1H |
+### Sprint 7 🔄 In Progress
+| # | Ticket | Owner | Duration | Status |
+|---|--------|-------|----------|--------|
+| 67 | Build playback module (flutter_midi_pro) | Canete | 3H | ⏳ Not started |
+| 68 | Build playback controls UI | Boleche | 2H | ⏳ Not started |
+| 69 | IT: ScoreModel + playback end-to-end | Canete | 2H | ⏳ Not started |
+| 70 | Build engraved PDF renderer | Canete | 4H | ✅ Done |
+| 71 | Build PDF export service + share sheet | Boleche | 2H | ✅ Done |
+| 72 | IT: ScoreModel + PDF export | Canete | 1H | ⏳ Not started |
+| 73 | Define project data model + JSON storage | Canete | 1H | ✅ Done |
+| 74 | Build save/load flow + score naming + project list UI | Boleche | 3H | ✅ Done |
+| 75 | Prepare Sprint 7 test assets | Galanza | 3H | ⏳ Not started |
+| 76 | Execute Sprint 7 test cases | Galanza | 3H | ⏳ Not started |
+| 77 | Create Sprint 7 regression checklist | Galanza | 1H | ⏳ Not started |
 
 ### Sprint 8 ⏳ Not Started
 | # | Ticket | Owner | Duration |
@@ -472,6 +472,41 @@ Update this file whenever:
 Do not let this file get stale — an outdated CONTEXT.md is worse than no CONTEXT.md.
 
 claude and I can update this from time to time when changes are final
+
+---
+
+## BGC-70 & BGC-71 Delivery Notes (Sprint 7, branch BGC-73)
+
+### BGC-70 — Engraved PDF Renderer
+
+- **`PdfScoreRenderer`** — new file `lib/features/pdf/pdf_score_renderer.dart`
+  - Uses low-level `PdfDocument` / `PdfGraphics` API from the `pdf: ^3.11.1` package (no widget layer)
+  - Returns `Future<Uint8List>` — raw PDF bytes, no I/O, easy to test
+  - A4 portrait, 20 mm margins, `PdfFont.courier` for text
+  - **Pagination**: measures-per-system computed from page width minus margins and prefix; systems-per-page computed from page height; overflows continue on next page
+  - **Title block** (first page only): title in 16pt bold top-left, composer in 9pt right-aligned
+  - **Staff lines**: 5 lines at 6 pt spacing; staff height = 24 pt
+  - **Clef**: treble (`G`) and bass (`F`) drawn with bezier curves in `_drawTrebleClef` / `_drawBassClef`
+  - **Key signature**: sharps/flats at correct staff positions using same `StaffPitchMapper.yForPitch` math as CustomPainter viewer; clef-aware treble/bass orders
+  - **Time signature**: digit pair drawn at correct staff positions
+  - **Noteheads**: filled ellipse (quarter/eighth), open ellipse (whole/half) with white inner ellipse for half
+  - **Stems**: up-stem for notes below middle line, down-stem above; length = 3.5 × line spacing
+  - **Flags**: cubic bezier on eighth note stems
+  - **Ledger lines**: drawn above/below staff when note is outside the 5-line range
+  - **Rests**: filled rect (whole), filled rect (half), zigzag path (quarter)
+  - **Barlines**: at end of each measure and at system open/close
+  - **Measure numbers**: 6pt above first beat of each measure
+
+### BGC-71 — PDF Export Service + Share Sheet
+
+- **`PdfExportService`** — new file `lib/features/pdf/pdf_export_service.dart`
+  - `exportAndShare(Score)` — calls renderer, writes bytes to temp file in app cache, opens system share sheet via `share_plus`, deletes temp file in `finally` block
+  - File named `<safe_title>.pdf` (spaces/special chars → underscores)
+- **Export popup in editor header expanded** (`_EditorHeader` in `editor_shell_screen.dart`)
+  - Three menu items: "Export MusicXML…", "Save MusicXML to Device", "Export PDF…"
+  - "Export PDF…" item disabled (greyed) when score is empty
+  - Tapping "Export PDF…" shows a loading dialog (`CircularProgressIndicator`) while rendering; dialog dismissed in `finally` block whether export succeeds or fails
+  - On error, shows a `SnackBar` with the error message
 
 ---
 

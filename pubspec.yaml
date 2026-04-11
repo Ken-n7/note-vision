@@ -48,7 +48,7 @@ dependencies:
   # path: ^1.9.0
 
     # PDF export
-  # pdf: ^3.11.1
+  pdf: ^3.11.1
 
     # State management & UI helpers
   # provider: ^6.1.2
