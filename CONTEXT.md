@@ -405,8 +405,8 @@ reorderSymbol(partIndex, measureIndex, fromIndex, toIndex)
 | 67 | Build playback module (flutter_midi_pro) | Canete | 3H | ✅ Done |
 | 68 | Build playback controls UI | Boleche | 2H | ✅ Done |
 | 69 | IT: ScoreModel + playback end-to-end | Canete | 2H | ⏳ Not started |
-| 70 | Build engraved PDF renderer | Canete | 4H | ⏳ Not started |
-| 71 | Build PDF export service + share sheet | Boleche | 2H | ⏳ Not started |
+| 70 | Build engraved PDF renderer | Canete | 4H | ✅ Done |
+| 71 | Build PDF export service + share sheet | Boleche | 2H | ✅ Done |
 | 72 | IT: ScoreModel + PDF export | Canete | 1H | ⏳ Not started |
 | 73 | Define project data model + JSON storage | Canete | 1H | ✅ Done |
 | 74 | Build save/load flow + score naming + project list UI | Boleche | 3H | ✅ Done |
@@ -514,6 +514,41 @@ Audio playback module + controls UI. All spec criteria satisfied, several above 
 - **Soundfont required** — `assets/soundfonts/piano.sf2` (any standard GM SF2). README.txt in that directory. App shows error state + tooltip if missing.
 - **flutter_midi_pro 3.1.6 actual API** — `loadSoundfontAsset(assetPath:, bank:, program:)`, `selectInstrument(sfId:, channel:, bank:, program:)`, `playNote(sfId:, channel:, key:, velocity:)`, `stopNote(sfId:, channel:, key:)`, `unloadSoundfont(sfId)`
 - **Tests** — `test/core/services/playback_converter_test.dart` — 37 tests across 4 groups: noteToMidi (12), durationMs (7), scaledDuration (4), buildEvents (12), PlaybackPosition (2). All pass.
+
+---
+
+## BGC-70 & BGC-71 Delivery Notes (Sprint 7, branch BGC-70-71)
+
+### BGC-70 — Engraved PDF Renderer
+
+- **`PdfScoreRenderer`** — new file `lib/features/pdf/pdf_score_renderer.dart`
+  - Uses low-level `PdfDocument` / `PdfGraphics` API from the `pdf: ^3.11.1` package (no widget layer)
+  - Returns `Future<Uint8List>` — raw PDF bytes, no I/O, easy to test
+  - A4 portrait, 20 mm margins, `PdfFont.courier` for text
+  - **Pagination**: measures-per-system computed from page width minus margins and prefix; systems-per-page computed from page height; overflows continue on next page
+  - **Title block** (first page only): title in 16pt bold top-left, composer in 9pt right-aligned
+  - **Staff lines**: 5 lines at 6 pt spacing; staff height = 24 pt
+  - **Clef**: treble (`G`) and bass (`F`) drawn with bezier curves in `_drawTrebleClef` / `_drawBassClef`
+  - **Key signature**: sharps/flats at correct staff positions using same `StaffPitchMapper.yForPitch` math as CustomPainter viewer; clef-aware treble/bass orders
+  - **Time signature**: digit pair drawn at correct staff positions
+  - **Noteheads**: filled ellipse (quarter/eighth), open ellipse (whole/half) with white inner ellipse for half
+  - **Stems**: up-stem for notes below middle line, down-stem above; length = 3.5 × line spacing
+  - **Flags**: cubic bezier on eighth note stems
+  - **Ledger lines**: drawn above/below staff when note is outside the 5-line range
+  - **Rests**: filled rect (whole), filled rect (half), zigzag path (quarter)
+  - **Barlines**: at end of each measure and at system open/close
+  - **Measure numbers**: 6pt above first beat of each measure
+
+### BGC-71 — PDF Export Service + Share Sheet
+
+- **`PdfExportService`** — new file `lib/features/pdf/pdf_export_service.dart`
+  - `exportAndShare(Score)` — calls renderer, writes bytes to temp file in app cache, opens system share sheet via `share_plus`, deletes temp file in `finally` block
+  - File named `<safe_title>.pdf` (spaces/special chars → underscores)
+- **Export popup in editor header expanded** (`_EditorHeader` in `editor_shell_screen.dart`)
+  - Three menu items: "Export MusicXML…", "Save MusicXML to Device", "Export PDF…"
+  - "Export PDF…" item disabled (greyed) when score is empty
+  - Tapping "Export PDF…" shows a loading dialog (`CircularProgressIndicator`) while rendering; dialog dismissed in `finally` block whether export succeeds or fails
+  - On error, shows a `SnackBar` with the error message
 
 ---
 

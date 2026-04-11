@@ -16,6 +16,7 @@ import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/widgets/playback_controls_bar.dart';
 import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.dart';
 import 'package:note_vision/features/musicXML/musicxml_export_service.dart';
+import 'package:note_vision/features/pdf/pdf_export_service.dart';
 
 class EditorShellArgs {
   const EditorShellArgs({
@@ -472,6 +473,39 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       );
                     }
                   },
+                  scoreIsEmpty: _editorState.score.parts.isEmpty ||
+                      _editorState.score.parts.every((p) => p.measures.every((m) => m.symbols.isEmpty)),
+                  onExportPdf: () async {
+                    showDialog<void>(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (_) => const AlertDialog(
+                        content: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            SizedBox(width: 16),
+                            Text('Generating PDF…'),
+                          ],
+                        ),
+                      ),
+                    );
+                    try {
+                      await const PdfExportService().exportAndShare(_editorState.score);
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('PDF export failed: $e')),
+                        );
+                      }
+                    } finally {
+                      if (context.mounted) Navigator.of(context).pop();
+                    }
+                  },
                 ),
                 Expanded(
                   child: isLandscape
@@ -531,7 +565,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 // Header
 // ---------------------------------------------------------------------------
 
-enum _ExportOption { share, saveToDevice }
+enum _ExportOption { share, saveToDevice, exportPdf }
 
 class _ExportMenuItem extends StatelessWidget {
   const _ExportMenuItem({required this.icon, required this.label});
@@ -566,6 +600,8 @@ class _EditorHeader extends StatelessWidget {
     required this.onSave,
     required this.onExport,
     required this.onSaveToDevice,
+    required this.onExportPdf,
+    required this.scoreIsEmpty,
   });
 
   final String title;
@@ -578,6 +614,8 @@ class _EditorHeader extends StatelessWidget {
   final VoidCallback onSave;
   final VoidCallback onExport;
   final VoidCallback onSaveToDevice;
+  final VoidCallback onExportPdf;
+  final bool scoreIsEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -672,11 +710,13 @@ class _EditorHeader extends StatelessWidget {
             onSelected: (option) {
               if (option == _ExportOption.share) {
                 onExport();
-              } else {
+              } else if (option == _ExportOption.saveToDevice) {
                 onSaveToDevice();
+              } else if (option == _ExportOption.exportPdf) {
+                onExportPdf();
               }
             },
-            tooltip: 'Export MusicXML',
+            tooltip: 'Export',
             icon: const Icon(Icons.ios_share_rounded, size: 18),
             color: AppColors.surface,
             itemBuilder: (_) => [
@@ -684,14 +724,22 @@ class _EditorHeader extends StatelessWidget {
                 value: _ExportOption.share,
                 child: _ExportMenuItem(
                   icon: Icons.ios_share_rounded,
-                  label: 'Share…',
+                  label: 'Export MusicXML…',
                 ),
               ),
               const PopupMenuItem(
                 value: _ExportOption.saveToDevice,
                 child: _ExportMenuItem(
                   icon: Icons.download_rounded,
-                  label: 'Save to Device',
+                  label: 'Save MusicXML to Device',
+                ),
+              ),
+              PopupMenuItem(
+                value: _ExportOption.exportPdf,
+                enabled: !scoreIsEmpty,
+                child: _ExportMenuItem(
+                  icon: Icons.picture_as_pdf_rounded,
+                  label: 'Export PDF…',
                 ),
               ),
             ],
