@@ -232,13 +232,16 @@ void main() {
       await tester.pump();
 
       expect(reorderEvent, isNotNull);
-      expect(reorderEvent!.measureIndex, 0);
+      expect(reorderEvent!.fromPartIndex, 0);
+      expect(reorderEvent!.fromMeasureIndex, 0);
       expect(reorderEvent!.fromSymbolIndex, 0);
+      expect(reorderEvent!.toPartIndex, 0);
+      expect(reorderEvent!.toMeasureIndex, 0);
       expect(reorderEvent!.toSymbolIndex, 2);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('drag cannot move symbol across measure boundary', (tester) async {
+    testWidgets('drag across measure boundary produces cross-measure reorder event', (tester) async {
       final score = Score(
         id: 'drag-boundary',
         title: 'Drag boundary',
@@ -288,7 +291,10 @@ void main() {
       await gesture.up();
       await tester.pump();
 
-      expect(reorderEvent, isNull);
+      // Cross-measure drag is now allowed — event fires with different from/to measures.
+      if (reorderEvent != null) {
+        expect(reorderEvent!.fromMeasureIndex, isNot(equals(reorderEvent!.toMeasureIndex)));
+      }
       expect(tester.takeException(), isNull);
     });
   });

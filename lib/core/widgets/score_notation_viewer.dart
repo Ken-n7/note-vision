@@ -89,6 +89,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   final NotationLayoutCalculator _layoutCalculator =
       const NotationLayoutCalculator();
   _NotationDragSession? _dragSession;
+  NotationInsertTarget? _crossMeasureDragTarget;
   NotationInsertTarget? _externalInsertTarget;
   NotationPreviewGlyph? _externalPreviewGlyph;
 
@@ -182,17 +183,17 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
             },
       onLongPressStart: widget.onDragCompleted == null
           ? null
-          : (position) => _beginDrag(measures: activeMeasures, layout: layout, position: position),
+          : (position) => _beginDrag(allParts: allParts, layout: layout, position: position),
       onLongPressMoveUpdate: widget.onDragCompleted == null
           ? null
           : (local, global) {
-              _updateDrag(measures: activeMeasures, layout: layout, position: local);
+              _updateDrag(allParts: allParts, layout: layout, position: local);
               widget.onDragGlobalUpdate?.call(global);
             },
       onLongPressEnd: widget.onDragCompleted == null
           ? null
           : (local, global) =>
-              _endDrag(measures: activeMeasures, layout: layout, localPosition: local, globalPosition: global),
+              _endDrag(allParts: allParts, layout: layout, localPosition: local, globalPosition: global),
       onLongPressCancel: widget.onDragCompleted == null ? null : _cancelDrag,
       painter: ScoreNotationPainter(
         parts: allParts,
@@ -207,28 +208,30 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
         playbackPartIndex: widget.playbackPartIndex,
         playbackMeasureIndex: widget.playbackMeasureIndex,
         playbackSymbolIndex: widget.playbackSymbolIndex,
-        dragFeedback: _dragSession == null
+        dragFeedback: _dragSession == null ||
+                _dragSession!.toPartIndex != _dragSession!.fromPartIndex ||
+                _dragSession!.toMeasureIndex != _dragSession!.fromMeasureIndex
             ? null
             : NotationDragFeedback(
-                measureIndex: _dragSession!.measureIndex,
+                measureIndex: _dragSession!.fromMeasureIndex,
                 draggedSymbolIndex: _dragSession!.fromSymbolIndex,
                 targetSymbolIndex: _dragSession!.toSymbolIndex,
                 dragX: _dragSession!.dragPosition.dx,
               ),
-        insertionTarget: _externalInsertTarget,
+        insertionTarget: _externalInsertTarget ?? _crossMeasureDragTarget,
         insertionPreviewGlyph: _externalPreviewGlyph,
       ),
     );
   }
 
   void _beginDrag({
-    required List<Measure> measures,
+    required List<List<Measure>> allParts,
     required NotationLayout layout,
     required Offset position,
   }) {
     final adjusted = _adjustForHorizontalScroll(position);
     final targets = ScoreNotationPainter.buildSymbolTargets(
-      parts: [measures],
+      parts: allParts,
       measuresPerRow: layout.measuresPerRow,
       minMeasureWidth: widget.minMeasureWidth,
       rowHeight: widget.rowHeight,
@@ -240,15 +243,18 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
 
     setState(() {
       _dragSession = _NotationDragSession(
-        measureIndex: pressed.measureIndex,
+        fromPartIndex: pressed.partIndex,
+        fromMeasureIndex: pressed.measureIndex,
         fromSymbolIndex: pressed.symbolIndex,
+        toPartIndex: pressed.partIndex,
+        toMeasureIndex: pressed.measureIndex,
         toSymbolIndex: pressed.symbolIndex,
         dragPosition: adjusted,
       );
     });
     widget.onDragStarted?.call(
       NotationSymbolTarget(
-        partIndex: widget.selectedPartIndex,
+        partIndex: pressed.partIndex,
         measureIndex: pressed.measureIndex,
         symbolIndex: pressed.symbolIndex,
         center: pressed.center,
@@ -258,29 +264,58 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   }
 
   void _updateDrag({
-    required List<Measure> measures,
+    required List<List<Measure>> allParts,
     required NotationLayout layout,
     required Offset position,
   }) {
     final drag = _dragSession;
     if (drag == null) return;
     final adjusted = _adjustForHorizontalScroll(position);
-    final toIndex = _targetIndexForDrag(
-      measures: measures,
+
+    final insertTarget = _resolveInsertTarget(
+      allParts: allParts,
       layout: layout,
-      measureIndex: drag.measureIndex,
-      fromSymbolIndex: drag.fromSymbolIndex,
-      dragPosition: adjusted,
+      position: adjusted,
     );
-    if (toIndex == null) return;
+
+    int toPartIndex = drag.toPartIndex;
+    int toMeasureIndex = drag.toMeasureIndex;
+    int toSymbolIndex = drag.toSymbolIndex;
+    NotationInsertTarget? crossMeasureTarget;
+
+    if (insertTarget != null) {
+      toPartIndex = insertTarget.partIndex;
+      toMeasureIndex = insertTarget.measureIndex;
+      final sameMeasure = insertTarget.partIndex == drag.fromPartIndex &&
+          insertTarget.measureIndex == drag.fromMeasureIndex;
+      if (sameMeasure) {
+        final idx = _targetIndexForDrag(
+          measures: allParts[drag.fromPartIndex],
+          layout: layout,
+          measureIndex: drag.fromMeasureIndex,
+          fromSymbolIndex: drag.fromSymbolIndex,
+          dragPosition: adjusted,
+        );
+        toSymbolIndex = idx ?? drag.fromSymbolIndex;
+      } else {
+        toSymbolIndex = insertTarget.insertIndex;
+        crossMeasureTarget = insertTarget;
+      }
+    }
 
     setState(() {
-      _dragSession = drag.copyWith(toSymbolIndex: toIndex, dragPosition: adjusted);
+      _dragSession = drag.copyWith(
+        toPartIndex: toPartIndex,
+        toMeasureIndex: toMeasureIndex,
+        toSymbolIndex: toSymbolIndex,
+        dragPosition: adjusted,
+      );
+      _crossMeasureDragTarget = crossMeasureTarget;
     });
   }
 
   void _endDrag({
-    required List<Measure> measures,
+    required List<List<Measure>> allParts,
     required NotationLayout layout,
     required Offset localPosition,
     required Offset globalPosition,
@@ -288,20 +323,48 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     final drag = _dragSession;
     if (drag == null) return;
     final adjusted = _adjustForHorizontalScroll(localPosition);
-    final toIndex = _targetIndexForDrag(
-      measures: measures,
-      layout: layout,
-      measureIndex: drag.measureIndex,
-      fromSymbolIndex: drag.fromSymbolIndex,
-      dragPosition: adjusted,
-    );
-    final resolvedIndex = toIndex ?? drag.toSymbolIndex;
 
-    final reorder = resolvedIndex != drag.fromSymbolIndex
+    final insertTarget = _resolveInsertTarget(
+      allParts: allParts,
+      layout: layout,
+      position: adjusted,
+    );
+
+    int toPartIndex = drag.toPartIndex;
+    int toMeasureIndex = drag.toMeasureIndex;
+    int toSymbolIndex = drag.toSymbolIndex;
+
+    if (insertTarget != null) {
+      toPartIndex = insertTarget.partIndex;
+      toMeasureIndex = insertTarget.measureIndex;
+      final sameMeasure = insertTarget.partIndex == drag.fromPartIndex &&
+          insertTarget.measureIndex == drag.fromMeasureIndex;
+      if (sameMeasure) {
+        final idx = _targetIndexForDrag(
+          measures: allParts[drag.fromPartIndex],
+          layout: layout,
+          measureIndex: drag.fromMeasureIndex,
+          fromSymbolIndex: drag.fromSymbolIndex,
+          dragPosition: adjusted,
+        );
+        toSymbolIndex = idx ?? drag.fromSymbolIndex;
+      } else {
+        toSymbolIndex = insertTarget.insertIndex;
+      }
+    }
+
+    final isSamePosition = toPartIndex == drag.fromPartIndex &&
+        toMeasureIndex == drag.fromMeasureIndex &&
+        toSymbolIndex == drag.fromSymbolIndex;
+
+    final reorder = !isSamePosition
         ? NotationSymbolReorder(
-            measureIndex: drag.measureIndex,
+            fromPartIndex: drag.fromPartIndex,
+            fromMeasureIndex: drag.fromMeasureIndex,
             fromSymbolIndex: drag.fromSymbolIndex,
-            toSymbolIndex: resolvedIndex,
+            toPartIndex: toPartIndex,
+            toMeasureIndex: toMeasureIndex,
+            toSymbolIndex: toSymbolIndex,
           )
         : null;
 
@@ -309,6 +372,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
 
     setState(() {
       _dragSession = null;
+      _crossMeasureDragTarget = null;
     });
   }
 
@@ -316,6 +380,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     if (_dragSession == null) return;
     setState(() {
       _dragSession = null;
+      _crossMeasureDragTarget = null;
     });
     widget.onDragCancelled?.call();
   }
@@ -548,36 +613,53 @@ class _NotationCanvasFrame extends StatelessWidget {
 
 class NotationSymbolReorder {
   const NotationSymbolReorder({
-    required this.measureIndex,
+    required this.fromPartIndex,
+    required this.fromMeasureIndex,
     required this.fromSymbolIndex,
+    required this.toPartIndex,
+    required this.toMeasureIndex,
     required this.toSymbolIndex,
   });
 
-  final int measureIndex;
+  final int fromPartIndex;
+  final int fromMeasureIndex;
   final int fromSymbolIndex;
+  final int toPartIndex;
+  final int toMeasureIndex;
   final int toSymbolIndex;
 }
 
 class _NotationDragSession {
   const _NotationDragSession({
-    required this.measureIndex,
+    required this.fromPartIndex,
+    required this.fromMeasureIndex,
     required this.fromSymbolIndex,
+    required this.toPartIndex,
+    required this.toMeasureIndex,
     required this.toSymbolIndex,
     required this.dragPosition,
   });
 
-  final int measureIndex;
+  final int fromPartIndex;
+  final int fromMeasureIndex;
   final int fromSymbolIndex;
+  final int toPartIndex;
+  final int toMeasureIndex;
   final int toSymbolIndex;
   final Offset dragPosition;
 
   _NotationDragSession copyWith({
+    int? toPartIndex,
+    int? toMeasureIndex,
     int? toSymbolIndex,
     Offset? dragPosition,
   }) {
     return _NotationDragSession(
-      measureIndex: measureIndex,
+      fromPartIndex: fromPartIndex,
+      fromMeasureIndex: fromMeasureIndex,
       fromSymbolIndex: fromSymbolIndex,
+      toPartIndex: toPartIndex ?? this.toPartIndex,
+      toMeasureIndex: toMeasureIndex ?? this.toMeasureIndex,
       toSymbolIndex: toSymbolIndex ?? this.toSymbolIndex,
       dragPosition: dragPosition ?? this.dragPosition,
     );

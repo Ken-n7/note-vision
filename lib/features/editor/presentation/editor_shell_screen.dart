@@ -423,9 +423,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                         .deleteSelectedSymbol();
                   });
                 } else if (reorder != null) {
-                  _updateState((s) => s.reorderSymbolWithinMeasure(
-                    measureIndex: reorder.measureIndex,
+                  _updateState((s) => s.moveSymbolToDest(
+                    fromPartIndex: reorder.fromPartIndex,
+                    fromMeasureIndex: reorder.fromMeasureIndex,
                     fromSymbolIndex: reorder.fromSymbolIndex,
+                    toPartIndex: reorder.toPartIndex,
+                    toMeasureIndex: reorder.toMeasureIndex,
                     toSymbolIndex: reorder.toSymbolIndex,
                   ));
                 }
@@ -1353,12 +1356,12 @@ class _TrashZone extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 150),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: isHovered
             ? const Color(0xFFE05252).withValues(alpha: 0.92)
             : const Color(0xFF6B1A1A).withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(24),
+        shape: BoxShape.circle,
         border: Border.all(
           color: isHovered ? const Color(0xFFFF6B6B) : const Color(0xFF8B2020),
           width: 1.5,
@@ -1373,25 +1376,10 @@ class _TrashZone extends StatelessWidget {
               ]
             : [],
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isHovered ? Icons.delete_rounded : Icons.delete_outline_rounded,
-            color: Colors.white,
-            size: 16,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            isHovered ? 'Release to delete' : 'Drag here to delete',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ],
+      child: Icon(
+        isHovered ? Icons.delete_rounded : Icons.delete_outline_rounded,
+        color: Colors.white,
+        size: 24,
       ),
     );
   }

@@ -223,6 +223,56 @@ extension EditorActions on EditorState {
     );
   }
 
+  EditorState moveSymbolToDest({
+    required int fromPartIndex,
+    required int fromMeasureIndex,
+    required int fromSymbolIndex,
+    required int toPartIndex,
+    required int toMeasureIndex,
+    required int toSymbolIndex,
+  }) {
+    if (score.parts.isEmpty) return this;
+    if (fromPartIndex < 0 || fromPartIndex >= score.parts.length) return this;
+    if (toPartIndex < 0 || toPartIndex >= score.parts.length) return this;
+    final fromMeasures = score.parts[fromPartIndex].measures;
+    final toMeasures = score.parts[toPartIndex].measures;
+    if (fromMeasureIndex < 0 || fromMeasureIndex >= fromMeasures.length) return this;
+    if (toMeasureIndex < 0 || toMeasureIndex >= toMeasures.length) return this;
+    if (fromSymbolIndex < 0 || fromSymbolIndex >= fromMeasures[fromMeasureIndex].symbols.length) return this;
+
+    final sameMeasure = fromPartIndex == toPartIndex && fromMeasureIndex == toMeasureIndex;
+
+    if (sameMeasure) {
+      final symbolCount = fromMeasures[fromMeasureIndex].symbols.length;
+      final clampedTo = toSymbolIndex.clamp(0, symbolCount - 1);
+      if (fromSymbolIndex == clampedTo) return this;
+      final nextScore = score.reorderSymbol(fromPartIndex, fromMeasureIndex, fromSymbolIndex, clampedTo);
+      final symbols = nextScore.parts[fromPartIndex].measures[fromMeasureIndex].symbols;
+      return applyEdit(
+        score: nextScore,
+        selectedPartIndex: fromPartIndex,
+        selectedMeasureIndex: fromMeasureIndex,
+        selectedSymbolIndex: clampedTo,
+        selectedSymbol: symbols[clampedTo],
+      );
+    }
+
+    // Cross-measure move: delete from source, insert at destination.
+    final moved = fromMeasures[fromMeasureIndex].symbols[fromSymbolIndex];
+    final withoutSource = score.deleteSymbolAt(fromPartIndex, fromMeasureIndex, fromSymbolIndex);
+    final destCount = withoutSource.parts[toPartIndex].measures[toMeasureIndex].symbols.length;
+    final clampedTo = toSymbolIndex.clamp(0, destCount);
+    final nextScore = withoutSource.insertSymbolAt(toPartIndex, toMeasureIndex, clampedTo, moved);
+
+    return applyEdit(
+      score: nextScore,
+      selectedPartIndex: toPartIndex,
+      selectedMeasureIndex: toMeasureIndex,
+      selectedSymbolIndex: clampedTo,
+      selectedSymbol: moved,
+    );
+  }
+
   EditorState reorderSymbolWithinMeasure({
     required int measureIndex,
     required int fromSymbolIndex,
