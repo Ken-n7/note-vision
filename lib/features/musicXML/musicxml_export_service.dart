@@ -7,6 +7,7 @@ import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/utils/export_file_name.dart';
 import 'package:xml/xml.dart';
 
 /// Converts a [Score] to a valid MusicXML 3.1 string and saves it to a
@@ -45,7 +46,7 @@ class MusicXmlExportService {
   /// Returns the saved file path, or `null` if the user cancelled.
   Future<String?> exportToDevice(Score score) async {
     final xml = toMusicXml(score);
-    final fileName = _safeFileName(score.title);
+    final fileName = safeExportFileName(score.title);
     final bytes = Uint8List.fromList(utf8.encode(xml));
 
     return FilePicker.platform.saveFile(
@@ -187,12 +188,6 @@ class MusicXmlExportService {
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
-
-  String _safeFileName(String title) {
-    final trimmed = title.trim();
-    if (trimmed.isEmpty) return 'score';
-    return trimmed.replaceAll(RegExp(r'[^\w\-]'), '_');
-  }
 
   static const String _xmlHeader =
       '<?xml version="1.0" encoding="UTF-8"?>\n'

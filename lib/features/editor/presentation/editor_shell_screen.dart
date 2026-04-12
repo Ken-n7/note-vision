@@ -523,34 +523,22 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   scoreIsEmpty: _editorState.score.parts.isEmpty ||
                       _editorState.score.parts.every((p) => p.measures.every((m) => m.symbols.isEmpty)),
                   onExportPdf: () async {
-                    showDialog<void>(
-                      context: context,
-                      barrierDismissible: false,
-                      builder: (_) => const AlertDialog(
-                        content: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                            SizedBox(width: 16),
-                            Text('Generating PDF…'),
-                          ],
-                        ),
-                      ),
-                    );
                     try {
-                      await const PdfExportService().exportAndShare(_editorState.score);
-                    } catch (e) {
-                      if (context.mounted) {
+                      final path = await const PdfExportService().exportToDevice(_editorState.score);
+                      if (!context.mounted) return;
+                      if (path != null) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('PDF export failed: $e')),
+                          const SnackBar(
+                            content: Text('PDF saved'),
+                            duration: Duration(seconds: 2),
+                          ),
                         );
                       }
-                    } finally {
-                      if (context.mounted) Navigator.of(context).pop();
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Export failed: $e')),
+                      );
                     }
                   },
                 ),

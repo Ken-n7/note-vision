@@ -1,51 +1,30 @@
-import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/utils/export_file_name.dart';
 import 'package:note_vision/features/pdf/pdf_score_renderer.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 
-/// Renders a [Score] to PDF and shares it via the system share sheet.
-///
-/// Generates the PDF in a background isolate (via [PdfScoreRenderer.render]),
-/// writes the bytes to a temp file, opens the share sheet, then deletes the
-/// temp file after the sheet is dismissed.
+/// Renders a [Score] to PDF and saves it to a user-chosen location via the
+/// system file picker.
 class PdfExportService {
   const PdfExportService();
 
   static const _renderer = PdfScoreRenderer();
 
-  /// Generates the PDF and opens the system share sheet.
+  /// Generates the PDF and opens the OS save dialog so the user picks a
+  /// location. Returns the saved file path, or `null` if cancelled.
   ///
-  /// Throws on render or I/O failure.
-  Future<void> exportAndShare(Score score) async {
-    final bytes = await _renderer.render(score);
-    final dir = await getTemporaryDirectory();
-    final fileName = _safeFileName(score.title);
-    final file = File('${dir.path}/$fileName.pdf');
-    await file.writeAsBytes(bytes, flush: true);
+  /// Throws on render failure.
+  Future<String?> exportToDevice(Score score) async {
+    final bytes = Uint8List.fromList(await _renderer.render(score));
+    final fileName = safeExportFileName(score.title);
 
-    try {
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [
-            XFile(
-              file.path,
-              mimeType: 'application/pdf',
-              name: '$fileName.pdf',
-            ),
-          ],
-          subject: score.title.isEmpty ? 'Score' : score.title,
-        ),
-      );
-    } finally {
-      if (await file.exists()) await file.delete();
-    }
-  }
-
-  String _safeFileName(String title) {
-    final trimmed = title.trim();
-    if (trimmed.isEmpty) return 'score';
-    return trimmed.replaceAll(RegExp(r'[^\w\-]'), '_');
+    return FilePicker.platform.saveFile(
+      fileName: '$fileName.pdf',
+      bytes: bytes,
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+    );
   }
 }
