@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:note_vision/core/models/measure.dart';
-import 'package:note_vision/core/models/part.dart';
+import 'package:note_vision/core/models/project.dart';
 import 'package:note_vision/core/models/score.dart';
-import 'package:note_vision/core/services/image_storage_service.dart';
+import 'package:note_vision/core/services/project_storage_service.dart';
 import 'package:note_vision/core/services/user_profile_service.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/theme/responsive_layout.dart';
@@ -14,12 +13,11 @@ import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 
 import 'widgets/empty_collection.dart';
-import 'widgets/score_card.dart';
 
 class CollectionScreen extends StatefulWidget {
-  final ImageStorageService? imageStorageService;
+  final ProjectStorageService? storageService;
 
-  const CollectionScreen({super.key, this.imageStorageService});
+  const CollectionScreen({super.key, this.storageService});
 
   @override
   State<CollectionScreen> createState() => _CollectionScreenState();
@@ -28,11 +26,11 @@ class CollectionScreen extends StatefulWidget {
 class _CollectionScreenState extends State<CollectionScreen>
     with SingleTickerProviderStateMixin {
   int _currentIndex = 0;
-  List<String> _imagePaths = [];
+  List<Project> _projects = [];
   bool _isLoading = true;
   UserProfile? _userProfile;
 
-  late final ImageStorageService _service;
+  late final ProjectStorageService _storage;
   late AnimationController _fadeController;
   late Animation<double> _fadeIn;
 
@@ -44,7 +42,7 @@ class _CollectionScreenState extends State<CollectionScreen>
       statusBarIconBrightness: Brightness.light,
     ));
 
-    _service = widget.imageStorageService ?? ImageStorageService();
+    _storage = widget.storageService ?? ProjectStorageService();
 
     _fadeController = AnimationController(
       vsync: this,
@@ -52,7 +50,7 @@ class _CollectionScreenState extends State<CollectionScreen>
     );
     _fadeIn = CurvedAnimation(parent: _fadeController, curve: Curves.easeOut);
 
-    _loadImages();
+    _loadProjects();
     _loadProfile();
   }
 
@@ -67,24 +65,85 @@ class _CollectionScreenState extends State<CollectionScreen>
     if (mounted) setState(() => _userProfile = profile);
   }
 
-  Future<void> _loadImages() async {
-    final paths = await _service.getSavedImages();
-    if (mounted) {
-      setState(() {
-        _imagePaths = paths;
-        _isLoading = false;
-      });
-      _fadeController.forward(from: 0);
+  Future<void> _loadProjects() async {
+    try {
+      final projects = await _storage.loadAllProjects();
+      if (mounted) {
+        setState(() {
+          _projects = projects;
+          _isLoading = false;
+        });
+        _fadeController.forward(from: 0);
+      }
+    } catch (e) {
+      debugPrint('CollectionScreen: failed to load projects: $e');
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _deleteImage(String imagePath) async {
-    await _service.deleteImage(imagePath);
+  Future<void> _openProject(Project project) async {
+    final Score score;
+    try {
+      score = project.decodeScore();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open project — file may be corrupted.'),
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+    await Navigator.pushNamed(
+      context,
+      EditorShellScreen.routeName,
+      arguments: EditorShellArgs(
+        score: score,
+        initialState: EditorState(score: score),
+        existingProject: project,
+      ),
+    );
+    if (mounted) _loadProjects();
+  }
+
+  Future<void> _confirmDelete(Project project) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text(
+          'Delete project?',
+          style: TextStyle(color: AppColors.textPrimary),
+        ),
+        content: Text(
+          '"${project.name}" will be permanently deleted.',
+          style: const TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Color(0xFFE05252)),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+    await _storage.deleteProject(project.id);
     if (mounted) {
-      setState(() => _imagePaths.remove(imagePath));
-      if (_imagePaths.isEmpty) {
-        _fadeController.forward(from: 0);
-      }
+      setState(() => _projects.removeWhere((p) => p.id == project.id));
     }
   }
 
@@ -97,40 +156,15 @@ class _CollectionScreenState extends State<CollectionScreen>
             FadeTransition(opacity: animation, child: child),
         transitionDuration: const Duration(milliseconds: 400),
       ),
-    ).then((_) => _loadImages());
+    ).then((_) => _loadProjects());
   }
 
-  void _openEditorForImport(String imagePath) {
-    final importedScore = _buildImportedScore(imagePath);
-    Navigator.pushNamed(
-      context,
-      EditorShellScreen.routeName,
-      arguments: EditorShellArgs(
-        score: importedScore,
-        initialState: EditorState(score: importedScore),
-      ),
-    );
-  }
-
-  Score _buildImportedScore(String imagePath) {
-    final segments = imagePath.split('/');
-    final fileName = segments.isNotEmpty ? segments.last : 'Imported Score';
-    final title = fileName.contains('.')
-        ? fileName.substring(0, fileName.lastIndexOf('.'))
-        : fileName;
-
-    return Score(
-      id: 'imported-${title.hashCode}',
-      title: title,
-      composer: 'Imported',
-      parts: const [
-        Part(
-          id: 'P1',
-          name: 'Part 1',
-          measures: [Measure(number: 1, symbols: [])],
-        ),
-      ],
-    );
+  String _formatDate(DateTime dt) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 
   Widget _buildBody() {
@@ -140,7 +174,7 @@ class _CollectionScreenState extends State<CollectionScreen>
       );
     }
 
-    if (_imagePaths.isEmpty) {
+    if (_projects.isEmpty) {
       return FadeTransition(
         opacity: _fadeIn,
         child: EmptyCollection(onAddPressed: _goToCapture),
@@ -151,13 +185,8 @@ class _CollectionScreenState extends State<CollectionScreen>
       opacity: _fadeIn,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final orientation = MediaQuery.of(context).orientation;
           final horizontalPadding =
               ResponsiveLayout.horizontalPadding(constraints.maxWidth);
-          final crossAxisCount = ResponsiveLayout.gridColumns(
-            width: constraints.maxWidth,
-            orientation: orientation,
-          );
 
           return CustomScrollView(
             slivers: [
@@ -173,7 +202,7 @@ class _CollectionScreenState extends State<CollectionScreen>
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '${_imagePaths.length} ${_imagePaths.length == 1 ? 'sheet' : 'sheets'}',
+                        '${_projects.length} ${_projects.length == 1 ? 'project' : 'projects'}',
                         style: const TextStyle(
                           fontSize: 13,
                           color: AppColors.textSecondary,
@@ -213,27 +242,36 @@ class _CollectionScreenState extends State<CollectionScreen>
                 ),
               ),
               SliverPadding(
-                padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-                sliver: SliverGrid(
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossAxisCount,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: orientation == Orientation.landscape
-                        ? 0.95
-                        : 0.78,
-                  ),
+                padding: EdgeInsets.only(
+                  left: horizontalPadding,
+                  right: horizontalPadding,
+                  bottom: 24,
+                ),
+                sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
-                    (context, index) => ScoreCard(
-                      imagePath: _imagePaths[index],
-                      onDelete: () => _deleteImage(_imagePaths[index]),
-                      onOpen: () => _openEditorForImport(_imagePaths[index]),
-                    ),
-                    childCount: _imagePaths.length,
+                    (context, index) {
+                      final project = _projects[index];
+                      return Column(
+                        children: [
+                          _ProjectTile(
+                            project: project,
+                            formattedDate: _formatDate(project.updatedAt),
+                            onTap: () => _openProject(project),
+                            onLongPress: () => _confirmDelete(project),
+                          ),
+                          if (index < _projects.length - 1)
+                            const Divider(
+                              height: 1,
+                              color: AppColors.border,
+                              indent: 76,
+                            ),
+                        ],
+                      );
+                    },
+                    childCount: _projects.length,
                   ),
                 ),
               ),
-              const SliverToBoxAdapter(child: SizedBox(height: 24)),
             ],
           );
         },
@@ -241,7 +279,8 @@ class _CollectionScreenState extends State<CollectionScreen>
     );
   }
 
-  PreferredSizeWidget _buildAppBarBottom(bool isLandscape, double horizontalPadding) {
+  PreferredSizeWidget _buildAppBarBottom(
+      bool isLandscape, double horizontalPadding) {
     return PreferredSize(
       preferredSize: Size.fromHeight(isLandscape ? 42 : 48),
       child: Padding(
@@ -284,9 +323,9 @@ class _CollectionScreenState extends State<CollectionScreen>
                   ),
                 ],
               )
-            else if (!_isLoading && _imagePaths.isNotEmpty)
+            else if (!_isLoading && _projects.isNotEmpty)
               Text(
-                '${_imagePaths.length} items',
+                '${_projects.length} items',
                 style: TextStyle(
                   fontSize: isLandscape ? 10 : 11,
                   color: AppColors.textSecondary,
@@ -345,8 +384,9 @@ class _CollectionScreenState extends State<CollectionScreen>
                           color: isSelected
                               ? AppColors.accent
                               : AppColors.textSecondary,
-                          fontWeight:
-                              isSelected ? FontWeight.w600 : FontWeight.w400,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.w400,
                           letterSpacing: 0.2,
                         ),
                       ),
@@ -393,12 +433,11 @@ class _CollectionScreenState extends State<CollectionScreen>
     return Scaffold(
       key: const ValueKey('collectionAppBar'),
       backgroundColor: AppColors.background,
-      // ✅ Reload profile whenever the drawer closes (covers both save and dismiss)
       onEndDrawerChanged: (isOpen) {
         if (!isOpen) _loadProfile();
       },
       endDrawer: const CollectionDrawer(),
-      floatingActionButton: _imagePaths.isNotEmpty ? _buildFab() : null,
+      floatingActionButton: _projects.isNotEmpty ? _buildFab() : null,
       appBar: AppBar(
         leading: Padding(
           padding: EdgeInsets.only(left: horizontalPadding),
@@ -420,18 +459,10 @@ class _CollectionScreenState extends State<CollectionScreen>
         centerTitle: true,
         bottom: _buildAppBarBottom(isLandscape, horizontalPadding),
         actions: [
-          IconButton(
-            icon: const Icon(
-              Icons.folder_open_rounded,
-              color: AppColors.textPrimary,
-              size: 20,
-            ),
-            tooltip: 'Saved Projects',
-            onPressed: () => Navigator.pushNamed(context, '/projects'),
-          ),
           Builder(
             builder: (context) => IconButton(
-              icon: const Icon(Icons.menu, color: AppColors.textPrimary, size: 22),
+              icon: const Icon(Icons.menu,
+                  color: AppColors.textPrimary, size: 22),
               onPressed: () => Scaffold.of(context).openEndDrawer(),
             ),
           ),
@@ -439,6 +470,85 @@ class _CollectionScreenState extends State<CollectionScreen>
       ),
       body: _buildBody(),
       bottomNavigationBar: _buildBottomNav(),
+    );
+  }
+}
+
+// ── Project tile ──────────────────────────────────────────────────────────────
+
+class _ProjectTile extends StatelessWidget {
+  const _ProjectTile({
+    required this.project,
+    required this.formattedDate,
+    required this.onTap,
+    required this.onLongPress,
+  });
+
+  final Project project;
+  final String formattedDate;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      splashColor: AppColors.accent.withValues(alpha: 0.06),
+      highlightColor: AppColors.accent.withValues(alpha: 0.04),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceAlt,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: const Icon(
+                Icons.music_note_rounded,
+                color: AppColors.accent,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    project.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Last modified $formattedDate',
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.textSecondary,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

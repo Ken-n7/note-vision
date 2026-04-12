@@ -2,25 +2,43 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:note_vision/core/services/image_storage_service.dart';
+import 'package:note_vision/core/models/project.dart';
+import 'package:note_vision/core/services/project_storage_service.dart';
 import 'package:note_vision/features/collection/presentation/collection_screen.dart';
 import 'package:note_vision/features/collection/presentation/widgets/empty_collection.dart';
-import 'package:note_vision/features/collection/presentation/widgets/score_card.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 
-class FakeImageStorageService extends ImageStorageService {
-  FakeImageStorageService(this.paths);
+// ── Fake service ──────────────────────────────────────────────────────────────
 
-  final Future<List<String>> paths;
+class FakeProjectStorageService extends ProjectStorageService {
+  FakeProjectStorageService(this._future);
+
+  final Future<List<Project>> _future;
 
   @override
-  Future<List<String>> getSavedImages() => paths;
+  Future<List<Project>> loadAllProjects() => _future;
+
+  @override
+  Future<void> deleteProject(String id) async {}
 }
 
+// ── Minimal valid scoreJson ───────────────────────────────────────────────────
+
+const _minimalScoreJson =
+    '{"id":"test","title":"Test","composer":"","parts":[{"id":"P1","name":"Part 1","measures":[{"number":1,"clef":null,"timeSignature":null,"keySignature":null,"symbols":[]}]}]}';
+
+Project _makeProject(String name, {String id = '1'}) => Project(
+      id: id,
+      name: name,
+      createdAt: DateTime(2026, 1, 1),
+      updatedAt: DateTime(2026, 3, 20),
+      scoreJson: _minimalScoreJson,
+    );
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
+
 void main() {
-  Widget makeTestableWidget(Widget child) {
-    return MaterialApp(home: child);
-  }
+  Widget makeTestableWidget(Widget child) => MaterialApp(home: child);
 
   Future<void> pumpLoadedState(WidgetTester tester) async {
     await tester.pump();
@@ -29,11 +47,11 @@ void main() {
 
   group('CollectionScreen', () {
     testWidgets('shows loading indicator first', (WidgetTester tester) async {
-      final completer = Completer<List<String>>();
-      final service = FakeImageStorageService(completer.future);
+      final completer = Completer<List<Project>>();
+      final service = FakeProjectStorageService(completer.future);
 
       await tester.pumpWidget(
-        makeTestableWidget(CollectionScreen(imageStorageService: service)),
+        makeTestableWidget(CollectionScreen(storageService: service)),
       );
 
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
@@ -42,51 +60,50 @@ void main() {
       await pumpLoadedState(tester);
     });
 
-    testWidgets('shows empty state when there are no saved images', (
+    testWidgets('shows empty state when there are no saved projects', (
       WidgetTester tester,
     ) async {
-      final service = FakeImageStorageService(Future.value([]));
+      final service = FakeProjectStorageService(Future.value([]));
 
       await tester.pumpWidget(
-        makeTestableWidget(CollectionScreen(imageStorageService: service)),
+        makeTestableWidget(CollectionScreen(storageService: service)),
       );
 
       await pumpLoadedState(tester);
 
       expect(find.byType(EmptyCollection), findsOneWidget);
       expect(find.text('Your collection\nis empty'), findsOneWidget);
-      expect(
-        find.text(
-          'Scan or import a music sheet\nto start building your collection.',
-        ),
-        findsOneWidget,
-      );
       expect(find.byKey(const ValueKey('addImageButton')), findsOneWidget);
     });
 
-    testWidgets('shows score cards when saved images exist', (
+    testWidgets('shows project tiles when saved projects exist', (
       WidgetTester tester,
     ) async {
-      final service = FakeImageStorageService(
-        Future.value(['/fake/path/image1.jpg', '/fake/path/image2.jpg']),
+      final service = FakeProjectStorageService(
+        Future.value([
+          _makeProject('Symphony No. 1', id: '1'),
+          _makeProject('Moonlight Sonata', id: '2'),
+        ]),
       );
 
       await tester.pumpWidget(
-        makeTestableWidget(CollectionScreen(imageStorageService: service)),
+        makeTestableWidget(CollectionScreen(storageService: service)),
       );
 
       await pumpLoadedState(tester);
 
-      expect(find.byType(ScoreCard), findsNWidgets(2));
+      expect(find.text('Symphony No. 1'), findsOneWidget);
+      expect(find.text('Moonlight Sonata'), findsOneWidget);
+      expect(find.text('2 projects'), findsOneWidget);
     });
 
     testWidgets('shows app bar content and bottom navigation labels', (
       WidgetTester tester,
     ) async {
-      final service = FakeImageStorageService(Future.value([]));
+      final service = FakeProjectStorageService(Future.value([]));
 
       await tester.pumpWidget(
-        makeTestableWidget(CollectionScreen(imageStorageService: service)),
+        makeTestableWidget(CollectionScreen(storageService: service)),
       );
 
       await pumpLoadedState(tester);
@@ -100,11 +117,11 @@ void main() {
       expect(find.text('Result'), findsOneWidget);
     });
 
-    testWidgets('opens editor route when score card is tapped', (
+    testWidgets('opens editor route when project tile is tapped', (
       WidgetTester tester,
     ) async {
-      final service = FakeImageStorageService(
-        Future.value(['/fake/path/image1.jpg']),
+      final service = FakeProjectStorageService(
+        Future.value([_makeProject('Test Score', id: '1')]),
       );
 
       await tester.pumpWidget(
@@ -116,14 +133,14 @@ void main() {
               );
             }
             return MaterialPageRoute<void>(
-              builder: (_) => CollectionScreen(imageStorageService: service),
+              builder: (_) => CollectionScreen(storageService: service),
             );
           },
         ),
       );
 
       await pumpLoadedState(tester);
-      await tester.tap(find.byType(ScoreCard));
+      await tester.tap(find.text('Test Score'));
       await tester.pumpAndSettle();
 
       expect(find.text('Editor Route Opened'), findsOneWidget);
