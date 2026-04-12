@@ -1,16 +1,16 @@
-import 'dart:io';
+import 'dart:convert';
+import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:xml/xml.dart';
 
-/// Converts a [Score] to a valid MusicXML 3.1 string and can share it as a
-/// .musicxml file via the system share sheet.
+/// Converts a [Score] to a valid MusicXML 3.1 string and saves it to a
+/// user-chosen location via the system file picker.
 class MusicXmlExportService {
   const MusicXmlExportService();
 
@@ -39,50 +39,21 @@ class MusicXmlExportService {
     return _xmlHeader + body;
   }
 
-  /// Writes the score to a temp .musicxml file and opens the system share sheet.
-  Future<void> exportAndShare(Score score) async {
+  /// Opens the system save dialog so the user picks a location, then writes
+  /// the score as a .musicxml file to that location.
+  ///
+  /// Returns the saved file path, or `null` if the user cancelled.
+  Future<String?> exportToDevice(Score score) async {
     final xml = toMusicXml(score);
-    final dir = await getTemporaryDirectory();
     final fileName = _safeFileName(score.title);
-    final file = File('${dir.path}/$fileName.musicxml');
-    await file.writeAsString(xml, flush: true);
+    final bytes = Uint8List.fromList(utf8.encode(xml));
 
-    await SharePlus.instance.share(
-      ShareParams(
-        files: [
-          XFile(
-            file.path,
-            mimeType: 'application/vnd.recordare.musicxml+xml',
-            name: '$fileName.musicxml',
-          ),
-        ],
-        subject: score.title.isEmpty ? 'Score' : score.title,
-      ),
+    return FilePicker.platform.saveFile(
+      fileName: '$fileName.musicxml',
+      bytes: bytes,
+      type: FileType.custom,
+      allowedExtensions: ['musicxml', 'xml'],
     );
-  }
-
-  /// Saves the score as a .musicxml file directly to a user-accessible
-  /// location and returns the saved [File].
-  ///
-  /// - Android: Downloads folder (`/storage/emulated/0/Download`)
-  /// - iOS: app Documents directory (visible in Files app under "On My iPhone")
-  ///
-  /// Throws if the directory cannot be resolved or the write fails.
-  Future<File> exportToDevice(Score score) async {
-    final xml = toMusicXml(score);
-    final fileName = _safeFileName(score.title);
-
-    final Directory dir;
-    if (Platform.isAndroid) {
-      dir = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
-    } else {
-      // iOS: Documents directory is accessible via the Files app.
-      dir = await getApplicationDocumentsDirectory();
-    }
-
-    final file = File('${dir.path}/$fileName.musicxml');
-    await file.writeAsString(xml, flush: true);
-    return file;
   }
 
   // ---------------------------------------------------------------------------

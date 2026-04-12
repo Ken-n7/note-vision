@@ -455,21 +455,22 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   onUndo: () => _updateState((s) => s.applyUndo()),
                   onRedo: () => _updateState((s) => s.applyRedo()),
                   onSave: _onSave,
-                  onExport: () => const MusicXmlExportService().exportAndShare(_editorState.score),
-                  onSaveToDevice: () async {
+                  onExportXml: () async {
                     try {
-                      final file = await const MusicXmlExportService().exportToDevice(_editorState.score);
+                      final path = await const MusicXmlExportService().exportToDevice(_editorState.score);
                       if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Saved to ${file.path}'),
-                          duration: const Duration(seconds: 4),
-                        ),
-                      );
+                      if (path != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('MusicXML saved'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      }
                     } catch (e) {
                       if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Save failed: $e')),
+                        SnackBar(content: Text('Export failed: $e')),
                       );
                     }
                   },
@@ -565,7 +566,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 // Header
 // ---------------------------------------------------------------------------
 
-enum _ExportOption { share, saveToDevice, exportPdf }
+enum _ExportOption { exportXml, exportPdf }
 
 class _ExportMenuItem extends StatelessWidget {
   const _ExportMenuItem({required this.icon, required this.label});
@@ -598,8 +599,7 @@ class _EditorHeader extends StatelessWidget {
     required this.onUndo,
     required this.onRedo,
     required this.onSave,
-    required this.onExport,
-    required this.onSaveToDevice,
+    required this.onExportXml,
     required this.onExportPdf,
     required this.scoreIsEmpty,
   });
@@ -612,8 +612,7 @@ class _EditorHeader extends StatelessWidget {
   final VoidCallback onUndo;
   final VoidCallback onRedo;
   final VoidCallback onSave;
-  final VoidCallback onExport;
-  final VoidCallback onSaveToDevice;
+  final VoidCallback onExportXml;
   final VoidCallback onExportPdf;
   final bool scoreIsEmpty;
 
@@ -708,10 +707,8 @@ class _EditorHeader extends StatelessWidget {
           const SizedBox(width: 6),
           PopupMenuButton<_ExportOption>(
             onSelected: (option) {
-              if (option == _ExportOption.share) {
-                onExport();
-              } else if (option == _ExportOption.saveToDevice) {
-                onSaveToDevice();
+              if (option == _ExportOption.exportXml) {
+                onExportXml();
               } else if (option == _ExportOption.exportPdf) {
                 onExportPdf();
               }
@@ -721,17 +718,10 @@ class _EditorHeader extends StatelessWidget {
             color: AppColors.surface,
             itemBuilder: (_) => [
               const PopupMenuItem(
-                value: _ExportOption.share,
-                child: _ExportMenuItem(
-                  icon: Icons.ios_share_rounded,
-                  label: 'Export MusicXML…',
-                ),
-              ),
-              const PopupMenuItem(
-                value: _ExportOption.saveToDevice,
+                value: _ExportOption.exportXml,
                 child: _ExportMenuItem(
                   icon: Icons.download_rounded,
-                  label: 'Save MusicXML to Device',
+                  label: 'Export MusicXML…',
                 ),
               ),
               PopupMenuItem(
