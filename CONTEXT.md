@@ -109,7 +109,7 @@ lib/
 
   features/
     landing/                         LandingScreen — entry point
-    collection/                      CollectionScreen — saved score grid
+    collection/                      CollectionScreen — saved score grid + project list (merged)
     capture/                         CaptureScreen — camera + gallery
     scan/                            ScanScreen + ScanViewModel — pipeline orchestrator
     preprocessing/                   BasicImagePreprocessor
@@ -132,7 +132,7 @@ lib/
         editor_state_history.dart    applyEdit, undo, redo extensions
         editor_snapshot.dart         Snapshot for undo stack entries
       domain/
-        editor_actions.dart          All edit operations as EditorState extensions
+        editor_actions.dart          All edit operations as EditorState extensions (incl. cross-measure/part moveSymbolToDest)
       presentation/
         editor_shell_screen.dart     Full editor UI
         widgets/symbol_palette.dart  Draggable note/rest palette (Sprint 6)
@@ -145,6 +145,10 @@ lib/
     musicxml_inspector/              Dev tool — MusicXML inspector screen
     detection_inspector/             Dev tool — Detection pipeline inspector
 
+  core/
+    utils/
+      export_file_name.dart          Shared `safeExportFileName(title)` used by both XML and PDF export
+
 assets/
   models/best_int8.tflite            YOLO model — 640×640 int8 quantized (replaces omr_model.tflite)
   fonts/                             MaturaMTScriptCapitals
@@ -154,8 +158,11 @@ assets/
 test/
   musicxml_testfiles/                7 XML test files (valid, invalid, edge cases)
   features/                          Unit + widget tests per feature
-  core/services/
-    playback_converter_test.dart     37 unit tests — noteToMidi, durationMs, scaledDuration, buildEvents
+  core/
+    services/
+      playback_converter_test.dart   37 unit tests — noteToMidi, durationMs, scaledDuration, buildEvents
+    utils/
+      export_file_name_test.dart     10 unit tests — safeExportFileName edge cases
 ```
 
 ---
@@ -190,7 +197,12 @@ These are final unless explicitly changed:
 - **PDF export:** `pdf` package with programmatic Canvas drawing — replicates CustomPainter logic
 - **Audio playback:** `flutter_midi_pro` — synthesizes from Note step+octave+duration directly. Requires `assets/soundfonts/piano.sf2` (any standard GM SF2 file, not committed). After adding the file run `flutter clean && flutter pub get` then do a full restart (not hot reload) to rebundle assets.
 - **Save/load:** JSON files in app documents directory via path_provider. Project index in shared_preferences.
-- **MusicXML export:** `xml` package, valid MusicXML 3.1, shared via share_plus
+- **MusicXML export:** `xml` package, valid MusicXML 3.1. `exportToDevice(Score)` opens system save dialog via `file_picker` — returns saved path or `null` if cancelled.
+- **PDF export:** `pdf` package, `exportToDevice(Score)` opens system save dialog via `file_picker` — returns saved path or `null` if cancelled.
+- **Export filename:** shared `safeExportFileName(title)` in `lib/core/utils/export_file_name.dart`.
+- **Delete symbol:** drag-to-trash gesture — drag a symbol to the trash zone in `EditorShellScreen`; no separate delete button.
+- **Cross-measure/part drag reorder:** `moveSymbolToDest()` in `editor_actions.dart` — same-measure delegates to `reorderSymbol`; cross-measure deletes from source + inserts at destination; cross-part supported.
+- **Collection = project list:** `CollectionScreen` owns both the scan history and the saved project list. `ProjectListScreen` was deleted; `/projects` route removed.
 - **Analytics:** Local only — scans, edits, exports, playbacks as integers in shared_preferences. No backend.
 - **Username:** Name + profile photo. First-launch onboarding. Stored locally.
 - **App is fully offline:** No network calls, no auth, no backend, ever.
@@ -222,8 +234,10 @@ setSelectedNoteAccidental(int?)     // null=none 1=♯ -1=♭ 0=♮; no-op for r
 deleteSelectedSymbol()              // Keeps measure context for re-insert
 insertNoteAfterSelection()          // Appends C4 quarter, auto-selects
 insertRestAfterSelection()          // Appends quarter rest, auto-selects
-reorderSymbolWithinMeasure()        // Cannot cross measure boundary
+reorderSymbolWithinMeasure()        // Cannot cross measure boundary (legacy path; prefer moveSymbolToDest)
 moveSelectedSymbolToMeasureOffset() // Move symbol to adjacent measure
+moveSymbolToDest(fromPart, fromMeasure, fromSymbol, toPart, toMeasure, toSymbol)
+                                    // Cross-measure/part drag reorder; same-measure delegates to reorderSymbol
 ```
 
 ---
@@ -514,6 +528,7 @@ Audio playback module + controls UI. All spec criteria satisfied, several above 
 - **Soundfont required** — `assets/soundfonts/piano.sf2` (any standard GM SF2). README.txt in that directory. App shows error state + tooltip if missing.
 - **flutter_midi_pro 3.1.6 actual API** — `loadSoundfontAsset(assetPath:, bank:, program:)`, `selectInstrument(sfId:, channel:, bank:, program:)`, `playNote(sfId:, channel:, key:, velocity:)`, `stopNote(sfId:, channel:, key:)`, `unloadSoundfont(sfId)`
 - **Tests** — `test/core/services/playback_converter_test.dart` — 37 tests across 4 groups: noteToMidi (12), durationMs (7), scaledDuration (4), buildEvents (12), PlaybackPosition (2). All pass.
+- **Total suite** — 278 tests, all pass.
 
 ---
 
@@ -542,8 +557,9 @@ Audio playback module + controls UI. All spec criteria satisfied, several above 
 ### BGC-71 — PDF Export Service + Share Sheet
 
 - **`PdfExportService`** — new file `lib/features/pdf/pdf_export_service.dart`
-  - `exportAndShare(Score)` — calls renderer, writes bytes to temp file in app cache, opens system share sheet via `share_plus`, deletes temp file in `finally` block
-  - File named `<safe_title>.pdf` (spaces/special chars → underscores)
+  - ~~`exportAndShare(Score)`~~ → replaced by `exportToDevice(Score) → Future<String?>` (see post-BGC-70-71 refactor below)
+  - Opens system OS save dialog via `file_picker`; returns saved path or `null` if user cancels
+  - Filename via shared `safeExportFileName(title)` utility
 - **Export popup in editor header expanded** (`_EditorHeader` in `editor_shell_screen.dart`)
   - Three menu items: "Export MusicXML…", "Save MusicXML to Device", "Export PDF…"
   - "Export PDF…" item disabled (greyed) when score is empty
@@ -558,18 +574,10 @@ Audio playback module + controls UI. All spec criteria satisfied, several above 
 - **First-save name dialog** — `_showNameDialog()` prompts with a text field defaulting to the score title; cancel aborts, empty name aborts; accepts Enter key or button tap
 - **Silent re-save** — `_currentProject` (type `Project?`) is tracked in state; if non-null, `copyWithUpdated(score:)` is called and saved with no dialog
 - **Save confirmation snackbar** — "Saved as [name]" appears for 2 seconds after every successful save; `hasUnsavedChanges` cleared immediately after save
-- **`EditorShellArgs.existingProject`** — optional `Project?` field added; set when opening from `ProjectListScreen` so the editor knows it already has a project id
+- **`EditorShellArgs.existingProject`** — optional `Project?` field added; set when opening from project list so the editor knows it already has a project id
 - **Unsaved changes guard** — `PopScope(canPop: !hasUnsavedChanges)` wraps the Scaffold; system back and header back button both route through `_handlePopAttempt()` which shows a "Leave without saving?" dialog
-- **`ProjectListScreen`** — `lib/features/projects/presentation/project_list_screen.dart`, route `/projects`
-  - Loads all projects via `ProjectStorageService.loadAllProjects()` (already sorted by `updatedAt` desc)
-  - Each tile shows: music note icon placeholder, project name, "Last modified Mar 20, 2026" date (manual formatter, no intl dep)
-  - Tap → decodes score, pushes editor with `existingProject` set; reloads list on return
-  - Long-press → delete confirm dialog ("Delete"=red, "Cancel"); removes from list and storage
-  - Corrupted project guard: `decodeScore()` wrapped in try/catch; shows snackbar, skips file
-  - Empty state: save icon + "No saved projects yet" message
-  - Full dark theme throughout
-- **Navigation entry points** — "Saved Projects" folder icon added to `CollectionScreen` AppBar actions; "Saved Projects" drawer item added at top of NAVIGATE section in `CollectionDrawer`
-- **Route registered** in `main.dart` `onGenerateRoute`
+- **`ProjectListScreen`** — ~~`lib/features/projects/presentation/project_list_screen.dart`~~ **deleted** (see post-BGC-70-71 refactor below — merged into `CollectionScreen`)
+- **Navigation entry points** — originally "Saved Projects" folder icon + drawer item; after merge, CollectionScreen itself is the project list
 - All 224 existing tests pass; no new test file (UI-only screen, integration tested manually per DoD)
 
 ---
@@ -596,15 +604,48 @@ Audio playback module + controls UI. All spec criteria satisfied, several above 
 
 ## MusicXML Save to Device — Delivery Notes (Sprint 6, branch claude/musicxml-export-feature-zwSqL)
 
-- **`MusicXmlExportService.exportToDevice(Score) → Future<File>`** — new method alongside `exportAndShare`
-  - Android: writes to Downloads folder via `getDownloadsDirectory()`, falls back to `getApplicationDocumentsDirectory()` if null
-  - iOS: writes to app Documents directory, accessible via Files app under "On My iPhone"
-  - Returns the saved `File` so callers can display the path
-- **Editor header export button replaced with `PopupMenuButton`**
-  - Two items: "Share…" (existing share sheet) and "Save to Device" (new direct save)
-  - New `_ExportOption` enum and `_ExportMenuItem` widget added to `editor_shell_screen.dart`
-- **SnackBar feedback** — on success shows full file path for 4 seconds; on failure shows error message
-- All 124 tests pass
+> **Note:** The platform-specific Downloads/Documents approach was replaced in the post-BGC-70-71 refactor (see below). Current implementation uses `file_picker` system save dialog.
+
+- ~~`MusicXmlExportService.exportToDevice(Score) → Future<File>`~~ → now `Future<String?>` via `file_picker` (returns path or `null` if cancelled)
+- ~~`exportAndShare`~~ removed — share_plus flow dropped in favour of unified file picker save
+- **Editor header export popup** — three items: "Export MusicXML…" (share sheet, kept), "Save MusicXML to Device" (file picker), "Export PDF…" (file picker)
+- **SnackBar feedback** — on success shows saved path; null return (user cancelled) shows no feedback; on failure shows error
+- All tests pass
+
+---
+
+## Post-BGC-70-71 Delivery Notes (SP7-test branch, after BGC-70-71 merge)
+
+Six commits landed after the BGC-70-71 merge. No new Jira tickets — these are refinements and clean-ups.
+
+### CollectionScreen ← ProjectListScreen merge (64441eb)
+- `lib/features/projects/presentation/project_list_screen.dart` **deleted**
+- `CollectionScreen` now owns the full project list UI: loads `List<Project>` via `ProjectStorageService`, shows project tiles, tap → editor, long-press → delete confirm
+- Drawer entry and `/projects` route removed from `main.dart`; `CollectionScreen` is the single entry point for the collection
+
+### MusicXML save via system file picker (7643a94)
+- `MusicXmlExportService.exportAndShare` removed; `exportToDevice(Score) → Future<String?>` rewritten to call `FilePicker.platform.saveFile(...)` instead of writing to Downloads/Documents
+- `path_provider` and `share_plus` removed from this service; `file_picker` used instead
+- Caller receives saved path or `null` (user cancelled)
+
+### Drag-to-trash delete gesture (597bcd1)
+- Delete button removed from the editor inspector panel
+- `ScoreNotationViewer` — symbols can now be dragged; dropping onto the trash zone in `EditorShellScreen` triggers `deleteSelectedSymbol()`
+- Trash zone only appears while a drag is in progress; icon-only (no label)
+
+### Cross-measure/part drag reorder + icon-only trash (fa79866)
+- `EditorActions.moveSymbolToDest(fromPart, fromMeasure, fromSymbol, toPart, toMeasure, toSymbol)` added to `editor_actions.dart`
+  - Same-measure path: delegates to existing `reorderSymbol` (no behaviour change)
+  - Cross-measure path: deletes from source measure, inserts at destination; selection follows the moved symbol
+  - Cross-part supported — allows moving between treble/bass staves
+- `ScoreNotationViewer` drag callbacks updated to use `onDragCompleted` API
+- Trash zone updated to icon-only (no text label)
+
+### Unified export filename utility (0e2382f)
+- `lib/core/utils/export_file_name.dart` — `safeExportFileName(title)` replaces the duplicate `_safeFileName` private helpers in both `MusicXmlExportService` and `PdfExportService`
+- `PdfExportService.exportAndShare` → renamed `exportToDevice(Score) → Future<String?>`, opens `FilePicker.platform.saveFile(...)` — same pattern as XML
+- `EditorShellScreen` export menu simplified: both XML and PDF paths call `exportToDevice`; show path snackbar on success, no-op on null (cancelled)
+- **Tests added** — `test/core/utils/export_file_name_test.dart` (10 tests); `moveSymbolToDest` covered in `editor_actions_test.dart` (7 new cases: same-measure, same-position no-op, cross-measure, destination clamp, cross-part, invalid-fromPart guard, invalid-toPart guard). Suite total: 278.
 
 ---
 

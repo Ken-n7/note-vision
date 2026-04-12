@@ -222,6 +222,297 @@ void main() {
       expect(moved.undoStack, isNotEmpty);
     });
 
+    test('moveSymbolToDest — same measure: reorders and preserves selection', () {
+      final score = Score(
+        id: 's1',
+        title: 't',
+        composer: 'c',
+        parts: const [
+          Part(
+            id: 'p1',
+            name: 'P1',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: [
+                  Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                  Rest(duration: 1, type: 'quarter'),
+                  Note(step: 'E', octave: 4, duration: 1, type: 'quarter'),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+      final state = EditorState(score: score).copyWith(
+        selectedPartIndex: 0,
+        selectedMeasureIndex: 0,
+        selectedSymbolIndex: 0,
+        selectedSymbol: score.parts[0].measures[0].symbols[0],
+      );
+
+      final next = state.moveSymbolToDest(
+        fromPartIndex: 0,
+        fromMeasureIndex: 0,
+        fromSymbolIndex: 0,
+        toPartIndex: 0,
+        toMeasureIndex: 0,
+        toSymbolIndex: 2,
+      );
+
+      final symbols = next.score.parts[0].measures[0].symbols;
+      expect(symbols[0], isA<Rest>());
+      expect((symbols[1] as Note).step, 'E');
+      expect((symbols[2] as Note).step, 'C');
+      expect(next.selectedPartIndex, 0);
+      expect(next.selectedMeasureIndex, 0);
+      expect(next.selectedSymbolIndex, 2);
+      expect((next.selectedSymbol! as Note).step, 'C');
+      expect(next.undoStack, isNotEmpty);
+    });
+
+    test('moveSymbolToDest — same measure same position: no-op', () {
+      final score = Score(
+        id: 's2',
+        title: 't',
+        composer: 'c',
+        parts: const [
+          Part(
+            id: 'p1',
+            name: 'P1',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: [
+                  Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                  Rest(duration: 1, type: 'quarter'),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+      final state = EditorState(score: score);
+
+      final next = state.moveSymbolToDest(
+        fromPartIndex: 0,
+        fromMeasureIndex: 0,
+        fromSymbolIndex: 0,
+        toPartIndex: 0,
+        toMeasureIndex: 0,
+        toSymbolIndex: 0,
+      );
+
+      expect(identical(next, state), isTrue);
+      expect(next.undoStack, isEmpty);
+    });
+
+    test('moveSymbolToDest — cross-measure: removes from source, inserts at destination', () {
+      final score = Score(
+        id: 's3',
+        title: 't',
+        composer: 'c',
+        parts: const [
+          Part(
+            id: 'p1',
+            name: 'P1',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: [
+                  Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                  Rest(duration: 1, type: 'quarter'),
+                ],
+              ),
+              Measure(
+                number: 2,
+                symbols: [
+                  Note(step: 'G', octave: 4, duration: 1, type: 'quarter'),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+      final state = EditorState(score: score);
+
+      final next = state.moveSymbolToDest(
+        fromPartIndex: 0,
+        fromMeasureIndex: 0,
+        fromSymbolIndex: 0, // move C4 quarter
+        toPartIndex: 0,
+        toMeasureIndex: 1,
+        toSymbolIndex: 0, // insert before G4
+      );
+
+      final m1 = next.score.parts[0].measures[0].symbols;
+      final m2 = next.score.parts[0].measures[1].symbols;
+      expect(m1, hasLength(1));
+      expect(m1.single, isA<Rest>());
+      expect(m2, hasLength(2));
+      expect((m2[0] as Note).step, 'C');
+      expect((m2[1] as Note).step, 'G');
+      expect(next.selectedPartIndex, 0);
+      expect(next.selectedMeasureIndex, 1);
+      expect(next.selectedSymbolIndex, 0);
+      expect((next.selectedSymbol! as Note).step, 'C');
+      expect(next.undoStack, isNotEmpty);
+    });
+
+    test('moveSymbolToDest — cross-measure: destination index clamped to valid range', () {
+      final score = Score(
+        id: 's4',
+        title: 't',
+        composer: 'c',
+        parts: const [
+          Part(
+            id: 'p1',
+            name: 'P1',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: [
+                  Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                ],
+              ),
+              Measure(
+                number: 2,
+                symbols: [
+                  Note(step: 'E', octave: 4, duration: 1, type: 'quarter'),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+      final state = EditorState(score: score);
+
+      // toSymbolIndex=99 should clamp to 1 (after deleting C4 the dest has 1 symbol → valid insert range 0..1)
+      final next = state.moveSymbolToDest(
+        fromPartIndex: 0,
+        fromMeasureIndex: 0,
+        fromSymbolIndex: 0,
+        toPartIndex: 0,
+        toMeasureIndex: 1,
+        toSymbolIndex: 99,
+      );
+
+      final m2 = next.score.parts[0].measures[1].symbols;
+      expect(m2, hasLength(2));
+      expect((m2.last as Note).step, 'C');
+    });
+
+    test('moveSymbolToDest — cross-part: moves symbol between parts', () {
+      final score = Score(
+        id: 's5',
+        title: 't',
+        composer: 'c',
+        parts: const [
+          Part(
+            id: 'p1',
+            name: 'Treble',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: [
+                  Note(step: 'C', octave: 5, duration: 1, type: 'quarter'),
+                  Note(step: 'D', octave: 5, duration: 1, type: 'quarter'),
+                ],
+              ),
+            ],
+          ),
+          Part(
+            id: 'p2',
+            name: 'Bass',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: [
+                  Note(step: 'C', octave: 3, duration: 1, type: 'quarter'),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+      final state = EditorState(score: score);
+
+      final next = state.moveSymbolToDest(
+        fromPartIndex: 0,
+        fromMeasureIndex: 0,
+        fromSymbolIndex: 1, // D5 from treble
+        toPartIndex: 1,
+        toMeasureIndex: 0,
+        toSymbolIndex: 0, // insert before C3 in bass
+      );
+
+      expect(next.score.parts[0].measures[0].symbols, hasLength(1));
+      expect((next.score.parts[0].measures[0].symbols.single as Note).step, 'C');
+      expect(next.score.parts[1].measures[0].symbols, hasLength(2));
+      expect((next.score.parts[1].measures[0].symbols[0] as Note).step, 'D');
+      expect(next.selectedPartIndex, 1);
+      expect(next.selectedMeasureIndex, 0);
+      expect(next.selectedSymbolIndex, 0);
+    });
+
+    test('moveSymbolToDest — guard: invalid fromPartIndex returns unchanged state', () {
+      final score = Score(
+        id: 's6',
+        title: 't',
+        composer: 'c',
+        parts: const [
+          Part(
+            id: 'p1',
+            name: 'P1',
+            measures: [
+              Measure(number: 1, symbols: [Note(step: 'C', octave: 4, duration: 1, type: 'quarter')]),
+            ],
+          ),
+        ],
+      );
+      final state = EditorState(score: score);
+
+      final next = state.moveSymbolToDest(
+        fromPartIndex: 5,
+        fromMeasureIndex: 0,
+        fromSymbolIndex: 0,
+        toPartIndex: 0,
+        toMeasureIndex: 0,
+        toSymbolIndex: 0,
+      );
+
+      expect(identical(next, state), isTrue);
+    });
+
+    test('moveSymbolToDest — guard: invalid toPartIndex returns unchanged state', () {
+      final score = Score(
+        id: 's7',
+        title: 't',
+        composer: 'c',
+        parts: const [
+          Part(
+            id: 'p1',
+            name: 'P1',
+            measures: [
+              Measure(number: 1, symbols: [Note(step: 'C', octave: 4, duration: 1, type: 'quarter')]),
+            ],
+          ),
+        ],
+      );
+      final state = EditorState(score: score);
+
+      final next = state.moveSymbolToDest(
+        fromPartIndex: 0,
+        fromMeasureIndex: 0,
+        fromSymbolIndex: 0,
+        toPartIndex: 5,
+        toMeasureIndex: 0,
+        toSymbolIndex: 0,
+      );
+
+      expect(identical(next, state), isTrue);
+    });
+
     test('reorderSymbolWithinMeasure cannot move symbol across measure boundary', () {
       final score = Score(
         id: 's-multi',
