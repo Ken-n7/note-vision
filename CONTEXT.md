@@ -442,26 +442,11 @@ reorderSymbol(partIndex, measureIndex, fromIndex, toIndex)
 
 ---
 
-## What Is Not In Jira Yet
-
-These were discussed and agreed but not yet added as tickets:
-
-- Fix B1: Continue button enabled with no detections
-- Fix B2: Import button → dedicated MusicXML import screen (user-facing, not just dev tool)
-- Fix B3: Import JSON with DEV label on MusicXML import screen
-- Fix B4: Score model debug preview dark background
-- Fix B5: MusicXML inspector dark theme
-- Staff line detection + removal pre-pass (between preprocessing and detection)
-- Expand ticket 63 scope to include profile photo (already reflected above)
-- Expand ticket 82 scope to be profile + stats combined screen
-
----
-
 ## What the App Cannot Do (Current Limits)
 
 These are current limitations, not hard ceilings — going beyond them is fine if it makes the app better.
 
-- Bass clef rendering ✅ done in editor; alto clef, tenor clef still unsupported
+- Bass clef rendering ✅ done in editor and PDF export; alto clef, tenor clef still unsupported
 - Grand staff (two staves, piano LH+RH)
 - Chords (multiple notes on one stem)
 - Ties, slurs, tuplets, dotted rhythms
@@ -472,7 +457,6 @@ These are current limitations, not hard ceilings — going beyond them is fine i
 - Multiple voices on one staff
 - Lyrics
 - Handwritten music
-- Multi-page score layout (Sprint 7 PDF wraps staves but single score only)
 - Cloud sync, accounts, collaboration
 - Any network call of any kind
 
