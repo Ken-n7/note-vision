@@ -209,7 +209,7 @@ void main() {
           home: Scaffold(
             body: ScoreNotationViewer(
               score: score,
-              onSymbolReorder: (event) {
+              onDragCompleted: (event, _) {
                 reorderEvent = event;
               },
             ),
@@ -272,7 +272,7 @@ void main() {
           home: Scaffold(
             body: ScoreNotationViewer(
               score: score,
-              onSymbolReorder: (event) {
+              onDragCompleted: (event, _) {
                 reorderEvent = event;
               },
             ),
