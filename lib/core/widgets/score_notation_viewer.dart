@@ -29,7 +29,10 @@ class ScoreNotationViewer extends StatefulWidget {
     this.insertMode = false,
     this.onSymbolTap,
     this.onInsertTap,
-    this.onSymbolReorder,
+    this.onDragStarted,
+    this.onDragGlobalUpdate,
+    this.onDragCompleted,
+    this.onDragCancelled,
     this.canAcceptExternalDrop,
     this.onExternalDrop,
     this.externalPreviewResolver,
@@ -57,7 +60,22 @@ class ScoreNotationViewer extends StatefulWidget {
   final bool insertMode;
   final ValueChanged<NotationSymbolTarget?>? onSymbolTap;
   final ValueChanged<NotationInsertTarget?>? onInsertTap;
-  final ValueChanged<NotationSymbolReorder>? onSymbolReorder;
+
+  /// Called when a long-press drag begins on a symbol.
+  final void Function(NotationSymbolTarget symbol)? onDragStarted;
+
+  /// Called on every drag move with the global screen position.
+  /// Use to drive trash-zone hover state.
+  final void Function(Offset global)? onDragGlobalUpdate;
+
+  /// Called when the drag ends. [reorder] is non-null if the drag moved the
+  /// symbol to a new position. [globalEndPosition] lets the caller decide
+  /// whether the drop landed on a delete zone.
+  final void Function(NotationSymbolReorder? reorder, Offset globalEndPosition)? onDragCompleted;
+
+  /// Called when a drag is cancelled (e.g. interrupted by a system event).
+  final VoidCallback? onDragCancelled;
+
   final bool Function(Object data)? canAcceptExternalDrop;
   final void Function(NotationInsertTarget target, Object data)? onExternalDrop;
   final NotationPreviewGlyph? Function(Object data)? externalPreviewResolver;
@@ -162,16 +180,20 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
                 widget.onSymbolTap?.call(tapped);
               }
             },
-      onLongPressStart: widget.onSymbolReorder == null
+      onLongPressStart: widget.onDragCompleted == null
           ? null
           : (position) => _beginDrag(measures: activeMeasures, layout: layout, position: position),
-      onLongPressMoveUpdate: widget.onSymbolReorder == null
+      onLongPressMoveUpdate: widget.onDragCompleted == null
           ? null
-          : (position) => _updateDrag(measures: activeMeasures, layout: layout, position: position),
-      onLongPressEnd: widget.onSymbolReorder == null
+          : (local, global) {
+              _updateDrag(measures: activeMeasures, layout: layout, position: local);
+              widget.onDragGlobalUpdate?.call(global);
+            },
+      onLongPressEnd: widget.onDragCompleted == null
           ? null
-          : (position) => _endDrag(measures: activeMeasures, layout: layout, position: position),
-      onLongPressCancel: widget.onSymbolReorder == null ? null : _cancelDrag,
+          : (local, global) =>
+              _endDrag(measures: activeMeasures, layout: layout, localPosition: local, globalPosition: global),
+      onLongPressCancel: widget.onDragCompleted == null ? null : _cancelDrag,
       painter: ScoreNotationPainter(
         parts: allParts,
         measuresPerRow: layout.measuresPerRow,
@@ -224,6 +246,15 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
         dragPosition: adjusted,
       );
     });
+    widget.onDragStarted?.call(
+      NotationSymbolTarget(
+        partIndex: widget.selectedPartIndex,
+        measureIndex: pressed.measureIndex,
+        symbolIndex: pressed.symbolIndex,
+        center: pressed.center,
+        hitRect: pressed.hitRect,
+      ),
+    );
   }
 
   void _updateDrag({
@@ -251,11 +282,12 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   void _endDrag({
     required List<Measure> measures,
     required NotationLayout layout,
-    required Offset position,
+    required Offset localPosition,
+    required Offset globalPosition,
   }) {
     final drag = _dragSession;
     if (drag == null) return;
-    final adjusted = _adjustForHorizontalScroll(position);
+    final adjusted = _adjustForHorizontalScroll(localPosition);
     final toIndex = _targetIndexForDrag(
       measures: measures,
       layout: layout,
@@ -265,15 +297,15 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     );
     final resolvedIndex = toIndex ?? drag.toSymbolIndex;
 
-    if (resolvedIndex != drag.fromSymbolIndex) {
-      widget.onSymbolReorder?.call(
-        NotationSymbolReorder(
-          measureIndex: drag.measureIndex,
-          fromSymbolIndex: drag.fromSymbolIndex,
-          toSymbolIndex: resolvedIndex,
-        ),
-      );
-    }
+    final reorder = resolvedIndex != drag.fromSymbolIndex
+        ? NotationSymbolReorder(
+            measureIndex: drag.measureIndex,
+            fromSymbolIndex: drag.fromSymbolIndex,
+            toSymbolIndex: resolvedIndex,
+          )
+        : null;
+
+    widget.onDragCompleted?.call(reorder, globalPosition);
 
     setState(() {
       _dragSession = null;
@@ -285,6 +317,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     setState(() {
       _dragSession = null;
     });
+    widget.onDragCancelled?.call();
   }
 
   int? _targetIndexForDrag({
@@ -453,8 +486,8 @@ class _NotationCanvasFrame extends StatelessWidget {
   final CustomPainter painter;
   final ValueChanged<Offset>? onTapUp;
   final ValueChanged<Offset>? onLongPressStart;
-  final ValueChanged<Offset>? onLongPressMoveUpdate;
-  final ValueChanged<Offset>? onLongPressEnd;
+  final void Function(Offset local, Offset global)? onLongPressMoveUpdate;
+  final void Function(Offset local, Offset global)? onLongPressEnd;
   final VoidCallback? onLongPressCancel;
   final bool Function(Object data)? canAcceptExternalData;
   final void Function(Offset position, Object data)? onExternalDragMove;
@@ -477,9 +510,10 @@ class _NotationCanvasFrame extends StatelessWidget {
             : (details) => onLongPressStart!(details.localPosition),
         onLongPressMoveUpdate: onLongPressMoveUpdate == null
             ? null
-            : (details) => onLongPressMoveUpdate!(details.localPosition),
-        onLongPressEnd:
-            onLongPressEnd == null ? null : (details) => onLongPressEnd!(details.localPosition),
+            : (details) => onLongPressMoveUpdate!(details.localPosition, details.globalPosition),
+        onLongPressEnd: onLongPressEnd == null
+            ? null
+            : (details) => onLongPressEnd!(details.localPosition, details.globalPosition),
         onLongPressCancel: onLongPressCancel,
         child: SingleChildScrollView(
           controller: horizontalController,

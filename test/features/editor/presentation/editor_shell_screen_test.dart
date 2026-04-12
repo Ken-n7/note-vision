@@ -83,7 +83,6 @@ void main() {
     expect(find.text('8th'), findsOneWidget);
     expect(find.text('Note'), findsOneWidget);
     expect(find.text('Rest'), findsWidgets);
-    expect(find.text('Delete'), findsOneWidget);
     expect(find.byTooltip('Undo'), findsOneWidget);
     expect(find.byTooltip('Redo'), findsOneWidget);
   });

@@ -48,6 +48,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   late EditorState _editorState;
   double _canvasZoom = 1.0;
   bool _insertMode = false;
+  bool _isDraggingNote = false;
+  Offset _dragGlobal = Offset.zero;
+  final GlobalKey _trashZoneKey = GlobalKey();
+  NotationSymbolTarget? _dragTarget;
   PaletteSymbolType? _insertSymbolType;
 
   // Playback
@@ -371,6 +375,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               insertMode: _insertMode,
               insertSymbolType: _insertSymbolType,
               playbackPosition: _playbackPosition,
+              isDraggingNote: _isDraggingNote,
+              dragGlobal: _dragGlobal,
+              trashZoneKey: _trashZoneKey,
               onZoomIn: _canvasZoom < 2.0
                   ? () => setState(() => _canvasZoom = (_canvasZoom + 0.1).clamp(0.75, 2.0))
                   : null,
@@ -387,15 +394,52 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 }
               },
               onInsertTap: _onInsertTap,
-              onSymbolReorder: (event) {
-                _updateState(
-                  (s) => s.reorderSymbolWithinMeasure(
-                    measureIndex: event.measureIndex,
-                    fromSymbolIndex: event.fromSymbolIndex,
-                    toSymbolIndex: event.toSymbolIndex,
-                  ),
-                );
+              onDragStarted: (target) {
+                setState(() {
+                  _isDraggingNote = true;
+                  _dragTarget = target;
+                });
               },
+              onDragGlobalUpdate: (global) {
+                setState(() => _dragGlobal = global);
+              },
+              onDragCompleted: (reorder, global) {
+                final trashBox =
+                    _trashZoneKey.currentContext?.findRenderObject() as RenderBox?;
+                final isOverTrash = trashBox != null &&
+                    (trashBox.localToGlobal(Offset.zero) & trashBox.size).contains(global);
+                if (isOverTrash && _dragTarget != null) {
+                  final t = _dragTarget!;
+                  _updateState((s) {
+                    final symbol = s.score.parts[t.partIndex]
+                        .measures[t.measureIndex].symbols[t.symbolIndex];
+                    return s
+                        .copyWith(
+                          selectedPartIndex: t.partIndex,
+                          selectedMeasureIndex: t.measureIndex,
+                          selectedSymbolIndex: t.symbolIndex,
+                          selectedSymbol: symbol,
+                        )
+                        .deleteSelectedSymbol();
+                  });
+                } else if (reorder != null) {
+                  _updateState((s) => s.reorderSymbolWithinMeasure(
+                    measureIndex: reorder.measureIndex,
+                    fromSymbolIndex: reorder.fromSymbolIndex,
+                    toSymbolIndex: reorder.toSymbolIndex,
+                  ));
+                }
+                setState(() {
+                  _isDraggingNote = false;
+                  _dragGlobal = Offset.zero;
+                  _dragTarget = null;
+                });
+              },
+              onDragCancelled: () => setState(() {
+                _isDraggingNote = false;
+                _dragGlobal = Offset.zero;
+                _dragTarget = null;
+              }),
               onExternalDrop: _onPaletteDrop,
             );
 
@@ -431,7 +475,6 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               onSetAccidental: (alter) => _updateState((s) => s.setSelectedNoteAccidental(alter)),
               onInsertNote: () => _updateState((s) => s.insertNoteAfterSelection()),
               onInsertRest: () => _updateState((s) => s.insertRestAfterSelection()),
-              onDelete: () => _updateState((s) => s.deleteSelectedSymbol()),
               onMoveToPrev: () => _updateState((s) => s.moveSelectedSymbolToMeasureOffset(-1)),
               onMoveToNext: () => _updateState((s) => s.moveSelectedSymbolToMeasureOffset(1)),
               onAddMeasure: () => _updateState((s) => s.addMeasureAfterSelected()),
@@ -752,13 +795,19 @@ class _NotationArea extends StatelessWidget {
     required this.insertMode,
     required this.insertSymbolType,
     required this.playbackPosition,
+    required this.isDraggingNote,
+    required this.dragGlobal,
+    required this.trashZoneKey,
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onToggleInsertMode,
     required this.onPaletteTypeTap,
     required this.onSymbolTap,
     required this.onInsertTap,
-    required this.onSymbolReorder,
+    required this.onDragStarted,
+    required this.onDragGlobalUpdate,
+    required this.onDragCompleted,
+    required this.onDragCancelled,
     required this.onExternalDrop,
   });
 
@@ -767,13 +816,19 @@ class _NotationArea extends StatelessWidget {
   final bool insertMode;
   final PaletteSymbolType? insertSymbolType;
   final PlaybackPosition playbackPosition;
+  final bool isDraggingNote;
+  final Offset dragGlobal;
+  final GlobalKey trashZoneKey;
   final VoidCallback? onZoomIn;
   final VoidCallback? onZoomOut;
   final VoidCallback onToggleInsertMode;
   final ValueChanged<PaletteSymbolType> onPaletteTypeTap;
   final ValueChanged<NotationSymbolTarget?> onSymbolTap;
   final ValueChanged<NotationInsertTarget?> onInsertTap;
-  final ValueChanged<NotationSymbolReorder> onSymbolReorder;
+  final void Function(NotationSymbolTarget symbol) onDragStarted;
+  final void Function(Offset global) onDragGlobalUpdate;
+  final void Function(NotationSymbolReorder? reorder, Offset globalEndPosition) onDragCompleted;
+  final VoidCallback onDragCancelled;
   final void Function(NotationInsertTarget, Object) onExternalDrop;
 
   @override
@@ -810,7 +865,10 @@ class _NotationArea extends StatelessWidget {
                           onExternalDrop: onExternalDrop,
                           onSymbolTap: insertMode ? null : onSymbolTap,
                           onInsertTap: insertMode ? onInsertTap : null,
-                          onSymbolReorder: onSymbolReorder,
+                          onDragStarted: insertMode ? null : onDragStarted,
+                          onDragGlobalUpdate: onDragGlobalUpdate,
+                          onDragCompleted: onDragCompleted,
+                          onDragCancelled: onDragCancelled,
                         ),
                       ),
                     ),
@@ -848,6 +906,26 @@ class _NotationArea extends StatelessWidget {
                           ),
                         ],
                       ),
+                    ),
+                  ),
+                ),
+              // Trash zone — appears during note drag
+              if (isDraggingNote)
+                Positioned(
+                  bottom: 12,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: _TrashZone(
+                      key: trashZoneKey,
+                      isHovered: () {
+                        if (dragGlobal == Offset.zero) return false;
+                        final box = trashZoneKey.currentContext
+                            ?.findRenderObject() as RenderBox?;
+                        if (box == null) return false;
+                        return (box.localToGlobal(Offset.zero) & box.size)
+                            .contains(dragGlobal);
+                      }(),
                     ),
                   ),
                 ),
@@ -1033,7 +1111,6 @@ class _InspectorPanel extends StatelessWidget {
     required this.onSetAccidental,
     required this.onInsertNote,
     required this.onInsertRest,
-    required this.onDelete,
     required this.onMoveToPrev,
     required this.onMoveToNext,
     required this.onAddMeasure,
@@ -1058,7 +1135,6 @@ class _InspectorPanel extends StatelessWidget {
   final void Function(int? alter) onSetAccidental;
   final VoidCallback onInsertNote;
   final VoidCallback onInsertRest;
-  final VoidCallback onDelete;
   final VoidCallback onMoveToPrev;
   final VoidCallback onMoveToNext;
   final VoidCallback onAddMeasure;
@@ -1124,12 +1200,6 @@ class _InspectorPanel extends StatelessWidget {
         children: [
           _ActionTile(icon: Icons.music_note_rounded, label: 'Note', onPressed: hasMeasureContext ? onInsertNote : null),
           _ActionTile(icon: Icons.horizontal_rule_rounded, label: 'Rest', onPressed: hasMeasureContext ? onInsertRest : null),
-        ],
-      ),
-      _ActionGroup(
-        label: 'EDIT',
-        children: [
-          _ActionTile(icon: Icons.delete_outline_rounded, label: 'Delete', onPressed: hasSelection ? onDelete : null, danger: true),
         ],
       ),
     ];
@@ -1266,6 +1336,63 @@ class _PortraitGroup extends StatelessWidget {
               .toList(),
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Trash zone (drag-to-delete target)
+// ---------------------------------------------------------------------------
+
+class _TrashZone extends StatelessWidget {
+  const _TrashZone({super.key, required this.isHovered});
+
+  final bool isHovered;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      decoration: BoxDecoration(
+        color: isHovered
+            ? const Color(0xFFE05252).withValues(alpha: 0.92)
+            : const Color(0xFF6B1A1A).withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isHovered ? const Color(0xFFFF6B6B) : const Color(0xFF8B2020),
+          width: 1.5,
+        ),
+        boxShadow: isHovered
+            ? [
+                BoxShadow(
+                  color: const Color(0xFFE05252).withValues(alpha: 0.4),
+                  blurRadius: 12,
+                  spreadRadius: 2,
+                ),
+              ]
+            : [],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isHovered ? Icons.delete_rounded : Icons.delete_outline_rounded,
+            color: Colors.white,
+            size: 16,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            isHovered ? 'Release to delete' : 'Drag here to delete',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
