@@ -16,7 +16,7 @@ class MusicXmlImporter {
 
   final FilePicker _filePicker;
   final MusicXmlParserService _parser;
-  static const _allowedExtensions = ['musicxml', 'xml', 'mxl'];
+  static const _allowedExtensions = ['xml', 'mxl'];
 
   /// Opens the file picker and returns a [MusicXmlImportResult].
   ///
@@ -57,7 +57,7 @@ class MusicXmlImporter {
     final String ext = fileName.split('.').last.toLowerCase();
     if (!_allowedExtensions.contains(ext)) {
       throw MusicXmlImportException(
-        'Unsupported file type ".$ext". Please select a .musicxml, .xml, or .mxl file.',
+        'Unsupported file type ".$ext". Please select a .xml or .mxl file.',
       );
     }
 
@@ -107,7 +107,7 @@ class MusicXmlImporter {
       if (!file.isFile) continue;
       if (file.name.startsWith('__MACOSX')) continue;
 
-      if (file.name.endsWith('.xml') || file.name.endsWith('.musicxml')) {
+      if (file.name.endsWith('.xml')) {
         final content = file.content as List<int>;
         try {
           return utf8.decode(content);

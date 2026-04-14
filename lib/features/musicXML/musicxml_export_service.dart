@@ -50,10 +50,10 @@ class MusicXmlExportService {
     final bytes = Uint8List.fromList(utf8.encode(xml));
 
     return FilePicker.platform.saveFile(
-      fileName: '$fileName.musicxml',
+      fileName: '$fileName.xml',
       bytes: bytes,
       type: FileType.custom,
-      allowedExtensions: ['musicxml', 'xml'],
+      allowedExtensions: ['xml'],
     );
   }
 
