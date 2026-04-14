@@ -491,9 +491,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
             return Column(
               children: [
                 _EditorHeader(
-                  title: _editorState.score.title.isEmpty
-                      ? 'Untitled Score'
-                      : _editorState.score.title,
+                  title: _currentProject?.name ??
+                      (_editorState.score.title.isEmpty
+                          ? 'Untitled Score'
+                          : _editorState.score.title),
                   hasUnsavedChanges: _editorState.hasUnsavedChanges,
                   canUndo: _editorState.canUndo,
                   canRedo: _editorState.canRedo,
