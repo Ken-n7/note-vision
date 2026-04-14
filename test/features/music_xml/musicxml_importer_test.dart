@@ -87,14 +87,14 @@ void main() {
   // ══════════════════════════════════════════════════════════════════════════
 
   group('pickAndRead — happy paths', () {
-    test('reads a valid .musicxml file via custom picker', () async {
-      final path = await _writeTempFile('happy_birthday.musicxml', _validXml);
+    test('reads a valid .xml file via custom picker (named score)', () async {
+      final path = await _writeTempFile('happy_birthday.xml', _validXml);
       stubPicker(first: _fakeResult(path));
 
       final result = await importer.pickAndRead();
 
       expect(result, isNotNull);
-      expect(result!.fileName, 'happy_birthday.musicxml');
+      expect(result!.fileName, 'happy_birthday.xml');
       expect(result.xmlContent, contains('<score-partwise'));
       expect(result.parseResult.success, isTrue);
       expect(result.parseResult.rootTagName, 'score-partwise');
@@ -127,15 +127,15 @@ void main() {
     });
 
     test(
-      'falls back to FileType.any when custom picker returns null (Android .musicxml MIME issue)',
+      'falls back to FileType.any when custom picker returns null',
       () async {
-        final path = await _writeTempFile('happy_birthday.musicxml', _validXml);
+        final path = await _writeTempFile('happy_birthday.xml', _validXml);
         stubPicker(first: null, second: _fakeResult(path));
 
         final result = await importer.pickAndRead();
 
         expect(result, isNotNull);
-        expect(result!.fileName, 'happy_birthday.musicxml');
+        expect(result!.fileName, 'happy_birthday.xml');
       },
     );
 
@@ -153,8 +153,8 @@ void main() {
       expect(result!.xmlContent, isNotEmpty);
     });
 
-    test('reads .mxl with .musicxml entry name inside archive', () async {
-      final mxlBytes = _buildMxlBytes(_validXml, entryName: 'score.musicxml');
+    test('reads .mxl with .xml entry name inside archive', () async {
+      final mxlBytes = _buildMxlBytes(_validXml, entryName: 'score.xml');
       final dir = Directory.systemTemp.createTempSync('mxl_entry_test_');
       final file = File('${dir.path}/piece.mxl')..writeAsBytesSync(mxlBytes);
 
@@ -184,7 +184,7 @@ void main() {
     });
 
     test('propagates parser warnings to importer result', () async {
-      final path = await _writeTempFile('timewise.musicxml', '''<score-timewise>
+      final path = await _writeTempFile('timewise.xml', '''<score-timewise>
   <part-list>
     <score-part id="P1"><part-name>Piano</part-name></score-part>
   </part-list>
@@ -229,7 +229,7 @@ void main() {
       'returns parse failure details for malformed XML without crashing',
       () async {
         final path = await _writeTempFile(
-          'broken.musicxml',
+          'broken.xml',
           '<score-partwise><part-list></score-partwise>',
         );
         stubPicker(first: _fakeResult(path));
@@ -278,7 +278,7 @@ void main() {
     });
 
     test('throws MusicXmlImportException for empty file', () async {
-      final path = await _writeTempFile('empty.musicxml', '');
+      final path = await _writeTempFile('empty.xml', '');
       stubPicker(first: _fakeResult(path));
 
       await expectLater(
@@ -366,8 +366,8 @@ void main() {
       ).thenAnswer(
         (_) async => FilePickerResult([
           PlatformFile(
-            path: '/nonexistent/path/score.musicxml',
-            name: 'score.musicxml',
+            path: '/nonexistent/path/score.xml',
+            name: 'score.xml',
             size: 0,
           ),
         ]),
