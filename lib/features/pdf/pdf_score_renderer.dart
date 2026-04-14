@@ -24,6 +24,12 @@ class PdfScoreRenderer {
   static const double _mw = 90.0; // min measure width
   static const double _titleBlockH = 46.0; // reserved at top of first page
 
+  // Notehead semi-axes scaled proportionally to _ls (editor uses hw=6.25, hh=4.4 at ls=12)
+  static const double _nhw = 3.1;       // non-whole semi-major
+  static const double _nhh = 2.2;       // non-whole semi-minor
+  static const double _nhwWhole = 3.5;  // whole semi-major
+  static const double _nhhWhole = 2.5;  // whole semi-minor
+
   static const PdfColor _ink = PdfColor.fromInt(0xFF111827);
 
   // ── Public API ────────────────────────────────────────────────────────────
@@ -322,34 +328,74 @@ class PdfScoreRenderer {
 
     g.setColor(_ink);
 
-    // Ledger lines
     _ledgerLines(g, x: x, y: y, staffBottom: staffBottom, staffTop: staffTop);
 
-    // Notehead — rotated oval approximated with an ellipse
-    const hw = 5.2;
-    const hh = 3.5;
-    if (isWhole || isHalf) {
-      g.drawEllipse(x - hw, y - hh, hw * 2, hh * 2);
-      g.setLineWidth(0.9);
-      g.strokePath();
-    } else {
-      g.drawEllipse(x - hw, y - hh, hw * 2, hh * 2);
-      g.fillPath();
-    }
-
-    // Hole in half note
-    if (isHalf) {
-      g.setColor(PdfColors.white);
-      g.drawEllipse(x - hw * 0.5, y - hh * 0.4, hw, hh * 0.8);
-      g.fillPath();
-      g.setColor(_ink);
-    }
+    _drawNoteHead(
+      g, x, y,
+      hw: isWhole ? _nhwWhole : _nhw,
+      hh: isWhole ? _nhhWhole : _nhh,
+      filled: !(isWhole || isHalf),
+    );
 
     if (isWhole) return;
 
-    // Stem
     final stemUp = y < middleLineY;
     _drawStem(g, x: x, y: y, stemUp: stemUp, isEighth: isEighth);
+  }
+
+  /// Draws a rotated oval notehead using a 4-segment cubic bezier approximation.
+  /// Matches the editor's `canvas.rotate(-0.35)` tilt visually (sign flips because
+  /// PDF y-axis points up, opposite to Flutter's canvas).
+  void _drawNoteHead(
+    PdfGraphics g,
+    double cx,
+    double cy, {
+    required double hw,
+    required double hh,
+    required bool filled,
+  }) {
+    const angle = 0.35; // rad — visual equivalent of editor's canvas.rotate(-0.35)
+    final cosA = math.cos(angle);
+    final sinA = math.sin(angle);
+    const k = 0.5523; // cubic bezier magic number for ellipse approximation
+
+    // Four cardinal points on the rotated ellipse
+    final rx = cx + hw * cosA;  final ry = cy + hw * sinA;
+    final tx = cx - hh * sinA;  final ty = cy + hh * cosA;
+    final lx = cx - hw * cosA;  final ly = cy - hw * sinA;
+    final bx = cx + hh * sinA;  final by_ = cy - hh * cosA;
+
+    // Bezier curves: each segment uses the derivative of the parametric ellipse
+    // scaled by k to control the "pull" of the handles.
+    g.moveTo(rx, ry);
+    g.curveTo(
+      cx + hw * cosA - k * hh * sinA, cy + hw * sinA + k * hh * cosA,
+      cx - hh * sinA + k * hw * cosA, cy + hh * cosA + k * hw * sinA,
+      tx, ty,
+    );
+    g.curveTo(
+      cx - hh * sinA - k * hw * cosA, cy + hh * cosA - k * hw * sinA,
+      cx - hw * cosA - k * hh * sinA, cy - hw * sinA + k * hh * cosA,
+      lx, ly,
+    );
+    g.curveTo(
+      cx - hw * cosA + k * hh * sinA, cy - hw * sinA - k * hh * cosA,
+      cx + hh * sinA - k * hw * cosA, cy - hh * cosA - k * hw * sinA,
+      bx, by_,
+    );
+    g.curveTo(
+      cx + hh * sinA + k * hw * cosA, cy - hh * cosA + k * hw * sinA,
+      cx + hw * cosA + k * hh * sinA, cy + hw * sinA - k * hh * cosA,
+      rx, ry,
+    );
+
+    g.setColor(_ink);
+    if (filled) {
+      g.fillPath();
+    } else {
+      g.setLineWidth(0.9);
+      g.strokePath();
+    }
   }
 
   void _ledgerLines(
@@ -387,7 +433,7 @@ class PdfScoreRenderer {
     required bool isEighth,
   }) {
     final stemLen = _ls * 3.5;
-    final stemX = stemUp ? x + 5.0 : x - 5.0;
+    final stemX = stemUp ? x + _nhw : x - _nhw;
     final endY = stemUp ? y + stemLen : y - stemLen;
 
     g.setColor(_ink);
@@ -453,35 +499,64 @@ class PdfScoreRenderer {
 
   void _drawTrebleClef(
       PdfGraphics g, double x, double staffTop, double staffBottom) {
-    final cx = x + 5;
-    // The treble clef curl center is roughly on the G4 (2nd line from bottom)
-    final g4y = staffBottom + _ls; // 2nd line from bottom
+    final cx = x + 7.0;
+    final g4y = staffBottom + _ls; // G4 = 2nd line from bottom
 
     g.setColor(_ink);
-    g.setLineWidth(1.1);
+    g.setLineWidth(1.2);
 
-    // Main vertical stroke
-    g.moveTo(cx, staffTop + _ls * 1.5);
-    g.lineTo(cx, staffBottom - _ls * 0.5);
-    g.strokePath();
-
-    // Treble curl loop (around G4 line)
-    g.moveTo(cx, g4y + 5);
-    g.curveTo(cx + 9, g4y + 5, cx + 9, g4y - 5, cx, g4y - 5);
-    g.curveTo(cx - 7, g4y - 5, cx - 7, g4y + 4, cx - 2, g4y + 6);
-    g.strokePath();
-
-    // Upper curl
-    g.moveTo(cx, staffTop + _ls * 1.5);
-    g.curveTo(cx + 10, staffTop + _ls * 0.5, cx + 10, staffTop - _ls * 0.5,
-        cx, staffTop - _ls * 0.3);
-    g.curveTo(cx - 8, staffTop - _ls * 0.1, cx - 6, g4y + 2, cx, g4y + 5);
-    g.strokePath();
-
-    // Bottom tail
-    g.moveTo(cx, staffBottom - _ls * 0.5);
+    // ── Spine ─────────────────────────────────────────────────────────────
+    // Runs from below the staff up through the body to above the staff with
+    // a subtle S-curve (bows right mid-staff, straightens at top).
+    final spineBot = staffBottom - _ls * 0.9;
+    final spineTop = staffTop + _ls * 1.5;
+    g.moveTo(cx, spineBot);
     g.curveTo(
-        cx - 7, staffBottom - _ls, cx - 6, staffBottom - _ls * 0.3, cx, g4y - 5);
+      cx + _ls * 0.6, staffBottom + _ls * 0.5,   // bulges right low
+      cx - _ls * 0.2, staffTop - _ls * 0.5,       // eases left near top
+      cx, spineTop,
+    );
+    g.strokePath();
+
+    // ── Body: D-shaped loop encircling G4 ─────────────────────────────────
+    // Open on the left where the spine exits; bulges right.
+    final loopTop = g4y + _ls * 1.8;
+    final loopBot = g4y - _ls * 1.5;
+    g.moveTo(cx, loopTop);
+    g.curveTo(
+      cx + _ls * 2.2, loopTop,
+      cx + _ls * 2.4, loopBot,
+      cx, loopBot,
+    );
+    g.curveTo(
+      cx - _ls * 0.7, loopBot,
+      cx - _ls * 0.8, g4y - _ls * 0.2,
+      cx, g4y + _ls * 0.6,
+    );
+    g.strokePath();
+
+    // ── Top curl ──────────────────────────────────────────────────────────
+    // Sweeps right from the spine tip then hooks back left (fishhook).
+    g.moveTo(cx, spineTop);
+    g.curveTo(
+      cx + _ls * 1.8, spineTop + _ls * 0.7,
+      cx + _ls * 2.0, spineTop - _ls * 0.8,
+      cx + _ls * 0.6, spineTop - _ls * 1.2,
+    );
+    g.strokePath();
+
+    // ── Bottom tail: small counterclockwise loop below the staff ──────────
+    g.moveTo(cx, spineBot);
+    g.curveTo(
+      cx + _ls * 1.6, spineBot - _ls * 0.3,
+      cx + _ls * 1.6, spineBot + _ls * 1.1,
+      cx + _ls * 0.3, spineBot + _ls * 1.0,
+    );
+    g.curveTo(
+      cx - _ls * 0.5, spineBot + _ls * 0.9,
+      cx - _ls * 0.6, spineBot + _ls * 0.1,
+      cx, spineBot,
+    );
     g.strokePath();
   }
 
