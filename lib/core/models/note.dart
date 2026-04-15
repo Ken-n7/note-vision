@@ -8,6 +8,7 @@ class Note extends ScoreSymbol {
   final String type; // whole, half, quarter, eighth, etc.
   final int? voice; // optional
   final int? staff; // optional
+  final bool beamed; // true when this eighth note belongs to a beamed group
 
   const Note({
     required this.step,
@@ -17,6 +18,7 @@ class Note extends ScoreSymbol {
     required this.type,
     this.voice,
     this.staff,
+    this.beamed = false,
   });
 
   @override
@@ -29,6 +31,7 @@ class Note extends ScoreSymbol {
         'type': type,
         if (voice != null) 'voice': voice,
         if (staff != null) 'staff': staff,
+        if (beamed) 'beamed': true,
       };
 
   factory Note.fromJson(Map<String, dynamic> json) => Note(
@@ -39,6 +42,7 @@ class Note extends ScoreSymbol {
         type: json['type'] as String,
         voice: json['voice'] as int?,
         staff: json['staff'] as int?,
+        beamed: json['beamed'] as bool? ?? false,
       );
 
   String get pitch {
@@ -57,5 +61,6 @@ class Note extends ScoreSymbol {
       'Note(pitch: $pitch, duration: $duration, type: $type'
       '${voice != null ? ', voice: $voice' : ''}'
       '${staff != null ? ', staff: $staff' : ''}'
+      '${beamed ? ', beamed: true' : ''}'
       ')';
 }

@@ -282,26 +282,103 @@ class PdfScoreRenderer {
     final count = measure.symbols.length;
     final middleLineY = staffTop - _ls * 2; // 3rd staff line from top
 
+    // Pre-compute x/y positions for all symbols.
+    final xs = List<double>.generate(
+      count,
+      (i) => measureStartX + innerPad + drawableW * (i + 1) / (count + 1),
+    );
+    final ys = <double>[];
     for (var i = 0; i < count; i++) {
-      final symbol = measure.symbols[i];
-      final progress = (i + 1) / (count + 1);
-      final x = measureStartX + innerPad + drawableW * progress;
-
-      if (symbol is Note) {
-        final y = StaffPitchMapper.yForPitch(
-          step: symbol.step,
-          octave: symbol.octave,
+      final sym = measure.symbols[i];
+      if (sym is Note) {
+        ys.add(StaffPitchMapper.yForPitch(
+          step: sym.step,
+          octave: sym.octave,
           bottomLineY: staffBottom,
           lineSpacing: _ls,
           clefSign: clefSign,
-        );
-        _drawNote(g, symbol,
-            x: x, y: y, middleLineY: middleLineY, staffBottom: staffBottom, staffTop: staffTop);
-      } else if (symbol is Rest) {
-        _drawRest(g, symbol,
-            x: x, staffTop: staffTop, staffBottom: staffBottom);
+        ));
+      } else {
+        ys.add(staffTop - _ls * 2);
       }
     }
+
+    // Build beam groups: runs of consecutive beamed eighth notes.
+    final beamGroups = _buildBeamGroups(measure.symbols);
+    final beamedIndices = <int>{};
+    for (final group in beamGroups) {
+      if (group.length >= 2) {
+        beamedIndices.addAll(group);
+      }
+    }
+
+    // Draw notes/rests.
+    for (var i = 0; i < count; i++) {
+      final symbol = measure.symbols[i];
+      final x = xs[i];
+      final y = ys[i];
+
+      if (symbol is Note) {
+        _drawNote(
+          g,
+          symbol,
+          x: x,
+          y: y,
+          middleLineY: middleLineY,
+          staffBottom: staffBottom,
+          staffTop: staffTop,
+          suppressFlag: beamedIndices.contains(i),
+        ); // suppressFlag hides individual flag when note is part of a beam group
+      } else if (symbol is Rest) {
+        _drawRest(g, symbol, x: x, staffTop: staffTop, staffBottom: staffBottom);
+      }
+    }
+
+    // Draw beam bars for groups of 2+.
+    for (final group in beamGroups) {
+      if (group.length < 2) continue;
+      final first = group.first;
+      final last = group.last;
+      final firstY = ys[first];
+      final lastY = ys[last];
+      final stemUp = firstY < middleLineY;
+      final stemLen = _ls * 3.5;
+      final stemOffX = stemUp ? 5.0 : -5.0;
+
+      // Beam connects the stem tips of all notes in the group.
+      final x1 = xs[first] + stemOffX;
+      final x2 = xs[last] + stemOffX;
+      final y1 = stemUp ? firstY + stemLen : firstY - stemLen;
+      final y2 = stemUp ? lastY + stemLen : lastY - stemLen;
+
+      // Filled rectangle for the beam bar (3 pt thick).
+      const beamThickness = 3.0;
+      g.setColor(_ink);
+      g.drawRect(x1, math.min(y1, y2) - beamThickness / 2,
+          x2 - x1, beamThickness);
+      g.fillPath();
+    }
+  }
+
+  /// Groups indices of consecutive beamed eighth notes.
+  List<List<int>> _buildBeamGroups(List<dynamic> symbols) {
+    final groups = <List<int>>[];
+    List<int>? current;
+
+    for (var i = 0; i < symbols.length; i++) {
+      final sym = symbols[i];
+      if (sym is Note && sym.type == 'eighth' && sym.beamed) {
+        current ??= [];
+        current.add(i);
+      } else {
+        if (current != null) {
+          groups.add(current);
+          current = null;
+        }
+      }
+    }
+    if (current != null) groups.add(current);
+    return groups;
   }
 
   // ── Note ──────────────────────────────────────────────────────────────────
@@ -314,6 +391,7 @@ class PdfScoreRenderer {
     required double middleLineY,
     required double staffBottom,
     required double staffTop,
+    bool suppressFlag = false,
   }) {
     final type = note.type.trim().toLowerCase();
     final isWhole = type == 'whole';
@@ -349,7 +427,8 @@ class PdfScoreRenderer {
 
     // Stem
     final stemUp = y < middleLineY;
-    _drawStem(g, x: x, y: y, stemUp: stemUp, isEighth: isEighth);
+    _drawStem(g, x: x, y: y, stemUp: stemUp,
+        isEighth: isEighth && !suppressFlag);
   }
 
   void _ledgerLines(

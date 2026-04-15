@@ -391,6 +391,16 @@ class ScoreNotationPainter extends CustomPainter {
           )
         : 0.0;
 
+    // Build beam groups before drawing so we know which notes suppress flags.
+    final beamGroups = _buildBeamGroups(measure.symbols);
+    final beamedIndices = <int>{};
+    for (final group in beamGroups) {
+      if (group.length >= 2) beamedIndices.addAll(group);
+    }
+
+    // Collect rendered (x, y) per symbol index for beam bar drawing.
+    final notePositions = <int, Offset>{};
+
     for (var i = 0; i < symbolCount; i++) {
       if (activeDrag != null && i == activeDrag.draggedSymbolIndex) continue;
       final symbol = measure.symbols[i];
@@ -411,6 +421,7 @@ class ScoreNotationPainter extends CustomPainter {
           lineSpacing: staffLineSpacing,
           clefSign: clefSign,
         );
+        notePositions[i] = Offset(x, y);
         final isSelected = selectedPartIndex == partIndex &&
             selectedMeasureIndex == absoluteMeasureIndex &&
             selectedSymbolIndex == i;
@@ -419,7 +430,8 @@ class ScoreNotationPainter extends CustomPainter {
             playbackSymbolIndex == i;
         if (isPlaying) _drawPlaybackHighlight(canvas, Offset(x, y));
         if (isSelected) _drawSelectionHighlight(canvas, Offset(x, y));
-        _drawNote(canvas, symbol, x: x, y: y, middleLineY: middleLineY);
+        _drawNote(canvas, symbol, x: x, y: y, middleLineY: middleLineY,
+            suppressFlag: beamedIndices.contains(i));
       } else if (symbol is Rest) {
         final y = _symbolCenterY(symbol, staffTop, staffBottom, clefSign);
         final isSelected = selectedPartIndex == partIndex &&
@@ -434,6 +446,9 @@ class ScoreNotationPainter extends CustomPainter {
       }
     }
 
+    // Draw beam bars for groups of 2+.
+    _drawBeamBars(canvas, beamGroups, notePositions, middleLineY);
+
     if (!hasDragInMeasure || draggedSymbol == null) return;
 
     final dragY = _symbolCenterY(draggedSymbol, staffTop, staffBottom, clefSign) - 8;
@@ -443,6 +458,63 @@ class ScoreNotationPainter extends CustomPainter {
     } else if (draggedSymbol is Rest) {
       _drawSelectionHighlight(canvas, Offset(clampedDragX, dragY), radius: 16);
       _drawRest(canvas, draggedSymbol, x: clampedDragX, staffTop: staffTop - 8);
+    }
+  }
+
+  /// Groups consecutive beamed eighth notes by symbol index.
+  static List<List<int>> _buildBeamGroups(List<ScoreSymbol> symbols) {
+    final groups = <List<int>>[];
+    List<int>? current;
+    for (var i = 0; i < symbols.length; i++) {
+      final sym = symbols[i];
+      if (sym is Note && sym.type == 'eighth' && sym.beamed) {
+        current ??= [];
+        current.add(i);
+      } else {
+        if (current != null) {
+          groups.add(current);
+          current = null;
+        }
+      }
+    }
+    if (current != null) groups.add(current);
+    return groups;
+  }
+
+  void _drawBeamBars(
+    Canvas canvas,
+    List<List<int>> beamGroups,
+    Map<int, Offset> notePositions,
+    double middleLineY,
+  ) {
+    final beamPaint = Paint()
+      ..color = const Color(0xFF111827)
+      ..style = PaintingStyle.fill;
+
+    const stemLen = staffLineSpacing * 3.4;
+    const stemOffX = 6.0; // matches _drawStemAndFlag
+
+    for (final group in beamGroups) {
+      if (group.length < 2) continue;
+      final firstPos = notePositions[group.first];
+      final lastPos = notePositions[group.last];
+      if (firstPos == null || lastPos == null) continue;
+
+      final stemUp = firstPos.dy > middleLineY;
+      final sign = stemUp ? -1.0 : 1.0;
+      final xOff = stemUp ? stemOffX : -stemOffX;
+
+      final x1 = firstPos.dx + xOff;
+      final x2 = lastPos.dx + xOff;
+      final y1 = firstPos.dy - sign * stemLen;
+      final y2 = lastPos.dy - sign * stemLen;
+
+      const beamThickness = 4.0;
+      final top = math.min(y1, y2) - beamThickness / 2;
+      canvas.drawRect(
+        Rect.fromLTWH(x1, top, x2 - x1, beamThickness),
+        beamPaint,
+      );
     }
   }
 
@@ -552,6 +624,7 @@ class ScoreNotationPainter extends CustomPainter {
     required double x,
     required double y,
     required double middleLineY,
+    bool suppressFlag = false,
   }) {
     final normalizedType = note.type.trim().toLowerCase();
     final isWhole = normalizedType == 'whole';
@@ -613,7 +686,8 @@ class ScoreNotationPainter extends CustomPainter {
     if (isWhole) return;
 
     final stemUp = y > middleLineY;
-    _drawStemAndFlag(canvas, x: x, y: y, stemUp: stemUp, drawFlag: isEighth);
+    _drawStemAndFlag(canvas, x: x, y: y, stemUp: stemUp,
+        drawFlag: isEighth && !suppressFlag);
   }
 
   void _drawStemAndFlag(

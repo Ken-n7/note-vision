@@ -221,6 +221,7 @@ class SemanticInferrer {
       duration: SymbolClassifier.durationFor(noteType),
       type: noteType,
       staff: _defaultStaff,
+      beamed: noteType == 'eighth' && hasBeam,
     );
   }
 
