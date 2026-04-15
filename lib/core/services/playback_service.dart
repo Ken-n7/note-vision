@@ -105,6 +105,10 @@ class PlaybackService {
   int? _sfId;
   bool _initialized = false;
 
+  /// Guards against concurrent [init] calls (e.g. from [_initPlayback] in
+  /// initState and an immediate [play] tap before the soundfont has loaded).
+  Future<void>? _initFuture;
+
   // ── Runtime state ───────────────────────────────────────────────────────
   int _tempo = PlaybackConverter.defaultTempo;
   PlaybackStatus _status = PlaybackStatus.stopped;
@@ -129,9 +133,19 @@ class PlaybackService {
   // ── Lifecycle ──────────────────────────────────────────────────────────
 
   /// Loads the soundfont asset. Safe to call multiple times — no-ops once
-  /// initialized. Must be called before [play].
+  /// initialized. Concurrent calls await the same in-flight load rather than
+  /// starting a second one. Must be called before [play].
   Future<void> init() async {
     if (_initialized) return;
+    if (_initFuture != null) {
+      await _initFuture;
+      return;
+    }
+    _initFuture = _loadSoundfont();
+    await _initFuture;
+  }
+
+  Future<void> _loadSoundfont() async {
     try {
       _sfId = await _midi.loadSoundfontAsset(
         assetPath: _soundfontAsset,
@@ -154,6 +168,8 @@ class PlaybackService {
             'Add assets/soundfonts/piano.sf2 (any standard GM SF2 file) '
             'then run: flutter pub get\n\nDetail: $e',
       );
+    } finally {
+      _initFuture = null;
     }
   }
 
@@ -268,6 +284,9 @@ class PlaybackService {
   // ── Timer helpers ──────────────────────────────────────────────────────
 
   Future<bool> _waitMs(int ms) {
+    // If stop() was called while we were inside await _midi.playNote() (before
+    // this wait started), bail out immediately instead of starting a new timer.
+    if (!_shouldPlay) return Future.value(false);
     final completer = Completer<bool>();
     _waitCompleter = completer;
     _noteTimer = Timer(Duration(milliseconds: ms.clamp(10, 60000)), () {
