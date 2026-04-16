@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/services/usage_stats_service.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/theme/responsive_layout.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
@@ -102,6 +104,7 @@ class _ScanScreenState extends State<ScanScreen> {
             onRedo: () => Navigator.pop(context),
             canContinue: vm.result?.hasDetections ?? false,
             onContinue: () {
+              unawaited(UsageStatsService.incrementScans());
               final mappedScore = vm.mappingResult?.score ??
                   const Score(
                     id: 'scan-score',
