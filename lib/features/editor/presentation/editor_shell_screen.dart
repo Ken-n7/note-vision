@@ -1,4 +1,4 @@
-import 'dart:async';
+import 'dart:async' show StreamSubscription, unawaited;
 
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/models/note.dart';
@@ -15,6 +15,7 @@ import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/widgets/playback_controls_bar.dart';
 import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.dart';
+import 'package:note_vision/core/services/usage_stats_service.dart';
 import 'package:note_vision/features/musicXML/musicxml_export_service.dart';
 import 'package:note_vision/features/pdf/pdf_export_service.dart';
 
@@ -225,7 +226,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
   void _updateState(EditorState Function(EditorState state) updater) {
     setState(() {
+      final prev = _editorState;
       _editorState = updater(_editorState);
+      if (_editorState.undoStack.length > prev.undoStack.length) {
+        unawaited(UsageStatsService.incrementEdits());
+      }
     });
   }
 
@@ -510,6 +515,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       final path = await const MusicXmlExportService().exportToDevice(_editorState.score);
                       if (!context.mounted) return;
                       if (path != null) {
+                        await UsageStatsService.incrementExports();
+                        if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('MusicXML saved'),
@@ -531,6 +538,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       final path = await const PdfExportService().exportToDevice(_editorState.score);
                       if (!context.mounted) return;
                       if (path != null) {
+                        await UsageStatsService.incrementExports();
+                        if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text('PDF saved'),

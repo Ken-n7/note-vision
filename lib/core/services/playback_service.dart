@@ -4,6 +4,7 @@ import 'package:flutter_midi_pro/flutter_midi_pro.dart';
 
 import '../models/score.dart';
 import 'playback_converter.dart';
+import 'usage_stats_service.dart';
 
 export 'playback_converter.dart' show PlaybackEvent, PlaybackConverter;
 
@@ -188,6 +189,7 @@ class PlaybackService {
     _currentEventIndex = 0;
     _shouldPlay = true;
     _emitState(PlaybackStatus.playing);
+    unawaited(UsageStatsService.incrementPlaybacks());
     _runLoop();
   }
 
