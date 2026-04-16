@@ -58,6 +58,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   final _playback = PlaybackService.instance;
   PlaybackPosition _playbackPosition = PlaybackPosition.none;
   StreamSubscription<PlaybackPosition>? _positionSub;
+  final ScrollController _notationScrollController = ScrollController();
 
   final _storage = ProjectStorageService();
   Project? _currentProject;
@@ -83,6 +84,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   void dispose() {
     _positionSub?.cancel();
     _playback.stop();
+    _notationScrollController.dispose();
     super.dispose();
   }
 
@@ -375,6 +377,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               insertMode: _insertMode,
               insertSymbolType: _insertSymbolType,
               playbackPosition: _playbackPosition,
+              notationScrollController: _notationScrollController,
               isDraggingNote: _isDraggingNote,
               dragGlobal: _dragGlobal,
               trashZoneKey: _trashZoneKey,
@@ -787,6 +790,7 @@ class _NotationArea extends StatelessWidget {
     required this.insertMode,
     required this.insertSymbolType,
     required this.playbackPosition,
+    required this.notationScrollController,
     required this.isDraggingNote,
     required this.dragGlobal,
     required this.trashZoneKey,
@@ -808,6 +812,7 @@ class _NotationArea extends StatelessWidget {
   final bool insertMode;
   final PaletteSymbolType? insertSymbolType;
   final PlaybackPosition playbackPosition;
+  final ScrollController notationScrollController;
   final bool isDraggingNote;
   final Offset dragGlobal;
   final GlobalKey trashZoneKey;
@@ -840,6 +845,7 @@ class _NotationArea extends StatelessWidget {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(11),
                     child: SingleChildScrollView(
+                      controller: notationScrollController,
                       child: Padding(
                         padding: const EdgeInsets.all(8),
                         child: ScoreNotationViewer(
@@ -851,6 +857,7 @@ class _NotationArea extends StatelessWidget {
                           playbackPartIndex: playbackPosition.isNone ? null : playbackPosition.partIndex,
                           playbackMeasureIndex: playbackPosition.isNone ? null : playbackPosition.measureIndex,
                           playbackSymbolIndex: playbackPosition.isNone ? null : playbackPosition.symbolIndex,
+                          verticalScrollController: notationScrollController,
                           insertMode: insertMode,
                           canAcceptExternalDrop: (data) => data is PaletteDragData,
                           externalPreviewResolver: _previewGlyphForDragData,

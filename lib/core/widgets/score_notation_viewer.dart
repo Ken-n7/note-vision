@@ -26,6 +26,7 @@ class ScoreNotationViewer extends StatefulWidget {
     this.playbackPartIndex,
     this.playbackMeasureIndex,
     this.playbackSymbolIndex,
+    this.verticalScrollController,
     this.insertMode = false,
     this.onSymbolTap,
     this.onInsertTap,
@@ -54,6 +55,11 @@ class ScoreNotationViewer extends StatefulWidget {
   final int? playbackPartIndex;
   final int? playbackMeasureIndex;
   final int? playbackSymbolIndex;
+
+  /// When provided, the viewer animates this controller vertically (in addition
+  /// to its own internal horizontal controller) to keep the active note centred
+  /// in the viewport during playback.
+  final ScrollController? verticalScrollController;
 
   /// When true, taps resolve to [NotationInsertTarget] via [onInsertTap]
   /// instead of the normal symbol-selection [onSymbolTap].
@@ -97,6 +103,75 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   void dispose() {
     _horizontalController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(ScoreNotationViewer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final posChanged =
+        widget.playbackPartIndex != oldWidget.playbackPartIndex ||
+        widget.playbackMeasureIndex != oldWidget.playbackMeasureIndex ||
+        widget.playbackSymbolIndex != oldWidget.playbackSymbolIndex;
+    if (posChanged && widget.playbackPartIndex != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _scrollToPlaybackPosition();
+      });
+    }
+  }
+
+  void _scrollToPlaybackPosition() {
+    final pIdx = widget.playbackPartIndex;
+    final mIdx = widget.playbackMeasureIndex;
+    final sIdx = widget.playbackSymbolIndex;
+    if (pIdx == null || mIdx == null || sIdx == null) return;
+
+    final allParts = _partsFor(widget.score);
+    if (allParts.isEmpty) return;
+
+    final layout = _layoutCalculator.calculate(
+      measures: _measuresFor(widget.score),
+      measuresPerRow: widget.measuresPerRow,
+      minMeasureWidth: widget.minMeasureWidth,
+      rowHeight: widget.rowHeight,
+      padding: widget.padding,
+      partCount: allParts.length,
+    );
+
+    final targets = ScoreNotationPainter.buildSymbolTargets(
+      parts: allParts,
+      measuresPerRow: layout.measuresPerRow,
+      minMeasureWidth: widget.minMeasureWidth,
+      rowHeight: widget.rowHeight,
+      padding: widget.padding,
+      rowPrefixWidth: layout.rowPrefixWidth,
+    );
+
+    NotationSymbolTarget? match;
+    for (final t in targets) {
+      if (t.partIndex == pIdx && t.measureIndex == mIdx && t.symbolIndex == sIdx) {
+        match = t;
+        break;
+      }
+    }
+    if (match == null) return;
+
+    const duration = Duration(milliseconds: 300);
+    const curve = Curves.easeInOut;
+
+    if (_horizontalController.hasClients) {
+      final vw = _horizontalController.position.viewportDimension;
+      final maxH = _horizontalController.position.maxScrollExtent;
+      final hTarget = (match.center.dx - vw / 2).clamp(0.0, maxH);
+      _horizontalController.animateTo(hTarget, duration: duration, curve: curve);
+    }
+
+    final vCtrl = widget.verticalScrollController;
+    if (vCtrl != null && vCtrl.hasClients) {
+      final vh = vCtrl.position.viewportDimension;
+      final maxV = vCtrl.position.maxScrollExtent;
+      final vTarget = (match.center.dy - vh / 2).clamp(0.0, maxV);
+      vCtrl.animateTo(vTarget, duration: duration, curve: curve);
+    }
   }
 
   @override
