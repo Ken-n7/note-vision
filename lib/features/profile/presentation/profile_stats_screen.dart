@@ -29,7 +29,7 @@ class _ProfileStatsScreenState extends State<ProfileStatsScreen> {
       ]);
 
   Future<void> _onEditTap(UserProfile? current) async {
-    final updated = await showModalBottomSheet<UserProfile>(
+    await showModalBottomSheet<UserProfile>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
