@@ -74,7 +74,7 @@ class _ProfileStatsScreenState extends State<ProfileStatsScreen> {
           }
 
           final profile = snapshot.data?[0] as UserProfile?;
-          final stats   = snapshot.data?[1] as UsageStats? ?? const UsageStats(scans: 0, edits: 0, exports: 0, playbacks: 0);
+          final stats   = snapshot.data?[1] as UsageStats? ?? const UsageStats(scans: 0, exports: 0, playbacks: 0);
 
           return SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
@@ -215,11 +215,6 @@ class _StatsSection extends StatelessWidget {
               icon: Icons.camera_alt_outlined,
               label: 'Scans',
               count: stats.scans,
-            ),
-            _StatCard(
-              icon: Icons.edit_outlined,
-              label: 'Edits',
-              count: stats.edits,
             ),
             _StatCard(
               icon: Icons.ios_share_rounded,

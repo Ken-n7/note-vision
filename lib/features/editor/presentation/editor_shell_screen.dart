@@ -1,4 +1,5 @@
 import 'dart:async' show StreamSubscription, unawaited;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/models/note.dart';
@@ -8,6 +9,7 @@ import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/services/playback_service.dart';
 import 'package:note_vision/core/services/project_storage_service.dart';
+import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
 import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
@@ -30,7 +32,6 @@ class EditorShellArgs {
   final EditorState initialState;
 
   /// Non-null when the editor was opened from the project list screen.
-  /// Used to perform silent re-saves without showing the name dialog again.
   final Project? existingProject;
 }
 
@@ -47,7 +48,6 @@ class EditorShellScreen extends StatefulWidget {
 
 class _EditorShellScreenState extends State<EditorShellScreen> {
   late EditorState _editorState;
-  double _canvasZoom = 1.0;
   bool _insertMode = false;
   bool _isDraggingNote = false;
   Offset _dragGlobal = Offset.zero;
@@ -59,10 +59,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   final _playback = PlaybackService.instance;
   PlaybackPosition _playbackPosition = PlaybackPosition.none;
   StreamSubscription<PlaybackPosition>? _positionSub;
-  final ScrollController _notationScrollController = ScrollController();
 
   final _storage = ProjectStorageService();
   Project? _currentProject;
+  int _scoreEditCount = 0;
 
   @override
   void initState() {
@@ -72,6 +72,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       widget.args.initialState.copyWith(score: widget.args.score),
     );
     _initPlayback();
+    _loadScoreEditCount();
   }
 
   Future<void> _initPlayback() async {
@@ -85,7 +86,6 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   void dispose() {
     _positionSub?.cancel();
     _playback.stop();
-    _notationScrollController.dispose();
     super.dispose();
   }
 
@@ -93,7 +93,6 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
   Future<void> _onSave() async {
     if (_currentProject == null) {
-      // First save: prompt for a project name.
       final defaultName = _editorState.score.title.trim().isEmpty
           ? 'Untitled'
           : _editorState.score.title.trim();
@@ -110,7 +109,6 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       });
       _showSavedSnackbar(name);
     } else {
-      // Subsequent save: silent, no dialog.
       final updated =
           _currentProject!.copyWithUpdated(score: _editorState.score);
       await _storage.saveProject(updated);
@@ -224,12 +222,18 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     return result ?? false;
   }
 
+  Future<void> _loadScoreEditCount() async {
+    final count = await UsageStatsService.loadScoreEdits(_editorState.score.id);
+    if (mounted) setState(() => _scoreEditCount = count);
+  }
+
   void _updateState(EditorState Function(EditorState state) updater) {
     setState(() {
       final prev = _editorState;
       _editorState = updater(_editorState);
       if (_editorState.undoStack.length > prev.undoStack.length) {
-        unawaited(UsageStatsService.incrementEdits());
+        _scoreEditCount++;
+        unawaited(UsageStatsService.incrementScoreEdits(_editorState.score.id));
       }
     });
   }
@@ -364,7 +368,6 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
             .measures[selectedMeasureIndex].symbols.isEmpty;
 
     return PopScope(
-      // Let the pop go through freely when there's nothing to lose.
       canPop: !_editorState.hasUnsavedChanges,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _handlePopAttempt();
@@ -378,20 +381,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
             final notationArea = _NotationArea(
               editorState: _editorState,
-              canvasZoom: _canvasZoom,
               insertMode: _insertMode,
               insertSymbolType: _insertSymbolType,
               playbackPosition: _playbackPosition,
-              notationScrollController: _notationScrollController,
               isDraggingNote: _isDraggingNote,
               dragGlobal: _dragGlobal,
               trashZoneKey: _trashZoneKey,
-              onZoomIn: _canvasZoom < 2.0
-                  ? () => setState(() => _canvasZoom = (_canvasZoom + 0.1).clamp(0.75, 2.0))
-                  : null,
-              onZoomOut: _canvasZoom > 0.75
-                  ? () => setState(() => _canvasZoom = (_canvasZoom - 0.1).clamp(0.75, 2.0))
-                  : null,
               onToggleInsertMode: _toggleInsertMode,
               onPaletteTypeTap: _onPaletteTypeTap,
               onSymbolTap: (target) {
@@ -504,6 +499,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                           ? 'Untitled Score'
                           : _editorState.score.title),
                   hasUnsavedChanges: _editorState.hasUnsavedChanges,
+                  editCount: _scoreEditCount,
                   canUndo: _editorState.canUndo,
                   canRedo: _editorState.canRedo,
                   onBack: () => Navigator.of(context).maybePop(),
@@ -604,8 +600,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           },
         ),
       ),
-    ),   // closes Scaffold
-    );   // closes PopScope
+    ),
+    );
   }
 }
 
@@ -640,6 +636,7 @@ class _EditorHeader extends StatelessWidget {
   const _EditorHeader({
     required this.title,
     required this.hasUnsavedChanges,
+    required this.editCount,
     required this.canUndo,
     required this.canRedo,
     required this.onBack,
@@ -653,6 +650,7 @@ class _EditorHeader extends StatelessWidget {
 
   final String title;
   final bool hasUnsavedChanges;
+  final int editCount;
   final bool canUndo;
   final bool canRedo;
   final VoidCallback onBack;
@@ -720,9 +718,20 @@ class _EditorHeader extends StatelessWidget {
                     ],
                   ],
                 ),
-                const Text(
-                  'Score Editor',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 10),
+                Row(
+                  children: [
+                    const Text(
+                      'Score Editor',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 10),
+                    ),
+                    if (editCount > 0) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        '· $editCount ${editCount == 1 ? 'edit' : 'edits'}',
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),
@@ -789,22 +798,30 @@ class _EditorHeader extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Notation area
+// Notation area — A4-like canvas with InteractiveViewer for pan/zoom
 // ---------------------------------------------------------------------------
 
-class _NotationArea extends StatelessWidget {
+// Page geometry constants (portrait A4-like layout at logical pixels).
+const double _kPageWidth = 760.0;
+const double _kPagePaddingH = 16.0;
+const double _kPagePaddingV = 28.0;
+const int _kMeasuresPerRow = 3;
+const double _kRowHeight = 140.0;
+const double _kRowPrefixWidth = 86.0;
+const double _kMeasureWidth =
+    (_kPageWidth - _kPagePaddingH * 2 - _kRowPrefixWidth) / _kMeasuresPerRow;
+const EdgeInsets _kPagePadding =
+    EdgeInsets.symmetric(horizontal: _kPagePaddingH, vertical: _kPagePaddingV);
+
+class _NotationArea extends StatefulWidget {
   const _NotationArea({
     required this.editorState,
-    required this.canvasZoom,
     required this.insertMode,
     required this.insertSymbolType,
     required this.playbackPosition,
-    required this.notationScrollController,
     required this.isDraggingNote,
     required this.dragGlobal,
     required this.trashZoneKey,
-    required this.onZoomIn,
-    required this.onZoomOut,
     required this.onToggleInsertMode,
     required this.onPaletteTypeTap,
     required this.onSymbolTap,
@@ -817,16 +834,12 @@ class _NotationArea extends StatelessWidget {
   });
 
   final EditorState editorState;
-  final double canvasZoom;
   final bool insertMode;
   final PaletteSymbolType? insertSymbolType;
   final PlaybackPosition playbackPosition;
-  final ScrollController notationScrollController;
   final bool isDraggingNote;
   final Offset dragGlobal;
   final GlobalKey trashZoneKey;
-  final VoidCallback? onZoomIn;
-  final VoidCallback? onZoomOut;
   final VoidCallback onToggleInsertMode;
   final ValueChanged<PaletteSymbolType> onPaletteTypeTap;
   final ValueChanged<NotationSymbolTarget?> onSymbolTap;
@@ -838,6 +851,109 @@ class _NotationArea extends StatelessWidget {
   final void Function(NotationInsertTarget, Object) onExternalDrop;
 
   @override
+  State<_NotationArea> createState() => _NotationAreaState();
+}
+
+class _NotationAreaState extends State<_NotationArea> {
+  final _transformController = TransformationController();
+  Size? _viewportSize;
+  Size? _contentSize;
+  bool _fittedOnce = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _transformController.addListener(_onTransformChanged);
+  }
+
+  @override
+  void dispose() {
+    _transformController.removeListener(_onTransformChanged);
+    _transformController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(_NotationArea oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Fit the whole score into view when playback starts so every note is visible.
+    if (oldWidget.playbackPosition.isNone && !widget.playbackPosition.isNone) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _fitToScreen();
+      });
+    }
+  }
+
+  void _onTransformChanged() => setState(() {});
+
+  void _fitToScreen() {
+    final viewport = _viewportSize;
+    final content = _contentSize;
+    if (viewport == null || content == null) return;
+    if (viewport.width <= 0 || viewport.height <= 0) return;
+
+    final scale = math.min(
+          viewport.width / content.width,
+          viewport.height / content.height,
+        ) *
+        0.90;
+
+    final tx = (viewport.width - content.width * scale) / 2;
+    final ty = math.max(8.0, (viewport.height - content.height * scale) / 2);
+
+    _transformController.value = Matrix4.identity()
+      ..setEntry(0, 0, scale)
+      ..setEntry(1, 1, scale)
+      ..setEntry(0, 3, tx)
+      ..setEntry(1, 3, ty);
+  }
+
+  void _zoomIn() => _applyScaleDelta(1.15);
+  void _zoomOut() => _applyScaleDelta(1.0 / 1.15);
+
+  void _applyScaleDelta(double delta) {
+    final viewport = _viewportSize;
+    if (viewport == null) return;
+    final cx = viewport.width / 2;
+    final cy = viewport.height / 2;
+
+    final current = _transformController.value;
+    final currentScale = current.getMaxScaleOnAxis();
+    final translation = current.getTranslation();
+
+    // Scale around the viewport centre.
+    final newScale = currentScale * delta;
+    final newTx = cx + delta * (translation.x - cx);
+    final newTy = cy + delta * (translation.y - cy);
+
+    _transformController.value = Matrix4.identity()
+      ..setEntry(0, 0, newScale)
+      ..setEntry(1, 1, newScale)
+      ..setEntry(0, 3, newTx)
+      ..setEntry(1, 3, newTy);
+  }
+
+  int get _zoomPercent =>
+      (_transformController.value.getMaxScaleOnAxis() * 100).round();
+
+  Size _computeContentSize() {
+    final score = widget.editorState.score;
+    if (score.parts.isEmpty) return const Size(_kPageWidth, 400);
+
+    const calc = NotationLayoutCalculator();
+    final layout = calc.calculate(
+      measures: score.parts[0].measures,
+      measuresPerRow: _kMeasuresPerRow,
+      minMeasureWidth: _kMeasureWidth,
+      rowHeight: _kRowHeight,
+      padding: _kPagePadding,
+      rowPrefixWidth: _kRowPrefixWidth,
+      partCount: score.parts.length,
+    );
+    return layout.size;
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Column(
       children: [
@@ -845,46 +961,94 @@ class _NotationArea extends StatelessWidget {
           child: Stack(
             children: [
               Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(11),
-                    child: SingleChildScrollView(
-                      controller: notationScrollController,
-                      child: Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: ScoreNotationViewer(
-                          score: editorState.score,
-                          selectedPartIndex: editorState.selectedPartIndex ?? 0,
-                          minMeasureWidth: 220 * canvasZoom,
-                          selectedMeasureIndex: editorState.selectedMeasureIndex,
-                          selectedSymbolIndex: editorState.selectedSymbolIndex,
-                          playbackPartIndex: playbackPosition.isNone ? null : playbackPosition.partIndex,
-                          playbackMeasureIndex: playbackPosition.isNone ? null : playbackPosition.measureIndex,
-                          playbackSymbolIndex: playbackPosition.isNone ? null : playbackPosition.symbolIndex,
-                          verticalScrollController: notationScrollController,
-                          insertMode: insertMode,
-                          canAcceptExternalDrop: (data) => data is PaletteDragData,
-                          externalPreviewResolver: _previewGlyphForDragData,
-                          onExternalDrop: onExternalDrop,
-                          onSymbolTap: insertMode ? null : onSymbolTap,
-                          onInsertTap: insertMode ? onInsertTap : null,
-                          onDragStarted: insertMode ? null : onDragStarted,
-                          onDragGlobalUpdate: onDragGlobalUpdate,
-                          onDragCompleted: onDragCompleted,
-                          onDragCancelled: onDragCancelled,
+                child: LayoutBuilder(
+                  builder: (ctx, constraints) {
+                    _viewportSize = constraints.biggest;
+                    _contentSize = _computeContentSize();
+
+                    if (!_fittedOnce &&
+                        _viewportSize!.shortestSide > 0 &&
+                        _contentSize!.width > 0) {
+                      _fittedOnce = true;
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) _fitToScreen();
+                      });
+                    }
+
+                    return ColoredBox(
+                      color: const Color(0xFF1C1C1E),
+                      child: ClipRect(
+                        child: InteractiveViewer(
+                          transformationController: _transformController,
+                          // Disable pan while a note drag is in progress so the
+                          // long-press drag isn't fought by the viewer's pan.
+                          panEnabled: !widget.isDraggingNote,
+                          scaleEnabled: true,
+                          constrained: false,
+                          minScale: 0.15,
+                          maxScale: 5.0,
+                          boundaryMargin: const EdgeInsets.all(double.infinity),
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Color(0x40000000),
+                                  blurRadius: 20,
+                                  offset: Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: ScoreNotationViewer(
+                              score: widget.editorState.score,
+                              selectedPartIndex:
+                                  widget.editorState.selectedPartIndex ?? 0,
+                              measuresPerRow: _kMeasuresPerRow,
+                              minMeasureWidth: _kMeasureWidth,
+                              rowHeight: _kRowHeight,
+                              padding: _kPagePadding,
+                              backgroundColor: Colors.white,
+                              selectedMeasureIndex:
+                                  widget.editorState.selectedMeasureIndex,
+                              selectedSymbolIndex:
+                                  widget.editorState.selectedSymbolIndex,
+                              playbackPartIndex: widget.playbackPosition.isNone
+                                  ? null
+                                  : widget.playbackPosition.partIndex,
+                              playbackMeasureIndex:
+                                  widget.playbackPosition.isNone
+                                      ? null
+                                      : widget.playbackPosition.measureIndex,
+                              playbackSymbolIndex: widget.playbackPosition.isNone
+                                  ? null
+                                  : widget.playbackPosition.symbolIndex,
+                              insertMode: widget.insertMode,
+                              canAcceptExternalDrop: (data) =>
+                                  data is PaletteDragData,
+                              externalPreviewResolver:
+                                  _previewGlyphForDragData,
+                              onExternalDrop: widget.onExternalDrop,
+                              onSymbolTap:
+                                  widget.insertMode ? null : widget.onSymbolTap,
+                              onInsertTap:
+                                  widget.insertMode ? widget.onInsertTap : null,
+                              onDragStarted: widget.insertMode
+                                  ? null
+                                  : widget.onDragStarted,
+                              onDragGlobalUpdate: widget.onDragGlobalUpdate,
+                              onDragCompleted: widget.onDragCompleted,
+                              onDragCancelled: widget.onDragCancelled,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 ),
               ),
+
               // Insert mode banner
-              if (insertMode)
+              if (widget.insertMode)
                 Positioned(
                   top: 8,
                   left: 0,
@@ -895,16 +1059,18 @@ class _NotationArea extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: AppColors.accent.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColors.accent.withValues(alpha: 0.5)),
+                        border: Border.all(
+                            color: AppColors.accent.withValues(alpha: 0.5)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.edit_rounded, size: 12, color: AppColors.accent),
+                          const Icon(Icons.edit_rounded,
+                              size: 12, color: AppColors.accent),
                           const SizedBox(width: 5),
                           Text(
-                            insertSymbolType != null
-                                ? 'Insert mode — tap to place ${_typeLabel(insertSymbolType!)}'
+                            widget.insertSymbolType != null
+                                ? 'Insert mode — tap to place ${_typeLabel(widget.insertSymbolType!)}'
                                 : 'Insert mode — select a symbol below',
                             style: const TextStyle(
                               color: AppColors.accent,
@@ -917,44 +1083,47 @@ class _NotationArea extends StatelessWidget {
                     ),
                   ),
                 ),
+
               // Trash zone — appears during note drag
-              if (isDraggingNote)
+              if (widget.isDraggingNote)
                 Positioned(
                   bottom: 12,
                   left: 0,
                   right: 0,
                   child: Center(
                     child: _TrashZone(
-                      key: trashZoneKey,
+                      key: widget.trashZoneKey,
                       isHovered: () {
-                        if (dragGlobal == Offset.zero) return false;
-                        final box = trashZoneKey.currentContext
+                        if (widget.dragGlobal == Offset.zero) return false;
+                        final box = widget.trashZoneKey.currentContext
                             ?.findRenderObject() as RenderBox?;
                         if (box == null) return false;
                         return (box.localToGlobal(Offset.zero) & box.size)
-                            .contains(dragGlobal);
+                            .contains(widget.dragGlobal);
                       }(),
                     ),
                   ),
                 ),
+
               // Floating controls
               Positioned(
                 right: 8,
                 bottom: 8,
                 child: _FloatingControls(
-                  zoomPercent: (canvasZoom * 100).round(),
-                  insertMode: insertMode,
-                  onZoomIn: onZoomIn,
-                  onZoomOut: onZoomOut,
-                  onToggleInsertMode: onToggleInsertMode,
+                  zoomPercent: _zoomPercent,
+                  insertMode: widget.insertMode,
+                  onZoomIn: _zoomIn,
+                  onZoomOut: _zoomOut,
+                  onFitToScreen: _fitToScreen,
+                  onToggleInsertMode: widget.onToggleInsertMode,
                 ),
               ),
             ],
           ),
         ),
         SymbolPalette(
-          selectedType: insertMode ? insertSymbolType : null,
-          onTypeTap: onPaletteTypeTap,
+          selectedType: widget.insertMode ? widget.insertSymbolType : null,
+          onTypeTap: widget.onPaletteTypeTap,
         ),
       ],
     );
@@ -990,13 +1159,15 @@ class _FloatingControls extends StatelessWidget {
     required this.insertMode,
     required this.onZoomIn,
     required this.onZoomOut,
+    required this.onFitToScreen,
     required this.onToggleInsertMode,
   });
 
   final int zoomPercent;
   final bool insertMode;
-  final VoidCallback? onZoomIn;
-  final VoidCallback? onZoomOut;
+  final VoidCallback onZoomIn;
+  final VoidCallback onZoomOut;
+  final VoidCallback onFitToScreen;
   final VoidCallback onToggleInsertMode;
 
   @override
@@ -1064,6 +1235,8 @@ class _FloatingControls extends StatelessWidget {
                 ),
               ),
               _ZoomBtn(icon: Icons.add_rounded, onPressed: onZoomIn),
+              const SizedBox(width: 2),
+              _ZoomBtn(icon: Icons.fit_screen_rounded, onPressed: onFitToScreen),
             ],
           ),
         ),
@@ -1236,7 +1409,6 @@ class _InspectorPanel extends StatelessWidget {
       );
     }
 
-    // Portrait — drag handle + compact selection + horizontal action scroll
     return Container(
       decoration: BoxDecoration(
         color: AppColors.surface,

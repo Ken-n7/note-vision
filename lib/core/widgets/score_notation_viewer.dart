@@ -10,7 +10,8 @@ export 'score_notation/staff_pitch_mapper.dart';
 
 /// Read-only sheet music renderer for a [Score] model.
 ///
-/// Sprint 5 scope: rendering only (no editing interactions in this widget).
+/// Renders into a fixed-size [CustomPaint] — scrolling and zoom are handled
+/// by the parent (typically an [InteractiveViewer]).
 class ScoreNotationViewer extends StatefulWidget {
   const ScoreNotationViewer({
     super.key,
@@ -26,7 +27,6 @@ class ScoreNotationViewer extends StatefulWidget {
     this.playbackPartIndex,
     this.playbackMeasureIndex,
     this.playbackSymbolIndex,
-    this.verticalScrollController,
     this.insertMode = false,
     this.onSymbolTap,
     this.onInsertTap,
@@ -40,7 +40,6 @@ class ScoreNotationViewer extends StatefulWidget {
   });
 
   final Score? score;
-  /// Which part index is active for editing/selection. All parts are displayed.
   final int selectedPartIndex;
   final int measuresPerRow;
   final double minMeasureWidth;
@@ -50,36 +49,17 @@ class ScoreNotationViewer extends StatefulWidget {
   final int? selectedMeasureIndex;
   final int? selectedSymbolIndex;
 
-  /// Currently playing symbol coordinates from PlaybackService.
-  /// All three must be non-null for the playback highlight to render.
   final int? playbackPartIndex;
   final int? playbackMeasureIndex;
   final int? playbackSymbolIndex;
 
-  /// When provided, the viewer animates this controller vertically (in addition
-  /// to its own internal horizontal controller) to keep the active note centred
-  /// in the viewport during playback.
-  final ScrollController? verticalScrollController;
-
-  /// When true, taps resolve to [NotationInsertTarget] via [onInsertTap]
-  /// instead of the normal symbol-selection [onSymbolTap].
   final bool insertMode;
   final ValueChanged<NotationSymbolTarget?>? onSymbolTap;
   final ValueChanged<NotationInsertTarget?>? onInsertTap;
 
-  /// Called when a long-press drag begins on a symbol.
   final void Function(NotationSymbolTarget symbol)? onDragStarted;
-
-  /// Called on every drag move with the global screen position.
-  /// Use to drive trash-zone hover state.
   final void Function(Offset global)? onDragGlobalUpdate;
-
-  /// Called when the drag ends. [reorder] is non-null if the drag moved the
-  /// symbol to a new position. [globalEndPosition] lets the caller decide
-  /// whether the drop landed on a delete zone.
   final void Function(NotationSymbolReorder? reorder, Offset globalEndPosition)? onDragCompleted;
-
-  /// Called when a drag is cancelled (e.g. interrupted by a system event).
   final VoidCallback? onDragCancelled;
 
   final bool Function(Object data)? canAcceptExternalDrop;
@@ -91,7 +71,6 @@ class ScoreNotationViewer extends StatefulWidget {
 }
 
 class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
-  final ScrollController _horizontalController = ScrollController();
   final NotationLayoutCalculator _layoutCalculator =
       const NotationLayoutCalculator();
   _NotationDragSession? _dragSession;
@@ -100,84 +79,8 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   NotationPreviewGlyph? _externalPreviewGlyph;
 
   @override
-  void dispose() {
-    _horizontalController.dispose();
-    super.dispose();
-  }
-
-  @override
-  void didUpdateWidget(ScoreNotationViewer oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    final posChanged =
-        widget.playbackPartIndex != oldWidget.playbackPartIndex ||
-        widget.playbackMeasureIndex != oldWidget.playbackMeasureIndex ||
-        widget.playbackSymbolIndex != oldWidget.playbackSymbolIndex;
-    if (posChanged && widget.playbackPartIndex != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _scrollToPlaybackPosition();
-      });
-    }
-  }
-
-  void _scrollToPlaybackPosition() {
-    final pIdx = widget.playbackPartIndex;
-    final mIdx = widget.playbackMeasureIndex;
-    final sIdx = widget.playbackSymbolIndex;
-    if (pIdx == null || mIdx == null || sIdx == null) return;
-
-    final allParts = _partsFor(widget.score);
-    if (allParts.isEmpty) return;
-
-    final layout = _layoutCalculator.calculate(
-      measures: _measuresFor(widget.score),
-      measuresPerRow: widget.measuresPerRow,
-      minMeasureWidth: widget.minMeasureWidth,
-      rowHeight: widget.rowHeight,
-      padding: widget.padding,
-      partCount: allParts.length,
-    );
-
-    final targets = ScoreNotationPainter.buildSymbolTargets(
-      parts: allParts,
-      measuresPerRow: layout.measuresPerRow,
-      minMeasureWidth: widget.minMeasureWidth,
-      rowHeight: widget.rowHeight,
-      padding: widget.padding,
-      rowPrefixWidth: layout.rowPrefixWidth,
-    );
-
-    NotationSymbolTarget? match;
-    for (final t in targets) {
-      if (t.partIndex == pIdx && t.measureIndex == mIdx && t.symbolIndex == sIdx) {
-        match = t;
-        break;
-      }
-    }
-    if (match == null) return;
-
-    const duration = Duration(milliseconds: 300);
-    const curve = Curves.easeInOut;
-
-    if (_horizontalController.hasClients) {
-      final vw = _horizontalController.position.viewportDimension;
-      final maxH = _horizontalController.position.maxScrollExtent;
-      final hTarget = (match.center.dx - vw / 2).clamp(0.0, maxH);
-      _horizontalController.animateTo(hTarget, duration: duration, curve: curve);
-    }
-
-    final vCtrl = widget.verticalScrollController;
-    if (vCtrl != null && vCtrl.hasClients) {
-      final vh = vCtrl.position.viewportDimension;
-      final maxV = vCtrl.position.maxScrollExtent;
-      final vTarget = (match.center.dy - vh / 2).clamp(0.0, maxV);
-      vCtrl.animateTo(vTarget, duration: duration, curve: curve);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
     final allParts = _partsFor(widget.score);
-    // Use the active part's measures for insert/drag interactions.
     final activeMeasures = _measuresFor(widget.score);
 
     if (allParts.isEmpty) {
@@ -196,13 +99,11 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
 
     return _NotationCanvasFrame(
       backgroundColor: widget.backgroundColor,
-      horizontalController: _horizontalController,
       size: layout.size,
       canAcceptExternalData: widget.canAcceptExternalDrop,
       onExternalDragMove: (position, data) {
         if (widget.canAcceptExternalDrop?.call(data) == false) return;
-        final adjusted = _adjustForHorizontalScroll(position);
-        final target = _resolveInsertTarget(allParts: allParts, layout: layout, position: adjusted);
+        final target = _resolveInsertTarget(allParts: allParts, layout: layout, position: position);
         final previewGlyph = target == null ? null : widget.externalPreviewResolver?.call(data);
         if (target == _externalInsertTarget && previewGlyph == _externalPreviewGlyph) return;
         setState(() {
@@ -219,8 +120,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
       },
       onExternalAccept: (position, data) {
         if (widget.canAcceptExternalDrop?.call(data) == false) return;
-        final adjusted = _adjustForHorizontalScroll(position);
-        final target = _resolveInsertTarget(allParts: allParts, layout: layout, position: adjusted);
+        final target = _resolveInsertTarget(allParts: allParts, layout: layout, position: position);
         if (target != null) widget.onExternalDrop?.call(target, data);
         if (_externalInsertTarget != null || _externalPreviewGlyph != null) {
           setState(() {
@@ -232,15 +132,11 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
       onTapUp: (widget.onSymbolTap == null && widget.onInsertTap == null)
           ? null
           : (position) {
-              final adjusted = position.translate(
-                _horizontalController.hasClients ? _horizontalController.offset : 0,
-                0,
-              );
               if (widget.insertMode) {
                 final target = _resolveInsertTarget(
                   allParts: allParts,
                   layout: layout,
-                  position: adjusted,
+                  position: position,
                 );
                 widget.onInsertTap?.call(target);
               } else {
@@ -252,7 +148,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
                   padding: widget.padding,
                   rowPrefixWidth: layout.rowPrefixWidth,
                 );
-                final tapped = _nearestTarget(adjusted, targets);
+                final tapped = _nearestTarget(position, targets);
                 widget.onSymbolTap?.call(tapped);
               }
             },
@@ -304,7 +200,6 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     required NotationLayout layout,
     required Offset position,
   }) {
-    final adjusted = _adjustForHorizontalScroll(position);
     final targets = ScoreNotationPainter.buildSymbolTargets(
       parts: allParts,
       measuresPerRow: layout.measuresPerRow,
@@ -313,7 +208,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
       padding: widget.padding,
       rowPrefixWidth: layout.rowPrefixWidth,
     );
-    final pressed = _nearestTarget(adjusted, targets);
+    final pressed = _nearestTarget(position, targets);
     if (pressed == null) return;
 
     setState(() {
@@ -324,7 +219,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
         toPartIndex: pressed.partIndex,
         toMeasureIndex: pressed.measureIndex,
         toSymbolIndex: pressed.symbolIndex,
-        dragPosition: adjusted,
+        dragPosition: position,
       );
     });
     widget.onDragStarted?.call(
@@ -345,12 +240,11 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   }) {
     final drag = _dragSession;
     if (drag == null) return;
-    final adjusted = _adjustForHorizontalScroll(position);
 
     final insertTarget = _resolveInsertTarget(
       allParts: allParts,
       layout: layout,
-      position: adjusted,
+      position: position,
     );
 
     int toPartIndex = drag.toPartIndex;
@@ -369,7 +263,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
           layout: layout,
           measureIndex: drag.fromMeasureIndex,
           fromSymbolIndex: drag.fromSymbolIndex,
-          dragPosition: adjusted,
+          dragPosition: position,
         );
         toSymbolIndex = idx ?? drag.fromSymbolIndex;
       } else {
@@ -383,7 +277,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
         toPartIndex: toPartIndex,
         toMeasureIndex: toMeasureIndex,
         toSymbolIndex: toSymbolIndex,
-        dragPosition: adjusted,
+        dragPosition: position,
       );
       _crossMeasureDragTarget = crossMeasureTarget;
     });
@@ -397,12 +291,11 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   }) {
     final drag = _dragSession;
     if (drag == null) return;
-    final adjusted = _adjustForHorizontalScroll(localPosition);
 
     final insertTarget = _resolveInsertTarget(
       allParts: allParts,
       layout: layout,
-      position: adjusted,
+      position: localPosition,
     );
 
     int toPartIndex = drag.toPartIndex;
@@ -420,7 +313,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
           layout: layout,
           measureIndex: drag.fromMeasureIndex,
           fromSymbolIndex: drag.fromSymbolIndex,
-          dragPosition: adjusted,
+          dragPosition: localPosition,
         );
         toSymbolIndex = idx ?? drag.fromSymbolIndex;
       } else {
@@ -491,13 +384,6 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     return insertIndex.clamp(0, symbolCount - 1);
   }
 
-  Offset _adjustForHorizontalScroll(Offset position) {
-    return position.translate(
-      _horizontalController.hasClients ? _horizontalController.offset : 0,
-      0,
-    );
-  }
-
   NotationSymbolTarget? _nearestTarget(
     Offset position,
     List<NotationSymbolTarget> targets,
@@ -534,7 +420,6 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
             (rowStartMeasure + layout.measuresPerRow).clamp(0, measures.length).toInt();
         if (rowStartMeasure >= rowEndExclusive) continue;
 
-        // Each system row is partCount * rowHeight tall; staves are stacked within.
         final staffTop = widget.padding.top +
             systemIndex * (partCount * widget.rowHeight) +
             partIdx * widget.rowHeight +
@@ -588,13 +473,11 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     return null;
   }
 
-  /// All parts for display — passed to the painter to render every staff.
   List<List<Measure>> _partsFor(Score? score) {
     if (score == null || score.parts.isEmpty) return const [];
     return score.parts.map((p) => p.measures).toList(growable: false);
   }
 
-  /// Active part's measures — used for insert/drag interactions only.
   List<Measure> _measuresFor(Score? score) {
     if (score == null || score.parts.isEmpty || widget.selectedPartIndex >= score.parts.length) {
       return const <Measure>[];
@@ -603,10 +486,13 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Canvas frame — no scrolling; pan/zoom handled by InteractiveViewer above
+// ---------------------------------------------------------------------------
+
 class _NotationCanvasFrame extends StatelessWidget {
   const _NotationCanvasFrame({
     required this.backgroundColor,
-    required this.horizontalController,
     required this.size,
     required this.painter,
     this.onTapUp,
@@ -621,7 +507,6 @@ class _NotationCanvasFrame extends StatelessWidget {
   });
 
   final Color backgroundColor;
-  final ScrollController horizontalController;
   final Size size;
   final CustomPainter painter;
   final ValueChanged<Offset>? onTapUp;
@@ -636,31 +521,20 @@ class _NotationCanvasFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final canvas = Container(
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-      ),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapUp: onTapUp == null ? null : (details) => onTapUp!(details.localPosition),
-        onLongPressStart: onLongPressStart == null
-            ? null
-            : (details) => onLongPressStart!(details.localPosition),
-        onLongPressMoveUpdate: onLongPressMoveUpdate == null
-            ? null
-            : (details) => onLongPressMoveUpdate!(details.localPosition, details.globalPosition),
-        onLongPressEnd: onLongPressEnd == null
-            ? null
-            : (details) => onLongPressEnd!(details.localPosition, details.globalPosition),
-        onLongPressCancel: onLongPressCancel,
-        child: SingleChildScrollView(
-          controller: horizontalController,
-          scrollDirection: Axis.horizontal,
-          child: CustomPaint(size: size, painter: painter),
-        ),
-      ),
+    final canvas = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapUp: onTapUp == null ? null : (details) => onTapUp!(details.localPosition),
+      onLongPressStart: onLongPressStart == null
+          ? null
+          : (details) => onLongPressStart!(details.localPosition),
+      onLongPressMoveUpdate: onLongPressMoveUpdate == null
+          ? null
+          : (details) => onLongPressMoveUpdate!(details.localPosition, details.globalPosition),
+      onLongPressEnd: onLongPressEnd == null
+          ? null
+          : (details) => onLongPressEnd!(details.localPosition, details.globalPosition),
+      onLongPressCancel: onLongPressCancel,
+      child: CustomPaint(size: size, painter: painter),
     );
 
     if (canAcceptExternalData == null) return canvas;
