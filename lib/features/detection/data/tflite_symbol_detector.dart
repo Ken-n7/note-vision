@@ -13,8 +13,15 @@ import '../domain/symbol_detector.dart';
 
 class TfliteSymbolDetector implements SymbolDetector {
   static const String _modelPath = 'assets/models/best_int8.tflite';
-  static const double _confidenceThreshold = 0.75;
-  static const double _iouThreshold = 0.4;
+
+  // Per-group confidence thresholds — real-world scans need looser thresholds
+  // for the symbol classes that are most commonly missed.
+  static const double _noteheadThreshold = 0.65;   // noteheadBlack / Half / Whole
+  static const double _structuralThreshold = 0.60;  // clef, timeSig, keySig, combStaff
+  static const double _decorativeThreshold = 0.55;  // accidentals, flags, beam, dot
+  static const double _defaultThreshold = 0.75;     // everything else
+
+  static const double _iouThreshold = 0.35;
   static const int _inputSize = 640;
 
   Interpreter? _interpreter;
@@ -75,7 +82,7 @@ class TfliteSymbolDetector implements SymbolDetector {
         .toList();
 
     final mergedStaves = _mergeStaves(_nms(combStaffDetections), staves);
-    final symbols = _nms(musicalDetections);
+    final symbols = _filterOutsideStaves(_nms(musicalDetections), mergedStaves);
 
     debugPrint(
       '[TfliteSymbolDetector] ${fullImage.width}×${fullImage.height} → '
@@ -185,6 +192,38 @@ class TfliteSymbolDetector implements SymbolDetector {
     return data;
   }
 
+  double _thresholdFor(MusicSymbol symbol) {
+    if (symbol.isNote) return _noteheadThreshold;
+    if (symbol == MusicSymbol.combStaff ||
+        symbol.isClef ||
+        symbol.isTimeSignature ||
+        symbol == MusicSymbol.keyFlat ||
+        symbol == MusicSymbol.keySharp ||
+        symbol == MusicSymbol.keyNatural) {
+      return _structuralThreshold;
+    }
+    if (symbol.isAccidental ||
+        symbol.name.startsWith('flag') ||
+        symbol == MusicSymbol.beam ||
+        symbol == MusicSymbol.augmentationDot) {
+      return _decorativeThreshold;
+    }
+    return _defaultThreshold;
+  }
+
+  List<DetectedSymbol> _filterOutsideStaves(
+    List<DetectedSymbol> symbols,
+    List<DetectedStaff> staves,
+  ) {
+    if (staves.isEmpty) return symbols;
+    return symbols.where((s) {
+      final box = s.boundingBox;
+      if (box == null) return true;
+      final centerY = box.center.dy;
+      return staves.any((staff) => centerY >= staff.topY && centerY <= staff.bottomY);
+    }).toList();
+  }
+
   /// Converts raw model output rows into [DetectedSymbol]s in original-image
   /// pixel space. [scaleX]/[scaleY] map from 640×640 tile space back to the
   /// original image dimensions (origW/640 and origH/640 respectively).
@@ -197,11 +236,12 @@ class TfliteSymbolDetector implements SymbolDetector {
     int counter = 0;
 
     for (final detection in rawOutput) {
-      final confidence = detection[4];
-      if (confidence < _confidenceThreshold) continue;
-
       final classIndex = detection[5].toInt();
       if (classIndex < 0 || classIndex >= MusicSymbol.values.length) continue;
+
+      final symbol = MusicSymbol.values[classIndex];
+      final confidence = detection[4];
+      if (confidence < _thresholdFor(symbol)) continue;
 
       // Ultralytics YOLO TFLite NMS output: normalized 0–1 coords relative to
       // the 640×640 input. Multiply by _inputSize × scale to get original px.
@@ -215,7 +255,7 @@ class TfliteSymbolDetector implements SymbolDetector {
       detections.add(
         DetectedSymbol.fromMusicSymbol(
           id: 'symbol-$counter',
-          symbol: MusicSymbol.values[classIndex],
+          symbol: symbol,
           boundingBox: Rect.fromLTRB(x1, y1, x2, y2),
           confidence: confidence,
         ),

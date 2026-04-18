@@ -62,6 +62,18 @@ class SemanticInferrer {
             measure.symbols,
           );
 
+          final musicalCount = measure.symbols
+              .where(
+                (e) =>
+                    !signatureIds.contains(e.symbol.id) &&
+                    (SymbolClassifier.isNotehead(e.symbol.type) ||
+                        SymbolClassifier.isSupportedRest(e.symbol.type)),
+              )
+              .length;
+          final beatsPerMeasure = timeSignature?.beats ?? 4;
+          var beatsUsed = 0;
+          var musicalIndex = 0;
+
           final ordered = <OrderedScoreSymbol>[];
 
           for (final entry in measure.symbols) {
@@ -79,12 +91,12 @@ class SemanticInferrer {
             if (type == 'beam') continue;
 
             if (SymbolClassifier.isSupportedRest(type)) {
+              final rest = _buildRest(type: type);
               ordered.add(
-                OrderedScoreSymbol(
-                  x: entry.symbolCenterX,
-                  symbol: _buildRest(type: type),
-                ),
+                OrderedScoreSymbol(x: entry.symbolCenterX, symbol: rest),
               );
+              beatsUsed += SymbolClassifier.durationFor(rest.type);
+              musicalIndex++;
               continue;
             }
 
@@ -96,12 +108,18 @@ class SemanticInferrer {
                 link: link,
                 alter: noteAlters[entry.symbol.id],
                 warnings: warnings,
+                beatsUsed: beatsUsed,
+                beatsPerMeasure: beatsPerMeasure,
+                isLastMusical: musicalIndex == musicalCount - 1,
+                isOnlyMusical: musicalCount == 1,
               );
               if (note != null) {
                 ordered.add(
                   OrderedScoreSymbol(x: entry.symbolCenterX, symbol: note),
                 );
+                beatsUsed += SymbolClassifier.durationFor(note.type);
               }
+              musicalIndex++;
               continue;
             }
 
@@ -174,6 +192,10 @@ class SemanticInferrer {
     required StemLink link,
     required int? alter,
     required List<String> warnings,
+    required int beatsUsed,
+    required int beatsPerMeasure,
+    required bool isLastMusical,
+    required bool isOnlyMusical,
   }) {
     final type = entry.symbol.type;
     final hasStem = link.stem != null;
@@ -189,9 +211,14 @@ class SemanticInferrer {
       // Beam detected even without a stem — beams are thicker and easier for
       // the model to detect than thin stems; trust the beam evidence.
       'noteheadBlack' when hasBeam => 'eighth',
-      // No stem and no beam — assume quarter (stems are thin and frequently
-      // missed; dropping the note is worse than a slightly wrong duration).
-      'noteheadBlack' => 'quarter',
+      // No stem and no beam — use remaining-beat context to infer duration.
+      // Falls back to quarter when context is ambiguous.
+      'noteheadBlack' => _stemlessNoteDuration(
+          beatsUsed: beatsUsed,
+          beatsPerMeasure: beatsPerMeasure,
+          isLastMusical: isLastMusical,
+          isOnlyMusical: isOnlyMusical,
+        ),
       _ => null,
     };
 
@@ -238,6 +265,18 @@ class SemanticInferrer {
       type: restType,
       staff: _defaultStaff,
     );
+  }
+
+  String _stemlessNoteDuration({
+    required int beatsUsed,
+    required int beatsPerMeasure,
+    required bool isLastMusical,
+    required bool isOnlyMusical,
+  }) {
+    final remaining = beatsPerMeasure - beatsUsed;
+    if (isOnlyMusical && remaining >= 4) return 'whole';
+    if (isLastMusical && remaining == 2) return 'half';
+    return 'quarter';
   }
 
   void _warnAboutClef(Clef? clef, MeasureSymbols measure, List<String> warnings) {

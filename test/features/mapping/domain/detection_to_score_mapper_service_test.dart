@@ -132,7 +132,7 @@ void main() {
       final result = mapper.map(detection);
       final measure = result.score.parts.single.measures.single;
 
-      expect(result.warnings, contains('No barlines detected; reconstructing a single measure.'));
+      expect(result.warnings, contains('No barlines detected; falling back to beat-count measure splitting.'));
       expect(measure.notes.single.type, 'whole');
       expect(measure.notes.single.pitch, 'G4');
       expect(measure.rests.single.type, 'half');
@@ -169,6 +169,10 @@ void main() {
         final detection = DetectionResult(
           imageId: 'supported-symbols',
           staffs: const [singleStaff],
+          // Single trailing barline forces the barline-based grouping path
+          // (rather than the beat-count fallback) so all symbols stay in one
+          // measure as the test expects.
+          barlines: const [DetectedBarline(x: 250)],
           symbols: [
             symbol(
               id: 'clef-1',
@@ -402,9 +406,10 @@ void main() {
 
       final result = mapper.map(detection);
 
-      // head-1 has no nearby stem (stem-1 is too far right) → assumed quarter.
+      // head-1 has no nearby stem → stemless, only symbol in measure → whole
+      // (context-aware duration: single stemless noteheadBlack = whole).
       expect(result.score.parts.single.measures.single.notes, hasLength(1));
-      expect(result.score.parts.single.measures.single.notes.single.type, 'quarter');
+      expect(result.score.parts.single.measures.single.notes.single.type, 'whole');
       // StemAssociator still warns about the unpaired notehead and stray stem.
       expect(
         result.warnings.any((warning) => warning.contains('Could not confidently pair notehead head-1')),
@@ -414,7 +419,7 @@ void main() {
         result.warnings.any((warning) => warning.contains('Stem stem-1 could not be paired')),
         isTrue,
       );
-      // No "could not infer" warning — stemless noteheadBlack is now a quarter.
+      // No "could not infer" warning — stemless noteheadBlack resolves via context-aware duration.
       expect(
         result.warnings.any((warning) => warning.contains('Could not infer a supported note value from head-1')),
         isFalse,
