@@ -120,10 +120,10 @@ void main() {
     );
     expect(tester.widget<InkWell>(moveUpButtonFinder.first).onTap, isNull);
 
-    final notationOrigin = tester.getTopLeft(find.byType(ScoreNotationViewer));
+    final notationBox = tester.renderObject<RenderBox>(find.byType(ScoreNotationViewer));
 
     await tester.tapAt(
-      notationOrigin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 0),
+      notationBox.localToGlobal(_symbolCenterOffset(score, measureIndex: 0, symbolIndex: 0)),
     );
     await tester.pump();
     expect(find.text('SELECTION'), findsOneWidget);
@@ -131,14 +131,14 @@ void main() {
     expect(tester.widget<InkWell>(moveUpButtonFinder.first).onTap, isNotNull);
 
     await tester.tapAt(
-      notationOrigin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 1),
+      notationBox.localToGlobal(_symbolCenterOffset(score, measureIndex: 0, symbolIndex: 1)),
     );
     await tester.pump();
     expect(find.text('Rest'), findsWidgets);
     expect(find.text('quarter'), findsOneWidget);
 
     await tester.tapAt(
-      notationOrigin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 1),
+      notationBox.localToGlobal(_symbolCenterOffset(score, measureIndex: 0, symbolIndex: 1)),
     );
     await tester.pump();
     expect(find.text('Tap a note or rest to select it'), findsOneWidget);
@@ -172,23 +172,37 @@ void main() {
 
     await pumpEditorShell(tester, score: score);
 
-    final origin = tester.getTopLeft(find.byType(ScoreNotationViewer));
-    final dragGesture = await tester.startGesture(
-      origin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 0),
+    // Invoke the drag-completed callback directly to avoid InteractiveViewer
+    // gesture competition — the viewer's drag logic is tested separately in
+    // score_notation_viewer_test.dart.
+    final viewer = tester.widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer));
+    viewer.onDragCompleted!(
+      const NotationSymbolReorder(
+        fromPartIndex: 0,
+        fromMeasureIndex: 0,
+        fromSymbolIndex: 0,
+        toPartIndex: 0,
+        toMeasureIndex: 0,
+        toSymbolIndex: 2,
+      ),
+      Offset.zero,
     );
-    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 20));
-    await dragGesture.moveTo(
-      origin +
-          _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 2) +
-          const Offset(2, 0),
-    );
-    await tester.pump();
-    await dragGesture.up();
     await tester.pump();
 
-    await tester.tapAt(
-      origin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 0),
-    );
+    // After reorder: C4 moved to index 2, E4 is now at index 0.
+    // moveSymbolToDest selects the moved symbol (C4 at index 2).
+    expect(find.text('C4'), findsOneWidget);
+
+    // Invoke onSymbolTap directly — y-coordinates differ per pitch so tapAt
+    // risks missing the hit rect when pitch changes after a reorder.
+    final viewer2 = tester.widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer));
+    viewer2.onSymbolTap!(const NotationSymbolTarget(
+      partIndex: 0,
+      measureIndex: 0,
+      symbolIndex: 0,
+      center: Offset.zero,
+      hitRect: Rect.zero,
+    ));
     await tester.pump();
     expect(find.text('E4'), findsOneWidget);
 
@@ -196,9 +210,15 @@ void main() {
     await tester.tap(undoButton);
     await tester.pump();
 
-    await tester.tapAt(
-      origin + _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 0),
-    );
+    // After undo: C4 is back at index 0.
+    final viewer3 = tester.widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer));
+    viewer3.onSymbolTap!(const NotationSymbolTarget(
+      partIndex: 0,
+      measureIndex: 0,
+      symbolIndex: 0,
+      center: Offset.zero,
+      hitRect: Rect.zero,
+    ));
     await tester.pump();
     expect(find.text('C4'), findsOneWidget);
   });
@@ -222,10 +242,10 @@ Offset _symbolCenterOffset(
   required int measureIndex,
   required int symbolIndex,
 }) {
-  const measuresPerRow = 4;
-  const minMeasureWidth = 220.0;
+  const measuresPerRow = 3;
+  const minMeasureWidth = 214.0;
   const rowHeight = 140.0;
-  const padding = EdgeInsets.all(16);
+  const padding = EdgeInsets.symmetric(horizontal: 16.0, vertical: 28.0);
 
   final measures = score.parts.first.measures;
   final layout = const NotationLayoutCalculator().calculate(
