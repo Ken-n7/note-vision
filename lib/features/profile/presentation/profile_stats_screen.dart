@@ -36,7 +36,8 @@ class _ProfileStatsScreenState extends State<ProfileStatsScreen> {
       builder: (_) => EditProfileSheet(profile: current),
     );
     if (!mounted) return;
-    setState(() => _dataFuture = _loadData());
+    final refreshed = _loadData();
+    setState(() => _dataFuture = refreshed);
   }
 
   @override
