@@ -534,7 +534,10 @@ class _NotationCanvasFrame extends StatelessWidget {
           ? null
           : (details) => onLongPressEnd!(details.localPosition, details.globalPosition),
       onLongPressCancel: onLongPressCancel,
-      child: CustomPaint(size: size, painter: painter),
+      child: ColoredBox(
+        color: backgroundColor,
+        child: CustomPaint(size: size, painter: painter),
+      ),
     );
 
     if (canAcceptExternalData == null) return canvas;
