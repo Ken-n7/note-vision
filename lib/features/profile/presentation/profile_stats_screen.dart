@@ -37,7 +37,7 @@ class _ProfileStatsScreenState extends State<ProfileStatsScreen> {
     );
     if (!mounted) return;
     final refreshed = _loadData();
-    setState(() => _dataFuture = refreshed);
+    setState(() { _dataFuture = refreshed; });
   }
 
   @override
