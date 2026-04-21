@@ -11,6 +11,7 @@ class PlaybackControlsBar extends StatefulWidget {
   const PlaybackControlsBar({
     super.key,
     required this.onPlay,
+    required this.onResume,
     required this.onPause,
     required this.onStop,
     required this.onTempoChanged,
@@ -18,6 +19,7 @@ class PlaybackControlsBar extends StatefulWidget {
   });
 
   final VoidCallback onPlay;
+  final VoidCallback onResume;
   final VoidCallback onPause;
   final VoidCallback onStop;
   final ValueChanged<int> onTempoChanged;
@@ -47,6 +49,7 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
       builder: (context, snap) {
         final state = snap.data ?? PlaybackState(status: PlaybackStatus.stopped);
         final isPlaying = state.isPlaying;
+        final isPaused = state.isPaused;
         final isStopped = state.isStopped;
         final hasError = state.status == PlaybackStatus.error;
         final disabled = widget.isEmpty;
@@ -69,6 +72,8 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
                 onPressed: () {
                   if (isPlaying) {
                     widget.onPause();
+                  } else if (isPaused) {
+                    widget.onResume();
                   } else {
                     widget.onPlay();
                   }

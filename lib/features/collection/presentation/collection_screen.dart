@@ -25,7 +25,6 @@ class CollectionScreen extends StatefulWidget {
 
 class _CollectionScreenState extends State<CollectionScreen>
     with SingleTickerProviderStateMixin {
-  int _currentIndex = 0;
   List<Project> _projects = [];
   bool _isLoading = true;
   UserProfile? _userProfile;
@@ -339,13 +338,6 @@ class _CollectionScreenState extends State<CollectionScreen>
   }
 
   Widget _buildBottomNav() {
-    final items = [
-      (Icons.add_circle_outline, 'Add Files'),
-      (Icons.info_outline, 'Info'),
-      (Icons.edit_outlined, 'Edit'),
-      (Icons.check_circle_outline, 'Result'),
-    ];
-
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.surface,
@@ -356,45 +348,30 @@ class _CollectionScreenState extends State<CollectionScreen>
         child: SizedBox(
           height: 60,
           child: Row(
-            children: List.generate(items.length, (i) {
-              final (icon, label) = items[i];
-              final isSelected = _currentIndex == i;
-              return Expanded(
+            children: [
+              Expanded(
                 child: GestureDetector(
-                  onTap: () {
-                    setState(() => _currentIndex = i);
-                    if (i == 0) _goToCapture();
-                  },
+                  onTap: _goToCapture,
                   behavior: HitTestBehavior.opaque,
-                  child: Column(
+                  child: const Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        icon,
-                        size: 22,
-                        color: isSelected
-                            ? AppColors.accent
-                            : AppColors.textSecondary,
-                      ),
-                      const SizedBox(height: 4),
+                      Icon(Icons.add_circle_outline, size: 22, color: AppColors.accent),
+                      SizedBox(height: 4),
                       Text(
-                        label,
+                        'Add Files',
                         style: TextStyle(
                           fontSize: 10,
-                          color: isSelected
-                              ? AppColors.accent
-                              : AppColors.textSecondary,
-                          fontWeight: isSelected
-                              ? FontWeight.w600
-                              : FontWeight.w400,
+                          color: AppColors.accent,
+                          fontWeight: FontWeight.w600,
                           letterSpacing: 0.2,
                         ),
                       ),
                     ],
                   ),
                 ),
-              );
-            }),
+              ),
+            ],
           ),
         ),
       ),

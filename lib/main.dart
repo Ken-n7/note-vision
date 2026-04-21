@@ -19,7 +19,8 @@ class App extends StatelessWidget {
       theme: AppTheme.dark(),
       onGenerateRoute: (settings) {
         if (settings.name == EditorShellScreen.routeName) {
-          final args = settings.arguments! as EditorShellArgs;
+          final args = settings.arguments;
+          if (args is! EditorShellArgs) return null;
           return MaterialPageRoute(
             builder: (_) => EditorShellScreen(args: args),
           );

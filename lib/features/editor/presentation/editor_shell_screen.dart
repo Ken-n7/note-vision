@@ -591,6 +591,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 PlaybackControlsBar(
                   isEmpty: scoreIsEmpty,
                   onPlay: () => _playback.play(_editorState.score),
+                  onResume: _playback.resume,
                   onPause: _playback.pause,
                   onStop: _playback.stop,
                   onTempoChanged: _playback.setTempo,

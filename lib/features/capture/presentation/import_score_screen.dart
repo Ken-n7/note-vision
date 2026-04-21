@@ -489,7 +489,7 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
                 icon: Icons.upload_file_outlined,
                 label: 'Import',
                 isSelected: true,
-                onTap: () {},
+                onTap: null,
               ),
             ],
           ),
@@ -744,13 +744,13 @@ class _BottomNavItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool isSelected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   const _BottomNavItem({
     required this.icon,
     required this.label,
     required this.isSelected,
-    required this.onTap,
+    this.onTap,
   });
 
   static const _accent = Color(0xFFD4A96A);

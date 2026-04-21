@@ -112,9 +112,6 @@ void main() {
       expect(find.text('Note Vision'), findsOneWidget);
       expect(find.text('MY COLLECTION'), findsOneWidget);
       expect(find.text('Add Files'), findsOneWidget);
-      expect(find.text('Info'), findsOneWidget);
-      expect(find.text('Edit'), findsOneWidget);
-      expect(find.text('Result'), findsOneWidget);
     });
 
     testWidgets('opens editor route when project tile is tapped', (
