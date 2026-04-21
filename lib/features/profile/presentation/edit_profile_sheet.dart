@@ -26,13 +26,13 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   static const _textSecondary = Color(0xFF8A8A8A);
 
   late final TextEditingController _nameController;
+  late final ValueNotifier<String?> _nameError;
   final FocusNode _nameFocusNode = FocusNode();
   final ImagePicker _picker = ImagePicker();
 
   File? _newPhoto;
   bool  _clearPhoto = false;
   bool  _isSaving   = false;
-  String? _nameError;
 
   bool get _hasChanges {
     final nameChanged = _nameController.text.trim() != (widget.profile?.name ?? '');
@@ -41,7 +41,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   }
 
   bool get _canSave =>
-      _nameError == null &&
+      _nameError.value == null &&
       _nameController.text.trim().isNotEmpty &&
       !_isSaving &&
       _hasChanges;
@@ -50,18 +50,19 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.profile?.name ?? '');
+    _nameError = ValueNotifier(null);
     _nameController.addListener(_onNameChanged);
     _nameFocusNode.addListener(() => setState(() {}));
   }
 
   void _onNameChanged() {
-    final error = NameValidator.validate(_nameController.text);
-    setState(() => _nameError = error);
+    _nameError.value = NameValidator.validate(_nameController.text);
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _nameError.dispose();
     _nameFocusNode.dispose();
     super.dispose();
   }
@@ -143,12 +144,6 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    final hasError = _nameError != null && _nameController.text.isNotEmpty;
-    final borderColor = hasError
-        ? const Color(0xFFE05252)
-        : _nameFocusNode.hasFocus
-            ? _accent.withValues(alpha: 0.5)
-            : _border;
 
     return Container(
       decoration: const BoxDecoration(
@@ -278,119 +273,130 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
 
           const SizedBox(height: 10),
 
-          // ── Name field ─────────────────────────────────────────────
-          Container(
-            decoration: BoxDecoration(
-              color: _surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: borderColor, width: 1.5),
-            ),
-            child: TextField(
-              controller: _nameController,
-              focusNode: _nameFocusNode,
-              maxLength: NameValidator.maxLength,
-              maxLengthEnforcement: MaxLengthEnforcement.enforced,
-              textCapitalization: TextCapitalization.words,
-              inputFormatters: [NameValidator.inputFormatter],
-              style: const TextStyle(
-                color: _textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-              decoration: InputDecoration(
-                hintText: 'Your name',
-                hintStyle:
-                    TextStyle(color: _textSecondary.withValues(alpha: 0.4)),
-                counterText: '',
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-              ),
-            ),
-          ),
+          // ── Name field + error row + save button (rebuilds on keystroke) ──
+          ListenableBuilder(
+            listenable: Listenable.merge([_nameController, _nameError]),
+            builder: (context, _) {
+              final error = _nameError.value;
+              final hasError = error != null && _nameController.text.isNotEmpty;
+              final borderColor = hasError
+                  ? const Color(0xFFE05252)
+                  : _nameFocusNode.hasFocus
+                      ? _accent.withValues(alpha: 0.5)
+                      : _border;
 
-          // ── Error / char counter row ────────────────────────────────
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              if (hasError)
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      size: 13,
-                      color: Color(0xFFE05252),
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: _surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: borderColor, width: 1.5),
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      _nameError!,
+                    child: TextField(
+                      controller: _nameController,
+                      focusNode: _nameFocusNode,
+                      maxLength: NameValidator.maxLength,
+                      maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                      textCapitalization: TextCapitalization.words,
+                      inputFormatters: [NameValidator.inputFormatter],
                       style: const TextStyle(
-                        color: Color(0xFFE05252),
-                        fontSize: 12,
+                        color: _textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'Your name',
+                        hintStyle: TextStyle(
+                            color: _textSecondary.withValues(alpha: 0.4)),
+                        counterText: '',
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
                       ),
                     ),
-                  ],
-                )
-              else
-                const SizedBox.shrink(),
-
-              Text(
-                '${_nameController.text.trim().length} / ${NameValidator.maxLength}',
-                style: TextStyle(
-                  color: hasError
-                      ? const Color(0xFFE05252)
-                      : _textSecondary,
-                  fontSize: 11,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 20),
-
-          // ── Save button ────────────────────────────────────────────
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: AnimatedOpacity(
-              opacity: _canSave ? 1.0 : 0.4,
-              duration: const Duration(milliseconds: 150),
-              child: ElevatedButton(
-                onPressed: _canSave ? _save : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _accent,
-                  disabledBackgroundColor: _accent,
-                  foregroundColor: const Color(0xFF0D0D0D),
-                  disabledForegroundColor: const Color(0xFF0D0D0D),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
                   ),
-                ),
-                child: _isSaving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            Color(0xFF0D0D0D),
+
+                  // ── Error / char counter row ──────────────────────────
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      if (hasError)
+                        Row(
+                          children: [
+                            const Icon(Icons.error_outline,
+                                size: 13, color: Color(0xFFE05252)),
+                            const SizedBox(width: 4),
+                            Text(
+                              error,
+                              style: const TextStyle(
+                                  color: Color(0xFFE05252), fontSize: 12),
+                            ),
+                          ],
+                        )
+                      else
+                        const SizedBox.shrink(),
+                      Text(
+                        '${_nameController.text.trim().length} / ${NameValidator.maxLength}',
+                        style: TextStyle(
+                          color: hasError
+                              ? const Color(0xFFE05252)
+                              : _textSecondary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // ── Save button ───────────────────────────────────────
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: AnimatedOpacity(
+                      opacity: _canSave ? 1.0 : 0.4,
+                      duration: const Duration(milliseconds: 150),
+                      child: ElevatedButton(
+                        onPressed: _canSave ? _save : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _accent,
+                          disabledBackgroundColor: _accent,
+                          foregroundColor: const Color(0xFF0D0D0D),
+                          disabledForegroundColor: const Color(0xFF0D0D0D),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                      )
-                    : const Text(
-                        'Save changes',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.3,
-                        ),
+                        child: _isSaving
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                      Color(0xFF0D0D0D)),
+                                ),
+                              )
+                            : const Text(
+                                'Save changes',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
                       ),
-              ),
-            ),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
       ),
