@@ -13,8 +13,8 @@ class UsageStats {
 }
 
 class UsageStatsService {
-  static const String _keyScans = 'stats_scans';
-  static const String _keyExports = 'stats_exports';
+  static const String _keyScans     = 'stats_scans';
+  static const String _keyExports   = 'stats_exports';
   static const String _keyPlaybacks = 'stats_playbacks';
 
   static String _keyScoreEdits(String scoreId) => 'stats_edits_$scoreId';
@@ -48,8 +48,8 @@ class UsageStatsService {
   static Future<UsageStats> loadStats() async {
     final prefs = await SharedPreferences.getInstance();
     return UsageStats(
-      scans: prefs.getInt(_keyScans) ?? 0,
-      exports: prefs.getInt(_keyExports) ?? 0,
+      scans:     prefs.getInt(_keyScans)     ?? 0,
+      exports:   prefs.getInt(_keyExports)   ?? 0,
       playbacks: prefs.getInt(_keyPlaybacks) ?? 0,
     );
   }

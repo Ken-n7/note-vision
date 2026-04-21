@@ -44,7 +44,9 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
   void _goToDetectionInspector() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const DetectionInspectorScreen()),
+      MaterialPageRoute(
+        builder: (_) => const DetectionInspectorScreen(),
+      ),
     );
   }
 
@@ -94,120 +96,119 @@ class _MusicXmlInspectorScreenState extends State<MusicXmlInspectorScreen> {
             final content = Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // ── Import button ─────────────────────────────────────────────
-                ElevatedButton(
-                  onPressed: isLoading ? null : _onImportPressed,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.surface,
-                    foregroundColor: AppColors.textPrimary,
-                    disabledBackgroundColor: AppColors.border,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+            // ── Import button ─────────────────────────────────────────────
+            ElevatedButton(
+              onPressed: isLoading ? null : _onImportPressed,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.surface,
+                foregroundColor: AppColors.textPrimary,
+                disabledBackgroundColor: AppColors.border,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                elevation: 0,
+              ),
+              child: isLoading
+                  ? const SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text(
+                      '+ Import MusicXML',
+                      style: TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w600),
                     ),
-                    elevation: 0,
-                  ),
-                  child: isLoading
-                      ? const SizedBox(
-                          height: 16,
-                          width: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text(
-                          '+ Import MusicXML',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+            ),
+
+            const SizedBox(height: 10),
+
+            // ── Detection Inspector shortcut ──────────────────────────────
+            OutlinedButton.icon(
+              onPressed: _goToDetectionInspector,
+              icon: const Icon(Icons.biotech_outlined, size: 16),
+              label: const Text(
+                'Detection Inspector',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.accent,
+                side: const BorderSide(color: AppColors.accent, width: 1.5),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
                 ),
+              ),
+            ),
 
-                const SizedBox(height: 10),
+            const SizedBox(height: 12),
 
-                // ── Detection Inspector shortcut ──────────────────────────────
-                OutlinedButton.icon(
-                  onPressed: _goToDetectionInspector,
-                  icon: const Icon(Icons.biotech_outlined, size: 16),
-                  label: const Text(
-                    'Detection Inspector',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.accent,
-                    side: const BorderSide(color: AppColors.accent, width: 1.5),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
+            // ── Status ────────────────────────────────────────────────────
+            StatusSection(state: state),
 
-                const SizedBox(height: 12),
+            // ── Error block ───────────────────────────────────────────────
+            if (state.errorMessage != null) ...[
+              const SizedBox(height: 12),
+              ErrorBlock(
+                message: state.errorMessage!,
+                isValidation: state.status == ScreenState.validationError,
+              ),
+            ],
 
-                // ── Status ────────────────────────────────────────────────────
-                StatusSection(state: state),
+            // ── Warnings block ────────────────────────────────────────────
+            if (state.metadata?.warnings.isNotEmpty == true) ...[
+              const SizedBox(height: 8),
+              WarningBlock(warnings: state.metadata!.warnings),
+            ],
 
-                // ── Error block ───────────────────────────────────────────────
-                if (state.errorMessage != null) ...[
-                  const SizedBox(height: 12),
-                  ErrorBlock(
-                    message: state.errorMessage!,
-                    isValidation: state.status == ScreenState.validationError,
-                  ),
-                ],
+            const SizedBox(height: 12),
 
-                // ── Warnings block ────────────────────────────────────────────
-                if (state.metadata?.warnings.isNotEmpty == true) ...[
-                  const SizedBox(height: 8),
-                  WarningBlock(warnings: state.metadata!.warnings),
-                ],
+            // ── Metadata ──────────────────────────────────────────────────
+            MetadataSection(metadata: state.metadata),
 
-                const SizedBox(height: 12),
+            const SizedBox(height: 12),
 
-                // ── Metadata ──────────────────────────────────────────────────
-                MetadataSection(metadata: state.metadata),
+            // ── Counts ────────────────────────────────────────────────────
+            CountsSection(metadata: state.metadata),
 
-                const SizedBox(height: 12),
+            const SizedBox(height: 12),
 
-                // ── Counts ────────────────────────────────────────────────────
-                CountsSection(metadata: state.metadata),
+            // ── Raw XML preview ───────────────────────────────────────────
+            CollapsibleSection(
+              label: 'RAW XML PREVIEW',
+              enabled: state.rawXml != null,
+              expanded: _showRawXml,
+              onToggle: state.rawXml != null
+                  ? () => setState(() => _showRawXml = !_showRawXml)
+                  : null,
+              child: state.rawXml != null
+                  ? MonoPreview(
+                      text: state.rawXml!.length > 2000
+                          ? '${state.rawXml!.substring(0, 2000)}\n\n… (truncated)'
+                          : state.rawXml!,
+                    )
+                  : null,
+            ),
 
-                const SizedBox(height: 12),
+            const SizedBox(height: 8),
 
-                // ── Raw XML preview ───────────────────────────────────────────
-                CollapsibleSection(
-                  label: 'RAW XML PREVIEW',
-                  enabled: state.rawXml != null,
-                  expanded: _showRawXml,
-                  onToggle: state.rawXml != null
-                      ? () => setState(() => _showRawXml = !_showRawXml)
-                      : null,
-                  child: state.rawXml != null
-                      ? MonoPreview(
-                          text: state.rawXml!.length > 2000
-                              ? '${state.rawXml!.substring(0, 2000)}\n\n… (truncated)'
-                              : state.rawXml!,
-                        )
-                      : null,
-                ),
-
-                const SizedBox(height: 8),
-
-                // ── Sheet notation preview ───────────────────────────────────
-                CollapsibleSection(
-                  label: 'SHEET NOTATION PREVIEW',
-                  enabled: state.score != null,
-                  expanded: _showNotation,
-                  onToggle: state.score != null
-                      ? () => setState(() => _showNotation = !_showNotation)
-                      : null,
-                  child: state.score != null
-                      ? ScoreNotationViewer(score: state.score!)
-                      : null,
-                ),
+            // ── Sheet notation preview ───────────────────────────────────
+            CollapsibleSection(
+              label: 'SHEET NOTATION PREVIEW',
+              enabled: state.score != null,
+              expanded: _showNotation,
+              onToggle: state.score != null
+                  ? () =>
+                      setState(() => _showNotation = !_showNotation)
+                  : null,
+              child: state.score != null
+                  ? ScoreNotationViewer(score: state.score!)
+                  : null,
+            ),
 
                 const SizedBox(height: 32),
               ],

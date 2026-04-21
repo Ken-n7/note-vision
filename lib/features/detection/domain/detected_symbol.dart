@@ -116,15 +116,15 @@ class DetectedSymbol {
 
   @override
   int get hashCode => Object.hash(
-    id,
-    type,
-    x,
-    y,
-    width,
-    height,
-    confidence,
-    _deepHash(metadata),
-  );
+        id,
+        type,
+        x,
+        y,
+        width,
+        height,
+        confidence,
+        _deepHash(metadata),
+      );
 
   static bool _deepEquals(Object? left, Object? right) {
     if (identical(left, right)) return true;

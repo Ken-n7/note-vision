@@ -33,7 +33,10 @@ class DiIssuesSection extends StatelessWidget {
       child: Column(
         children: [
           if (errorMessage != null)
-            _IssueRow(message: errorMessage, isError: true),
+            _IssueRow(
+              message: errorMessage,
+              isError: true,
+            ),
           ...errors.map((e) => _IssueRow(message: e, isError: true)),
           ...warnings.map((w) => _IssueRow(message: w, isError: false)),
         ],
@@ -59,7 +62,10 @@ class _EmptyIssues extends StatelessWidget {
           const SizedBox(width: 8),
           const Text(
             'No warnings or errors',
-            style: TextStyle(fontSize: 12, color: Color(0xFF3DD68C)),
+            style: TextStyle(
+              fontSize: 12,
+              color: Color(0xFF3DD68C),
+            ),
           ),
         ],
       ),

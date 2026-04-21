@@ -34,43 +34,34 @@ void main() {
       expect(symbol.toJson()['metadata'], const {'pitchHint': 'C4'});
     });
 
-    test(
-      'maps coordinates back to original image space when size is known',
-      () {
-        const symbol = DetectedSymbol(
-          id: 'symbol-2',
-          type: 'stem',
-          x: 30,
-          y: 50,
-          width: 12,
-          height: 80,
-        );
+    test('maps coordinates back to original image space when size is known', () {
+      const symbol = DetectedSymbol(
+        id: 'symbol-2',
+        type: 'stem',
+        x: 30,
+        y: 50,
+        width: 12,
+        height: 80,
+      );
 
-        expect(
-          symbol.toOriginalCoordinates(scale: 2, padX: 10, padY: 20),
-          const Rect.fromLTWH(10, 15, 6, 40),
-        );
-      },
-    );
+      expect(
+        symbol.toOriginalCoordinates(scale: 2, padX: 10, padY: 20),
+        const Rect.fromLTWH(10, 15, 6, 40),
+      );
+    });
 
-    test(
-      'returns null helpers when symbol dimensions are missing or type is unknown',
-      () {
-        const symbol = DetectedSymbol(
-          id: 'symbol-3',
-          type: 'futureCustomSymbol',
-          x: 5,
-          y: 7,
-        );
+    test('returns null helpers when symbol dimensions are missing or type is unknown', () {
+      const symbol = DetectedSymbol(
+        id: 'symbol-3',
+        type: 'futureCustomSymbol',
+        x: 5,
+        y: 7,
+      );
 
-        expect(symbol.boundingBox, isNull);
-        expect(
-          symbol.toOriginalCoordinates(scale: 1, padX: 0, padY: 0),
-          isNull,
-        );
-        expect(symbol.musicSymbol, isNull);
-      },
-    );
+      expect(symbol.boundingBox, isNull);
+      expect(symbol.toOriginalCoordinates(scale: 1, padX: 0, padY: 0), isNull);
+      expect(symbol.musicSymbol, isNull);
+    });
   });
 
   group('DetectionResult', () {
@@ -112,14 +103,8 @@ void main() {
 
       expect(result.hasDetections, isTrue);
       expect(result.staffs.single.lineYs, [100, 110, 120, 130, 140]);
-      expect(result.barlines.map((barline) => barline.staffId), [
-        'staff-1',
-        null,
-      ]);
-      expect(result.symbols.map((symbol) => symbol.type), [
-        'clefG',
-        'restQuarter',
-      ]);
+      expect(result.barlines.map((barline) => barline.staffId), ['staff-1', null]);
+      expect(result.symbols.map((symbol) => symbol.type), ['clefG', 'restQuarter']);
     });
 
     test('serializes and deserializes cleanly for future mock JSON', () {
@@ -143,10 +128,7 @@ void main() {
             width: 10.0,
             height: 8.0,
             confidence: 0.88,
-            metadata: {
-              'voice': 1,
-              'candidatePitches': ['A4', 'C5'],
-            },
+            metadata: {'voice': 1, 'candidatePitches': ['A4', 'C5']},
           ),
         ],
       );

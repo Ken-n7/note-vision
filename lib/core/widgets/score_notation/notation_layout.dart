@@ -35,8 +35,9 @@ class NotationLayoutCalculator {
       measures.length,
       normalizedMeasuresPerRow,
     );
-    final width =
-        padding.horizontal + rowPrefixWidth + longestRowCount * minMeasureWidth;
+    final width = padding.horizontal +
+        rowPrefixWidth +
+        longestRowCount * minMeasureWidth;
 
     final rowCount = measures.isEmpty
         ? 0

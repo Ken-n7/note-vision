@@ -18,11 +18,11 @@ class EditProfileSheet extends StatefulWidget {
 }
 
 class _EditProfileSheetState extends State<EditProfileSheet> {
-  static const _bg = Color(0xFF141414);
-  static const _surface = Color(0xFF1E1E1E);
-  static const _border = Color(0xFF2C2C2C);
-  static const _accent = Color(0xFFD4A96A);
-  static const _textPrimary = Color(0xFFFFFFFF);
+  static const _bg            = Color(0xFF141414);
+  static const _surface       = Color(0xFF1E1E1E);
+  static const _border        = Color(0xFF2C2C2C);
+  static const _accent        = Color(0xFFD4A96A);
+  static const _textPrimary   = Color(0xFFFFFFFF);
   static const _textSecondary = Color(0xFF8A8A8A);
 
   late final TextEditingController _nameController;
@@ -31,12 +31,11 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   final ImagePicker _picker = ImagePicker();
 
   File? _newPhoto;
-  bool _clearPhoto = false;
-  bool _isSaving = false;
+  bool  _clearPhoto = false;
+  bool  _isSaving   = false;
 
   bool get _hasChanges {
-    final nameChanged =
-        _nameController.text.trim() != (widget.profile?.name ?? '');
+    final nameChanged = _nameController.text.trim() != (widget.profile?.name ?? '');
     final photoChanged = _newPhoto != null || _clearPhoto;
     return nameChanged || photoChanged;
   }
@@ -78,7 +77,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
       );
       if (image == null) return;
       setState(() {
-        _newPhoto = File(image.path);
+        _newPhoto   = File(image.path);
         _clearPhoto = false;
       });
     } on PlatformException catch (e) {
@@ -87,9 +86,9 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   }
 
   void _removePhoto() => setState(() {
-    _newPhoto = null;
-    _clearPhoto = true;
-  });
+        _newPhoto   = null;
+        _clearPhoto = true;
+      });
 
   Future<void> _save() async {
     if (!_canSave) return;
@@ -117,9 +116,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
       await UserProfileService.saveProfile(name: name, photoPath: photoPath);
 
       if (mounted) {
-        Navigator.of(
-          context,
-        ).pop(UserProfile(name: name, photoPath: photoPath));
+        Navigator.of(context).pop(UserProfile(name: name, photoPath: photoPath));
       }
     } catch (e) {
       debugPrint('Profile save error: $e');
@@ -285,8 +282,8 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
               final borderColor = hasError
                   ? const Color(0xFFE05252)
                   : _nameFocusNode.hasFocus
-                  ? _accent.withValues(alpha: 0.5)
-                  : _border;
+                      ? _accent.withValues(alpha: 0.5)
+                      : _border;
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -312,8 +309,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                       decoration: InputDecoration(
                         hintText: 'Your name',
                         hintStyle: TextStyle(
-                          color: _textSecondary.withValues(alpha: 0.4),
-                        ),
+                            color: _textSecondary.withValues(alpha: 0.4)),
                         counterText: '',
                         border: InputBorder.none,
                         contentPadding: const EdgeInsets.symmetric(
@@ -332,18 +328,13 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                       if (hasError)
                         Row(
                           children: [
-                            const Icon(
-                              Icons.error_outline,
-                              size: 13,
-                              color: Color(0xFFE05252),
-                            ),
+                            const Icon(Icons.error_outline,
+                                size: 13, color: Color(0xFFE05252)),
                             const SizedBox(width: 4),
                             Text(
                               error,
                               style: const TextStyle(
-                                color: Color(0xFFE05252),
-                                fontSize: 12,
-                              ),
+                                  color: Color(0xFFE05252), fontSize: 12),
                             ),
                           ],
                         )
@@ -389,8 +380,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2.5,
                                   valueColor: AlwaysStoppedAnimation<Color>(
-                                    Color(0xFF0D0D0D),
-                                  ),
+                                      Color(0xFF0D0D0D)),
                                 ),
                               )
                             : const Text(

@@ -12,10 +12,7 @@ class ResponsiveLayout {
     return 16;
   }
 
-  static int gridColumns({
-    required double width,
-    required Orientation orientation,
-  }) {
+  static int gridColumns({required double width, required Orientation orientation}) {
     if (width >= 1200) return 5;
     if (width >= 900) return 4;
     if (width >= 700) return orientation == Orientation.landscape ? 4 : 3;

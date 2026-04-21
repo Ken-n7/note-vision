@@ -29,7 +29,8 @@ class SemanticInferrer {
         .map((measure) {
           final signatureSymbols = _signatureInferrer
               .collectLeadingSignatureSymbols(measure.symbols);
-          final signatureIds = signatureSymbols.map((e) => e.symbol.id).toSet();
+          final signatureIds =
+              signatureSymbols.map((e) => e.symbol.id).toSet();
 
           final inferredClef = _signatureInferrer.inferClef(
             signatureSymbols,
@@ -122,9 +123,7 @@ class SemanticInferrer {
               continue;
             }
 
-            warnings.add(
-              'Unsupported symbol "$type" was ignored during mapping.',
-            );
+            warnings.add('Unsupported symbol "$type" was ignored during mapping.');
           }
 
           _warnAboutClef(clef, measure, warnings);
@@ -150,11 +149,10 @@ class SemanticInferrer {
   ) {
     if (accidentals.isEmpty) return const {};
 
-    final noteheads =
-        allSymbols
-            .where((e) => SymbolClassifier.isNotehead(e.symbol.type))
-            .toList()
-          ..sort((a, b) => a.symbolCenterX.compareTo(b.symbolCenterX));
+    final noteheads = allSymbols
+        .where((e) => SymbolClassifier.isNotehead(e.symbol.type))
+        .toList()
+      ..sort((a, b) => a.symbolCenterX.compareTo(b.symbolCenterX));
 
     final result = <String, int>{};
 
@@ -170,7 +168,8 @@ class SemanticInferrer {
       for (final notehead in noteheads) {
         final dist = notehead.symbol.x - accRight;
         if (dist < 0) continue; // accidental must be to the left
-        final threshold = (notehead.symbol.width ?? 12.0) * 2 + 20;
+        final threshold =
+            (notehead.symbol.width ?? 12.0) * 2 + 20;
         if (dist > threshold) continue;
 
         if (nearestDist == null || dist < nearestDist) {
@@ -215,11 +214,11 @@ class SemanticInferrer {
       // No stem and no beam — use remaining-beat context to infer duration.
       // Falls back to quarter when context is ambiguous.
       'noteheadBlack' => _stemlessNoteDuration(
-        beatsUsed: beatsUsed,
-        beatsPerMeasure: beatsPerMeasure,
-        isLastMusical: isLastMusical,
-        isOnlyMusical: isOnlyMusical,
-      ),
+          beatsUsed: beatsUsed,
+          beatsPerMeasure: beatsPerMeasure,
+          isLastMusical: isLastMusical,
+          isOnlyMusical: isOnlyMusical,
+        ),
       _ => null,
     };
 
@@ -280,11 +279,7 @@ class SemanticInferrer {
     return 'quarter';
   }
 
-  void _warnAboutClef(
-    Clef? clef,
-    MeasureSymbols measure,
-    List<String> warnings,
-  ) {
+  void _warnAboutClef(Clef? clef, MeasureSymbols measure, List<String> warnings) {
     final hasNoteheads = measure.symbols.any(
       (e) => SymbolClassifier.isNotehead(e.symbol.type),
     );

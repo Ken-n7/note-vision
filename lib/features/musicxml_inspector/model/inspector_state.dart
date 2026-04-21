@@ -29,23 +29,25 @@ class InspectorState {
     required ParsedMetadata metadata,
     required String rawXml,
     Score? score,
-  }) => InspectorState._(
-    status: ScreenState.success,
-    fileName: fileName,
-    metadata: metadata,
-    rawXml: rawXml,
-    score: score,
-  );
+  }) =>
+      InspectorState._(
+        status: ScreenState.success,
+        fileName: fileName,
+        metadata: metadata,
+        rawXml: rawXml,
+        score: score,
+      );
 
   /// Parse failed before we could even read a root tag.
   factory InspectorState.parseError({
     required String fileName,
     required String errorMessage,
-  }) => InspectorState._(
-    status: ScreenState.parseError,
-    fileName: fileName,
-    errorMessage: errorMessage,
-  );
+  }) =>
+      InspectorState._(
+        status: ScreenState.parseError,
+        fileName: fileName,
+        errorMessage: errorMessage,
+      );
 
   /// XML parsed but failed MusicXML structural validation.
   factory InspectorState.validationError({
@@ -53,11 +55,12 @@ class InspectorState {
     required ParsedMetadata metadata,
     required String rawXml,
     required String errorMessage,
-  }) => InspectorState._(
-    status: ScreenState.validationError,
-    fileName: fileName,
-    metadata: metadata,
-    rawXml: rawXml,
-    errorMessage: errorMessage,
-  );
+  }) =>
+      InspectorState._(
+        status: ScreenState.validationError,
+        fileName: fileName,
+        metadata: metadata,
+        rawXml: rawXml,
+        errorMessage: errorMessage,
+      );
 }

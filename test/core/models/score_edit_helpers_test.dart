@@ -20,7 +20,12 @@ void main() {
 
     test('replaceSymbolAt returns updated immutable score', () {
       final score = _buildScore();
-      const replacement = Note(step: 'E', octave: 4, duration: 2, type: 'half');
+      const replacement = Note(
+        step: 'E',
+        octave: 4,
+        duration: 2,
+        type: 'half',
+      );
 
       final next = score.replaceSymbolAt(0, 0, 0, replacement);
 
@@ -41,7 +46,12 @@ void main() {
 
     test('insertSymbolAt inserts at index and shifts right', () {
       final score = _buildScore();
-      const inserted = Note(step: 'G', octave: 5, duration: 1, type: 'quarter');
+      const inserted = Note(
+        step: 'G',
+        octave: 5,
+        duration: 1,
+        type: 'quarter',
+      );
 
       final next = score.insertSymbolAt(0, 0, 1, inserted);
 

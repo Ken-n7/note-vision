@@ -32,9 +32,7 @@ void main() {
     testWidgets('Returns File when image is picked', (
       WidgetTester tester,
     ) async {
-      messenger.setMockMethodCallHandler(channel, (
-        MethodCall methodCall,
-      ) async {
+      messenger.setMockMethodCallHandler(channel, (MethodCall methodCall) async {
         if (methodCall.method == 'pickImage') {
           return '/fake/path/test_image.jpg';
         }
@@ -52,9 +50,7 @@ void main() {
     });
 
     testWidgets('Returns null when user cancels', (WidgetTester tester) async {
-      messenger.setMockMethodCallHandler(channel, (
-        MethodCall methodCall,
-      ) async {
+      messenger.setMockMethodCallHandler(channel, (MethodCall methodCall) async {
         return null; // simulate cancel
       });
 
@@ -70,9 +66,7 @@ void main() {
     testWidgets('Shows SnackBar when exception occurs', (
       WidgetTester tester,
     ) async {
-      messenger.setMockMethodCallHandler(channel, (
-        MethodCall methodCall,
-      ) async {
+      messenger.setMockMethodCallHandler(channel, (MethodCall methodCall) async {
         throw PlatformException(code: 'ERROR', message: 'Camera failed');
       });
 

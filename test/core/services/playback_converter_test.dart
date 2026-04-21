@@ -13,8 +13,7 @@ import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/services/playback_converter.dart';
-import 'package:note_vision/core/services/playback_service.dart'
-    show PlaybackPosition;
+import 'package:note_vision/core/services/playback_service.dart' show PlaybackPosition;
 
 void main() {
   const converter = PlaybackConverter();
@@ -25,86 +24,52 @@ void main() {
   group('noteToMidi — pitch formula', () {
     test('C4 is MIDI 60 (middle C)', () {
       expect(
-        converter.noteToMidi(
-          const Note(step: 'C', octave: 4, duration: 2, type: 'quarter'),
-        ),
+        converter.noteToMidi(const Note(step: 'C', octave: 4, duration: 2, type: 'quarter')),
         60,
       );
     });
 
     test('A4 is MIDI 69 (concert A)', () {
       expect(
-        converter.noteToMidi(
-          const Note(step: 'A', octave: 4, duration: 2, type: 'quarter'),
-        ),
+        converter.noteToMidi(const Note(step: 'A', octave: 4, duration: 2, type: 'quarter')),
         69,
       );
     });
 
     test('C5 is MIDI 72', () {
       expect(
-        converter.noteToMidi(
-          const Note(step: 'C', octave: 5, duration: 2, type: 'quarter'),
-        ),
+        converter.noteToMidi(const Note(step: 'C', octave: 5, duration: 2, type: 'quarter')),
         72,
       );
     });
 
     test('B3 is MIDI 59', () {
       expect(
-        converter.noteToMidi(
-          const Note(step: 'B', octave: 3, duration: 2, type: 'quarter'),
-        ),
+        converter.noteToMidi(const Note(step: 'B', octave: 3, duration: 2, type: 'quarter')),
         59,
       );
     });
 
     test('all natural notes in octave 4 match chromatic scale from C4=60', () {
       final expected = {
-        'C': 60,
-        'D': 62,
-        'E': 64,
-        'F': 65,
-        'G': 67,
-        'A': 69,
-        'B': 71,
+        'C': 60, 'D': 62, 'E': 64, 'F': 65, 'G': 67, 'A': 69, 'B': 71,
       };
       for (final entry in expected.entries) {
         final midi = converter.noteToMidi(
           Note(step: entry.key, octave: 4, duration: 2, type: 'quarter'),
         );
-        expect(
-          midi,
-          entry.value,
-          reason: '${entry.key}4 should be ${entry.value}',
-        );
+        expect(midi, entry.value, reason: '${entry.key}4 should be ${entry.value}');
       }
     });
 
     test('sharp raises pitch by 1 semitone', () {
       // C#4 = 61, F#4 = 66
       expect(
-        converter.noteToMidi(
-          const Note(
-            step: 'C',
-            octave: 4,
-            alter: 1,
-            duration: 2,
-            type: 'quarter',
-          ),
-        ),
+        converter.noteToMidi(const Note(step: 'C', octave: 4, alter: 1, duration: 2, type: 'quarter')),
         61,
       );
       expect(
-        converter.noteToMidi(
-          const Note(
-            step: 'F',
-            octave: 4,
-            alter: 1,
-            duration: 2,
-            type: 'quarter',
-          ),
-        ),
+        converter.noteToMidi(const Note(step: 'F', octave: 4, alter: 1, duration: 2, type: 'quarter')),
         66,
       );
     });
@@ -112,27 +77,11 @@ void main() {
     test('flat lowers pitch by 1 semitone', () {
       // Bb4 = 70, Eb4 = 63
       expect(
-        converter.noteToMidi(
-          const Note(
-            step: 'B',
-            octave: 4,
-            alter: -1,
-            duration: 2,
-            type: 'quarter',
-          ),
-        ),
+        converter.noteToMidi(const Note(step: 'B', octave: 4, alter: -1, duration: 2, type: 'quarter')),
         70,
       );
       expect(
-        converter.noteToMidi(
-          const Note(
-            step: 'E',
-            octave: 4,
-            alter: -1,
-            duration: 2,
-            type: 'quarter',
-          ),
-        ),
+        converter.noteToMidi(const Note(step: 'E', octave: 4, alter: -1, duration: 2, type: 'quarter')),
         63,
       );
     });
@@ -140,15 +89,7 @@ void main() {
     test('double sharp raises pitch by 2 semitones', () {
       // Cx4 (C double-sharp) = 62
       expect(
-        converter.noteToMidi(
-          const Note(
-            step: 'C',
-            octave: 4,
-            alter: 2,
-            duration: 2,
-            type: 'quarter',
-          ),
-        ),
+        converter.noteToMidi(const Note(step: 'C', octave: 4, alter: 2, duration: 2, type: 'quarter')),
         62,
       );
     });
@@ -156,45 +97,25 @@ void main() {
     test('double flat lowers pitch by 2 semitones', () {
       // Bbb4 = 69
       expect(
-        converter.noteToMidi(
-          const Note(
-            step: 'B',
-            octave: 4,
-            alter: -2,
-            duration: 2,
-            type: 'quarter',
-          ),
-        ),
+        converter.noteToMidi(const Note(step: 'B', octave: 4, alter: -2, duration: 2, type: 'quarter')),
         69,
       );
     });
 
     test('null alter treated as 0 (natural)', () {
       expect(
-        converter.noteToMidi(
-          const Note(
-            step: 'G',
-            octave: 4,
-            alter: null,
-            duration: 2,
-            type: 'quarter',
-          ),
-        ),
+        converter.noteToMidi(const Note(step: 'G', octave: 4, alter: null, duration: 2, type: 'quarter')),
         67,
       );
     });
 
     test('step lookup is case-insensitive', () {
       expect(
-        converter.noteToMidi(
-          const Note(step: 'c', octave: 4, duration: 2, type: 'quarter'),
-        ),
+        converter.noteToMidi(const Note(step: 'c', octave: 4, duration: 2, type: 'quarter')),
         60,
       );
       expect(
-        converter.noteToMidi(
-          const Note(step: 'a', octave: 4, duration: 2, type: 'quarter'),
-        ),
+        converter.noteToMidi(const Note(step: 'a', octave: 4, duration: 2, type: 'quarter')),
         69,
       );
     });
@@ -202,16 +123,12 @@ void main() {
     test('result is clamped to 0–127', () {
       // Extremely low note — clamp to 0
       expect(
-        converter.noteToMidi(
-          const Note(step: 'C', octave: -2, duration: 2, type: 'quarter'),
-        ),
+        converter.noteToMidi(const Note(step: 'C', octave: -2, duration: 2, type: 'quarter')),
         0,
       );
       // Extremely high note — clamp to 127
       expect(
-        converter.noteToMidi(
-          const Note(step: 'G', octave: 10, duration: 2, type: 'quarter'),
-        ),
+        converter.noteToMidi(const Note(step: 'G', octave: 10, duration: 2, type: 'quarter')),
         127,
       );
     });
@@ -284,18 +201,14 @@ void main() {
     });
 
     test('score with only empty measures produces no events', () {
-      final score = _score([
-        _part([_measure([])]),
-      ]);
+      final score = _score([_part([_measure([])])]);
       expect(converter.buildEvents(score), isEmpty);
     });
 
     test('single note produces one event with correct midi and duration', () {
       final score = _score([
         _part([
-          _measure([
-            const Note(step: 'C', octave: 4, duration: 2, type: 'quarter'),
-          ]),
+          _measure([const Note(step: 'C', octave: 4, duration: 2, type: 'quarter')]),
         ]),
       ]);
       final events = converter.buildEvents(score);
@@ -325,24 +238,9 @@ void main() {
       final score = _score([
         _part([
           _measure([
-            const Note(
-              step: 'C',
-              octave: 4,
-              duration: 2,
-              type: 'quarter',
-            ), // C4
-            const Note(
-              step: 'E',
-              octave: 4,
-              duration: 2,
-              type: 'quarter',
-            ), // E4
-            const Note(
-              step: 'G',
-              octave: 4,
-              duration: 2,
-              type: 'quarter',
-            ), // G4
+            const Note(step: 'C', octave: 4, duration: 2, type: 'quarter'), // C4
+            const Note(step: 'E', octave: 4, duration: 2, type: 'quarter'), // E4
+            const Note(step: 'G', octave: 4, duration: 2, type: 'quarter'), // G4
           ]),
         ]),
       ]);
@@ -354,12 +252,8 @@ void main() {
     test('events across multiple measures carry correct measureIndex', () {
       final score = _score([
         _part([
-          _measure([
-            const Note(step: 'C', octave: 4, duration: 2, type: 'quarter'),
-          ]),
-          _measure([
-            const Note(step: 'G', octave: 4, duration: 2, type: 'quarter'),
-          ]),
+          _measure([const Note(step: 'C', octave: 4, duration: 2, type: 'quarter')]),
+          _measure([const Note(step: 'G', octave: 4, duration: 2, type: 'quarter')]),
         ]),
       ]);
       final events = converter.buildEvents(score);
@@ -369,16 +263,8 @@ void main() {
 
     test('events across multiple parts carry correct partIndex', () {
       final score = _score([
-        _part([
-          _measure([
-            const Note(step: 'C', octave: 5, duration: 2, type: 'quarter'),
-          ]),
-        ]), // treble
-        _part([
-          _measure([
-            const Note(step: 'C', octave: 3, duration: 2, type: 'quarter'),
-          ]),
-        ]), // bass
+        _part([_measure([const Note(step: 'C', octave: 5, duration: 2, type: 'quarter')])]), // treble
+        _part([_measure([const Note(step: 'C', octave: 3, duration: 2, type: 'quarter')])]), // bass
       ]);
       final events = converter.buildEvents(score);
       expect(events, hasLength(2));
@@ -413,20 +299,8 @@ void main() {
       final score = _score([
         _part([
           _measure([
-            const Note(
-              step: 'F',
-              octave: 4,
-              alter: 1,
-              duration: 2,
-              type: 'quarter',
-            ), // F#4 = 66
-            const Note(
-              step: 'B',
-              octave: 4,
-              alter: -1,
-              duration: 2,
-              type: 'quarter',
-            ), // Bb4 = 70
+            const Note(step: 'F', octave: 4, alter: 1, duration: 2, type: 'quarter'), // F#4 = 66
+            const Note(step: 'B', octave: 4, alter: -1, duration: 2, type: 'quarter'), // Bb4 = 70
           ]),
         ]),
       ]);
@@ -439,18 +313,8 @@ void main() {
       final score = _score([
         _part([
           _measure([
-            const Note(
-              step: 'C',
-              octave: 4,
-              duration: 8,
-              type: 'whole',
-            ), // 2000 ms
-            const Note(
-              step: 'C',
-              octave: 4,
-              duration: 1,
-              type: 'eighth',
-            ), // 250 ms
+            const Note(step: 'C', octave: 4, duration: 8, type: 'whole'),   // 2000 ms
+            const Note(step: 'C', octave: 4, duration: 1, type: 'eighth'),  // 250 ms
           ]),
         ]),
       ]);
@@ -476,18 +340,12 @@ void main() {
 
     test('PlaybackEvent.isRest is false for notes, true for rests', () {
       final noteEvent = PlaybackEvent(
-        partIndex: 0,
-        measureIndex: 0,
-        symbolIndex: 0,
-        midiNote: 60,
-        baseDurationMs: 500,
+        partIndex: 0, measureIndex: 0, symbolIndex: 0,
+        midiNote: 60, baseDurationMs: 500,
       );
       final restEvent = PlaybackEvent(
-        partIndex: 0,
-        measureIndex: 0,
-        symbolIndex: 1,
-        midiNote: -1,
-        baseDurationMs: 500,
+        partIndex: 0, measureIndex: 0, symbolIndex: 1,
+        midiNote: -1, baseDurationMs: 500,
       );
       expect(noteEvent.isRest, isFalse);
       expect(restEvent.isRest, isTrue);
@@ -515,14 +373,21 @@ void main() {
 
 // ── Test helpers ─────────────────────────────────────────────────────────────
 
-Score _score(List<Part> parts) =>
-    Score(id: 'test', title: 'Test Score', composer: '', parts: parts);
+Score _score(List<Part> parts) => Score(
+      id: 'test',
+      title: 'Test Score',
+      composer: '',
+      parts: parts,
+    );
 
-Part _part(List<Measure> measures) =>
-    Part(id: 'p1', name: 'Test', measures: measures);
+Part _part(List<Measure> measures) => Part(
+      id: 'p1',
+      name: 'Test',
+      measures: measures,
+    );
 
 Measure _measure(List<dynamic> symbols, {int number = 1}) => Measure(
-  number: number,
-  clef: const Clef(sign: 'G', line: 2),
-  symbols: symbols.cast(),
-);
+      number: number,
+      clef: const Clef(sign: 'G', line: 2),
+      symbols: symbols.cast(),
+    );

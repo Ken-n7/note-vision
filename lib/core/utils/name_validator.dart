@@ -58,5 +58,7 @@ class NameValidator {
   /// [TextInputFormatter] that silently blocks any character that is not a
   /// Unicode letter or a space.
   static final TextInputFormatter inputFormatter =
-      FilteringTextInputFormatter.allow(RegExp(r'[\p{L} ]', unicode: true));
+      FilteringTextInputFormatter.allow(
+    RegExp(r'[\p{L} ]', unicode: true),
+  );
 }

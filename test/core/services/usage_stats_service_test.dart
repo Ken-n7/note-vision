@@ -54,17 +54,14 @@ void main() {
       expect(stats.scans, 3);
     });
 
-    test(
-      'counters are independent — incrementing one does not affect others',
-      () async {
-        await UsageStatsService.incrementPlaybacks();
-        await UsageStatsService.incrementPlaybacks();
-        final stats = await UsageStatsService.loadStats();
-        expect(stats.scans, 0);
-        expect(stats.exports, 0);
-        expect(stats.playbacks, 2);
-      },
-    );
+    test('counters are independent — incrementing one does not affect others', () async {
+      await UsageStatsService.incrementPlaybacks();
+      await UsageStatsService.incrementPlaybacks();
+      final stats = await UsageStatsService.loadStats();
+      expect(stats.scans, 0);
+      expect(stats.exports, 0);
+      expect(stats.playbacks, 2);
+    });
 
     group('per-score edits', () {
       test('loadScoreEdits returns 0 on first access', () async {

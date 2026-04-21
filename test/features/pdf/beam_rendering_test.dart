@@ -26,11 +26,15 @@ List<List<int>> buildBeamGroups(List<dynamic> symbols) {
   return groups;
 }
 
-Note _eighth({bool beamed = true}) =>
-    Note(step: 'C', octave: 4, duration: 1, type: 'eighth', beamed: beamed);
+Note _eighth({bool beamed = true}) => Note(
+      step: 'C',
+      octave: 4,
+      duration: 1,
+      type: 'eighth',
+      beamed: beamed,
+    );
 
-Note _quarter() =>
-    const Note(step: 'D', octave: 4, duration: 2, type: 'quarter');
+Note _quarter() => const Note(step: 'D', octave: 4, duration: 2, type: 'quarter');
 
 void main() {
   // ── Note model serialisation ──────────────────────────────────────────────

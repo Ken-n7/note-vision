@@ -109,9 +109,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       });
       _showSavedSnackbar(name);
     } else {
-      final updated = _currentProject!.copyWithUpdated(
-        score: _editorState.score,
-      );
+      final updated =
+          _currentProject!.copyWithUpdated(score: _editorState.score);
       await _storage.saveProject(updated);
 
       if (!mounted) return;
@@ -294,39 +293,16 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     );
   }
 
-  ScoreSymbol _buildSymbol(
-    PaletteSymbolType type,
-    NotationInsertTarget target,
-  ) {
+  ScoreSymbol _buildSymbol(PaletteSymbolType type, NotationInsertTarget target) {
     switch (type) {
       case PaletteSymbolType.wholeNote:
-        return Note(
-          step: target.step,
-          octave: target.octave.clamp(1, 7).toInt(),
-          duration: 8,
-          type: 'whole',
-        );
+        return Note(step: target.step, octave: target.octave.clamp(1, 7).toInt(), duration: 8, type: 'whole');
       case PaletteSymbolType.halfNote:
-        return Note(
-          step: target.step,
-          octave: target.octave.clamp(1, 7).toInt(),
-          duration: 4,
-          type: 'half',
-        );
+        return Note(step: target.step, octave: target.octave.clamp(1, 7).toInt(), duration: 4, type: 'half');
       case PaletteSymbolType.quarterNote:
-        return Note(
-          step: target.step,
-          octave: target.octave.clamp(1, 7).toInt(),
-          duration: 2,
-          type: 'quarter',
-        );
+        return Note(step: target.step, octave: target.octave.clamp(1, 7).toInt(), duration: 2, type: 'quarter');
       case PaletteSymbolType.eighthNote:
-        return Note(
-          step: target.step,
-          octave: target.octave.clamp(1, 7).toInt(),
-          duration: 1,
-          type: 'eighth',
-        );
+        return Note(step: target.step, octave: target.octave.clamp(1, 7).toInt(), duration: 1, type: 'eighth');
       case PaletteSymbolType.wholeRest:
         return const Rest(duration: 8, type: 'whole');
       case PaletteSymbolType.halfRest:
@@ -337,10 +313,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   }
 
   EditorState _withDefaultMeasureContext(EditorState state) {
-    if (state.selectedPartIndex != null && state.selectedMeasureIndex != null)
-      return state;
-    if (state.score.parts.isEmpty || state.score.parts.first.measures.isEmpty)
-      return state;
+    if (state.selectedPartIndex != null && state.selectedMeasureIndex != null) return state;
+    if (state.score.parts.isEmpty || state.score.parts.first.measures.isEmpty) return state;
     return state.copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
   }
 
@@ -381,24 +355,17 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     final selected = _editorState.selectedSymbol;
     final hasSelection = _editorState.hasSelection;
     final hasMeasureContext =
-        _editorState.selectedPartIndex != null &&
-        _editorState.selectedMeasureIndex != null;
+        _editorState.selectedPartIndex != null && _editorState.selectedMeasureIndex != null;
     final selectedMeasureIndex = _editorState.selectedMeasureIndex ?? 0;
     final selectedPartIndex = _editorState.selectedPartIndex ?? 0;
-    final measureCount =
-        _editorState.score.parts.isEmpty ||
+    final measureCount = _editorState.score.parts.isEmpty ||
             selectedPartIndex >= _editorState.score.parts.length
         ? 0
         : _editorState.score.parts[selectedPartIndex].measures.length;
-    final canDeleteMeasure =
-        hasMeasureContext &&
+    final canDeleteMeasure = hasMeasureContext &&
         measureCount > 1 &&
-        _editorState
-            .score
-            .parts[selectedPartIndex]
-            .measures[selectedMeasureIndex]
-            .symbols
-            .isEmpty;
+        _editorState.score.parts[selectedPartIndex]
+            .measures[selectedMeasureIndex].symbols.isEmpty;
 
     return PopScope(
       canPop: !_editorState.hasUnsavedChanges,
@@ -406,299 +373,235 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         if (!didPop) _handlePopAttempt();
       },
       child: Scaffold(
-        backgroundColor: AppColors.background,
-        body: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final isLandscape = constraints.maxWidth > constraints.maxHeight;
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isLandscape = constraints.maxWidth > constraints.maxHeight;
 
-              final notationArea = _NotationArea(
-                editorState: _editorState,
-                insertMode: _insertMode,
-                insertSymbolType: _insertSymbolType,
-                playbackPosition: _playbackPosition,
-                isDraggingNote: _isDraggingNote,
-                dragGlobal: _dragGlobal,
-                trashZoneKey: _trashZoneKey,
-                onToggleInsertMode: _toggleInsertMode,
-                onPaletteTypeTap: _onPaletteTypeTap,
-                onSymbolTap: (target) {
-                  if (target == null) {
-                    _updateState((s) => _clearSymbolSelection(s));
-                  } else {
-                    _onNotationSymbolTap(
-                      target.partIndex,
-                      target.measureIndex,
-                      target.symbolIndex,
-                    );
-                  }
-                },
-                onInsertTap: _onInsertTap,
-                onDragStarted: (target) {
-                  setState(() {
-                    _isDraggingNote = true;
-                    _dragTarget = target;
+            final notationArea = _NotationArea(
+              editorState: _editorState,
+              insertMode: _insertMode,
+              insertSymbolType: _insertSymbolType,
+              playbackPosition: _playbackPosition,
+              isDraggingNote: _isDraggingNote,
+              dragGlobal: _dragGlobal,
+              trashZoneKey: _trashZoneKey,
+              onToggleInsertMode: _toggleInsertMode,
+              onPaletteTypeTap: _onPaletteTypeTap,
+              onSymbolTap: (target) {
+                if (target == null) {
+                  _updateState((s) => _clearSymbolSelection(s));
+                } else {
+                  _onNotationSymbolTap(target.partIndex, target.measureIndex, target.symbolIndex);
+                }
+              },
+              onInsertTap: _onInsertTap,
+              onDragStarted: (target) {
+                setState(() {
+                  _isDraggingNote = true;
+                  _dragTarget = target;
+                });
+              },
+              onDragGlobalUpdate: (global) {
+                setState(() => _dragGlobal = global);
+              },
+              onDragCompleted: (reorder, global) {
+                final trashBox =
+                    _trashZoneKey.currentContext?.findRenderObject() as RenderBox?;
+                final isOverTrash = trashBox != null &&
+                    (trashBox.localToGlobal(Offset.zero) & trashBox.size).contains(global);
+                if (isOverTrash && _dragTarget != null) {
+                  final t = _dragTarget!;
+                  _updateState((s) {
+                    final symbol = s.score.parts[t.partIndex]
+                        .measures[t.measureIndex].symbols[t.symbolIndex];
+                    return s
+                        .copyWith(
+                          selectedPartIndex: t.partIndex,
+                          selectedMeasureIndex: t.measureIndex,
+                          selectedSymbolIndex: t.symbolIndex,
+                          selectedSymbol: symbol,
+                        )
+                        .deleteSelectedSymbol();
                   });
-                },
-                onDragGlobalUpdate: (global) {
-                  setState(() => _dragGlobal = global);
-                },
-                onDragCompleted: (reorder, global) {
-                  final trashBox =
-                      _trashZoneKey.currentContext?.findRenderObject()
-                          as RenderBox?;
-                  final isOverTrash =
-                      trashBox != null &&
-                      (trashBox.localToGlobal(Offset.zero) & trashBox.size)
-                          .contains(global);
-                  if (isOverTrash && _dragTarget != null) {
-                    final t = _dragTarget!;
-                    _updateState((s) {
-                      final symbol = s
-                          .score
-                          .parts[t.partIndex]
-                          .measures[t.measureIndex]
-                          .symbols[t.symbolIndex];
-                      return s
-                          .copyWith(
-                            selectedPartIndex: t.partIndex,
-                            selectedMeasureIndex: t.measureIndex,
-                            selectedSymbolIndex: t.symbolIndex,
-                            selectedSymbol: symbol,
-                          )
-                          .deleteSelectedSymbol();
-                    });
-                  } else if (reorder != null) {
-                    _updateState(
-                      (s) => s.moveSymbolToDest(
-                        fromPartIndex: reorder.fromPartIndex,
-                        fromMeasureIndex: reorder.fromMeasureIndex,
-                        fromSymbolIndex: reorder.fromSymbolIndex,
-                        toPartIndex: reorder.toPartIndex,
-                        toMeasureIndex: reorder.toMeasureIndex,
-                        toSymbolIndex: reorder.toSymbolIndex,
-                      ),
-                    );
-                  }
-                  setState(() {
-                    _isDraggingNote = false;
-                    _dragGlobal = Offset.zero;
-                    _dragTarget = null;
-                  });
-                },
-                onDragCancelled: () => setState(() {
+                } else if (reorder != null) {
+                  _updateState((s) => s.moveSymbolToDest(
+                    fromPartIndex: reorder.fromPartIndex,
+                    fromMeasureIndex: reorder.fromMeasureIndex,
+                    fromSymbolIndex: reorder.fromSymbolIndex,
+                    toPartIndex: reorder.toPartIndex,
+                    toMeasureIndex: reorder.toMeasureIndex,
+                    toSymbolIndex: reorder.toSymbolIndex,
+                  ));
+                }
+                setState(() {
                   _isDraggingNote = false;
                   _dragGlobal = Offset.zero;
                   _dragTarget = null;
-                }),
-                onExternalDrop: _onPaletteDrop,
-              );
+                });
+              },
+              onDragCancelled: () => setState(() {
+                _isDraggingNote = false;
+                _dragGlobal = Offset.zero;
+                _dragTarget = null;
+              }),
+              onExternalDrop: _onPaletteDrop,
+            );
 
-              final inspectorPanel = _InspectorPanel(
-                isLandscape: isLandscape,
-                selected: selected,
-                hasSelection: hasSelection,
-                hasMeasureContext: hasMeasureContext,
-                selectedMeasureIndex: selectedMeasureIndex,
-                measureCount: measureCount,
-                onPrevMeasure: selectedMeasureIndex > 0
-                    ? () => _updateState(
-                        (s) => s.copyWith(
-                          selectedPartIndex: selectedPartIndex,
-                          selectedMeasureIndex: selectedMeasureIndex - 1,
-                          selectedSymbolIndex: null,
-                          selectedSymbol: null,
-                        ),
-                      )
-                    : null,
-                onNextMeasure: selectedMeasureIndex < measureCount - 1
-                    ? () => _updateState(
-                        (s) => s.copyWith(
-                          selectedPartIndex: selectedPartIndex,
-                          selectedMeasureIndex: selectedMeasureIndex + 1,
-                          selectedSymbolIndex: null,
-                          selectedSymbol: null,
-                        ),
-                      )
-                    : null,
-                onMoveUp: () => _updateState((s) => s.moveSelectedSymbolUp()),
-                onMoveDown: () =>
-                    _updateState((s) => s.moveSelectedSymbolDown()),
-                onWhole: () =>
-                    _updateState((s) => s.setSelectedDuration(wholeDuration)),
-                onHalf: () =>
-                    _updateState((s) => s.setSelectedDuration(halfDuration)),
-                onQuarter: () =>
-                    _updateState((s) => s.setSelectedDuration(quarterDuration)),
-                onEighth: () =>
-                    _updateState((s) => s.setSelectedDuration(eighthDuration)),
-                onSetAccidental: (alter) =>
-                    _updateState((s) => s.setSelectedNoteAccidental(alter)),
-                onInsertNote: () =>
-                    _updateState((s) => s.insertNoteAfterSelection()),
-                onInsertRest: () =>
-                    _updateState((s) => s.insertRestAfterSelection()),
-                onMoveToPrev: () => _updateState(
-                  (s) => s.moveSelectedSymbolToMeasureOffset(-1),
-                ),
-                onMoveToNext: () =>
-                    _updateState((s) => s.moveSelectedSymbolToMeasureOffset(1)),
-                onAddMeasure: () =>
-                    _updateState((s) => s.addMeasureAfterSelected()),
-                canDeleteMeasure: canDeleteMeasure,
-                onDeleteMeasure: () =>
-                    _updateState((s) => s.deleteSelectedMeasureIfEmpty()),
-              );
+            final inspectorPanel = _InspectorPanel(
+              isLandscape: isLandscape,
+              selected: selected,
+              hasSelection: hasSelection,
+              hasMeasureContext: hasMeasureContext,
+              selectedMeasureIndex: selectedMeasureIndex,
+              measureCount: measureCount,
+              onPrevMeasure: selectedMeasureIndex > 0
+                  ? () => _updateState((s) => s.copyWith(
+                        selectedPartIndex: selectedPartIndex,
+                        selectedMeasureIndex: selectedMeasureIndex - 1,
+                        selectedSymbolIndex: null,
+                        selectedSymbol: null,
+                      ))
+                  : null,
+              onNextMeasure: selectedMeasureIndex < measureCount - 1
+                  ? () => _updateState((s) => s.copyWith(
+                        selectedPartIndex: selectedPartIndex,
+                        selectedMeasureIndex: selectedMeasureIndex + 1,
+                        selectedSymbolIndex: null,
+                        selectedSymbol: null,
+                      ))
+                  : null,
+              onMoveUp: () => _updateState((s) => s.moveSelectedSymbolUp()),
+              onMoveDown: () => _updateState((s) => s.moveSelectedSymbolDown()),
+              onWhole: () => _updateState((s) => s.setSelectedDuration(wholeDuration)),
+              onHalf: () => _updateState((s) => s.setSelectedDuration(halfDuration)),
+              onQuarter: () => _updateState((s) => s.setSelectedDuration(quarterDuration)),
+              onEighth: () => _updateState((s) => s.setSelectedDuration(eighthDuration)),
+              onSetAccidental: (alter) => _updateState((s) => s.setSelectedNoteAccidental(alter)),
+              onInsertNote: () => _updateState((s) => s.insertNoteAfterSelection()),
+              onInsertRest: () => _updateState((s) => s.insertRestAfterSelection()),
+              onMoveToPrev: () => _updateState((s) => s.moveSelectedSymbolToMeasureOffset(-1)),
+              onMoveToNext: () => _updateState((s) => s.moveSelectedSymbolToMeasureOffset(1)),
+              onAddMeasure: () => _updateState((s) => s.addMeasureAfterSelected()),
+              canDeleteMeasure: canDeleteMeasure,
+              onDeleteMeasure: () => _updateState((s) => s.deleteSelectedMeasureIfEmpty()),
+            );
 
-              final scoreIsEmpty =
-                  _editorState.score.parts.isEmpty ||
-                  _editorState.score.parts.every(
-                    (p) => p.measures.every((m) => m.symbols.isEmpty),
-                  );
+            final scoreIsEmpty = _editorState.score.parts.isEmpty ||
+                _editorState.score.parts.every((p) => p.measures.every((m) => m.symbols.isEmpty));
 
-              return Column(
-                children: [
-                  _EditorHeader(
-                    title:
-                        _currentProject?.name ??
-                        (_editorState.score.title.isEmpty
-                            ? 'Untitled Score'
-                            : _editorState.score.title),
-                    hasUnsavedChanges: _editorState.hasUnsavedChanges,
-                    editCount: _scoreEditCount,
-                    canUndo: _editorState.canUndo,
-                    canRedo: _editorState.canRedo,
-                    onBack: () => Navigator.of(context).maybePop(),
-                    onUndo: () => _updateState((s) => s.applyUndo()),
-                    onRedo: () => _updateState((s) => s.applyRedo()),
-                    onSave: _onSave,
-                    onExportXml: () async {
-                      try {
-                        final path = await const MusicXmlExportService()
-                            .exportToDevice(_editorState.score);
-                        if (!context.mounted) return;
-                        if (path != null) {
-                          await UsageStatsService.incrementExports();
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('MusicXML saved'),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                        }
-                      } catch (e) {
+            return Column(
+              children: [
+                _EditorHeader(
+                  title: _currentProject?.name ??
+                      (_editorState.score.title.isEmpty
+                          ? 'Untitled Score'
+                          : _editorState.score.title),
+                  hasUnsavedChanges: _editorState.hasUnsavedChanges,
+                  editCount: _scoreEditCount,
+                  canUndo: _editorState.canUndo,
+                  canRedo: _editorState.canRedo,
+                  onBack: () => Navigator.of(context).maybePop(),
+                  onUndo: () => _updateState((s) => s.applyUndo()),
+                  onRedo: () => _updateState((s) => s.applyRedo()),
+                  onSave: _onSave,
+                  onExportXml: () async {
+                    try {
+                      final path = await const MusicXmlExportService().exportToDevice(_editorState.score);
+                      if (!context.mounted) return;
+                      if (path != null) {
+                        await UsageStatsService.incrementExports();
                         if (!context.mounted) return;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Export failed: $e')),
-                        );
-                      }
-                    },
-                    scoreIsEmpty:
-                        _editorState.score.parts.isEmpty ||
-                        _editorState.score.parts.every(
-                          (p) => p.measures.every((m) => m.symbols.isEmpty),
-                        ),
-                    onExportPdf: () async {
-                      try {
-                        final path = await const PdfExportService()
-                            .exportToDevice(_editorState.score);
-                        if (!context.mounted) return;
-                        if (path != null) {
-                          await UsageStatsService.incrementExports();
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('PDF saved'),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Export failed: $e')),
-                        );
-                      }
-                    },
-                  ),
-                  Expanded(
-                    child: isLandscape
-                        ? Row(
-                            children: [
-                              Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    12,
-                                    0,
-                                    6,
-                                    12,
-                                  ),
-                                  child: notationArea,
-                                ),
-                              ),
-                              SizedBox(
-                                width: (constraints.maxWidth * 0.3).clamp(
-                                  260.0,
-                                  320.0,
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    6,
-                                    0,
-                                    12,
-                                    12,
-                                  ),
-                                  child: inspectorPanel,
-                                ),
-                              ),
-                            ],
-                          )
-                        : Column(
-                            children: [
-                              Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    12,
-                                    0,
-                                    12,
-                                    0,
-                                  ),
-                                  child: notationArea,
-                                ),
-                              ),
-                              SizedBox(
-                                height: (constraints.maxHeight * 0.36).clamp(
-                                  200.0,
-                                  280.0,
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    12,
-                                    0,
-                                    12,
-                                    12,
-                                  ),
-                                  child: inspectorPanel,
-                                ),
-                              ),
-                            ],
+                          const SnackBar(
+                            content: Text('MusicXML saved'),
+                            duration: Duration(seconds: 2),
                           ),
-                  ),
-                  PlaybackControlsBar(
-                    isEmpty: scoreIsEmpty,
-                    onPlay: () => _playback.play(_editorState.score),
-                    onResume: _playback.resume,
-                    onPause: _playback.pause,
-                    onStop: _playback.stop,
-                    onTempoChanged: _playback.setTempo,
-                  ),
-                ],
-              );
-            },
-          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Export failed: $e')),
+                      );
+                    }
+                  },
+                  scoreIsEmpty: _editorState.score.parts.isEmpty ||
+                      _editorState.score.parts.every((p) => p.measures.every((m) => m.symbols.isEmpty)),
+                  onExportPdf: () async {
+                    try {
+                      final path = await const PdfExportService().exportToDevice(_editorState.score);
+                      if (!context.mounted) return;
+                      if (path != null) {
+                        await UsageStatsService.incrementExports();
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('PDF saved'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (!context.mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Export failed: $e')),
+                      );
+                    }
+                  },
+                ),
+                Expanded(
+                  child: isLandscape
+                      ? Row(
+                          children: [
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(12, 0, 6, 12),
+                                child: notationArea,
+                              ),
+                            ),
+                            SizedBox(
+                              width: (constraints.maxWidth * 0.3).clamp(260.0, 320.0),
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(6, 0, 12, 12),
+                                child: inspectorPanel,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Column(
+                          children: [
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+                                child: notationArea,
+                              ),
+                            ),
+                            SizedBox(
+                              height: (constraints.maxHeight * 0.36).clamp(200.0, 280.0),
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                                child: inspectorPanel,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+                PlaybackControlsBar(
+                  isEmpty: scoreIsEmpty,
+                  onPlay: () => _playback.play(_editorState.score),
+                  onResume: _playback.resume,
+                  onPause: _playback.pause,
+                  onStop: _playback.stop,
+                  onTempoChanged: _playback.setTempo,
+                ),
+              ],
+            );
+          },
         ),
       ),
+    ),
     );
   }
 }
@@ -799,10 +702,7 @@ class _EditorHeader extends StatelessWidget {
                     if (hasUnsavedChanges) ...[
                       const SizedBox(width: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: AppColors.accent.withValues(alpha: 0.18),
                           borderRadius: BorderRadius.circular(4),
@@ -825,10 +725,7 @@ class _EditorHeader extends StatelessWidget {
                       child: Text(
                         'Score Editor',
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 10,
-                        ),
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
                       ),
                     ),
                     if (editCount > 0) ...[
@@ -837,10 +734,7 @@ class _EditorHeader extends StatelessWidget {
                         child: Text(
                           '· $editCount ${editCount == 1 ? 'edit' : 'edits'}',
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 10,
-                          ),
+                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
                         ),
                       ),
                     ],
@@ -852,18 +746,14 @@ class _EditorHeader extends StatelessWidget {
           IconButton(
             onPressed: canUndo ? onUndo : null,
             icon: const Icon(Icons.undo_rounded, size: 18),
-            color: canUndo
-                ? AppColors.textPrimary
-                : AppColors.textSecondary.withValues(alpha: 0.3),
+            color: canUndo ? AppColors.textPrimary : AppColors.textSecondary.withValues(alpha: 0.3),
             tooltip: 'Undo',
             visualDensity: VisualDensity.compact,
           ),
           IconButton(
             onPressed: canRedo ? onRedo : null,
             icon: const Icon(Icons.redo_rounded, size: 18),
-            color: canRedo
-                ? AppColors.textPrimary
-                : AppColors.textSecondary.withValues(alpha: 0.3),
+            color: canRedo ? AppColors.textPrimary : AppColors.textSecondary.withValues(alpha: 0.3),
             tooltip: 'Redo',
             visualDensity: VisualDensity.compact,
           ),
@@ -927,10 +817,8 @@ const double _kRowHeight = 140.0;
 const double _kRowPrefixWidth = 86.0;
 const double _kMeasureWidth =
     (_kPageWidth - _kPagePaddingH * 2 - _kRowPrefixWidth) / _kMeasuresPerRow;
-const EdgeInsets _kPagePadding = EdgeInsets.symmetric(
-  horizontal: _kPagePaddingH,
-  vertical: _kPagePaddingV,
-);
+const EdgeInsets _kPagePadding =
+    EdgeInsets.symmetric(horizontal: _kPagePaddingH, vertical: _kPagePaddingV);
 
 class _NotationArea extends StatefulWidget {
   const _NotationArea({
@@ -965,8 +853,7 @@ class _NotationArea extends StatefulWidget {
   final ValueChanged<NotationInsertTarget?> onInsertTap;
   final void Function(NotationSymbolTarget symbol) onDragStarted;
   final void Function(Offset global) onDragGlobalUpdate;
-  final void Function(NotationSymbolReorder? reorder, Offset globalEndPosition)
-  onDragCompleted;
+  final void Function(NotationSymbolReorder? reorder, Offset globalEndPosition) onDragCompleted;
   final VoidCallback onDragCancelled;
   final void Function(NotationInsertTarget, Object) onExternalDrop;
 
@@ -1012,8 +899,7 @@ class _NotationAreaState extends State<_NotationArea> {
     if (viewport == null || content == null) return;
     if (viewport.width <= 0 || viewport.height <= 0) return;
 
-    final scale =
-        math.min(
+    final scale = math.min(
           viewport.width / content.width,
           viewport.height / content.height,
         ) *
@@ -1138,23 +1024,21 @@ class _NotationAreaState extends State<_NotationArea> {
                                   : widget.playbackPosition.partIndex,
                               playbackMeasureIndex:
                                   widget.playbackPosition.isNone
-                                  ? null
-                                  : widget.playbackPosition.measureIndex,
-                              playbackSymbolIndex:
-                                  widget.playbackPosition.isNone
+                                      ? null
+                                      : widget.playbackPosition.measureIndex,
+                              playbackSymbolIndex: widget.playbackPosition.isNone
                                   ? null
                                   : widget.playbackPosition.symbolIndex,
                               insertMode: widget.insertMode,
                               canAcceptExternalDrop: (data) =>
                                   data is PaletteDragData,
-                              externalPreviewResolver: _previewGlyphForDragData,
+                              externalPreviewResolver:
+                                  _previewGlyphForDragData,
                               onExternalDrop: widget.onExternalDrop,
-                              onSymbolTap: widget.insertMode
-                                  ? null
-                                  : widget.onSymbolTap,
-                              onInsertTap: widget.insertMode
-                                  ? widget.onInsertTap
-                                  : null,
+                              onSymbolTap:
+                                  widget.insertMode ? null : widget.onSymbolTap,
+                              onInsertTap:
+                                  widget.insertMode ? widget.onInsertTap : null,
                               onDragStarted: widget.insertMode
                                   ? null
                                   : widget.onDragStarted,
@@ -1178,25 +1062,18 @@ class _NotationAreaState extends State<_NotationArea> {
                   right: 0,
                   child: Center(
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 5,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                       decoration: BoxDecoration(
                         color: AppColors.accent.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                          color: AppColors.accent.withValues(alpha: 0.5),
-                        ),
+                            color: AppColors.accent.withValues(alpha: 0.5)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
-                            Icons.edit_rounded,
-                            size: 12,
-                            color: AppColors.accent,
-                          ),
+                          const Icon(Icons.edit_rounded,
+                              size: 12, color: AppColors.accent),
                           const SizedBox(width: 5),
                           Text(
                             widget.insertSymbolType != null
@@ -1225,10 +1102,8 @@ class _NotationAreaState extends State<_NotationArea> {
                       key: widget.trashZoneKey,
                       isHovered: () {
                         if (widget.dragGlobal == Offset.zero) return false;
-                        final box =
-                            widget.trashZoneKey.currentContext
-                                    ?.findRenderObject()
-                                as RenderBox?;
+                        final box = widget.trashZoneKey.currentContext
+                            ?.findRenderObject() as RenderBox?;
                         if (box == null) return false;
                         return (box.localToGlobal(Offset.zero) & box.size)
                             .contains(widget.dragGlobal);
@@ -1262,14 +1137,14 @@ class _NotationAreaState extends State<_NotationArea> {
   }
 
   String _typeLabel(PaletteSymbolType t) => switch (t) {
-    PaletteSymbolType.wholeNote => 'whole note',
-    PaletteSymbolType.halfNote => 'half note',
-    PaletteSymbolType.quarterNote => 'quarter note',
-    PaletteSymbolType.eighthNote => 'eighth note',
-    PaletteSymbolType.wholeRest => 'whole rest',
-    PaletteSymbolType.halfRest => 'half rest',
-    PaletteSymbolType.quarterRest => 'quarter rest',
-  };
+        PaletteSymbolType.wholeNote => 'whole note',
+        PaletteSymbolType.halfNote => 'half note',
+        PaletteSymbolType.quarterNote => 'quarter note',
+        PaletteSymbolType.eighthNote => 'eighth note',
+        PaletteSymbolType.wholeRest => 'whole rest',
+        PaletteSymbolType.halfRest => 'half rest',
+        PaletteSymbolType.quarterRest => 'quarter rest',
+      };
 
   NotationPreviewGlyph? _previewGlyphForDragData(Object data) {
     if (data is! PaletteDragData) return null;
@@ -1328,9 +1203,7 @@ class _FloatingControls extends StatelessWidget {
                 Icon(
                   insertMode ? Icons.edit_rounded : Icons.touch_app_rounded,
                   size: 13,
-                  color: insertMode
-                      ? AppColors.accent
-                      : AppColors.textSecondary,
+                  color: insertMode ? AppColors.accent : AppColors.textSecondary,
                 ),
                 const SizedBox(width: 5),
                 Text(
@@ -1338,9 +1211,7 @@ class _FloatingControls extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: insertMode
-                        ? AppColors.accent
-                        : AppColors.textSecondary,
+                    color: insertMode ? AppColors.accent : AppColors.textSecondary,
                   ),
                 ),
               ],
@@ -1372,10 +1243,7 @@ class _FloatingControls extends StatelessWidget {
               ),
               _ZoomBtn(icon: Icons.add_rounded, onPressed: onZoomIn),
               const SizedBox(width: 2),
-              _ZoomBtn(
-                icon: Icons.fit_screen_rounded,
-                onPressed: onFitToScreen,
-              ),
+              _ZoomBtn(icon: Icons.fit_screen_rounded, onPressed: onFitToScreen),
             ],
           ),
         ),
@@ -1480,111 +1348,46 @@ class _InspectorPanel extends StatelessWidget {
       _ActionGroup(
         label: 'PITCH',
         children: [
-          _ActionTile(
-            icon: Icons.keyboard_arrow_up_rounded,
-            label: 'Up',
-            onPressed: hasSelection ? onMoveUp : null,
-          ),
-          _ActionTile(
-            icon: Icons.keyboard_arrow_down_rounded,
-            label: 'Down',
-            onPressed: hasSelection ? onMoveDown : null,
-          ),
+          _ActionTile(icon: Icons.keyboard_arrow_up_rounded, label: 'Up', onPressed: hasSelection ? onMoveUp : null),
+          _ActionTile(icon: Icons.keyboard_arrow_down_rounded, label: 'Down', onPressed: hasSelection ? onMoveDown : null),
         ],
       ),
       _ActionGroup(
         label: 'ACCIDENTAL',
         children: [
-          _AccTile(
-            label: '—',
-            sublabel: 'None',
-            isActive: isNoteSelected && currentAlter == null,
-            onPressed: isNoteSelected ? () => onSetAccidental(null) : null,
-          ),
-          _AccTile(
-            label: '♯',
-            sublabel: 'Sharp',
-            isActive: isNoteSelected && currentAlter == 1,
-            onPressed: isNoteSelected ? () => onSetAccidental(1) : null,
-          ),
-          _AccTile(
-            label: '♭',
-            sublabel: 'Flat',
-            isActive: isNoteSelected && currentAlter == -1,
-            onPressed: isNoteSelected ? () => onSetAccidental(-1) : null,
-          ),
-          _AccTile(
-            label: '♮',
-            sublabel: 'Natural',
-            isActive: isNoteSelected && currentAlter == 0,
-            onPressed: isNoteSelected ? () => onSetAccidental(0) : null,
-          ),
+          _AccTile(label: '—', sublabel: 'None', isActive: isNoteSelected && currentAlter == null,
+              onPressed: isNoteSelected ? () => onSetAccidental(null) : null),
+          _AccTile(label: '♯', sublabel: 'Sharp', isActive: isNoteSelected && currentAlter == 1,
+              onPressed: isNoteSelected ? () => onSetAccidental(1) : null),
+          _AccTile(label: '♭', sublabel: 'Flat', isActive: isNoteSelected && currentAlter == -1,
+              onPressed: isNoteSelected ? () => onSetAccidental(-1) : null),
+          _AccTile(label: '♮', sublabel: 'Natural', isActive: isNoteSelected && currentAlter == 0,
+              onPressed: isNoteSelected ? () => onSetAccidental(0) : null),
         ],
       ),
       _ActionGroup(
         label: 'DURATION',
         children: [
-          _DurTile(
-            label: 'W',
-            sublabel: 'Whole',
-            onPressed: hasSelection ? onWhole : null,
-          ),
-          _DurTile(
-            label: 'H',
-            sublabel: 'Half',
-            onPressed: hasSelection ? onHalf : null,
-          ),
-          _DurTile(
-            label: '♩',
-            sublabel: 'Qtr',
-            onPressed: hasSelection ? onQuarter : null,
-          ),
-          _DurTile(
-            label: '♪',
-            sublabel: '8th',
-            onPressed: hasSelection ? onEighth : null,
-          ),
+          _DurTile(label: 'W', sublabel: 'Whole', onPressed: hasSelection ? onWhole : null),
+          _DurTile(label: 'H', sublabel: 'Half', onPressed: hasSelection ? onHalf : null),
+          _DurTile(label: '♩', sublabel: 'Qtr', onPressed: hasSelection ? onQuarter : null),
+          _DurTile(label: '♪', sublabel: '8th', onPressed: hasSelection ? onEighth : null),
         ],
       ),
       _ActionGroup(
         label: 'MEASURE',
         children: [
-          _ActionTile(
-            icon: Icons.skip_previous_rounded,
-            label: 'Prev',
-            onPressed: hasSelection ? onMoveToPrev : null,
-          ),
-          _ActionTile(
-            icon: Icons.skip_next_rounded,
-            label: 'Next',
-            onPressed: hasSelection ? onMoveToNext : null,
-          ),
-          _ActionTile(
-            icon: Icons.add_rounded,
-            label: 'Add',
-            onPressed: hasMeasureContext ? onAddMeasure : null,
-          ),
-          _ActionTile(
-            icon: Icons.remove_rounded,
-            label: 'Del',
-            onPressed: canDeleteMeasure ? onDeleteMeasure : null,
-            danger: true,
-          ),
+          _ActionTile(icon: Icons.skip_previous_rounded, label: 'Prev', onPressed: hasSelection ? onMoveToPrev : null),
+          _ActionTile(icon: Icons.skip_next_rounded, label: 'Next', onPressed: hasSelection ? onMoveToNext : null),
+          _ActionTile(icon: Icons.add_rounded, label: 'Add', onPressed: hasMeasureContext ? onAddMeasure : null),
+          _ActionTile(icon: Icons.remove_rounded, label: 'Del', onPressed: canDeleteMeasure ? onDeleteMeasure : null, danger: true),
         ],
       ),
       _ActionGroup(
         label: 'INSERT',
         children: [
-          _ActionTile(
-            icon: Icons.music_note_rounded,
-            label: 'Note',
-            onPressed: hasMeasureContext ? onInsertNote : null,
-          ),
-          _ActionTile(
-            icon: Icons.horizontal_rule_rounded,
-            label: 'Rest',
-            onPressed: hasMeasureContext ? onInsertRest : null,
-          ),
+          _ActionTile(icon: Icons.music_note_rounded, label: 'Note', onPressed: hasMeasureContext ? onInsertNote : null),
+          _ActionTile(icon: Icons.horizontal_rule_rounded, label: 'Rest', onPressed: hasMeasureContext ? onInsertRest : null),
         ],
       ),
     ];
@@ -1603,12 +1406,10 @@ class _InspectorPanel extends StatelessWidget {
             children: [
               selectionCard,
               const SizedBox(height: 14),
-              ...groups.map(
-                (g) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _LandscapeGroup(group: g),
-                ),
-              ),
+              ...groups.map((g) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _LandscapeGroup(group: g),
+                  )),
             ],
           ),
         ),
@@ -1645,12 +1446,11 @@ class _InspectorPanel extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children:
-                    groups
-                        .map((g) => _PortraitGroup(group: g))
-                        .expand((w) => [w, _Divider()])
-                        .toList()
-                      ..removeLast(),
+                children: groups
+                    .map((g) => _PortraitGroup(group: g))
+                    .expand((w) => [w, _Divider()])
+                    .toList()
+                  ..removeLast(),
               ),
             ),
           ),
@@ -1719,10 +1519,7 @@ class _PortraitGroup extends StatelessWidget {
         const SizedBox(height: 4),
         Row(
           children: group.children
-              .map(
-                (c) =>
-                    Padding(padding: const EdgeInsets.only(right: 4), child: c),
-              )
+              .map((c) => Padding(padding: const EdgeInsets.only(right: 4), child: c))
               .toList(),
         ),
       ],
@@ -1846,9 +1643,7 @@ class _SelectionCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(5),
                       ),
                       child: Icon(
-                        _isNote
-                            ? Icons.music_note_rounded
-                            : Icons.horizontal_rule_rounded,
+                        _isNote ? Icons.music_note_rounded : Icons.horizontal_rule_rounded,
                         size: 13,
                         color: AppColors.accent,
                       ),
@@ -1870,10 +1665,7 @@ class _SelectionCard extends StatelessWidget {
                       child: Text(
                         _durLabel,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 11,
-                        ),
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
                       ),
                     ),
                   ] else
@@ -1881,10 +1673,7 @@ class _SelectionCard extends StatelessWidget {
                       child: Text(
                         'Tap a symbol to select',
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 12,
-                        ),
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                       ),
                     ),
                 ],
@@ -1932,9 +1721,7 @@ class _SelectionCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Icon(
-                    _isNote
-                        ? Icons.music_note_rounded
-                        : Icons.horizontal_rule_rounded,
+                    _isNote ? Icons.music_note_rounded : Icons.horizontal_rule_rounded,
                     size: 16,
                     color: AppColors.accent,
                   ),
@@ -1953,10 +1740,7 @@ class _SelectionCard extends StatelessWidget {
                     ),
                     Text(
                       _durLabel,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                      ),
+                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
                     ),
                   ],
                 ),
@@ -2060,9 +1844,7 @@ class _ActionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onPressed != null;
-    final activeColor = danger
-        ? const Color(0xFFEF4444)
-        : AppColors.textPrimary;
+    final activeColor = danger ? const Color(0xFFEF4444) : AppColors.textPrimary;
     final iconColor = enabled
         ? (danger ? const Color(0xFFEF4444) : AppColors.textPrimary)
         : AppColors.textSecondary.withValues(alpha: 0.35);
@@ -2082,8 +1864,8 @@ class _ActionTile extends StatelessWidget {
             border: Border.all(
               color: enabled
                   ? (danger
-                        ? const Color(0xFFEF4444).withValues(alpha: 0.4)
-                        : AppColors.border)
+                      ? const Color(0xFFEF4444).withValues(alpha: 0.4)
+                      : AppColors.border)
                   : AppColors.border.withValues(alpha: 0.4),
             ),
           ),
@@ -2144,15 +1926,15 @@ class _AccTile extends StatelessWidget {
             color: isActive
                 ? _accent.withValues(alpha: 0.15)
                 : enabled
-                ? AppColors.surfaceAlt
-                : AppColors.background,
+                    ? AppColors.surfaceAlt
+                    : AppColors.background,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: isActive
                   ? _accent.withValues(alpha: 0.6)
                   : enabled
-                  ? AppColors.border
-                  : AppColors.border.withValues(alpha: 0.4),
+                      ? AppColors.border
+                      : AppColors.border.withValues(alpha: 0.4),
             ),
           ),
           child: Column(
@@ -2165,8 +1947,8 @@ class _AccTile extends StatelessWidget {
                   color: isActive
                       ? _accent
                       : enabled
-                      ? AppColors.textPrimary
-                      : AppColors.textSecondary.withValues(alpha: 0.35),
+                          ? AppColors.textPrimary
+                          : AppColors.textSecondary.withValues(alpha: 0.35),
                   fontWeight: FontWeight.w700,
                   height: 1.2,
                 ),
@@ -2179,8 +1961,8 @@ class _AccTile extends StatelessWidget {
                   color: isActive
                       ? _accent.withValues(alpha: 0.8)
                       : enabled
-                      ? AppColors.textSecondary.withValues(alpha: 0.7)
-                      : AppColors.textSecondary.withValues(alpha: 0.3),
+                          ? AppColors.textSecondary.withValues(alpha: 0.7)
+                          : AppColors.textSecondary.withValues(alpha: 0.3),
                   fontWeight: FontWeight.w500,
                 ),
                 maxLines: 1,
@@ -2221,9 +2003,7 @@ class _DurTile extends StatelessWidget {
             color: enabled ? AppColors.surfaceAlt : AppColors.background,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: enabled
-                  ? AppColors.border
-                  : AppColors.border.withValues(alpha: 0.4),
+              color: enabled ? AppColors.border : AppColors.border.withValues(alpha: 0.4),
             ),
           ),
           child: Column(

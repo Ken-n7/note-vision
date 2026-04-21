@@ -174,6 +174,10 @@ class _StatCell extends StatelessWidget {
 class _Divider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(width: 1, height: 36, color: const Color(0xFF252A3A));
+    return Container(
+      width: 1,
+      height: 36,
+      color: const Color(0xFF252A3A),
+    );
   }
 }

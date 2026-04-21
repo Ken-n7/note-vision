@@ -16,7 +16,7 @@ void main() {
     lineYs: [100, 110, 120, 130, 140],
   );
 
-  DetectedSymbol symbol({
+    DetectedSymbol symbol({
     required String id,
     required String type,
     required double x,
@@ -37,68 +37,65 @@ void main() {
   }
 
   group('DetectionToScoreMapperService.map', () {
-    test(
-      'accepts mock detection input and builds measures, notes, and rests',
-      () {
-        const detection = DetectionResult(
-          imageId: 'mock-detection',
-          staffs: [singleStaff],
-          barlines: [DetectedBarline(x: 90, staffId: 'staff-1')],
-          symbols: [
-            DetectedSymbol(
-              id: 'clef-1',
-              type: 'clefG',
-              x: 10,
-              y: 92,
-              width: 20,
-              height: 48,
-              confidence: 0.99,
-            ),
-            DetectedSymbol(
-              id: 'head-1',
-              type: 'noteheadBlack',
-              x: 42,
-              y: 136,
-              width: 10,
-              height: 8,
-              confidence: 0.95,
-            ),
-            DetectedSymbol(
-              id: 'stem-1',
-              type: 'stem',
-              x: 50,
-              y: 108,
-              width: 2,
-              height: 28,
-              confidence: 0.93,
-            ),
-            DetectedSymbol(
-              id: 'rest-1',
-              type: 'restQuarter',
-              x: 108,
-              y: 116,
-              width: 8,
-              height: 20,
-              confidence: 0.88,
-            ),
-          ],
-        );
+    test('accepts mock detection input and builds measures, notes, and rests', () {
+      const detection = DetectionResult(
+        imageId: 'mock-detection',
+        staffs: [singleStaff],
+        barlines: [DetectedBarline(x: 90, staffId: 'staff-1')],
+        symbols: [
+          DetectedSymbol(
+            id: 'clef-1',
+            type: 'clefG',
+            x: 10,
+            y: 92,
+            width: 20,
+            height: 48,
+            confidence: 0.99,
+          ),
+          DetectedSymbol(
+            id: 'head-1',
+            type: 'noteheadBlack',
+            x: 42,
+            y: 136,
+            width: 10,
+            height: 8,
+            confidence: 0.95,
+          ),
+          DetectedSymbol(
+            id: 'stem-1',
+            type: 'stem',
+            x: 50,
+            y: 108,
+            width: 2,
+            height: 28,
+            confidence: 0.93,
+          ),
+          DetectedSymbol(
+            id: 'rest-1',
+            type: 'restQuarter',
+            x: 108,
+            y: 116,
+            width: 8,
+            height: 20,
+            confidence: 0.88,
+          ),
+        ],
+      );
 
-        final result = mapper.map(detection);
-        final part = result.score.parts.single;
+      final result = mapper.map(detection);
+      final part = result.score.parts.single;
 
-        expect(result.errors, isEmpty);
-        expect(result.score.title, isEmpty);
-        expect(part.name, 'Treble');
-        expect(part.measureCount, 2);
-        expect(part.measures.first.clef?.sign, 'G');
-        expect(part.measures.first.notes.single.type, 'quarter');
-        expect(part.measures.first.notes.single.pitch, 'E4');
-        expect(part.measures[1].rests.single.type, 'quarter');
-        expect(result.confidenceSummary?.inputSymbolCount, 4);
-        expect(result.confidenceSummary?.mappedSymbolCount, 2);
-      },
-    );
+      expect(result.errors, isEmpty);
+      expect(result.score.title, isEmpty);
+      expect(part.name, 'Treble');
+      expect(part.measureCount, 2);
+      expect(part.measures.first.clef?.sign, 'G');
+      expect(part.measures.first.notes.single.type, 'quarter');
+      expect(part.measures.first.notes.single.pitch, 'E4');
+      expect(part.measures[1].rests.single.type, 'quarter');
+      expect(result.confidenceSummary?.inputSymbolCount, 4);
+      expect(result.confidenceSummary?.mappedSymbolCount, 2);
+    });
 
     test('recognizes whole notes without stems and keeps standalone rests', () {
       const detection = DetectionResult(
@@ -135,93 +132,36 @@ void main() {
       final result = mapper.map(detection);
       final measure = result.score.parts.single.measures.single;
 
-      expect(
-        result.warnings,
-        contains(
-          'No barlines detected; falling back to beat-count measure splitting.',
-        ),
-      );
+      expect(result.warnings, contains('No barlines detected; falling back to beat-count measure splitting.'));
       expect(measure.notes.single.type, 'whole');
       expect(measure.notes.single.pitch, 'G4');
       expect(measure.rests.single.type, 'half');
     });
 
-    test(
-      'recognizes clef, key signature, and simple digit-based time signature',
-      () {
-        const detection = DetectionResult(
-          imageId: 'signature-detection',
-          staffs: [singleStaff],
-          symbols: [
-            DetectedSymbol(
-              id: 'clef-1',
-              type: 'gClef',
-              x: 10,
-              y: 92,
-              width: 18,
-              height: 44,
-            ),
-            DetectedSymbol(
-              id: 'sharp-1',
-              type: 'accidentalSharp',
-              x: 32,
-              y: 101,
-              width: 8,
-              height: 18,
-            ),
-            DetectedSymbol(
-              id: 'sharp-2',
-              type: 'accidentalSharp',
-              x: 41,
-              y: 111,
-              width: 8,
-              height: 18,
-            ),
-            DetectedSymbol(
-              id: 'time-top',
-              type: 'timeSig4',
-              x: 60,
-              y: 102,
-              width: 10,
-              height: 14,
-            ),
-            DetectedSymbol(
-              id: 'time-bottom',
-              type: 'timeSig4',
-              x: 60,
-              y: 122,
-              width: 10,
-              height: 14,
-            ),
-            DetectedSymbol(
-              id: 'head-1',
-              type: 'noteheadBlack',
-              x: 92,
-              y: 136,
-              width: 10,
-              height: 8,
-            ),
-            DetectedSymbol(
-              id: 'stem-1',
-              type: 'stem',
-              x: 100,
-              y: 108,
-              width: 2,
-              height: 28,
-            ),
-          ],
-        );
+    test('recognizes clef, key signature, and simple digit-based time signature', () {
+      const detection = DetectionResult(
+        imageId: 'signature-detection',
+        staffs: [singleStaff],
+        symbols: [
+          DetectedSymbol(id: 'clef-1', type: 'gClef', x: 10, y: 92, width: 18, height: 44),
+          DetectedSymbol(id: 'sharp-1', type: 'accidentalSharp', x: 32, y: 101, width: 8, height: 18),
+          DetectedSymbol(id: 'sharp-2', type: 'accidentalSharp', x: 41, y: 111, width: 8, height: 18),
+          DetectedSymbol(id: 'time-top', type: 'timeSig4', x: 60, y: 102, width: 10, height: 14),
+          DetectedSymbol(id: 'time-bottom', type: 'timeSig4', x: 60, y: 122, width: 10, height: 14),
+          DetectedSymbol(id: 'head-1', type: 'noteheadBlack', x: 92, y: 136, width: 10, height: 8),
+          DetectedSymbol(id: 'stem-1', type: 'stem', x: 100, y: 108, width: 2, height: 28),
+        ],
+      );
 
-        final result = mapper.map(detection);
-        final measure = result.score.parts.single.measures.single;
+      final result = mapper.map(detection);
+      final measure = result.score.parts.single.measures.single;
 
-        expect(measure.clef?.sign, 'G');
-        expect(measure.keySignature?.fifths, 2);
-        expect(measure.timeSignature?.beats, 4);
-        expect(measure.timeSignature?.beatType, 4);
-        expect(measure.notes.single.type, 'quarter');
-      },
-    );
+      expect(measure.clef?.sign, 'G');
+      expect(measure.keySignature?.fifths, 2);
+      expect(measure.timeSignature?.beats, 4);
+      expect(measure.timeSignature?.beatType, 4);
+      expect(measure.notes.single.type, 'quarter');
+    });
 
     test(
       'maps supported note and rest symbols with correct pitches, durations, and left-to-right ordering',
@@ -331,239 +271,160 @@ void main() {
         final rests = measure.rests;
 
         expect(result.errors, isEmpty);
-        expect(notes.map((note) => note.pitch).toList(), [
-          'G4',
-          'B4',
-          'E4',
-          'E5',
-        ]);
-        expect(notes.map((note) => note.type).toList(), [
-          'whole',
-          'half',
-          'quarter',
-          'eighth',
-        ]);
+        expect(notes.map((note) => note.pitch).toList(), ['G4', 'B4', 'E4', 'E5']);
+        expect(notes.map((note) => note.type).toList(), ['whole', 'half', 'quarter', 'eighth']);
         expect(rests.map((rest) => rest.type).toList(), ['half', 'whole']);
-        expect(measure.symbols.map((symbol) => symbol.toString()).toList(), [
-          'Rest(duration: 2, type: half, staff: 1)',
-          'Note(pitch: G4, duration: 4, type: whole, staff: 1)',
-          'Note(pitch: B4, duration: 2, type: half, staff: 1)',
-          'Note(pitch: E4, duration: 1, type: quarter, staff: 1)',
-          'Note(pitch: E5, duration: 1, type: eighth, staff: 1)',
-          'Rest(duration: 4, type: whole, staff: 1)',
-        ]);
-      },
-    );
-
-    test(
-      'keeps an active treble clef across measures when later measures omit the clef symbol',
-      () {
-        final detection = DetectionResult(
-          imageId: 'clef-carry-over',
-          staffs: const [singleStaff],
-          barlines: const [DetectedBarline(x: 120, staffId: 'staff-1')],
-          symbols: [
-            symbol(
-              id: 'clef-1',
-              type: 'gClef',
-              x: 10,
-              y: 92,
-              width: 18,
-              height: 44,
-            ),
-            symbol(
-              id: 'head-1',
-              type: 'noteheadBlack',
-              x: 52,
-              y: 136,
-              width: 10,
-              height: 8,
-            ),
-            symbol(
-              id: 'stem-1',
-              type: 'stem',
-              x: 60,
-              y: 108,
-              width: 2,
-              height: 28,
-            ),
-            symbol(
-              id: 'head-2',
-              type: 'noteheadHalf',
-              x: 142,
-              y: 116,
-              width: 10,
-              height: 8,
-            ),
-            symbol(
-              id: 'stem-2',
-              type: 'stem',
-              x: 150,
-              y: 90,
-              width: 2,
-              height: 30,
-            ),
-          ],
-        );
-
-        final result = mapper.map(detection);
-        final measures = result.score.parts.single.measures;
-
-        expect(measures.first.notes.single.pitch, 'E4');
-        expect(measures[1].clef?.sign, 'G');
-        expect(measures[1].notes.single.pitch, 'B4');
         expect(
-          result.warnings.where(
-            (warning) => warning.contains('No supported treble clef detected'),
-          ),
-          isEmpty,
+          measure.symbols.map((symbol) => symbol.toString()).toList(),
+          [
+            'Rest(duration: 2, type: half, staff: 1)',
+            'Note(pitch: G4, duration: 4, type: whole, staff: 1)',
+            'Note(pitch: B4, duration: 2, type: half, staff: 1)',
+            'Note(pitch: E4, duration: 1, type: quarter, staff: 1)',
+            'Note(pitch: E5, duration: 1, type: eighth, staff: 1)',
+            'Rest(duration: 4, type: whole, staff: 1)',
+          ],
         );
       },
     );
 
-    test(
-      'assigns symbols to the nearest staff and only maps the supported primary staff',
-      () {
-        const detection = DetectionResult(
-          imageId: 'nearest-staff',
-          staffs: [
-            DetectedStaff(
-              id: 'staff-1',
-              topY: 100,
-              bottomY: 140,
-              lineYs: [100, 110, 120, 130, 140],
-            ),
-            DetectedStaff(
-              id: 'staff-2',
-              topY: 200,
-              bottomY: 240,
-              lineYs: [200, 210, 220, 230, 240],
-            ),
-          ],
-          symbols: [
-            DetectedSymbol(
-              id: 'clef-1',
-              type: 'gClef',
-              x: 10,
-              y: 92,
-              width: 18,
-              height: 44,
-            ),
-            DetectedSymbol(
-              id: 'head-1',
-              type: 'noteheadBlack',
-              x: 52,
-              y: 136,
-              width: 10,
-              height: 8,
-            ),
-            DetectedSymbol(
-              id: 'stem-1',
-              type: 'stem',
-              x: 60,
-              y: 108,
-              width: 2,
-              height: 28,
-            ),
-            DetectedSymbol(
-              id: 'rest-other',
-              type: 'restQuarter',
-              x: 54,
-              y: 214,
-              width: 10,
-              height: 16,
-            ),
-          ],
-        );
-
-        final result = mapper.map(detection);
-        final parts = result.score.parts;
-
-        // Multi-staff pipeline: one Part per staff.
-        expect(parts, hasLength(2));
-        expect(parts[0].name, 'Treble');
-        expect(parts[1].name, 'Bass');
-
-        // head-1/stem-1 are near staff-1 → appear in Treble part.
-        final trebleMeasure = parts[0].measures.single;
-        expect(trebleMeasure.notes, hasLength(1));
-        expect(trebleMeasure.rests, isEmpty);
-
-        // rest-other is near staff-2 → appears in Bass part.
-        final bassMeasure = parts[1].measures.single;
-        expect(bassMeasure.rests, hasLength(1));
-        expect(bassMeasure.notes, isEmpty);
-      },
-    );
-
-    test(
-      'produces warnings instead of crashing for ambiguous noteheads and stray stems',
-      () {
-        const detection = DetectionResult(
-          imageId: 'ambiguous',
-          staffs: [singleStaff],
-          symbols: [
-            DetectedSymbol(
-              id: 'clef-1',
-              type: 'gClef',
-              x: 10,
-              y: 92,
-              width: 18,
-              height: 44,
-            ),
-            DetectedSymbol(
-              id: 'head-1',
-              type: 'noteheadBlack',
-              x: 52,
-              y: 136,
-              width: 10,
-              height: 8,
-            ),
-            DetectedSymbol(
-              id: 'stem-1',
-              type: 'stem',
-              x: 130,
-              y: 108,
-              width: 2,
-              height: 28,
-            ),
-          ],
-        );
-
-        final result = mapper.map(detection);
-
-        // head-1 has no nearby stem → stemless, only symbol in measure → whole
-        // (context-aware duration: single stemless noteheadBlack = whole).
-        expect(result.score.parts.single.measures.single.notes, hasLength(1));
-        expect(
-          result.score.parts.single.measures.single.notes.single.type,
-          'whole',
-        );
-        // StemAssociator still warns about the unpaired notehead and stray stem.
-        expect(
-          result.warnings.any(
-            (warning) =>
-                warning.contains('Could not confidently pair notehead head-1'),
+    test('keeps an active treble clef across measures when later measures omit the clef symbol', () {
+      final detection = DetectionResult(
+        imageId: 'clef-carry-over',
+        staffs: const [singleStaff],
+        barlines: const [DetectedBarline(x: 120, staffId: 'staff-1')],
+        symbols: [
+          symbol(
+            id: 'clef-1',
+            type: 'gClef',
+            x: 10,
+            y: 92,
+            width: 18,
+            height: 44,
           ),
-          isTrue,
-        );
-        expect(
-          result.warnings.any(
-            (warning) => warning.contains('Stem stem-1 could not be paired'),
+          symbol(
+            id: 'head-1',
+            type: 'noteheadBlack',
+            x: 52,
+            y: 136,
+            width: 10,
+            height: 8,
           ),
-          isTrue,
-        );
-        // No "could not infer" warning — stemless noteheadBlack resolves via context-aware duration.
-        expect(
-          result.warnings.any(
-            (warning) => warning.contains(
-              'Could not infer a supported note value from head-1',
-            ),
+          symbol(
+            id: 'stem-1',
+            type: 'stem',
+            x: 60,
+            y: 108,
+            width: 2,
+            height: 28,
           ),
-          isFalse,
-        );
-      },
-    );
+          symbol(
+            id: 'head-2',
+            type: 'noteheadHalf',
+            x: 142,
+            y: 116,
+            width: 10,
+            height: 8,
+          ),
+          symbol(
+            id: 'stem-2',
+            type: 'stem',
+            x: 150,
+            y: 90,
+            width: 2,
+            height: 30,
+          ),
+        ],
+      );
+
+      final result = mapper.map(detection);
+      final measures = result.score.parts.single.measures;
+
+      expect(measures.first.notes.single.pitch, 'E4');
+      expect(measures[1].clef?.sign, 'G');
+      expect(measures[1].notes.single.pitch, 'B4');
+      expect(
+        result.warnings.where((warning) => warning.contains('No supported treble clef detected')),
+        isEmpty,
+      );
+    });
+
+    test('assigns symbols to the nearest staff and only maps the supported primary staff', () {
+      const detection = DetectionResult(
+        imageId: 'nearest-staff',
+        staffs: [
+          DetectedStaff(
+            id: 'staff-1',
+            topY: 100,
+            bottomY: 140,
+            lineYs: [100, 110, 120, 130, 140],
+          ),
+          DetectedStaff(
+            id: 'staff-2',
+            topY: 200,
+            bottomY: 240,
+            lineYs: [200, 210, 220, 230, 240],
+          ),
+        ],
+        symbols: [
+          DetectedSymbol(id: 'clef-1', type: 'gClef', x: 10, y: 92, width: 18, height: 44),
+          DetectedSymbol(id: 'head-1', type: 'noteheadBlack', x: 52, y: 136, width: 10, height: 8),
+          DetectedSymbol(id: 'stem-1', type: 'stem', x: 60, y: 108, width: 2, height: 28),
+          DetectedSymbol(id: 'rest-other', type: 'restQuarter', x: 54, y: 214, width: 10, height: 16),
+        ],
+      );
+
+      final result = mapper.map(detection);
+      final parts = result.score.parts;
+
+      // Multi-staff pipeline: one Part per staff.
+      expect(parts, hasLength(2));
+      expect(parts[0].name, 'Treble');
+      expect(parts[1].name, 'Bass');
+
+      // head-1/stem-1 are near staff-1 → appear in Treble part.
+      final trebleMeasure = parts[0].measures.single;
+      expect(trebleMeasure.notes, hasLength(1));
+      expect(trebleMeasure.rests, isEmpty);
+
+      // rest-other is near staff-2 → appears in Bass part.
+      final bassMeasure = parts[1].measures.single;
+      expect(bassMeasure.rests, hasLength(1));
+      expect(bassMeasure.notes, isEmpty);
+    });
+
+    test('produces warnings instead of crashing for ambiguous noteheads and stray stems', () {
+      const detection = DetectionResult(
+        imageId: 'ambiguous',
+        staffs: [singleStaff],
+        symbols: [
+          DetectedSymbol(id: 'clef-1', type: 'gClef', x: 10, y: 92, width: 18, height: 44),
+          DetectedSymbol(id: 'head-1', type: 'noteheadBlack', x: 52, y: 136, width: 10, height: 8),
+          DetectedSymbol(id: 'stem-1', type: 'stem', x: 130, y: 108, width: 2, height: 28),
+        ],
+      );
+
+      final result = mapper.map(detection);
+
+      // head-1 has no nearby stem → stemless, only symbol in measure → whole
+      // (context-aware duration: single stemless noteheadBlack = whole).
+      expect(result.score.parts.single.measures.single.notes, hasLength(1));
+      expect(result.score.parts.single.measures.single.notes.single.type, 'whole');
+      // StemAssociator still warns about the unpaired notehead and stray stem.
+      expect(
+        result.warnings.any((warning) => warning.contains('Could not confidently pair notehead head-1')),
+        isTrue,
+      );
+      expect(
+        result.warnings.any((warning) => warning.contains('Stem stem-1 could not be paired')),
+        isTrue,
+      );
+      // No "could not infer" warning — stemless noteheadBlack resolves via context-aware duration.
+      expect(
+        result.warnings.any((warning) => warning.contains('Could not infer a supported note value from head-1')),
+        isFalse,
+      );
+    });
 
     test('returns an empty score with warnings when no staff is detected', () {
       const detection = DetectionResult(
@@ -581,144 +442,103 @@ void main() {
       expect(result.confidenceSummary?.mappedSymbolCount, 0);
     });
 
-    test(
-      'returns a partial mapped score and warnings for unsupported symbols',
-      () {
-        const detection = DetectionResult(
-          imageId: 'partial',
-          staffs: [singleStaff],
-          symbols: [
-            DetectedSymbol(
-              id: 'head-1',
-              type: 'noteheadBlack',
-              x: 42,
-              y: 136,
-              width: 10,
-              height: 8,
-            ),
-            DetectedSymbol(
-              id: 'beam-1',
-              type: 'beam',
-              x: 60,
-              y: 100,
-              width: 24,
-              height: 5,
-            ),
-          ],
-        );
-
-        final result = mapper.map(detection);
-
-        // head-1 has no stem → assumed quarter, but no clef in this detection
-        // so pitch calculation fails → note is still skipped.
-        expect(result.score.parts.single.measures.single.symbols, isEmpty);
-        // beam symbols are consumed by the pipeline (no longer "unsupported")
-        expect(
-          result.warnings.any(
-            (warning) => warning.contains('Unsupported symbol "beam"'),
-          ),
-          isFalse,
-        );
-        // "could not infer note value" is gone — the new warning is about pitch
-        expect(
-          result.warnings.any(
-            (warning) =>
-                warning.contains('Could not infer a supported note value'),
-          ),
-          isFalse,
-        );
-        expect(
-          result.warnings.any(
-            (warning) => warning.contains('Could not calculate pitch'),
-          ),
-          isTrue,
-        );
-      },
-    );
-
-    test(
-      'skips notes when no treble clef is available for pitch reconstruction',
-      () {
-        final detection = DetectionResult(
-          imageId: 'missing-clef',
-          staffs: const [singleStaff],
-          symbols: [
-            symbol(
-              id: 'head-1',
-              type: 'noteheadBlack',
-              x: 42,
-              y: 136,
-              width: 10,
-              height: 8,
-            ),
-            symbol(
-              id: 'stem-1',
-              type: 'stem',
-              x: 50,
-              y: 108,
-              width: 2,
-              height: 28,
-            ),
-          ],
-        );
-
-        final result = mapper.map(detection);
-
-        expect(result.score.parts.single.measures.single.notes, isEmpty);
-        expect(
-          result.warnings.any(
-            (warning) => warning.contains('Could not calculate pitch for'),
-          ),
-          isTrue,
-        );
-        expect(
-          result.warnings.any(
-            (warning) => warning.contains(
-              'No clef detected; pitch reconstruction is unsupported for this measure.',
-            ),
-          ),
-          isTrue,
-        );
-      },
-    );
-
-    test('emits eighth notes when a flag is attached to the matched stem', () {
+    test('returns a partial mapped score and warnings for unsupported symbols', () {
       const detection = DetectionResult(
-        imageId: 'eighth-note',
+        imageId: 'partial',
         staffs: [singleStaff],
         symbols: [
           DetectedSymbol(
-            id: 'clef-1',
-            type: 'gClef',
-            x: 10,
-            y: 92,
-            width: 18,
-            height: 44,
-          ),
-          DetectedSymbol(
             id: 'head-1',
             type: 'noteheadBlack',
-            x: 52,
+            x: 42,
             y: 136,
             width: 10,
             height: 8,
           ),
           DetectedSymbol(
+            id: 'beam-1',
+            type: 'beam',
+            x: 60,
+            y: 100,
+            width: 24,
+            height: 5,
+          ),
+        ],
+      );
+
+      final result = mapper.map(detection);
+
+      // head-1 has no stem → assumed quarter, but no clef in this detection
+      // so pitch calculation fails → note is still skipped.
+      expect(result.score.parts.single.measures.single.symbols, isEmpty);
+      // beam symbols are consumed by the pipeline (no longer "unsupported")
+      expect(
+        result.warnings.any((warning) => warning.contains('Unsupported symbol "beam"')),
+        isFalse,
+      );
+      // "could not infer note value" is gone — the new warning is about pitch
+      expect(
+        result.warnings.any((warning) => warning.contains('Could not infer a supported note value')),
+        isFalse,
+      );
+      expect(
+        result.warnings.any((warning) => warning.contains('Could not calculate pitch')),
+        isTrue,
+      );
+    });
+
+    test('skips notes when no treble clef is available for pitch reconstruction', () {
+      final detection = DetectionResult(
+        imageId: 'missing-clef',
+        staffs: const [singleStaff],
+        symbols: [
+          symbol(
+            id: 'head-1',
+            type: 'noteheadBlack',
+            x: 42,
+            y: 136,
+            width: 10,
+            height: 8,
+          ),
+          symbol(
             id: 'stem-1',
             type: 'stem',
-            x: 60,
+            x: 50,
             y: 108,
             width: 2,
             height: 28,
           ),
-          DetectedSymbol(
-            id: 'flag-1',
-            type: 'flag8thUp',
-            x: 61,
-            y: 107,
-            width: 8,
-            height: 12,
+        ],
+      );
+
+      final result = mapper.map(detection);
+
+      expect(result.score.parts.single.measures.single.notes, isEmpty);
+      expect(
+        result.warnings.any(
+          (warning) => warning.contains('Could not calculate pitch for'),
+        ),
+        isTrue,
+      );
+      expect(
+        result.warnings.any(
+          (warning) => warning.contains(
+            'No clef detected; pitch reconstruction is unsupported for this measure.',
           ),
+        ),
+        isTrue,
+      );
+    });
+    
+    test('emits eighth notes when a flag is attached to the matched stem', () {
+      const detection = DetectionResult(
+        imageId: 'eighth-note',
+        staffs: [singleStaff],
+        symbols: [
+          DetectedSymbol(id: 'clef-1', type: 'gClef', x: 10, y: 92, width: 18, height: 44),
+          DetectedSymbol(id: 'head-1', type: 'noteheadBlack', x: 52, y: 136, width: 10, height: 8),
+          DetectedSymbol(id: 'stem-1', type: 'stem', x: 60, y: 108, width: 2, height: 28),
+          DetectedSymbol(id: 'flag-1', type: 'flag8thUp', x: 61, y: 107, width: 8, height: 12),
         ],
       );
 
@@ -735,46 +555,16 @@ void main() {
         staffs: [singleStaff],
         barlines: [DetectedBarline(x: 120, staffId: 'staff-1')],
         symbols: [
-          DetectedSymbol(
-            id: 'clef-1',
-            type: 'gClef',
-            x: 10,
-            y: 92,
-            width: 18,
-            height: 44,
-          ),
-          DetectedSymbol(
-            id: 'rest-1',
-            type: 'restQuarter',
-            x: 100,
-            y: 116,
-            width: 8,
-            height: 20,
-          ),
-          DetectedSymbol(
-            id: 'head-1',
-            type: 'noteheadWhole',
-            x: 52,
-            y: 126,
-            width: 12,
-            height: 8,
-          ),
-          DetectedSymbol(
-            id: 'rest-2',
-            type: 'restWhole',
-            x: 140,
-            y: 116,
-            width: 8,
-            height: 20,
-          ),
+          DetectedSymbol(id: 'clef-1', type: 'gClef', x: 10, y: 92, width: 18, height: 44),
+          DetectedSymbol(id: 'rest-1', type: 'restQuarter', x: 100, y: 116, width: 8, height: 20),
+          DetectedSymbol(id: 'head-1', type: 'noteheadWhole', x: 52, y: 126, width: 12, height: 8),
+          DetectedSymbol(id: 'rest-2', type: 'restWhole', x: 140, y: 116, width: 8, height: 20),
         ],
       );
 
       final result = mapper.map(detection);
-      final firstMeasureSymbols =
-          result.score.parts.single.measures.first.symbols;
-      final secondMeasureSymbols =
-          result.score.parts.single.measures[1].symbols;
+      final firstMeasureSymbols = result.score.parts.single.measures.first.symbols;
+      final secondMeasureSymbols = result.score.parts.single.measures[1].symbols;
 
       expect(firstMeasureSymbols, hasLength(2));
       expect(firstMeasureSymbols.first, isA<Note>());

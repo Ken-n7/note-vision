@@ -12,6 +12,7 @@ import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/features/detection_inspector/model/mapping_pipeline_state.dart';
 
+
 class DiPipelinePanel extends StatefulWidget {
   final MappingPipelineState pipeline;
 
@@ -142,9 +143,7 @@ class _StageBlock extends StatelessWidget {
         color: const Color(0xFF181C27),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: expanded
-              ? color.withValues(alpha: 0.35)
-              : const Color(0xFF252A3A),
+          color: expanded ? color.withValues(alpha: 0.35) : const Color(0xFF252A3A),
         ),
       ),
       child: Column(
@@ -193,10 +192,8 @@ class _StageBlock extends StatelessWidget {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
-                    ),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(5),
@@ -231,7 +228,10 @@ class _StageBlock extends StatelessWidget {
                 ? Column(
                     children: [
                       const Divider(height: 1, color: Color(0xFF252A3A)),
-                      Padding(padding: const EdgeInsets.all(14), child: child),
+                      Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: child,
+                      ),
                     ],
                   )
                 : const SizedBox(height: 0),
@@ -285,19 +285,15 @@ class _RawSymbolsView extends StatelessWidget {
         const SizedBox(height: 8),
         _MonoTable(
           headers: const ['id', 'type', 'x', 'y', 'conf'],
-          rows: symbols
-              .map(
-                (s) => [
-                  s.id,
-                  s.type,
-                  s.x.toStringAsFixed(1),
-                  s.y.toStringAsFixed(1),
-                  s.confidence != null
-                      ? '${(s.confidence! * 100).toStringAsFixed(0)}%'
-                      : '—',
-                ],
-              )
-              .toList(),
+          rows: symbols.map((s) => [
+                s.id,
+                s.type,
+                s.x.toStringAsFixed(1),
+                s.y.toStringAsFixed(1),
+                s.confidence != null
+                    ? '${(s.confidence! * 100).toStringAsFixed(0)}%'
+                    : '—',
+              ]).toList(),
         ),
       ],
     );
@@ -320,9 +316,7 @@ class _AssignmentsView extends StatelessWidget {
     // Group by staff id
     final byStaff = <String, List<_AssignmentRow>>{};
     for (final a in assignments) {
-      byStaff
-          .putIfAbsent(a.staff.id, () => [])
-          .add(
+      byStaff.putIfAbsent(a.staff.id, () => []).add(
             _AssignmentRow(
               symbolId: a.symbol.id,
               type: a.symbol.type,
@@ -340,9 +334,7 @@ class _AssignmentsView extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _SubLabel(
-              label: 'STAFF ${entry.key} (${entry.value.length} symbols)',
-            ),
+            _SubLabel(label: 'STAFF ${entry.key} (${entry.value.length} symbols)'),
             const SizedBox(height: 8),
             _MonoTable(
               headers: const ['symbol id', 'type', 'center-x'],
@@ -399,12 +391,10 @@ class _MeasureGroupingView extends StatelessWidget {
                 spacing: 6,
                 runSpacing: 6,
                 children: barlines
-                    .map(
-                      (b) => _InlineTag(
-                        label: 'x=${b.x.toStringAsFixed(1)}',
-                        color: const Color(0xFFAB7EF7),
-                      ),
-                    )
+                    .map((b) => _InlineTag(
+                          label: 'x=${b.x.toStringAsFixed(1)}',
+                          color: const Color(0xFFAB7EF7),
+                        ))
                     .toList(),
               ),
 
@@ -421,11 +411,9 @@ class _MeasureGroupingView extends StatelessWidget {
               .where((e) => e.symbol.type.toLowerCase().contains('rest'))
               .toList();
           final other = m.symbols
-              .where(
-                (e) =>
-                    !e.symbol.type.toLowerCase().contains('notehead') &&
-                    !e.symbol.type.toLowerCase().contains('rest'),
-              )
+              .where((e) =>
+                  !e.symbol.type.toLowerCase().contains('notehead') &&
+                  !e.symbol.type.toLowerCase().contains('rest'))
               .toList();
 
           return Padding(
@@ -442,9 +430,7 @@ class _MeasureGroupingView extends StatelessWidget {
                   // Measure header
                   Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
+                        horizontal: 12, vertical: 8),
                     decoration: const BoxDecoration(
                       border: Border(
                         bottom: BorderSide(color: Color(0xFF1E2235)),
@@ -477,16 +463,14 @@ class _MeasureGroupingView extends StatelessWidget {
                       children: [
                         if (noteheads.isNotEmpty) ...[
                           _MiniGroupLabel(
-                            label: 'Noteheads (${noteheads.length})',
-                          ),
+                              label: 'Noteheads (${noteheads.length})'),
                           ...noteheads.map((e) {
                             final link = stemLinks[e.symbol.id];
                             final stemInfo = link?.stem != null
                                 ? ' + stem'
                                 : ' (no stem)';
-                            final flagInfo = link?.flag != null
-                                ? ' + flag'
-                                : '';
+                            final flagInfo =
+                                link?.flag != null ? ' + flag' : '';
                             return _SymRow(
                               type: e.symbol.type,
                               detail:
@@ -498,24 +482,22 @@ class _MeasureGroupingView extends StatelessWidget {
                         if (rests.isNotEmpty) ...[
                           const SizedBox(height: 6),
                           _MiniGroupLabel(label: 'Rests (${rests.length})'),
-                          ...rests.map(
-                            (e) => _SymRow(
-                              type: e.symbol.type,
-                              detail: 'x=${e.symbolCenterX.toStringAsFixed(1)}',
-                              color: const Color(0xFFAB7EF7),
-                            ),
-                          ),
+                          ...rests.map((e) => _SymRow(
+                                type: e.symbol.type,
+                                detail:
+                                    'x=${e.symbolCenterX.toStringAsFixed(1)}',
+                                color: const Color(0xFFAB7EF7),
+                              )),
                         ],
                         if (other.isNotEmpty) ...[
                           const SizedBox(height: 6),
                           _MiniGroupLabel(label: 'Other (${other.length})'),
-                          ...other.map(
-                            (e) => _SymRow(
-                              type: e.symbol.type,
-                              detail: 'x=${e.symbolCenterX.toStringAsFixed(1)}',
-                              color: const Color(0xFF6B7390),
-                            ),
-                          ),
+                          ...other.map((e) => _SymRow(
+                                type: e.symbol.type,
+                                detail:
+                                    'x=${e.symbolCenterX.toStringAsFixed(1)}',
+                                color: const Color(0xFF6B7390),
+                              )),
                         ],
                       ],
                     ),
@@ -545,8 +527,7 @@ class _ScoreSummaryView extends StatelessWidget {
       children: score.parts.expand((part) {
         return [
           _SubLabel(
-            label: 'PART "${part.name}" · ${part.measures.length} measure(s)',
-          ),
+              label: 'PART "${part.name}" · ${part.measures.length} measure(s)'),
           const SizedBox(height: 8),
           ...part.measures.map((m) {
             return Padding(
@@ -563,13 +544,10 @@ class _ScoreSummaryView extends StatelessWidget {
                     // Measure header row
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
+                          horizontal: 12, vertical: 8),
                       decoration: const BoxDecoration(
                         border: Border(
-                          bottom: BorderSide(color: Color(0xFF1E2235)),
-                        ),
+                            bottom: BorderSide(color: Color(0xFF1E2235))),
                       ),
                       child: Wrap(
                         spacing: 8,
@@ -728,11 +706,9 @@ class _TypeChip extends StatelessWidget {
   Color get _color {
     if (type.contains('notehead')) return const Color(0xFF4FCEF7);
     if (type.contains('rest')) return const Color(0xFFAB7EF7);
-    if (type.contains('Clef') || type.contains('clef'))
-      return const Color(0xFF4F8EF7);
+    if (type.contains('Clef') || type.contains('clef')) return const Color(0xFF4F8EF7);
     if (type.contains('timeSig')) return const Color(0xFFF5A623);
-    if (type.contains('stem') || type.contains('flag'))
-      return const Color(0xFF6B7390);
+    if (type.contains('stem') || type.contains('flag')) return const Color(0xFF6B7390);
     return const Color(0xFF3DD68C);
   }
 
@@ -782,11 +758,8 @@ class _SymRow extends StatelessWidget {
   final String type;
   final String detail;
   final Color color;
-  const _SymRow({
-    required this.type,
-    required this.detail,
-    required this.color,
-  });
+  const _SymRow(
+      {required this.type, required this.detail, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -799,7 +772,10 @@ class _SymRow extends StatelessWidget {
             width: 6,
             height: 6,
             margin: const EdgeInsets.only(top: 4, right: 8),
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
           ),
           SizedBox(
             width: 120,
@@ -868,19 +844,17 @@ class _MonoTable extends StatelessWidget {
             ),
             child: Row(
               children: headers
-                  .map(
-                    (h) => Expanded(
-                      child: Text(
-                        h.toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF4A5270),
-                          letterSpacing: 0.8,
+                  .map((h) => Expanded(
+                        child: Text(
+                          h.toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF4A5270),
+                            letterSpacing: 0.8,
+                          ),
                         ),
-                      ),
-                    ),
-                  )
+                      ))
                   .toList(),
             ),
           ),
@@ -889,22 +863,23 @@ class _MonoTable extends StatelessWidget {
           ...rows.asMap().entries.map((entry) {
             final isEven = entry.key.isEven;
             return Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              color: isEven ? Colors.transparent : const Color(0xFF0F1320),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              color: isEven
+                  ? Colors.transparent
+                  : const Color(0xFF0F1320),
               child: Row(
                 children: entry.value
-                    .map(
-                      (cell) => Expanded(
-                        child: Text(
-                          cell,
-                          style: const TextStyle(
-                            fontSize: 10.5,
-                            color: Color(0xFF8A9BB8),
-                            fontFamily: 'monospace',
+                    .map((cell) => Expanded(
+                          child: Text(
+                            cell,
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              color: Color(0xFF8A9BB8),
+                              fontFamily: 'monospace',
+                            ),
                           ),
-                        ),
-                      ),
-                    )
+                        ))
                     .toList(),
               ),
             );

@@ -6,7 +6,10 @@ class ScanResult {
   final PreprocessedResult preprocessed;
   final DetectionResult detection;
 
-  const ScanResult({required this.preprocessed, required this.detection});
+  const ScanResult({
+    required this.preprocessed,
+    required this.detection,
+  });
 
   List<DetectedSymbol> get symbols => detection.symbols;
 

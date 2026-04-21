@@ -34,14 +34,7 @@ void main() {
     required double y,
     double width = 10,
     double height = 8,
-  }) => DetectedSymbol(
-    id: id,
-    type: type,
-    x: x,
-    y: y,
-    width: width,
-    height: height,
-  );
+  }) => DetectedSymbol(id: id, type: type, x: x, y: y, width: width, height: height);
 
   // ─────────────────────────────────────────────────────────────
   // ACCIDENTALS ON INDIVIDUAL NOTES
@@ -67,14 +60,7 @@ void main() {
             sym(id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44),
             sym(id: 'note-1', type: 'noteheadBlack', x: 50, y: 116),
             sym(id: 'stem-1', type: 'stem', x: 58, y: 88, width: 2, height: 32),
-            sym(
-              id: 'acc',
-              type: accidentalType,
-              x: 70,
-              y: 103,
-              width: 8,
-              height: 18,
-            ),
+            sym(id: 'acc', type: accidentalType, x: 70, y: 103, width: 8, height: 18),
             sym(id: 'note-2', type: 'noteheadBlack', x: 88, y: 126),
             sym(id: 'stem-2', type: 'stem', x: 96, y: 98, width: 2, height: 32),
           ],
@@ -86,7 +72,7 @@ void main() {
 
       expect(notes, hasLength(2));
       expect(notes[0].alter, isNull); // note-1: no accidental
-      expect(notes[1].alter, 1); // note-2: sharp
+      expect(notes[1].alter, 1);      // note-2: sharp
       expect(notes[1].pitch, 'G#4');
     });
 
@@ -110,9 +96,7 @@ void main() {
     });
 
     test('double sharp before a notehead sets alter = 2', () {
-      final result = mapper.map(
-        buildAccidentalDetection('accidentalDoubleSharp'),
-      );
+      final result = mapper.map(buildAccidentalDetection('accidentalDoubleSharp'));
       final notes = result.score.parts.single.measures.single.notes;
 
       expect(notes, hasLength(2));
@@ -120,68 +104,37 @@ void main() {
       expect(notes[1].pitch, 'Gx4');
     });
 
-    test(
-      'key-signature accidentals in the leading zone do NOT set note alter',
-      () {
-        // Two sharps before the first note → key signature (D major).
-        // The body note should have no alter despite the key context.
-        const detection = DetectionResult(
-          imageId: 'key-sig-no-alter',
-          staffs: [staff],
-          symbols: [
-            DetectedSymbol(
-              id: 'clef',
-              type: 'gClef',
-              x: 10,
-              y: 92,
-              width: 18,
-              height: 44,
-            ),
-            DetectedSymbol(
-              id: 'sharp-1',
-              type: 'accidentalSharp',
-              x: 32,
-              y: 101,
-              width: 8,
-              height: 18,
-            ),
-            DetectedSymbol(
-              id: 'sharp-2',
-              type: 'accidentalSharp',
-              x: 42,
-              y: 111,
-              width: 8,
-              height: 18,
-            ),
-            DetectedSymbol(
-              id: 'note-1',
-              type: 'noteheadBlack',
-              x: 80,
-              y: 116,
-              width: 10,
-              height: 8,
-            ),
-            DetectedSymbol(
-              id: 'stem-1',
-              type: 'stem',
-              x: 88,
-              y: 88,
-              width: 2,
-              height: 32,
-            ),
-          ],
-        );
+    test('key-signature accidentals in the leading zone do NOT set note alter', () {
+      // Two sharps before the first note → key signature (D major).
+      // The body note should have no alter despite the key context.
+      const detection = DetectionResult(
+        imageId: 'key-sig-no-alter',
+        staffs: [staff],
+        symbols: [
+          DetectedSymbol(
+            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+          ),
+          DetectedSymbol(
+            id: 'sharp-1', type: 'accidentalSharp', x: 32, y: 101, width: 8, height: 18,
+          ),
+          DetectedSymbol(
+            id: 'sharp-2', type: 'accidentalSharp', x: 42, y: 111, width: 8, height: 18,
+          ),
+          DetectedSymbol(
+            id: 'note-1', type: 'noteheadBlack', x: 80, y: 116, width: 10, height: 8,
+          ),
+          DetectedSymbol(
+            id: 'stem-1', type: 'stem', x: 88, y: 88, width: 2, height: 32,
+          ),
+        ],
+      );
 
-        final result = mapper.map(detection);
-        final measure = result.score.parts.single.measures.single;
+      final result = mapper.map(detection);
+      final measure = result.score.parts.single.measures.single;
 
-        expect(measure.keySignature?.fifths, 2); // D major
-        expect(
-          measure.notes.single.alter,
-          isNull,
-        ); // note itself has no explicit accidental
-      },
-    );
+      expect(measure.keySignature?.fifths, 2); // D major
+      expect(measure.notes.single.alter, isNull); // note itself has no explicit accidental
+    });
   });
 
   // ─────────────────────────────────────────────────────────────
@@ -199,36 +152,16 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef',
-            type: 'gClef',
-            x: 10,
-            y: 92,
-            width: 18,
-            height: 44,
+            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
-            id: 'note-1',
-            type: 'noteheadBlack',
-            x: 50,
-            y: 116,
-            width: 10,
-            height: 8,
+            id: 'note-1', type: 'noteheadBlack', x: 50, y: 116, width: 10, height: 8,
           ),
           DetectedSymbol(
-            id: 'stem-1',
-            type: 'stem',
-            x: 58,
-            y: 82,
-            width: 2,
-            height: 38,
+            id: 'stem-1', type: 'stem', x: 58, y: 82, width: 2, height: 38,
           ),
           DetectedSymbol(
-            id: 'beam-1',
-            type: 'beam',
-            x: 52,
-            y: 80,
-            width: 30,
-            height: 5,
+            id: 'beam-1', type: 'beam', x: 52, y: 80, width: 30, height: 5,
           ),
         ],
       );
@@ -240,113 +173,62 @@ void main() {
       expect(note.duration, 1);
     });
 
-    test(
-      'two noteheads under one beam are both reconstructed as eighth notes',
-      () {
-        // beam x=52..82 covers stem-1 (x=58..60) and stem-2 (x=74..76).
-        const detection = DetectionResult(
-          imageId: 'beam-pair',
-          staffs: [staff],
-          symbols: [
-            DetectedSymbol(
-              id: 'clef',
-              type: 'gClef',
-              x: 10,
-              y: 92,
-              width: 18,
-              height: 44,
-            ),
-            DetectedSymbol(
-              id: 'note-1',
-              type: 'noteheadBlack',
-              x: 50,
-              y: 116,
-              width: 10,
-              height: 8,
-            ),
-            DetectedSymbol(
-              id: 'stem-1',
-              type: 'stem',
-              x: 58,
-              y: 82,
-              width: 2,
-              height: 38,
-            ),
-            DetectedSymbol(
-              id: 'note-2',
-              type: 'noteheadBlack',
-              x: 66,
-              y: 126,
-              width: 10,
-              height: 8,
-            ),
-            DetectedSymbol(
-              id: 'stem-2',
-              type: 'stem',
-              x: 74,
-              y: 92,
-              width: 2,
-              height: 38,
-            ),
-            DetectedSymbol(
-              id: 'beam-1',
-              type: 'beam',
-              x: 52,
-              y: 80,
-              width: 30,
-              height: 5,
-            ),
-          ],
-        );
+    test('two noteheads under one beam are both reconstructed as eighth notes', () {
+      // beam x=52..82 covers stem-1 (x=58..60) and stem-2 (x=74..76).
+      const detection = DetectionResult(
+        imageId: 'beam-pair',
+        staffs: [staff],
+        symbols: [
+          DetectedSymbol(
+            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+          ),
+          DetectedSymbol(
+            id: 'note-1', type: 'noteheadBlack', x: 50, y: 116, width: 10, height: 8,
+          ),
+          DetectedSymbol(
+            id: 'stem-1', type: 'stem', x: 58, y: 82, width: 2, height: 38,
+          ),
+          DetectedSymbol(
+            id: 'note-2', type: 'noteheadBlack', x: 66, y: 126, width: 10, height: 8,
+          ),
+          DetectedSymbol(
+            id: 'stem-2', type: 'stem', x: 74, y: 92, width: 2, height: 38,
+          ),
+          DetectedSymbol(
+            id: 'beam-1', type: 'beam', x: 52, y: 80, width: 30, height: 5,
+          ),
+        ],
+      );
 
-        final result = mapper.map(detection);
-        final notes = result.score.parts.single.measures.single.notes;
+      final result = mapper.map(detection);
+      final notes = result.score.parts.single.measures.single.notes;
 
-        expect(notes, hasLength(2));
-        expect(notes.every((n) => n.type == 'eighth'), isTrue);
-      },
-    );
+      expect(notes, hasLength(2));
+      expect(notes.every((n) => n.type == 'eighth'), isTrue);
+    });
 
-    test(
-      'noteheadBlack + stem without beam or flag remains a quarter note',
-      () {
-        const detection = DetectionResult(
-          imageId: 'no-beam-quarter',
-          staffs: [staff],
-          symbols: [
-            DetectedSymbol(
-              id: 'clef',
-              type: 'gClef',
-              x: 10,
-              y: 92,
-              width: 18,
-              height: 44,
-            ),
-            DetectedSymbol(
-              id: 'note-1',
-              type: 'noteheadBlack',
-              x: 50,
-              y: 116,
-              width: 10,
-              height: 8,
-            ),
-            DetectedSymbol(
-              id: 'stem-1',
-              type: 'stem',
-              x: 58,
-              y: 82,
-              width: 2,
-              height: 38,
-            ),
-          ],
-        );
+    test('noteheadBlack + stem without beam or flag remains a quarter note', () {
+      const detection = DetectionResult(
+        imageId: 'no-beam-quarter',
+        staffs: [staff],
+        symbols: [
+          DetectedSymbol(
+            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+          ),
+          DetectedSymbol(
+            id: 'note-1', type: 'noteheadBlack', x: 50, y: 116, width: 10, height: 8,
+          ),
+          DetectedSymbol(
+            id: 'stem-1', type: 'stem', x: 58, y: 82, width: 2, height: 38,
+          ),
+        ],
+      );
 
-        final result = mapper.map(detection);
-        final note = result.score.parts.single.measures.single.notes.single;
+      final result = mapper.map(detection);
+      final note = result.score.parts.single.measures.single.notes.single;
 
-        expect(note.type, 'quarter');
-      },
-    );
+      expect(note.type, 'quarter');
+    });
   });
 
   // ─────────────────────────────────────────────────────────────
@@ -360,20 +242,10 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef',
-            type: 'gClef',
-            x: 10,
-            y: 92,
-            width: 18,
-            height: 44,
+            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
-            id: 'r1',
-            type: 'rest8th',
-            x: 60,
-            y: 116,
-            width: 8,
-            height: 16,
+            id: 'r1', type: 'rest8th', x: 60, y: 116, width: 8, height: 16,
           ),
         ],
       );
@@ -391,20 +263,10 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef',
-            type: 'gClef',
-            x: 10,
-            y: 92,
-            width: 18,
-            height: 44,
+            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
-            id: 'r1',
-            type: 'rest16th',
-            x: 60,
-            y: 116,
-            width: 8,
-            height: 16,
+            id: 'r1', type: 'rest16th', x: 60, y: 116, width: 8, height: 16,
           ),
         ],
       );
@@ -436,28 +298,13 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef',
-            type: 'fClef',
-            x: 10,
-            y: 92,
-            width: 18,
-            height: 44,
+            id: 'clef', type: 'fClef', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
-            id: 'note-1',
-            type: 'noteheadBlack',
-            x: 50,
-            y: 116,
-            width: 10,
-            height: 8,
+            id: 'note-1', type: 'noteheadBlack', x: 50, y: 116, width: 10, height: 8,
           ),
           DetectedSymbol(
-            id: 'stem-1',
-            type: 'stem',
-            x: 58,
-            y: 88,
-            width: 2,
-            height: 32,
+            id: 'stem-1', type: 'stem', x: 58, y: 88, width: 2, height: 32,
           ),
         ],
       );
@@ -476,28 +323,13 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef',
-            type: 'fClef',
-            x: 10,
-            y: 92,
-            width: 18,
-            height: 44,
+            id: 'clef', type: 'fClef', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
-            id: 'note-1',
-            type: 'noteheadBlack',
-            x: 50,
-            y: 136,
-            width: 10,
-            height: 8,
+            id: 'note-1', type: 'noteheadBlack', x: 50, y: 136, width: 10, height: 8,
           ),
           DetectedSymbol(
-            id: 'stem-1',
-            type: 'stem',
-            x: 58,
-            y: 108,
-            width: 2,
-            height: 32,
+            id: 'stem-1', type: 'stem', x: 58, y: 108, width: 2, height: 32,
           ),
         ],
       );
@@ -516,28 +348,13 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef',
-            type: 'fClef',
-            x: 10,
-            y: 92,
-            width: 18,
-            height: 44,
+            id: 'clef', type: 'fClef', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
-            id: 'note-1',
-            type: 'noteheadBlack',
-            x: 50,
-            y: 126,
-            width: 10,
-            height: 8,
+            id: 'note-1', type: 'noteheadBlack', x: 50, y: 126, width: 10, height: 8,
           ),
           DetectedSymbol(
-            id: 'stem-1',
-            type: 'stem',
-            x: 58,
-            y: 98,
-            width: 2,
-            height: 32,
+            id: 'stem-1', type: 'stem', x: 58, y: 98, width: 2, height: 32,
           ),
         ],
       );

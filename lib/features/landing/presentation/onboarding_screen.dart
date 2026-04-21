@@ -50,13 +50,13 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       parent: _animController,
       curve: const Interval(0.0, 0.7, curve: Curves.easeOut),
     );
-    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.12), end: Offset.zero)
-        .animate(
-          CurvedAnimation(
-            parent: _animController,
-            curve: const Interval(0.0, 0.7, curve: Curves.easeOut),
-          ),
-        );
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.12),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _animController,
+      curve: const Interval(0.0, 0.7, curve: Curves.easeOut),
+    ));
 
     _animController.forward();
   }
@@ -112,10 +112,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         savedPhotoPath = destPath;
       }
 
-      await UserProfileService.saveProfile(
-        name: name,
-        photoPath: savedPhotoPath,
-      );
+      await UserProfileService.saveProfile(name: name, photoPath: savedPhotoPath);
 
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
@@ -240,12 +237,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       color: const Color(0xFF1A1A1A),
                       border: Border.all(
                         color: _selectedPhoto != null
-                            ? const Color.fromARGB(
-                                255,
-                                212,
-                                169,
-                                106,
-                              ) // Changed
+                            ? const Color.fromARGB(255, 212, 169, 106) // Changed
                             : const Color(0xFF2A2A2A),
                         width: 2,
                       ),
@@ -263,12 +255,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                 name.isNotEmpty ? initial : '+',
                                 style: TextStyle(
                                   color: name.isNotEmpty
-                                      ? const Color.fromARGB(
-                                          255,
-                                          212,
-                                          169,
-                                          106,
-                                        ) // Changed
+                                      ? const Color.fromARGB(255, 212, 169, 106) // Changed
                                       : const Color(0xFF444444),
                                   fontSize: name.isNotEmpty ? 34 : 28,
                                   fontWeight: FontWeight.w700,
@@ -344,8 +331,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     final borderColor = hasError
         ? const Color(0xFFE05252)
         : _nameFocusNode.hasFocus
-        ? const Color.fromARGB(255, 212, 169, 106).withValues(alpha: 0.6)
-        : const Color(0xFF2A2A2A);
+            ? const Color.fromARGB(255, 212, 169, 106).withValues(alpha: 0.6)
+            : const Color(0xFF2A2A2A);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -463,18 +450,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         child: ElevatedButton(
           onPressed: _isContinueEnabled ? _onContinue : null,
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color.fromARGB(
-              255,
-              212,
-              169,
-              106,
-            ), // Changed
-            disabledBackgroundColor: const Color.fromARGB(
-              255,
-              212,
-              169,
-              106,
-            ), // Changed
+            backgroundColor: const Color.fromARGB(255, 212, 169, 106), // Changed
+            disabledBackgroundColor: const Color.fromARGB(255, 212, 169, 106), // Changed
             foregroundColor: const Color(0xFF0F0F0F),
             disabledForegroundColor: const Color(0xFF0F0F0F),
             elevation: 0,
@@ -488,9 +465,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   height: 22,
                   child: CircularProgressIndicator(
                     strokeWidth: 2.5,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Color(0xFF0F0F0F),
-                    ),
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0F0F0F)),
                   ),
                 )
               : const Text(

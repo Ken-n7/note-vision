@@ -21,28 +21,30 @@ class Measure {
   });
 
   Map<String, dynamic> toJson() => {
-    'number': number,
-    if (clef != null) 'clef': clef!.toJson(),
-    if (timeSignature != null) 'timeSignature': timeSignature!.toJson(),
-    if (keySignature != null) 'keySignature': keySignature!.toJson(),
-    'symbols': symbols.map((s) => s.toJson()).toList(),
-  };
+        'number': number,
+        if (clef != null) 'clef': clef!.toJson(),
+        if (timeSignature != null) 'timeSignature': timeSignature!.toJson(),
+        if (keySignature != null) 'keySignature': keySignature!.toJson(),
+        'symbols': symbols.map((s) => s.toJson()).toList(),
+      };
 
   factory Measure.fromJson(Map<String, dynamic> json) => Measure(
-    number: json['number'] as int,
-    clef: json['clef'] != null
-        ? Clef.fromJson(json['clef'] as Map<String, dynamic>)
-        : null,
-    timeSignature: json['timeSignature'] != null
-        ? TimeSignature.fromJson(json['timeSignature'] as Map<String, dynamic>)
-        : null,
-    keySignature: json['keySignature'] != null
-        ? KeySignature.fromJson(json['keySignature'] as Map<String, dynamic>)
-        : null,
-    symbols: (json['symbols'] as List<dynamic>)
-        .map((s) => _symbolFromJson(s as Map<String, dynamic>))
-        .toList(),
-  );
+        number: json['number'] as int,
+        clef: json['clef'] != null
+            ? Clef.fromJson(json['clef'] as Map<String, dynamic>)
+            : null,
+        timeSignature: json['timeSignature'] != null
+            ? TimeSignature.fromJson(
+                json['timeSignature'] as Map<String, dynamic>)
+            : null,
+        keySignature: json['keySignature'] != null
+            ? KeySignature.fromJson(
+                json['keySignature'] as Map<String, dynamic>)
+            : null,
+        symbols: (json['symbols'] as List<dynamic>)
+            .map((s) => _symbolFromJson(s as Map<String, dynamic>))
+            .toList(),
+      );
 
   static ScoreSymbol _symbolFromJson(Map<String, dynamic> json) {
     return switch (json['symbolType'] as String) {

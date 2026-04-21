@@ -2,10 +2,16 @@ class DetectedBarline {
   final double x;
   final String? staffId;
 
-  const DetectedBarline({required this.x, this.staffId});
+  const DetectedBarline({
+    required this.x,
+    this.staffId,
+  });
 
   Map<String, Object?> toJson() {
-    return {'x': x, 'staffId': staffId};
+    return {
+      'x': x,
+      'staffId': staffId,
+    };
   }
 
   factory DetectedBarline.fromJson(Map<String, dynamic> json) {

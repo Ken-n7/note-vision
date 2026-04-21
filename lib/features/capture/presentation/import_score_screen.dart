@@ -51,11 +51,7 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new,
-            size: 20,
-            color: _textPrimary,
-          ),
+          icon: const Icon(Icons.arrow_back_ios_new, size: 20, color: _textPrimary),
           onPressed: _goToCollection,
         ),
         title: const Text(
@@ -100,7 +96,11 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
         const SizedBox(height: 6),
         const Text(
           'Import a MusicXML file, preview it, then continue to the editor.',
-          style: TextStyle(fontSize: 14, color: _textSecondary, height: 1.5),
+          style: TextStyle(
+            fontSize: 14,
+            color: _textSecondary,
+            height: 1.5,
+          ),
         ),
         const SizedBox(height: 18),
         Expanded(child: _buildPreviewArea()),
@@ -275,7 +275,10 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
               const SizedBox(width: 6),
               Text(
                 title,
-                style: TextStyle(color: color, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -652,8 +655,7 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
     }
     final rootMap = Map<String, dynamic>.from(root);
 
-    final partMaps =
-        (rootMap['parts'] as List?)
+    final partMaps = (rootMap['parts'] as List?)
             ?.whereType<Map>()
             .map((part) => Map<String, dynamic>.from(part))
             .toList() ??
@@ -663,8 +665,7 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
     }
 
     final parts = partMaps.map((part) {
-      final measureMaps =
-          (part['measures'] as List?)
+      final measureMaps = (part['measures'] as List?)
               ?.whereType<Map>()
               .map((measure) => Map<String, dynamic>.from(measure))
               .toList() ??
@@ -687,8 +688,7 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
   }
 
   Measure _measureFromJson(Map<String, dynamic> measure) {
-    final symbolMaps =
-        (measure['symbols'] as List?)
+    final symbolMaps = (measure['symbols'] as List?)
             ?.whereType<Map>()
             .map((symbol) => Map<String, dynamic>.from(symbol))
             .toList() ??
@@ -704,8 +704,7 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
     if (type == 'rest') {
       return Rest(
         duration: (symbol['duration'] as num?)?.toInt() ?? 1,
-        type:
-            symbol['restType']?.toString() ??
+        type: symbol['restType']?.toString() ??
             symbol['noteType']?.toString() ??
             'quarter',
         voice: (symbol['voice'] as num?)?.toInt(),
@@ -715,26 +714,15 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
 
     final pitch = symbol['pitch']?.toString().toUpperCase() ?? 'C4';
     final match = RegExp(r'^([A-G])([#B]*)(\d)$').firstMatch(pitch);
-    final step =
-        match?.group(1) ?? symbol['step']?.toString().toUpperCase() ?? 'C';
+    final step = match?.group(1) ?? symbol['step']?.toString().toUpperCase() ?? 'C';
     final accidental = match?.group(2) ?? '';
     final alter = accidental.isEmpty
         ? (symbol['alter'] as num?)?.toInt()
-        : accidental
-              .replaceAll('B', 'b')
-              .split('')
-              .fold<int>(
-                0,
-                (value, c) =>
-                    value +
-                    (c == '#'
-                        ? 1
-                        : c == 'b'
-                        ? -1
-                        : 0),
-              );
-    final octave =
-        int.tryParse(match?.group(3) ?? '') ??
+        : accidental.replaceAll('B', 'b').split('').fold<int>(
+              0,
+              (value, c) => value + (c == '#' ? 1 : c == 'b' ? -1 : 0),
+            );
+    final octave = int.tryParse(match?.group(3) ?? '') ??
         (symbol['octave'] as num?)?.toInt() ??
         4;
 
@@ -743,8 +731,7 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
       octave: octave,
       alter: alter,
       duration: (symbol['duration'] as num?)?.toInt() ?? 1,
-      type:
-          symbol['noteType']?.toString() ??
+      type: symbol['noteType']?.toString() ??
           symbol['typeName']?.toString() ??
           'quarter',
       voice: (symbol['voice'] as num?)?.toInt(),
@@ -778,7 +765,11 @@ class _BottomNavItem extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 22, color: isSelected ? _accent : _textSecondary),
+            Icon(
+              icon,
+              size: 22,
+              color: isSelected ? _accent : _textSecondary,
+            ),
             const SizedBox(height: 4),
             Text(
               label,
@@ -812,12 +803,8 @@ class _TappableButtonState extends State<_TappableButton> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTapDown: widget.onPressed == null
-          ? null
-          : (_) => setState(() => _pressed = true),
-      onTapCancel: widget.onPressed == null
-          ? null
-          : () => setState(() => _pressed = false),
+      onTapDown: widget.onPressed == null ? null : (_) => setState(() => _pressed = true),
+      onTapCancel: widget.onPressed == null ? null : () => setState(() => _pressed = false),
       onTap: widget.onPressed == null
           ? null
           : () {

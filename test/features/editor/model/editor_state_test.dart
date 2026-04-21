@@ -59,7 +59,10 @@ void main() {
             id: 'part-1',
             name: 'Piano',
             measures: [
-              Measure(number: 1, symbols: [Rest(duration: 1, type: 'quarter')]),
+              Measure(
+                number: 1,
+                symbols: [Rest(duration: 1, type: 'quarter')],
+              ),
             ],
           ),
         ],
@@ -75,9 +78,10 @@ void main() {
 
     test('measure context can exist without selected symbol', () {
       final score = _buildScore();
-      final state = EditorState(
-        score: score,
-      ).copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
+      final state = EditorState(score: score).copyWith(
+        selectedPartIndex: 0,
+        selectedMeasureIndex: 0,
+      );
 
       expect(state.selectedPartIndex, 0);
       expect(state.selectedMeasureIndex, 0);
@@ -85,28 +89,25 @@ void main() {
       expect(state.selectedSymbol, isNull);
     });
 
-    test(
-      'copyWith can clear symbol selection while preserving measure context',
-      () {
-        final score = _buildScore();
-        final selected = EditorState(score: score).copyWith(
-          selectedPartIndex: 0,
-          selectedMeasureIndex: 0,
-          selectedSymbolIndex: 0,
-          selectedSymbol: score.parts[0].measures[0].symbols[0],
-        );
+    test('copyWith can clear symbol selection while preserving measure context', () {
+      final score = _buildScore();
+      final selected = EditorState(score: score).copyWith(
+        selectedPartIndex: 0,
+        selectedMeasureIndex: 0,
+        selectedSymbolIndex: 0,
+        selectedSymbol: score.parts[0].measures[0].symbols[0],
+      );
 
-        final cleared = selected.copyWith(
-          selectedSymbolIndex: null,
-          selectedSymbol: null,
-        );
+      final cleared = selected.copyWith(
+        selectedSymbolIndex: null,
+        selectedSymbol: null,
+      );
 
-        expect(cleared.selectedPartIndex, 0);
-        expect(cleared.selectedMeasureIndex, 0);
-        expect(cleared.selectedSymbolIndex, isNull);
-        expect(cleared.selectedSymbol, isNull);
-      },
-    );
+      expect(cleared.selectedPartIndex, 0);
+      expect(cleared.selectedMeasureIndex, 0);
+      expect(cleared.selectedSymbolIndex, isNull);
+      expect(cleared.selectedSymbol, isNull);
+    });
 
     test('undo and redo stacks are capped at max depth 50', () {
       final entries = List.generate(
@@ -185,11 +186,7 @@ void main() {
         duration: 1,
         type: 'quarter',
       );
-      final inserted = _insertSymbol(
-        original,
-        symbol: insertedNote,
-        atIndex: 1,
-      );
+      final inserted = _insertSymbol(original, symbol: insertedNote, atIndex: 1);
 
       final edited = EditorState(score: original).applyEdit(score: inserted);
       expect(_firstMeasureSymbols(edited.score).length, 3);
@@ -206,11 +203,7 @@ void main() {
     test('insert rest can be undone and redone correctly', () {
       final original = _buildScore();
       const insertedRest = Rest(duration: 2, type: 'half');
-      final inserted = _insertSymbol(
-        original,
-        symbol: insertedRest,
-        atIndex: 0,
-      );
+      final inserted = _insertSymbol(original, symbol: insertedRest, atIndex: 0);
 
       final edited = EditorState(score: original).applyEdit(score: inserted);
       expect(_firstMeasureSymbols(edited.score).length, 3);
@@ -230,9 +223,7 @@ void main() {
       final firstEdit = _deleteSymbol(original, atIndex: 1);
       final secondEdit = _changeFirstNoteDuration(original, duration: 2);
 
-      final afterFirstEdit = EditorState(
-        score: original,
-      ).applyEdit(score: firstEdit);
+      final afterFirstEdit = EditorState(score: original).applyEdit(score: firstEdit);
       final afterUndo = afterFirstEdit.undo();
       expect(afterUndo.redoStack, isNotEmpty);
 
@@ -253,13 +244,7 @@ void main() {
       final original = _buildScore();
       final state1 = EditorState(score: original)
           .applyEdit(score: _changeFirstNoteDuration(original, duration: 2))
-          .applyEdit(
-            score: _insertSymbol(
-              original,
-              symbol: const Rest(duration: 2, type: 'half'),
-              atIndex: 0,
-            ),
-          )
+          .applyEdit(score: _insertSymbol(original, symbol: const Rest(duration: 2, type: 'half'), atIndex: 0))
           .applyEdit(score: _moveSymbol(original, fromIndex: 0, toIndex: 1));
 
       final state2 = state1.undo().undo().redo().undo().redo().redo();
@@ -274,7 +259,10 @@ void main() {
 
     test('toString output is inspectable for debugging', () {
       final score = _buildScore();
-      final state = EditorState(score: score, hasUnsavedChanges: true);
+      final state = EditorState(
+        score: score,
+        hasUnsavedChanges: true,
+      );
 
       final debugText = state.toString();
 
@@ -308,8 +296,7 @@ Score _moveSymbol(Score score, {required int fromIndex, required int toIndex}) {
 }
 
 Score _deleteSymbol(Score score, {required int atIndex}) {
-  final symbols = List.of(score.parts[0].measures[0].symbols)
-    ..removeAt(atIndex);
+  final symbols = List.of(score.parts[0].measures[0].symbols)..removeAt(atIndex);
   return _replaceFirstMeasureSymbols(score, symbols);
 }
 

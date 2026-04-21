@@ -40,7 +40,8 @@ class _FakeSymbolDetector implements SymbolDetector {
   Future<DetectionResult> detect(
     PreprocessedResult input,
     List<DetectedStaff> staves,
-  ) async => result;
+  ) async =>
+      result;
 }
 
 class _FakeScoreMapperService extends ScoreMapperService {

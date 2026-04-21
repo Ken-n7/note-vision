@@ -14,8 +14,8 @@ class MusicXmlInspectorController extends ChangeNotifier {
   MusicXmlInspectorController({
     MusicXmlImporter? importer,
     MusicXmlScoreConverter? converter,
-  }) : _importer = importer ?? MusicXmlImporter(),
-       _converter = converter ?? const MusicXmlScoreConverter();
+  })  : _importer = importer ?? MusicXmlImporter(),
+        _converter = converter ?? const MusicXmlScoreConverter();
 
   final MusicXmlImporter _importer;
   final MusicXmlScoreConverter _converter;
@@ -61,8 +61,7 @@ class MusicXmlInspectorController extends ChangeNotifier {
           fileName: result.fileName,
           metadata: metadata,
           rawXml: result.xmlContent,
-          errorMessage:
-              parseResult.errorMessage ??
+          errorMessage: parseResult.errorMessage ??
               parseResult.validationErrors.join('\n'),
         );
         isLoading = false;
@@ -110,21 +109,15 @@ class MusicXmlInspectorController extends ChangeNotifier {
 
     final rootTag = '<${root.name.local}>';
 
-    final workTitle = root
-        .findAllElements('work-title')
-        .firstOrNull
-        ?.innerText
-        .trim();
-    final movementTitle = root
-        .findAllElements('movement-title')
-        .firstOrNull
-        ?.innerText
-        .trim();
+    final workTitle =
+        root.findAllElements('work-title').firstOrNull?.innerText.trim();
+    final movementTitle =
+        root.findAllElements('movement-title').firstOrNull?.innerText.trim();
     final title = (workTitle?.isNotEmpty == true)
         ? workTitle
         : (movementTitle?.isNotEmpty == true)
-        ? movementTitle
-        : null;
+            ? movementTitle
+            : null;
 
     final composer = root
         .findAllElements('creator')
@@ -155,4 +148,5 @@ class MusicXmlInspectorController extends ChangeNotifier {
       warnings: parseResult.warnings,
     );
   }
+
 }

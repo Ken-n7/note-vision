@@ -39,11 +39,7 @@ class PlaybackPosition {
     required this.symbolIndex,
   });
 
-  static const none = PlaybackPosition(
-    partIndex: -1,
-    measureIndex: -1,
-    symbolIndex: -1,
-  );
+  static const none = PlaybackPosition(partIndex: -1, measureIndex: -1, symbolIndex: -1);
 
   final int partIndex;
   final int measureIndex;
@@ -169,8 +165,7 @@ class PlaybackService {
       _sfId = null;
       _emitState(
         PlaybackStatus.error,
-        error:
-            'Could not load soundfont. '
+        error: 'Could not load soundfont. '
             'Add assets/soundfonts/piano.sf2 (any standard GM SF2 file) '
             'then run: flutter pub get\n\nDetail: $e',
       );
@@ -246,13 +241,11 @@ class PlaybackService {
       final event = _events[_currentEventIndex];
 
       // Emit current score position for the viewer highlight.
-      _positionController.add(
-        PlaybackPosition(
-          partIndex: event.partIndex,
-          measureIndex: event.measureIndex,
-          symbolIndex: event.symbolIndex,
-        ),
-      );
+      _positionController.add(PlaybackPosition(
+        partIndex: event.partIndex,
+        measureIndex: event.measureIndex,
+        symbolIndex: event.symbolIndex,
+      ));
 
       // Play MIDI note (skip for rests).
       if (!event.isRest && _sfId != null) {
@@ -317,7 +310,11 @@ class PlaybackService {
     if (_sfId == null || _currentEventIndex >= _events.length) return;
     final event = _events[_currentEventIndex];
     if (!event.isRest) {
-      _midi.stopNote(sfId: _sfId!, channel: _midiChannel, key: event.midiNote);
+      _midi.stopNote(
+        sfId: _sfId!,
+        channel: _midiChannel,
+        key: event.midiNote,
+      );
     }
   }
 

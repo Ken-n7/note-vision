@@ -13,12 +13,10 @@ class StaffAssigner {
     final staffs = detection.staffs;
     if (staffs.isEmpty) return const [];
 
-    return detection.symbols
-        .map((symbol) {
-          final bestStaff = _findBestStaff(symbol, staffs);
-          return StaffOwnedSymbol(symbol: symbol, staff: bestStaff);
-        })
-        .toList(growable: false);
+    return detection.symbols.map((symbol) {
+      final bestStaff = _findBestStaff(symbol, staffs);
+      return StaffOwnedSymbol(symbol: symbol, staff: bestStaff);
+    }).toList(growable: false);
   }
 
   DetectedStaff _findBestStaff(

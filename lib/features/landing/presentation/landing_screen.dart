@@ -41,13 +41,13 @@ class _LandingScreenState extends State<LandingScreen>
       curve: const Interval(0.0, 0.7, curve: Curves.easeOut),
     );
 
-    _slideUp = Tween<Offset>(begin: const Offset(0, 0.08), end: Offset.zero)
-        .animate(
-          CurvedAnimation(
-            parent: _controller,
-            curve: const Interval(0.0, 0.7, curve: Curves.easeOut),
-          ),
-        );
+    _slideUp = Tween<Offset>(
+      begin: const Offset(0, 0.08),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.0, 0.7, curve: Curves.easeOut),
+    ));
 
     _controller.forward();
   }
@@ -65,7 +65,9 @@ class _LandingScreenState extends State<LandingScreen>
 
     Navigator.push(
       this.context,
-      _fadeRoute(isDone ? const CollectionScreen() : const OnboardingScreen()),
+      _fadeRoute(
+        isDone ? const CollectionScreen() : const OnboardingScreen(),
+      ),
     );
   }
 
@@ -74,9 +76,7 @@ class _LandingScreenState extends State<LandingScreen>
     final size = MediaQuery.of(context).size;
     final orientation = MediaQuery.of(context).orientation;
     final isLandscape = orientation == Orientation.landscape;
-    final horizontalPadding =
-        ResponsiveLayout.horizontalPadding(size.width) *
-        (isLandscape ? 1.0 : 1.5);
+    final horizontalPadding = ResponsiveLayout.horizontalPadding(size.width) * (isLandscape ? 1.0 : 1.5);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -89,7 +89,9 @@ class _LandingScreenState extends State<LandingScreen>
             child: Container(
               width: size.width * 1.4,
               height: size.height * 0.55,
-              decoration: const BoxDecoration(shape: BoxShape.circle),
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+              ),
             ),
           ),
 
@@ -221,8 +223,10 @@ class _LandingScreenState extends State<LandingScreen>
   Widget _buildWorkbenchAction(BuildContext context) {
     return _GhostButton(
       label: "Dev's Workbench",
-      onPressed: () =>
-          Navigator.push(context, _fadeRoute(const MusicXmlInspectorScreen())),
+      onPressed: () => Navigator.push(
+        context,
+        _fadeRoute(const MusicXmlInspectorScreen()),
+      ),
     );
   }
 

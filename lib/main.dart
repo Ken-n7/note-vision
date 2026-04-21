@@ -26,7 +26,9 @@ class App extends StatelessWidget {
           );
         }
         if (settings.name == ProfileStatsScreen.routeName) {
-          return MaterialPageRoute(builder: (_) => const ProfileStatsScreen());
+          return MaterialPageRoute(
+            builder: (_) => const ProfileStatsScreen(),
+          );
         }
         return null;
       },

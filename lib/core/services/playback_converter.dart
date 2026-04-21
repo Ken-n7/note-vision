@@ -39,13 +39,8 @@ class PlaybackEvent {
       other.baseDurationMs == baseDurationMs;
 
   @override
-  int get hashCode => Object.hash(
-    partIndex,
-    measureIndex,
-    symbolIndex,
-    midiNote,
-    baseDurationMs,
-  );
+  int get hashCode =>
+      Object.hash(partIndex, measureIndex, symbolIndex, midiNote, baseDurationMs);
 
   @override
   String toString() =>
@@ -70,13 +65,7 @@ class PlaybackConverter {
 
   // Step → semitone offset from C (chromatic scale).
   static const Map<String, int> _stepOffset = {
-    'C': 0,
-    'D': 2,
-    'E': 4,
-    'F': 5,
-    'G': 7,
-    'A': 9,
-    'B': 11,
+    'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11,
   };
 
   // ── Public API ─────────────────────────────────────────────────────────
@@ -131,25 +120,21 @@ class PlaybackConverter {
           final symbol = measure.symbols[si];
           if (symbol is Note) {
             final midi = noteToMidi(symbol);
-            events.add(
-              PlaybackEvent(
-                partIndex: pi,
-                measureIndex: mi,
-                symbolIndex: si,
-                midiNote: midi,
-                baseDurationMs: durationMs(symbol.duration),
-              ),
-            );
+            events.add(PlaybackEvent(
+              partIndex: pi,
+              measureIndex: mi,
+              symbolIndex: si,
+              midiNote: midi,
+              baseDurationMs: durationMs(symbol.duration),
+            ));
           } else if (symbol is Rest) {
-            events.add(
-              PlaybackEvent(
-                partIndex: pi,
-                measureIndex: mi,
-                symbolIndex: si,
-                midiNote: -1,
-                baseDurationMs: durationMs(symbol.duration),
-              ),
-            );
+            events.add(PlaybackEvent(
+              partIndex: pi,
+              measureIndex: mi,
+              symbolIndex: si,
+              midiNote: -1,
+              baseDurationMs: durationMs(symbol.duration),
+            ));
           }
         }
       }

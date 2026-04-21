@@ -16,8 +16,7 @@ class StaffPitchMapper {
       // C4 absolute index: octave 4 * 7 steps + index of 'C' (0) = 28
       const c4Abs = 28;
       final bottomAbs = c4Abs - (clefLine - 1) * 2;
-      final stepIdx =
-          ((bottomAbs % _steps.length) + _steps.length) % _steps.length;
+      final stepIdx = ((bottomAbs % _steps.length) + _steps.length) % _steps.length;
       final octave = (bottomAbs - stepIdx) ~/ _steps.length;
       return (step: _steps[stepIdx], octave: octave);
     }
@@ -45,7 +44,8 @@ class StaffPitchMapper {
   static int offsetFromTrebleBottomLine({
     required String step,
     required int octave,
-  }) => offsetFromBottomLine(step: step, octave: octave, clefSign: 'G');
+  }) =>
+      offsetFromBottomLine(step: step, octave: octave, clefSign: 'G');
 
   static double yForPitch({
     required String step,
@@ -77,8 +77,7 @@ class StaffPitchMapper {
 
     final offset = ((bottomLineY - y) / (lineSpacing / 2)).round();
     final absolute = refAbsolute + offset;
-    final stepIndex =
-        ((absolute % _steps.length) + _steps.length) % _steps.length;
+    final stepIndex = ((absolute % _steps.length) + _steps.length) % _steps.length;
     final octave = (absolute - stepIndex) ~/ _steps.length;
     return StaffPitch(step: _steps[stepIndex], octave: octave);
   }

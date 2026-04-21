@@ -21,7 +21,11 @@ class PaletteDragData {
 }
 
 class SymbolPalette extends StatelessWidget {
-  const SymbolPalette({super.key, this.selectedType, this.onTypeTap});
+  const SymbolPalette({
+    super.key,
+    this.selectedType,
+    this.onTypeTap,
+  });
 
   final PaletteSymbolType? selectedType;
   final ValueChanged<PaletteSymbolType>? onTypeTap;
@@ -56,9 +60,7 @@ class SymbolPalette extends StatelessWidget {
                   child: _PaletteDraggableItem(
                     item: item,
                     isSelected: selectedType == item.type,
-                    onTap: onTypeTap != null
-                        ? () => onTypeTap!(item.type)
-                        : null,
+                    onTap: onTypeTap != null ? () => onTypeTap!(item.type) : null,
                   ),
                 ),
               )
@@ -167,41 +169,13 @@ class _PaletteSymbolPainter extends CustomPainter {
 
     switch (type) {
       case PaletteSymbolType.wholeNote:
-        _drawNote(
-          canvas,
-          paint,
-          size,
-          filled: false,
-          withStem: false,
-          withFlag: false,
-        );
+        _drawNote(canvas, paint, size, filled: false, withStem: false, withFlag: false);
       case PaletteSymbolType.halfNote:
-        _drawNote(
-          canvas,
-          paint,
-          size,
-          filled: false,
-          withStem: true,
-          withFlag: false,
-        );
+        _drawNote(canvas, paint, size, filled: false, withStem: true, withFlag: false);
       case PaletteSymbolType.quarterNote:
-        _drawNote(
-          canvas,
-          paint,
-          size,
-          filled: true,
-          withStem: true,
-          withFlag: false,
-        );
+        _drawNote(canvas, paint, size, filled: true, withStem: true, withFlag: false);
       case PaletteSymbolType.eighthNote:
-        _drawNote(
-          canvas,
-          paint,
-          size,
-          filled: true,
-          withStem: true,
-          withFlag: true,
-        );
+        _drawNote(canvas, paint, size, filled: true, withStem: true, withFlag: true);
       case PaletteSymbolType.wholeRest:
         _drawWholeRest(canvas, paint, size);
       case PaletteSymbolType.halfRest:
@@ -226,12 +200,7 @@ class _PaletteSymbolPainter extends CustomPainter {
     );
 
     if (filled) {
-      canvas.drawOval(
-        headRect,
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.fill,
-      );
+      canvas.drawOval(headRect, Paint()..color = color..style = PaintingStyle.fill);
     } else {
       canvas.drawOval(headRect, paint);
     }
@@ -245,56 +214,23 @@ class _PaletteSymbolPainter extends CustomPainter {
     if (withFlag) {
       final path = Path()
         ..moveTo(stemEnd.dx, stemEnd.dy)
-        ..quadraticBezierTo(
-          stemEnd.dx + 8,
-          stemEnd.dy + 3,
-          stemEnd.dx + 5,
-          stemEnd.dy + 11,
-        );
+        ..quadraticBezierTo(stemEnd.dx + 8, stemEnd.dy + 3, stemEnd.dx + 5, stemEnd.dy + 11);
       canvas.drawPath(path, paint);
     }
   }
 
   void _drawWholeRest(Canvas canvas, Paint paint, Size size) {
     final lineY = size.height * 0.45;
-    final barRect = Rect.fromLTWH(
-      size.width * 0.28,
-      lineY,
-      size.width * 0.44,
-      6,
-    );
-    canvas.drawRect(
-      barRect,
-      Paint()
-        ..color = color
-        ..style = PaintingStyle.fill,
-    );
-    canvas.drawLine(
-      Offset(size.width * 0.2, lineY),
-      Offset(size.width * 0.8, lineY),
-      paint,
-    );
+    final barRect = Rect.fromLTWH(size.width * 0.28, lineY, size.width * 0.44, 6);
+    canvas.drawRect(barRect, Paint()..color = color..style = PaintingStyle.fill);
+    canvas.drawLine(Offset(size.width * 0.2, lineY), Offset(size.width * 0.8, lineY), paint);
   }
 
   void _drawHalfRest(Canvas canvas, Paint paint, Size size) {
     final lineY = size.height * 0.52;
-    final barRect = Rect.fromLTWH(
-      size.width * 0.28,
-      lineY - 6,
-      size.width * 0.44,
-      6,
-    );
-    canvas.drawRect(
-      barRect,
-      Paint()
-        ..color = color
-        ..style = PaintingStyle.fill,
-    );
-    canvas.drawLine(
-      Offset(size.width * 0.2, lineY),
-      Offset(size.width * 0.8, lineY),
-      paint,
-    );
+    final barRect = Rect.fromLTWH(size.width * 0.28, lineY - 6, size.width * 0.44, 6);
+    canvas.drawRect(barRect, Paint()..color = color..style = PaintingStyle.fill);
+    canvas.drawLine(Offset(size.width * 0.2, lineY), Offset(size.width * 0.8, lineY), paint);
   }
 
   void _drawQuarterRest(Canvas canvas, Paint paint, Size size) {

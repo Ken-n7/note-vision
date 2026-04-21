@@ -17,17 +17,11 @@ void main() {
 
     test('replaces special characters with underscores', () {
       // colon, dot, space, parentheses are all replaced; digits and letters kept
-      expect(
-        safeExportFileName('Piano: No. 1 (draft)'),
-        'Piano__No__1__draft_',
-      );
+      expect(safeExportFileName('Piano: No. 1 (draft)'), 'Piano__No__1__draft_');
     });
 
     test('preserves hyphens', () {
-      expect(
-        safeExportFileName('Well-Tempered Clavier'),
-        'Well-Tempered_Clavier',
-      );
+      expect(safeExportFileName('Well-Tempered Clavier'), 'Well-Tempered_Clavier');
     });
 
     test('preserves already-safe alphanumeric title unchanged', () {

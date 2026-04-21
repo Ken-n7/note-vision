@@ -24,9 +24,9 @@ class _ProfileStatsScreenState extends State<ProfileStatsScreen> {
   }
 
   Future<List<Object?>> _loadData() => Future.wait([
-    UserProfileService.loadProfile(),
-    UsageStatsService.loadStats(),
-  ]);
+        UserProfileService.loadProfile(),
+        UsageStatsService.loadStats(),
+      ]);
 
   Future<void> _onEditTap(UserProfile? current) async {
     await showModalBottomSheet<UserProfile>(
@@ -37,9 +37,7 @@ class _ProfileStatsScreenState extends State<ProfileStatsScreen> {
     );
     if (!mounted) return;
     final refreshed = _loadData();
-    setState(() {
-      _dataFuture = refreshed;
-    });
+    setState(() { _dataFuture = refreshed; });
   }
 
   @override
@@ -76,14 +74,9 @@ class _ProfileStatsScreenState extends State<ProfileStatsScreen> {
             );
           }
 
-          final data = snapshot.data;
-          final profile = (data != null && data.isNotEmpty)
-              ? data[0] as UserProfile?
-              : null;
-          final stats = (data != null && data.length > 1)
-              ? data[1] as UsageStats? ??
-                    const UsageStats(scans: 0, exports: 0, playbacks: 0)
-              : const UsageStats(scans: 0, exports: 0, playbacks: 0);
+          final data    = snapshot.data;
+          final profile = (data != null && data.isNotEmpty) ? data[0] as UserProfile? : null;
+          final stats   = (data != null && data.length > 1) ? data[1] as UsageStats? ?? const UsageStats(scans: 0, exports: 0, playbacks: 0) : const UsageStats(scans: 0, exports: 0, playbacks: 0);
 
           return SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
@@ -115,9 +108,9 @@ class _ProfileSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = profile?.name ?? '';
+    final name    = profile?.name ?? '';
     final initial = profile?.initial ?? '?';
-    final photo = profile?.photoPath;
+    final photo   = profile?.photoPath;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -178,7 +171,10 @@ class _ProfileSection extends StatelessWidget {
             ),
             child: const Text(
               'Edit',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],

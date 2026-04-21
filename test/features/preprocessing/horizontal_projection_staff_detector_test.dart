@@ -98,7 +98,11 @@ void main() {
 
     test('returns empty list when image has no dark rows', () {
       // Fully white image — no candidate rows at all
-      final png = _makeTestPng(width: 200, height: 200, lineRows: []);
+      final png = _makeTestPng(
+        width: 200,
+        height: 200,
+        lineRows: [],
+      );
 
       final staves = detector.detect(png);
 

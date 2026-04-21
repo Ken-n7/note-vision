@@ -5,7 +5,10 @@ class UserProfile {
   final String name;
   final String? photoPath;
 
-  const UserProfile({required this.name, this.photoPath});
+  const UserProfile({
+    required this.name,
+    this.photoPath,
+  });
 
   File? get photoFile {
     if (photoPath == null) return null;
@@ -64,7 +67,7 @@ class UserProfileService {
       await prefs.remove(_keyPhotoPath);
     }
   }
-
+  
   static Future<void> clearAll() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyName);

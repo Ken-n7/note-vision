@@ -16,20 +16,20 @@ class Score {
   });
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'title': title,
-    'composer': composer,
-    'parts': parts.map((p) => p.toJson()).toList(),
-  };
+        'id': id,
+        'title': title,
+        'composer': composer,
+        'parts': parts.map((p) => p.toJson()).toList(),
+      };
 
   factory Score.fromJson(Map<String, dynamic> json) => Score(
-    id: json['id'] as String,
-    title: json['title'] as String,
-    composer: json['composer'] as String,
-    parts: (json['parts'] as List<dynamic>)
-        .map((p) => Part.fromJson(p as Map<String, dynamic>))
-        .toList(),
-  );
+        id: json['id'] as String,
+        title: json['title'] as String,
+        composer: json['composer'] as String,
+        parts: (json['parts'] as List<dynamic>)
+            .map((p) => Part.fromJson(p as Map<String, dynamic>))
+            .toList(),
+      );
 
   int get partCount => parts.length;
 
@@ -113,11 +113,7 @@ class Score {
           ),
       ];
 
-      updatedParts[pi] = Part(
-        id: part.id,
-        name: part.name,
-        measures: renumbered,
-      );
+      updatedParts[pi] = Part(id: part.id, name: part.name, measures: renumbered);
     }
 
     return Score(id: id, title: title, composer: composer, parts: updatedParts);
@@ -132,8 +128,7 @@ class Score {
     final updatedParts = List<Part>.from(parts);
     for (int pi = 0; pi < updatedParts.length; pi++) {
       final part = updatedParts[pi];
-      final measures = List<Measure>.from(part.measures)
-        ..removeAt(measureIndex);
+      final measures = List<Measure>.from(part.measures)..removeAt(measureIndex);
 
       final renumbered = [
         for (int i = 0; i < measures.length; i++)
@@ -146,11 +141,7 @@ class Score {
           ),
       ];
 
-      updatedParts[pi] = Part(
-        id: part.id,
-        name: part.name,
-        measures: renumbered,
-      );
+      updatedParts[pi] = Part(id: part.id, name: part.name, measures: renumbered);
     }
 
     return Score(id: id, title: title, composer: composer, parts: updatedParts);
@@ -205,7 +196,12 @@ class Score {
       measures: updatedMeasures,
     );
 
-    return Score(id: id, title: title, composer: composer, parts: updatedParts);
+    return Score(
+      id: id,
+      title: title,
+      composer: composer,
+      parts: updatedParts,
+    );
   }
 
   @override

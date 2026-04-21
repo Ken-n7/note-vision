@@ -30,8 +30,7 @@ extension EditorStateHistory on EditorState {
     if (undoStack.isEmpty) return this;
 
     final previousSnapshot = undoStack.last;
-    final remainingUndoStack = List<EditorSnapshot>.from(undoStack)
-      ..removeLast();
+    final remainingUndoStack = List<EditorSnapshot>.from(undoStack)..removeLast();
     final updatedRedoStack = _pushWithLimit(redoStack, toSnapshot());
 
     return _restoreSnapshot(
@@ -45,8 +44,7 @@ extension EditorStateHistory on EditorState {
     if (redoStack.isEmpty) return this;
 
     final nextSnapshot = redoStack.last;
-    final remainingRedoStack = List<EditorSnapshot>.from(redoStack)
-      ..removeLast();
+    final remainingRedoStack = List<EditorSnapshot>.from(redoStack)..removeLast();
     final updatedUndoStack = _pushWithLimit(undoStack, toSnapshot());
 
     return _restoreSnapshot(

@@ -18,6 +18,7 @@ import 'package:note_vision/features/scan/presentation/scan_viewmodel.dart';
 import 'widgets/scan_actions.dart';
 import 'widgets/scan_image_view.dart';
 
+
 class ScanScreen extends StatefulWidget {
   final Uint8List imageBytes;
 
@@ -63,24 +64,24 @@ class _ScanScreenState extends State<ScanScreen> {
         centerTitle: true,
       ),
       body: switch (vm.state) {
-        ScanState.idle => const SizedBox(),
+        ScanState.idle         => const SizedBox(),
         ScanState.preprocessing => _PipelineStatus(
-          icon: Icons.tune_outlined,
-          message: 'Preprocessing image',
-          subMessage: 'Cleaning up and preparing your scan…',
-        ),
+            icon: Icons.tune_outlined,
+            message: 'Preprocessing image',
+            subMessage: 'Cleaning up and preparing your scan…',
+          ),
         ScanState.detectingStaves => const _PipelineStatus(
-          icon: Icons.grid_4x4_outlined,
-          message: 'Detecting staff lines',
-          subMessage: 'Finding stave boundaries…',
-        ),
-        ScanState.detecting => const _PipelineStatus(
-          icon: Icons.image_search_outlined,
-          message: 'Detecting symbols',
-          subMessage: 'Running the detection model…',
-        ),
-        ScanState.done => _buildDone(context, vm),
-        ScanState.error => _buildError(context, vm),
+            icon: Icons.grid_4x4_outlined,
+            message: 'Detecting staff lines',
+            subMessage: 'Finding stave boundaries…',
+          ),
+        ScanState.detecting    => const _PipelineStatus(
+            icon: Icons.image_search_outlined,
+            message: 'Detecting symbols',
+            subMessage: 'Running the detection model…',
+          ),
+        ScanState.done         => _buildDone(context, vm),
+        ScanState.error        => _buildError(context, vm),
       },
     );
   }
@@ -94,9 +95,7 @@ class _ScanScreenState extends State<ScanScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final horizontalPadding = ResponsiveLayout.horizontalPadding(
-          constraints.maxWidth,
-        );
+        final horizontalPadding = ResponsiveLayout.horizontalPadding(constraints.maxWidth);
         final isLandscape = constraints.maxWidth > constraints.maxHeight;
 
         final actions = Padding(
@@ -106,8 +105,7 @@ class _ScanScreenState extends State<ScanScreen> {
             canContinue: vm.result?.hasDetections ?? false,
             onContinue: () {
               unawaited(UsageStatsService.incrementScans());
-              final mappedScore =
-                  vm.mappingResult?.score ??
+              final mappedScore = vm.mappingResult?.score ??
                   const Score(
                     id: 'scan-score',
                     title: 'Scanned Score',
@@ -277,8 +275,8 @@ class _PipelineStatus extends StatelessWidget {
     required this.subMessage,
   });
 
-  static const _accent = Color(0xFFD4A96A);
-  static const _surface = Color(0xFF1A1A1A);
+  static const _accent        = Color(0xFFD4A96A);
+  static const _surface       = Color(0xFF1A1A1A);
   static const _textSecondary = Color(0xFF8A8A8A);
 
   @override

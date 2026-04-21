@@ -12,9 +12,7 @@ void main() {
 
   group('MusicXmlScoreConverter.convert', () {
     test('converts a simple score and extracts title/composer', () {
-      final xml = File(
-        'test/musicxml_testfiles/01_valid_simple.xml',
-      ).readAsStringSync();
+      final xml = File('test/musicxml_testfiles/01_valid_simple.xml').readAsStringSync();
 
       final parseResult = parser.parse(xml);
       expect(parseResult.success, isTrue);
@@ -30,9 +28,7 @@ void main() {
     });
 
     test('converts multi-measure score and preserves note order', () {
-      final xml = File(
-        'test/musicxml_testfiles/02_valid_multi_measure.xml',
-      ).readAsStringSync();
+      final xml = File('test/musicxml_testfiles/02_valid_multi_measure.xml').readAsStringSync();
 
       final parseResult = parser.parse(xml);
       expect(parseResult.success, isTrue);
@@ -50,9 +46,7 @@ void main() {
     });
 
     test('ignores unsupported tags and still converts supported data', () {
-      final xml = File(
-        'test/musicxml_testfiles/07_unsupported_tags.xml',
-      ).readAsStringSync();
+      final xml = File('test/musicxml_testfiles/07_unsupported_tags.xml').readAsStringSync();
 
       final parseResult = parser.parse(xml);
       expect(parseResult.success, isTrue);
@@ -63,9 +57,7 @@ void main() {
       expect(score.composer, 'Test Composer');
       expect(score.parts.single.measures.single.symbols, hasLength(4));
       expect(
-        score.parts.single.measures.single.symbols.every(
-          (s) => s is Note || s is Rest,
-        ),
+        score.parts.single.measures.single.symbols.every((s) => s is Note || s is Rest),
         isTrue,
       );
       expect(score.parts.single.measures.single.clef?.sign, 'G');
@@ -111,6 +103,7 @@ void main() {
       expect(score.parts.single.measures[1].rests.single.duration, 2);
     });
 
+
     test('uses root tag name as score id when id attribute is absent', () {
       const xml = '''<score-partwise>
   <part-list>
@@ -128,9 +121,7 @@ void main() {
     });
 
     test('uses fallbacks when optional metadata is missing', () {
-      final xml = File(
-        'test/musicxml_testfiles/06_missing_metadata.xml',
-      ).readAsStringSync();
+      final xml = File('test/musicxml_testfiles/06_missing_metadata.xml').readAsStringSync();
 
       final parseResult = parser.parse(xml);
       expect(parseResult.success, isTrue);

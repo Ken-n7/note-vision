@@ -13,29 +13,29 @@ class DiStatusBadge extends StatelessWidget {
 
     final (label, detail, color, icon) = switch (status) {
       InspectorStatus.idle => (
-        'Idle',
-        'Select a mock case to begin',
-        const Color(0xFF6B7390),
-        Icons.radio_button_unchecked,
-      ),
+          'Idle',
+          'Select a mock case to begin',
+          const Color(0xFF6B7390),
+          Icons.radio_button_unchecked,
+        ),
       InspectorStatus.loaded => (
-        'Detection Loaded',
-        controller.loadedCase?.label ?? '',
-        const Color(0xFFF5A623),
-        Icons.download_done_rounded,
-      ),
+          'Detection Loaded',
+          controller.loadedCase?.label ?? '',
+          const Color(0xFFF5A623),
+          Icons.download_done_rounded,
+        ),
       InspectorStatus.mapped => (
-        'Mapping Complete',
-        '${controller.measuresCreated} measures · ${controller.notesCreated} notes · ${controller.restsCreated} rests',
-        const Color(0xFF3DD68C),
-        Icons.check_circle_rounded,
-      ),
+          'Mapping Complete',
+          '${controller.measuresCreated} measures · ${controller.notesCreated} notes · ${controller.restsCreated} rests',
+          const Color(0xFF3DD68C),
+          Icons.check_circle_rounded,
+        ),
       InspectorStatus.error => (
-        'Error',
-        controller.errorMessage ?? 'Unknown error',
-        const Color(0xFFFF5757),
-        Icons.error_rounded,
-      ),
+          'Error',
+          controller.errorMessage ?? 'Unknown error',
+          const Color(0xFFFF5757),
+          Icons.error_rounded,
+        ),
     };
 
     return Container(

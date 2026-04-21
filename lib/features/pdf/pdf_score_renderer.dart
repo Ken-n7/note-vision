@@ -19,8 +19,7 @@ class PdfScoreRenderer {
   static const double _marginPt = 20 * PdfPageFormat.mm;
   static const double _ls = 6.0; // staff line spacing in pt
   static const double _staffH = _ls * 4; // top-to-bottom of 5-line staff
-  static const double _sysSp =
-      40.0; // gap between bottom of one system and top of next
+  static const double _sysSp = 40.0; // gap between bottom of one system and top of next
   static const double _prefixW = 52.0; // clef + key/time sig area
   static const double _mw = 90.0; // min measure width
   static const double _titleBlockH = 46.0; // reserved at top of first page
@@ -38,14 +37,7 @@ class PdfScoreRenderer {
     if (score.parts.isEmpty) {
       final page = PdfPage(doc, pageFormat: PdfPageFormat.a4);
       final g = page.getGraphics();
-      _text(
-        g,
-        fontBold,
-        14,
-        'Empty score',
-        _marginPt,
-        PdfPageFormat.a4.height - _marginPt - 14,
-      );
+      _text(g, fontBold, 14, 'Empty score', _marginPt, PdfPageFormat.a4.height - _marginPt - 14);
       return doc.save();
     }
 
@@ -67,15 +59,14 @@ class PdfScoreRenderer {
     final ph = PdfPageFormat.a4.height;
     final contentW = pw - _marginPt * 2;
     final partCount = score.parts.length;
-    final maxMeasures = score.parts.fold(
-      0,
-      (m, p) => math.max(m, p.measures.length),
-    );
+    final maxMeasures =
+        score.parts.fold(0, (m, p) => math.max(m, p.measures.length));
     final mps = math.max(
       1,
       ((contentW - _prefixW) / _mw).floor(),
     ); // measures per system
-    final totalSystems = maxMeasures == 0 ? 0 : (maxMeasures / mps).ceil();
+    final totalSystems =
+        maxMeasures == 0 ? 0 : (maxMeasures / mps).ceil();
     final systemH = partCount * (_staffH + _sysSp);
 
     final result = <_PageData>[];
@@ -86,27 +77,23 @@ class PdfScoreRenderer {
       final usable = ph - _marginPt * 2 - (firstPage ? _titleBlockH : 0.0);
       final sysOnPage = math.max(1, (usable / systemH).floor());
       final sysHere = math.min(sysOnPage, totalSystems - si);
-      result.add(
-        _PageData(
-          firstSystemIndex: si,
-          systemCount: sysHere,
-          measuresPerSystem: mps,
-          isFirstPage: firstPage,
-        ),
-      );
+      result.add(_PageData(
+        firstSystemIndex: si,
+        systemCount: sysHere,
+        measuresPerSystem: mps,
+        isFirstPage: firstPage,
+      ));
       si += sysHere;
       firstPage = false;
     }
 
     if (result.isEmpty) {
-      result.add(
-        _PageData(
-          firstSystemIndex: 0,
-          systemCount: 0,
-          measuresPerSystem: mps,
-          isFirstPage: true,
-        ),
-      );
+      result.add(_PageData(
+        firstSystemIndex: 0,
+        systemCount: 0,
+        measuresPerSystem: mps,
+        isFirstPage: true,
+      ));
     }
     return result;
   }
@@ -140,10 +127,8 @@ class PdfScoreRenderer {
         final part = score.parts[pi];
         if (startM >= part.measures.length) continue;
 
-        final endM = math.min(
-          startM + page.measuresPerSystem,
-          part.measures.length,
-        );
+        final endM =
+            math.min(startM + page.measuresPerSystem, part.measures.length);
         final rowMeasures = part.measures.sublist(startM, endM);
 
         // staffTop = top staff line in PDF coords (y from bottom).
@@ -183,14 +168,8 @@ class PdfScoreRenderer {
 
     if (score.composer.isNotEmpty) {
       final compW = _strWidth(score.composer, 9);
-      _text(
-        g,
-        font,
-        9,
-        score.composer,
-        fmt.width - _marginPt - compW,
-        yTop - 36,
-      );
+      _text(g, font, 9, score.composer,
+          fmt.width - _marginPt - compW, yTop - 36);
     }
   }
 
@@ -269,7 +248,8 @@ class PdfScoreRenderer {
       }
 
       // Measure number
-      _text(g, font, 6, '${measure.number}', measureStartX + 3, staffTop + 6);
+      _text(g, font, 6, '${measure.number}', measureStartX + 3,
+          staffTop + 6);
 
       _drawMeasureSymbols(
         g,
@@ -297,10 +277,8 @@ class PdfScoreRenderer {
     if (measure.symbols.isEmpty) return;
 
     const innerPad = 10.0;
-    final drawableW = math.max(
-      12.0,
-      (measureEndX - measureStartX) - innerPad * 2,
-    );
+    final drawableW =
+        math.max(12.0, (measureEndX - measureStartX) - innerPad * 2);
     final count = measure.symbols.length;
     final middleLineY = staffTop - _ls * 2; // 3rd staff line from top
 
@@ -313,15 +291,13 @@ class PdfScoreRenderer {
     for (var i = 0; i < count; i++) {
       final sym = measure.symbols[i];
       if (sym is Note) {
-        ys.add(
-          StaffPitchMapper.yForPitch(
-            step: sym.step,
-            octave: sym.octave,
-            bottomLineY: staffBottom,
-            lineSpacing: _ls,
-            clefSign: clefSign,
-          ),
-        );
+        ys.add(StaffPitchMapper.yForPitch(
+          step: sym.step,
+          octave: sym.octave,
+          bottomLineY: staffBottom,
+          lineSpacing: _ls,
+          clefSign: clefSign,
+        ));
       } else {
         ys.add(staffTop - _ls * 2);
       }
@@ -354,13 +330,7 @@ class PdfScoreRenderer {
           suppressFlag: beamedIndices.contains(i),
         ); // suppressFlag hides individual flag when note is part of a beam group
       } else if (symbol is Rest) {
-        _drawRest(
-          g,
-          symbol,
-          x: x,
-          staffTop: staffTop,
-          staffBottom: staffBottom,
-        );
+        _drawRest(g, symbol, x: x, staffTop: staffTop, staffBottom: staffBottom);
       }
     }
 
@@ -384,12 +354,8 @@ class PdfScoreRenderer {
       // Filled rectangle for the beam bar (3 pt thick).
       const beamThickness = 3.0;
       g.setColor(_ink);
-      g.drawRect(
-        x1,
-        math.min(y1, y2) - beamThickness / 2,
-        x2 - x1,
-        beamThickness,
-      );
+      g.drawRect(x1, math.min(y1, y2) - beamThickness / 2,
+          x2 - x1, beamThickness);
       g.fillPath();
     }
   }
@@ -461,13 +427,8 @@ class PdfScoreRenderer {
 
     // Stem
     final stemUp = y < middleLineY;
-    _drawStem(
-      g,
-      x: x,
-      y: y,
-      stemUp: stemUp,
-      isEighth: isEighth && !suppressFlag,
-    );
+    _drawStem(g, x: x, y: y, stemUp: stemUp,
+        isEighth: isEighth && !suppressFlag);
   }
 
   void _ledgerLines(
@@ -570,11 +531,7 @@ class PdfScoreRenderer {
   // ── Clef ──────────────────────────────────────────────────────────────────
 
   void _drawTrebleClef(
-    PdfGraphics g,
-    double x,
-    double staffTop,
-    double staffBottom,
-  ) {
+      PdfGraphics g, double x, double staffTop, double staffBottom) {
     final cx = x + 5;
     // The treble clef curl center is roughly on the G4 (2nd line from bottom)
     final g4y = staffBottom + _ls; // 2nd line from bottom
@@ -595,36 +552,20 @@ class PdfScoreRenderer {
 
     // Upper curl
     g.moveTo(cx, staffTop + _ls * 1.5);
-    g.curveTo(
-      cx + 10,
-      staffTop + _ls * 0.5,
-      cx + 10,
-      staffTop - _ls * 0.5,
-      cx,
-      staffTop - _ls * 0.3,
-    );
+    g.curveTo(cx + 10, staffTop + _ls * 0.5, cx + 10, staffTop - _ls * 0.5,
+        cx, staffTop - _ls * 0.3);
     g.curveTo(cx - 8, staffTop - _ls * 0.1, cx - 6, g4y + 2, cx, g4y + 5);
     g.strokePath();
 
     // Bottom tail
     g.moveTo(cx, staffBottom - _ls * 0.5);
     g.curveTo(
-      cx - 7,
-      staffBottom - _ls,
-      cx - 6,
-      staffBottom - _ls * 0.3,
-      cx,
-      g4y - 5,
-    );
+        cx - 7, staffBottom - _ls, cx - 6, staffBottom - _ls * 0.3, cx, g4y - 5);
     g.strokePath();
   }
 
   void _drawBassClef(
-    PdfGraphics g,
-    double x,
-    double staffTop,
-    double staffBottom,
-  ) {
+      PdfGraphics g, double x, double staffTop, double staffBottom) {
     final cx = x + 10;
     // Bass clef body centered on F3 (4th line from bottom = staffBottom + 3*ls)
     final f3y = staffBottom + _ls * 3;
@@ -634,14 +575,7 @@ class PdfScoreRenderer {
 
     g.moveTo(cx, f3y + _ls * 1.5);
     g.curveTo(cx + 12, f3y + _ls * 1.5, cx + 16, f3y + _ls * 0.5, cx + 9, f3y);
-    g.curveTo(
-      cx + 4,
-      f3y - _ls * 0.4,
-      cx - 2,
-      f3y - _ls * 0.8,
-      cx - 3,
-      f3y - _ls * 2,
-    );
+    g.curveTo(cx + 4, f3y - _ls * 0.4, cx - 2, f3y - _ls * 0.8, cx - 3, f3y - _ls * 2);
     g.strokePath();
 
     // Two dots to the right of the curl
@@ -667,40 +601,16 @@ class PdfScoreRenderer {
     final count = fifths.abs().clamp(0, 7);
 
     const sharpOrderTreble = [
-      ('F', 5),
-      ('C', 5),
-      ('G', 5),
-      ('D', 5),
-      ('A', 4),
-      ('E', 5),
-      ('B', 4),
+      ('F', 5), ('C', 5), ('G', 5), ('D', 5), ('A', 4), ('E', 5), ('B', 4),
     ];
     const flatOrderTreble = [
-      ('B', 4),
-      ('E', 5),
-      ('A', 4),
-      ('D', 5),
-      ('G', 4),
-      ('C', 5),
-      ('F', 4),
+      ('B', 4), ('E', 5), ('A', 4), ('D', 5), ('G', 4), ('C', 5), ('F', 4),
     ];
     const sharpOrderBass = [
-      ('F', 3),
-      ('C', 3),
-      ('G', 3),
-      ('D', 3),
-      ('A', 2),
-      ('E', 3),
-      ('B', 2),
+      ('F', 3), ('C', 3), ('G', 3), ('D', 3), ('A', 2), ('E', 3), ('B', 2),
     ];
     const flatOrderBass = [
-      ('B', 2),
-      ('E', 3),
-      ('A', 2),
-      ('D', 3),
-      ('G', 2),
-      ('C', 3),
-      ('F', 2),
+      ('B', 2), ('E', 3), ('A', 2), ('D', 3), ('G', 2), ('C', 3), ('F', 2),
     ];
 
     final isBass = clefSign.toUpperCase() == 'F';
@@ -739,14 +649,7 @@ class PdfScoreRenderer {
 
   // ── Primitive helpers ──────────────────────────────────────────────────────
 
-  void _line(
-    PdfGraphics g,
-    double x1,
-    double y1,
-    double x2,
-    double y2,
-    double w,
-  ) {
+  void _line(PdfGraphics g, double x1, double y1, double x2, double y2, double w) {
     g.setColor(_ink);
     g.setLineWidth(w);
     g.moveTo(x1, y1);
@@ -754,14 +657,7 @@ class PdfScoreRenderer {
     g.strokePath();
   }
 
-  void _text(
-    PdfGraphics g,
-    PdfFont font,
-    double size,
-    String text,
-    double x,
-    double y,
-  ) {
+  void _text(PdfGraphics g, PdfFont font, double size, String text, double x, double y) {
     g.setColor(_ink);
     g.drawString(font, size, text, x, y);
   }

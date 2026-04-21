@@ -49,7 +49,10 @@ class DiSectionCard extends StatelessWidget {
           const SizedBox(height: 10),
           const Divider(height: 1, color: Color(0xFF252A3A)),
           // Content
-          Padding(padding: const EdgeInsets.all(14), child: child),
+          Padding(
+            padding: const EdgeInsets.all(14),
+            child: child,
+          ),
         ],
       ),
     );

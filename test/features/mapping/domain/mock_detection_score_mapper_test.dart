@@ -25,46 +25,40 @@ void main() {
       expect(measure.number, 1);
       expect(measure.clef?.sign, 'G');
       expect(measure.notes.map((note) => note.pitch).toList(), ['E4', 'F4']);
-      expect(measure.notes.map((note) => note.type).toList(), [
-        'quarter',
-        'quarter',
-      ]);
+      expect(
+        measure.notes.map((note) => note.type).toList(),
+        ['quarter', 'quarter'],
+      );
       expect(measure.symbols, everyElement(isA<Note>()));
     });
 
-    test(
-      'maps a mock file with rests into the expected score symbols',
-      () async {
-        final result = await _mapFixture(mapper, 'mock_with_rest.json');
-        final measure = result.score.parts.single.measures.single;
+    test('maps a mock file with rests into the expected score symbols', () async {
+      final result = await _mapFixture(mapper, 'mock_with_rest.json');
+      final measure = result.score.parts.single.measures.single;
 
-        expect(result.errors, isEmpty);
-        expect(measure.symbols, hasLength(2));
-        expect(measure.symbols.first, isA<Rest>());
-        expect(measure.symbols.last, isA<Note>());
-        expect(measure.rests.single.type, 'quarter');
-        expect(measure.notes.single.pitch, 'E4');
-        expect(measure.notes.single.type, 'quarter');
-      },
-    );
+      expect(result.errors, isEmpty);
+      expect(measure.symbols, hasLength(2));
+      expect(measure.symbols.first, isA<Rest>());
+      expect(measure.symbols.last, isA<Note>());
+      expect(measure.rests.single.type, 'quarter');
+      expect(measure.notes.single.pitch, 'E4');
+      expect(measure.notes.single.type, 'quarter');
+    });
 
-    test(
-      'creates multiple measures from barlines in supported mock files',
-      () async {
-        final result = await _mapFixture(mapper, 'mock_multi_measure.json');
-        final measures = result.score.parts.single.measures;
+    test('creates multiple measures from barlines in supported mock files', () async {
+      final result = await _mapFixture(mapper, 'mock_multi_measure.json');
+      final measures = result.score.parts.single.measures;
 
-        expect(result.errors, isEmpty);
-        expect(measures, hasLength(3));
-        expect(measures.map((measure) => measure.number).toList(), [1, 2, 3]);
-        expect(measures[0].symbols.single, isA<Note>());
-        expect(measures[1].symbols.single, isA<Rest>());
-        expect(measures[2].symbols.single, isA<Note>());
-        expect(measures[0].notes.single.pitch, 'E4');
-        expect(measures[1].rests.single.type, 'quarter');
-        expect(measures[2].notes.single.pitch, 'G4');
-      },
-    );
+      expect(result.errors, isEmpty);
+      expect(measures, hasLength(3));
+      expect(measures.map((measure) => measure.number).toList(), [1, 2, 3]);
+      expect(measures[0].symbols.single, isA<Note>());
+      expect(measures[1].symbols.single, isA<Rest>());
+      expect(measures[2].symbols.single, isA<Note>());
+      expect(measures[0].notes.single.pitch, 'E4');
+      expect(measures[1].rests.single.type, 'quarter');
+      expect(measures[2].notes.single.pitch, 'G4');
+    });
   });
 }
 

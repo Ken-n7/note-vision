@@ -36,12 +36,10 @@ class _CollectionScreenState extends State<CollectionScreen>
   @override
   void initState() {
     super.initState();
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-      ),
-    );
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+    ));
 
     _storage = widget.storageService ?? ProjectStorageService();
 
@@ -162,18 +160,8 @@ class _CollectionScreenState extends State<CollectionScreen>
 
   String _formatDate(DateTime dt) {
     const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
     ];
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
@@ -181,10 +169,7 @@ class _CollectionScreenState extends State<CollectionScreen>
   Widget _buildBody() {
     if (_isLoading) {
       return const Center(
-        child: CircularProgressIndicator(
-          color: AppColors.accent,
-          strokeWidth: 2,
-        ),
+        child: CircularProgressIndicator(color: AppColors.accent, strokeWidth: 2),
       );
     }
 
@@ -199,9 +184,8 @@ class _CollectionScreenState extends State<CollectionScreen>
       opacity: _fadeIn,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final horizontalPadding = ResponsiveLayout.horizontalPadding(
-            constraints.maxWidth,
-          );
+          final horizontalPadding =
+              ResponsiveLayout.horizontalPadding(constraints.maxWidth);
 
           return CustomScrollView(
             slivers: [
@@ -263,25 +247,28 @@ class _CollectionScreenState extends State<CollectionScreen>
                   bottom: 24,
                 ),
                 sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    final project = _projects[index];
-                    return Column(
-                      children: [
-                        _ProjectTile(
-                          project: project,
-                          formattedDate: _formatDate(project.updatedAt),
-                          onTap: () => _openProject(project),
-                          onLongPress: () => _confirmDelete(project),
-                        ),
-                        if (index < _projects.length - 1)
-                          const Divider(
-                            height: 1,
-                            color: AppColors.border,
-                            indent: 76,
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final project = _projects[index];
+                      return Column(
+                        children: [
+                          _ProjectTile(
+                            project: project,
+                            formattedDate: _formatDate(project.updatedAt),
+                            onTap: () => _openProject(project),
+                            onLongPress: () => _confirmDelete(project),
                           ),
-                      ],
-                    );
-                  }, childCount: _projects.length),
+                          if (index < _projects.length - 1)
+                            const Divider(
+                              height: 1,
+                              color: AppColors.border,
+                              indent: 76,
+                            ),
+                        ],
+                      );
+                    },
+                    childCount: _projects.length,
+                  ),
                 ),
               ),
             ],
@@ -292,9 +279,7 @@ class _CollectionScreenState extends State<CollectionScreen>
   }
 
   PreferredSizeWidget _buildAppBarBottom(
-    bool isLandscape,
-    double horizontalPadding,
-  ) {
+      bool isLandscape, double horizontalPadding) {
     return PreferredSize(
       preferredSize: Size.fromHeight(isLandscape ? 42 : 48),
       child: Padding(
@@ -371,11 +356,7 @@ class _CollectionScreenState extends State<CollectionScreen>
                   child: const Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.add_circle_outline,
-                        size: 22,
-                        color: AppColors.accent,
-                      ),
+                      Icon(Icons.add_circle_outline, size: 22, color: AppColors.accent),
                       SizedBox(height: 4),
                       Text(
                         'Add Files',
@@ -423,9 +404,8 @@ class _CollectionScreenState extends State<CollectionScreen>
   Widget build(BuildContext context) {
     final orientation = MediaQuery.of(context).orientation;
     final isLandscape = orientation == Orientation.landscape;
-    final horizontalPadding = ResponsiveLayout.horizontalPadding(
-      MediaQuery.of(context).size.width,
-    );
+    final horizontalPadding =
+        ResponsiveLayout.horizontalPadding(MediaQuery.of(context).size.width);
 
     return Scaffold(
       key: const ValueKey('collectionAppBar'),
@@ -458,11 +438,8 @@ class _CollectionScreenState extends State<CollectionScreen>
         actions: [
           Builder(
             builder: (context) => IconButton(
-              icon: const Icon(
-                Icons.menu,
-                color: AppColors.textPrimary,
-                size: 22,
-              ),
+              icon: const Icon(Icons.menu,
+                  color: AppColors.textPrimary, size: 22),
               onPressed: () => Scaffold.of(context).openEndDrawer(),
             ),
           ),
