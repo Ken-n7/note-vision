@@ -6,8 +6,8 @@ import 'package:note_vision/features/profile/presentation/profile_stats_screen.d
 class CollectionDrawer extends StatelessWidget {
   const CollectionDrawer({super.key});
 
-  static const _bg            = Color(0xFF0D0D0D);
-  static const _border        = Color(0xFF2C2C2C);
+  static const _bg = Color(0xFF0D0D0D);
+  static const _border = Color(0xFF2C2C2C);
   static const _textSecondary = Color(0xFF8A8A8A);
 
   @override
@@ -118,7 +118,7 @@ class _ProfileHeader extends StatefulWidget {
 }
 
 class _ProfileHeaderState extends State<_ProfileHeader> {
-  static const _textPrimary   = Color(0xFFFFFFFF);
+  static const _textPrimary = Color(0xFFFFFFFF);
   static const _textSecondary = Color(0xFF8A8A8A);
 
   UserProfile? _profile;
@@ -141,9 +141,9 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
 
   @override
   Widget build(BuildContext context) {
-    final name    = _profile?.name ?? '';
+    final name = _profile?.name ?? '';
     final initial = _profile?.initial ?? '?';
-    final photo   = _profile?.photoPath;
+    final photo = _profile?.photoPath;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
@@ -233,9 +233,9 @@ class _DrawerItem extends StatefulWidget {
 class _DrawerItemState extends State<_DrawerItem> {
   bool _hovered = false;
 
-  static const _surface       = Color(0xFF1A1A1A);
-  static const _accent        = Color(0xFFD4A96A);
-  static const _textPrimary   = Color(0xFFFFFFFF);
+  static const _surface = Color(0xFF1A1A1A);
+  static const _accent = Color(0xFFD4A96A);
+  static const _textPrimary = Color(0xFFFFFFFF);
   static const _textSecondary = Color(0xFF8A8A8A);
 
   @override

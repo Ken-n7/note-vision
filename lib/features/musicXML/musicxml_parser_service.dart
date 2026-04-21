@@ -6,15 +6,13 @@ import 'musicxml_validator_service.dart';
 /// Parses raw MusicXML text into a structured XML document result.
 class MusicXmlParserService {
   const MusicXmlParserService({MusicXmlValidatorService? validator})
-      : _validator = validator ?? const MusicXmlValidatorService();
+    : _validator = validator ?? const MusicXmlValidatorService();
 
   final MusicXmlValidatorService _validator;
 
   MusicXmlParseResult parse(String rawXml) {
     if (rawXml.trim().isEmpty) {
-      return MusicXmlParseResult.failure(
-        errorMessage: 'XML input is empty.',
-      );
+      return MusicXmlParseResult.failure(errorMessage: 'XML input is empty.');
     }
 
     try {
@@ -44,9 +42,7 @@ class MusicXmlParserService {
       );
     } catch (e) {
       if (_looksLikeXmlMalformedError(e)) {
-        return MusicXmlParseResult.failure(
-          errorMessage: 'Malformed XML: $e',
-        );
+        return MusicXmlParseResult.failure(errorMessage: 'Malformed XML: $e');
       }
 
       return MusicXmlParseResult.failure(

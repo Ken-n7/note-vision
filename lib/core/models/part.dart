@@ -5,25 +5,21 @@ class Part {
   final String name;
   final List<Measure> measures;
 
-  const Part({
-    required this.id,
-    required this.name,
-    required this.measures,
-  });
+  const Part({required this.id, required this.name, required this.measures});
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'measures': measures.map((m) => m.toJson()).toList(),
-      };
+    'id': id,
+    'name': name,
+    'measures': measures.map((m) => m.toJson()).toList(),
+  };
 
   factory Part.fromJson(Map<String, dynamic> json) => Part(
-        id: json['id'] as String,
-        name: json['name'] as String,
-        measures: (json['measures'] as List<dynamic>)
-            .map((m) => Measure.fromJson(m as Map<String, dynamic>))
-            .toList(),
-      );
+    id: json['id'] as String,
+    name: json['name'] as String,
+    measures: (json['measures'] as List<dynamic>)
+        .map((m) => Measure.fromJson(m as Map<String, dynamic>))
+        .toList(),
+  );
 
   int get measureCount => measures.length;
 

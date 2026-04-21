@@ -11,13 +11,16 @@ class ImagePickerHelper {
     return _pickImage(context, ImageSource.gallery);
   }
 
-  static Future<File?> _pickImage(BuildContext context, ImageSource source) async {
+  static Future<File?> _pickImage(
+    BuildContext context,
+    ImageSource source,
+  ) async {
     try {
       final picker = ImagePicker();
 
       final XFile? xFile = await picker.pickImage(
         source: source,
-        imageQuality: 82,          // adjustable 0–100
+        imageQuality: 82, // adjustable 0–100
         maxWidth: 1200,
         maxHeight: 1200,
         preferredCameraDevice: CameraDevice.rear,

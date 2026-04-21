@@ -10,9 +10,9 @@ import 'musicxml_parser_service.dart';
 
 /// Service responsible for picking and reading a MusicXML file.
 class MusicXmlImporter {
-   MusicXmlImporter({FilePicker? filePicker, MusicXmlParserService? parser})
-      : _filePicker = filePicker ?? FilePicker.platform,
-        _parser = parser ?? const MusicXmlParserService();
+  MusicXmlImporter({FilePicker? filePicker, MusicXmlParserService? parser})
+    : _filePicker = filePicker ?? FilePicker.platform,
+      _parser = parser ?? const MusicXmlParserService();
 
   final FilePicker _filePicker;
   final MusicXmlParserService _parser;

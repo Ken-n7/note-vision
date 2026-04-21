@@ -11,7 +11,8 @@ class DiActionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final canRunMapping = controller.detection != null &&
+    final canRunMapping =
+        controller.detection != null &&
         !controller.isRunningMapping &&
         controller.status != InspectorStatus.error;
 
@@ -121,7 +122,9 @@ class _LoadFileButton extends StatelessWidget {
                       ),
                     )
                   : Icon(
-                      hasFile ? Icons.insert_drive_file_rounded : Icons.upload_file_rounded,
+                      hasFile
+                          ? Icons.insert_drive_file_rounded
+                          : Icons.upload_file_rounded,
                       size: 18,
                       color: const Color(0xFF4F8EF7),
                     ),
@@ -152,8 +155,7 @@ class _LoadFileButton extends StatelessWidget {
                       color: hasFile
                           ? const Color(0xFF4F8EF7)
                           : const Color(0xFF6B7390),
-                      fontStyle:
-                          hasFile ? FontStyle.normal : FontStyle.normal,
+                      fontStyle: hasFile ? FontStyle.normal : FontStyle.normal,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),

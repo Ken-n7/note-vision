@@ -25,7 +25,8 @@ void main() {
       id: 'test-id',
       title: title,
       composer: composer,
-      parts: parts ??
+      parts:
+          parts ??
           [
             Part(
               id: 'P1',
@@ -90,7 +91,9 @@ void main() {
 
     test('encoding-date is present and formatted as YYYY-MM-DD', () {
       final xml = service.toMusicXml(minimalScore());
-      final datePattern = RegExp(r'<encoding-date>\d{4}-\d{2}-\d{2}</encoding-date>');
+      final datePattern = RegExp(
+        r'<encoding-date>\d{4}-\d{2}-\d{2}</encoding-date>',
+      );
       expect(datePattern.hasMatch(xml), isTrue);
     });
   });
@@ -116,12 +119,16 @@ void main() {
         title: 'T',
         composer: 'C',
         parts: [
-          Part(id: 'P1', name: 'Violin', measures: [
-            Measure(number: 1, symbols: const []),
-          ]),
-          Part(id: 'P2', name: 'Cello', measures: [
-            Measure(number: 1, symbols: const []),
-          ]),
+          Part(
+            id: 'P1',
+            name: 'Violin',
+            measures: [Measure(number: 1, symbols: const [])],
+          ),
+          Part(
+            id: 'P2',
+            name: 'Cello',
+            measures: [Measure(number: 1, symbols: const [])],
+          ),
         ],
       );
       final xml = service.toMusicXml(score);
@@ -154,13 +161,17 @@ void main() {
         title: 'T',
         composer: 'C',
         parts: [
-          Part(id: 'P1', name: 'P', measures: [
-            Measure(
-              number: 1,
-              clef: const Clef(sign: 'F', line: 4),
-              symbols: const [],
-            ),
-          ]),
+          Part(
+            id: 'P1',
+            name: 'P',
+            measures: [
+              Measure(
+                number: 1,
+                clef: const Clef(sign: 'F', line: 4),
+                symbols: const [],
+              ),
+            ],
+          ),
         ],
       );
       final xml = service.toMusicXml(score);
@@ -185,13 +196,17 @@ void main() {
         title: 'T',
         composer: 'C',
         parts: [
-          Part(id: 'P1', name: 'P', measures: [
-            Measure(
-              number: 1,
-              keySignature: const KeySignature(fifths: 1),
-              symbols: const [],
-            ),
-          ]),
+          Part(
+            id: 'P1',
+            name: 'P',
+            measures: [
+              Measure(
+                number: 1,
+                keySignature: const KeySignature(fifths: 1),
+                symbols: const [],
+              ),
+            ],
+          ),
         ],
       );
       final xml = service.toMusicXml(score);
@@ -204,13 +219,17 @@ void main() {
         title: 'T',
         composer: 'C',
         parts: [
-          Part(id: 'P1', name: 'P', measures: [
-            Measure(
-              number: 1,
-              keySignature: const KeySignature(fifths: -1),
-              symbols: const [],
-            ),
-          ]),
+          Part(
+            id: 'P1',
+            name: 'P',
+            measures: [
+              Measure(
+                number: 1,
+                keySignature: const KeySignature(fifths: -1),
+                symbols: const [],
+              ),
+            ],
+          ),
         ],
       );
       final xml = service.toMusicXml(score);
@@ -223,16 +242,20 @@ void main() {
         title: 'T',
         composer: 'C',
         parts: [
-          Part(id: 'P1', name: 'P', measures: [
-            Measure(
-              number: 1,
-              clef: const Clef(sign: 'G', line: 2),
-              timeSignature: const TimeSignature(beats: 4, beatType: 4),
-              keySignature: const KeySignature(fifths: 0),
-              symbols: const [],
-            ),
-            Measure(number: 2, symbols: const []),
-          ]),
+          Part(
+            id: 'P1',
+            name: 'P',
+            measures: [
+              Measure(
+                number: 1,
+                clef: const Clef(sign: 'G', line: 2),
+                timeSignature: const TimeSignature(beats: 4, beatType: 4),
+                keySignature: const KeySignature(fifths: 0),
+                symbols: const [],
+              ),
+              Measure(number: 2, symbols: const []),
+            ],
+          ),
         ],
       );
       final xml = service.toMusicXml(score);
@@ -240,31 +263,38 @@ void main() {
       expect('<attributes>'.allMatches(xml).length, 1);
     });
 
-    test('subsequent measure with new time signature gets an attributes block', () {
-      final score = Score(
-        id: 'id',
-        title: 'T',
-        composer: 'C',
-        parts: [
-          Part(id: 'P1', name: 'P', measures: [
-            Measure(
-              number: 1,
-              clef: const Clef(sign: 'G', line: 2),
-              timeSignature: const TimeSignature(beats: 4, beatType: 4),
-              keySignature: const KeySignature(fifths: 0),
-              symbols: const [],
+    test(
+      'subsequent measure with new time signature gets an attributes block',
+      () {
+        final score = Score(
+          id: 'id',
+          title: 'T',
+          composer: 'C',
+          parts: [
+            Part(
+              id: 'P1',
+              name: 'P',
+              measures: [
+                Measure(
+                  number: 1,
+                  clef: const Clef(sign: 'G', line: 2),
+                  timeSignature: const TimeSignature(beats: 4, beatType: 4),
+                  keySignature: const KeySignature(fifths: 0),
+                  symbols: const [],
+                ),
+                Measure(
+                  number: 2,
+                  timeSignature: const TimeSignature(beats: 3, beatType: 4),
+                  symbols: const [],
+                ),
+              ],
             ),
-            Measure(
-              number: 2,
-              timeSignature: const TimeSignature(beats: 3, beatType: 4),
-              symbols: const [],
-            ),
-          ]),
-        ],
-      );
-      final xml = service.toMusicXml(score);
-      expect(xml, contains('<beats>3</beats>'));
-    });
+          ],
+        );
+        final xml = service.toMusicXml(score);
+        expect(xml, contains('<beats>3</beats>'));
+      },
+    );
   });
 
   // ---------------------------------------------------------------------------
@@ -286,14 +316,24 @@ void main() {
         title: 'T',
         composer: 'C',
         parts: [
-          Part(id: 'P1', name: 'P', measures: [
-            Measure(
-              number: 1,
-              symbols: const [
-                Note(step: 'F', octave: 4, alter: 1, duration: 2, type: 'quarter'),
-              ],
-            ),
-          ]),
+          Part(
+            id: 'P1',
+            name: 'P',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: const [
+                  Note(
+                    step: 'F',
+                    octave: 4,
+                    alter: 1,
+                    duration: 2,
+                    type: 'quarter',
+                  ),
+                ],
+              ),
+            ],
+          ),
         ],
       );
       final xml = service.toMusicXml(score);
@@ -306,14 +346,24 @@ void main() {
         title: 'T',
         composer: 'C',
         parts: [
-          Part(id: 'P1', name: 'P', measures: [
-            Measure(
-              number: 1,
-              symbols: const [
-                Note(step: 'B', octave: 4, alter: -1, duration: 2, type: 'quarter'),
-              ],
-            ),
-          ]),
+          Part(
+            id: 'P1',
+            name: 'P',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: const [
+                  Note(
+                    step: 'B',
+                    octave: 4,
+                    alter: -1,
+                    duration: 2,
+                    type: 'quarter',
+                  ),
+                ],
+              ),
+            ],
+          ),
         ],
       );
       final xml = service.toMusicXml(score);
@@ -326,14 +376,24 @@ void main() {
         title: 'T',
         composer: 'C',
         parts: [
-          Part(id: 'P1', name: 'P', measures: [
-            Measure(
-              number: 1,
-              symbols: const [
-                Note(step: 'C', octave: 4, alter: 0, duration: 2, type: 'quarter'),
-              ],
-            ),
-          ]),
+          Part(
+            id: 'P1',
+            name: 'P',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: const [
+                  Note(
+                    step: 'C',
+                    octave: 4,
+                    alter: 0,
+                    duration: 2,
+                    type: 'quarter',
+                  ),
+                ],
+              ),
+            ],
+          ),
         ],
       );
       final xml = service.toMusicXml(score);
@@ -351,14 +411,24 @@ void main() {
         title: 'T',
         composer: 'C',
         parts: [
-          Part(id: 'P1', name: 'P', measures: [
-            Measure(
-              number: 1,
-              symbols: const [
-                Note(step: 'C', octave: 4, duration: 2, type: 'quarter', voice: 1),
-              ],
-            ),
-          ]),
+          Part(
+            id: 'P1',
+            name: 'P',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: const [
+                  Note(
+                    step: 'C',
+                    octave: 4,
+                    duration: 2,
+                    type: 'quarter',
+                    voice: 1,
+                  ),
+                ],
+              ),
+            ],
+          ),
         ],
       );
       final xml = service.toMusicXml(score);
@@ -371,14 +441,24 @@ void main() {
         title: 'T',
         composer: 'C',
         parts: [
-          Part(id: 'P1', name: 'P', measures: [
-            Measure(
-              number: 1,
-              symbols: const [
-                Note(step: 'C', octave: 4, duration: 2, type: 'quarter', staff: 1),
-              ],
-            ),
-          ]),
+          Part(
+            id: 'P1',
+            name: 'P',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: const [
+                  Note(
+                    step: 'C',
+                    octave: 4,
+                    duration: 2,
+                    type: 'quarter',
+                    staff: 1,
+                  ),
+                ],
+              ),
+            ],
+          ),
         ],
       );
       final xml = service.toMusicXml(score);
@@ -403,12 +483,16 @@ void main() {
         title: 'T',
         composer: 'C',
         parts: [
-          Part(id: 'P1', name: 'P', measures: [
-            Measure(
-              number: 1,
-              symbols: const [Rest(duration: 2, type: 'quarter')],
-            ),
-          ]),
+          Part(
+            id: 'P1',
+            name: 'P',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: const [Rest(duration: 2, type: 'quarter')],
+              ),
+            ],
+          ),
         ],
       );
       final xml = service.toMusicXml(score);
@@ -423,12 +507,18 @@ void main() {
         title: 'T',
         composer: 'C',
         parts: [
-          Part(id: 'P1', name: 'P', measures: [
-            Measure(
-              number: 1,
-              symbols: const [Rest(duration: 2, type: 'quarter', voice: 2, staff: 1)],
-            ),
-          ]),
+          Part(
+            id: 'P1',
+            name: 'P',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: const [
+                  Rest(duration: 2, type: 'quarter', voice: 2, staff: 1),
+                ],
+              ),
+            ],
+          ),
         ],
       );
       final xml = service.toMusicXml(score);
@@ -442,12 +532,16 @@ void main() {
         title: 'T',
         composer: 'C',
         parts: [
-          Part(id: 'P1', name: 'P', measures: [
-            Measure(
-              number: 1,
-              symbols: const [Rest(duration: 8, type: 'whole')],
-            ),
-          ]),
+          Part(
+            id: 'P1',
+            name: 'P',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: const [Rest(duration: 8, type: 'whole')],
+              ),
+            ],
+          ),
         ],
       );
       final xml = service.toMusicXml(score);
@@ -474,12 +568,18 @@ void main() {
           title: 'T',
           composer: 'C',
           parts: [
-            Part(id: 'P1', name: 'P', measures: [
-              Measure(
-                number: 1,
-                symbols: [Note(step: 'C', octave: 4, duration: divisions, type: type)],
-              ),
-            ]),
+            Part(
+              id: 'P1',
+              name: 'P',
+              measures: [
+                Measure(
+                  number: 1,
+                  symbols: [
+                    Note(step: 'C', octave: 4, duration: divisions, type: type),
+                  ],
+                ),
+              ],
+            ),
           ],
         );
         final xml = service.toMusicXml(score);
@@ -500,12 +600,16 @@ void main() {
         title: 'T',
         composer: 'C',
         parts: [
-          Part(id: 'P1', name: 'Violin', measures: [
-            Measure(number: 1, symbols: const []),
-          ]),
-          Part(id: 'P2', name: 'Cello', measures: [
-            Measure(number: 1, symbols: const []),
-          ]),
+          Part(
+            id: 'P1',
+            name: 'Violin',
+            measures: [Measure(number: 1, symbols: const [])],
+          ),
+          Part(
+            id: 'P2',
+            name: 'Cello',
+            measures: [Measure(number: 1, symbols: const [])],
+          ),
         ],
       );
       final xml = service.toMusicXml(score);
@@ -521,11 +625,15 @@ void main() {
         title: 'T',
         composer: 'C',
         parts: [
-          Part(id: 'P1', name: 'P', measures: [
-            Measure(number: 1, symbols: const []),
-            Measure(number: 2, symbols: const []),
-            Measure(number: 3, symbols: const []),
-          ]),
+          Part(
+            id: 'P1',
+            name: 'P',
+            measures: [
+              Measure(number: 1, symbols: const []),
+              Measure(number: 2, symbols: const []),
+              Measure(number: 3, symbols: const []),
+            ],
+          ),
         ],
       );
       final xml = service.toMusicXml(score);
@@ -548,12 +656,7 @@ void main() {
     });
 
     test('empty title still produces work-title element', () {
-      final score = Score(
-        id: 'id',
-        title: '',
-        composer: 'C',
-        parts: const [],
-      );
+      final score = Score(id: 'id', title: '', composer: 'C', parts: const []);
       final xml = service.toMusicXml(score);
       expect(xml, contains('<work-title>'));
     });
@@ -564,9 +667,11 @@ void main() {
         title: 'T',
         composer: 'C',
         parts: [
-          Part(id: 'P1', name: 'P', measures: [
-            Measure(number: 1, symbols: const []),
-          ]),
+          Part(
+            id: 'P1',
+            name: 'P',
+            measures: [Measure(number: 1, symbols: const [])],
+          ),
         ],
       );
       expect(() => service.toMusicXml(score), returnsNormally);

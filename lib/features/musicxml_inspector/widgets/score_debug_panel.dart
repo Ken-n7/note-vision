@@ -39,8 +39,9 @@ class _ScoreDebugPanelState extends State<ScoreDebugPanel> {
     }
   }
 
-  void _toggle(String key) =>
-      setState(() => _expanded.contains(key) ? _expanded.remove(key) : _expanded.add(key));
+  void _toggle(String key) => setState(
+    () => _expanded.contains(key) ? _expanded.remove(key) : _expanded.add(key),
+  );
 
   bool _isExpanded(String key) => _expanded.contains(key);
 
@@ -182,11 +183,7 @@ class _TreeNode extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Padding(
-        padding: EdgeInsets.only(
-          left: depth * 16.0,
-          top: 3,
-          bottom: 3,
-        ),
+        padding: EdgeInsets.only(left: depth * 16.0, top: 3, bottom: 3),
         child: Row(
           children: [
             Text(
@@ -235,12 +232,12 @@ class _SymbolRow extends StatelessWidget {
             '${symbol['pitch']}  ${symbol['noteType']}  dur=${symbol['duration']}',
           )
         : isRest
-            ? (
-                'REST',
-                const Color(0xFF6B7280),
-                '${symbol['restType']}  dur=${symbol['duration']}',
-              )
-            : ('?', const Color(0xFFB91C1C), 'unknown symbol');
+        ? (
+            'REST',
+            const Color(0xFF6B7280),
+            '${symbol['restType']}  dur=${symbol['duration']}',
+          )
+        : ('?', const Color(0xFFB91C1C), 'unknown symbol');
 
     final voice = symbol['voice'];
     final staff = symbol['staff'];

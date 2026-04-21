@@ -32,12 +32,12 @@ class DetectionToScoreMapperService extends ScoreMapperService {
     SemanticInferrer semanticInferrer = const SemanticInferrer(),
     ScoreBuilder scoreBuilder = const ScoreBuilder(),
     SyntheticStaffBuilder syntheticStaffBuilder = const SyntheticStaffBuilder(),
-  })  : _staffAssigner = staffAssigner,
-        _measureGrouper = measureGrouper,
-        _stemAssociator = stemAssociator,
-        _semanticInferrer = semanticInferrer,
-        _scoreBuilder = scoreBuilder,
-        _syntheticStaffBuilder = syntheticStaffBuilder;
+  }) : _staffAssigner = staffAssigner,
+       _measureGrouper = measureGrouper,
+       _stemAssociator = stemAssociator,
+       _semanticInferrer = semanticInferrer,
+       _scoreBuilder = scoreBuilder,
+       _syntheticStaffBuilder = syntheticStaffBuilder;
 
   @override
   MappingResult map(DetectionResult detection) =>
@@ -89,7 +89,10 @@ class DetectionToScoreMapperService extends ScoreMapperService {
       );
     }
 
-    final assignments = _staffAssigner.assign(effectiveDetection, warnings: warnings);
+    final assignments = _staffAssigner.assign(
+      effectiveDetection,
+      warnings: warnings,
+    );
 
     // Run the full pipeline once per staff, producing one Part per staff.
     final parts = <Part>[];
@@ -121,11 +124,13 @@ class DetectionToScoreMapperService extends ScoreMapperService {
         warnings: warnings,
       );
 
-      parts.add(_scoreBuilder.buildPart(
-        semanticMeasures,
-        partId: 'P${i + 1}',
-        partName: partLabel,
-      ));
+      parts.add(
+        _scoreBuilder.buildPart(
+          semanticMeasures,
+          partId: 'P${i + 1}',
+          partName: partLabel,
+        ),
+      );
     }
 
     final score = _scoreBuilder.buildFromParts(parts);
@@ -177,8 +182,10 @@ class DetectionToScoreMapperService extends ScoreMapperService {
     return MappingConfidenceSummary(
       inputSymbolCount: detection.symbols.length,
       mappedSymbolCount: mappedSymbolCount,
-      droppedSymbolCount:
-          math.max(0, detection.symbols.length - mappedSymbolCount),
+      droppedSymbolCount: math.max(
+        0,
+        detection.symbols.length - mappedSymbolCount,
+      ),
       averageDetectionConfidence: avg,
     );
   }

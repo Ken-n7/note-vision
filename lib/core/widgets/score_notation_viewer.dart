@@ -59,7 +59,8 @@ class ScoreNotationViewer extends StatefulWidget {
 
   final void Function(NotationSymbolTarget symbol)? onDragStarted;
   final void Function(Offset global)? onDragGlobalUpdate;
-  final void Function(NotationSymbolReorder? reorder, Offset globalEndPosition)? onDragCompleted;
+  final void Function(NotationSymbolReorder? reorder, Offset globalEndPosition)?
+  onDragCompleted;
   final VoidCallback? onDragCancelled;
 
   final bool Function(Object data)? canAcceptExternalDrop;
@@ -103,16 +104,25 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
       canAcceptExternalData: widget.canAcceptExternalDrop,
       onExternalDragMove: (position, data) {
         if (widget.canAcceptExternalDrop?.call(data) == false) return;
-        final target = _resolveInsertTarget(allParts: allParts, layout: layout, position: position);
-        final previewGlyph = target == null ? null : widget.externalPreviewResolver?.call(data);
-        if (target == _externalInsertTarget && previewGlyph == _externalPreviewGlyph) return;
+        final target = _resolveInsertTarget(
+          allParts: allParts,
+          layout: layout,
+          position: position,
+        );
+        final previewGlyph = target == null
+            ? null
+            : widget.externalPreviewResolver?.call(data);
+        if (target == _externalInsertTarget &&
+            previewGlyph == _externalPreviewGlyph)
+          return;
         setState(() {
           _externalInsertTarget = target;
           _externalPreviewGlyph = previewGlyph;
         });
       },
       onExternalDragLeave: () {
-        if (_externalInsertTarget == null && _externalPreviewGlyph == null) return;
+        if (_externalInsertTarget == null && _externalPreviewGlyph == null)
+          return;
         setState(() {
           _externalInsertTarget = null;
           _externalPreviewGlyph = null;
@@ -120,7 +130,11 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
       },
       onExternalAccept: (position, data) {
         if (widget.canAcceptExternalDrop?.call(data) == false) return;
-        final target = _resolveInsertTarget(allParts: allParts, layout: layout, position: position);
+        final target = _resolveInsertTarget(
+          allParts: allParts,
+          layout: layout,
+          position: position,
+        );
         if (target != null) widget.onExternalDrop?.call(target, data);
         if (_externalInsertTarget != null || _externalPreviewGlyph != null) {
           setState(() {
@@ -154,7 +168,11 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
             },
       onLongPressStart: widget.onDragCompleted == null
           ? null
-          : (position) => _beginDrag(allParts: allParts, layout: layout, position: position),
+          : (position) => _beginDrag(
+              allParts: allParts,
+              layout: layout,
+              position: position,
+            ),
       onLongPressMoveUpdate: widget.onDragCompleted == null
           ? null
           : (local, global) {
@@ -163,8 +181,12 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
             },
       onLongPressEnd: widget.onDragCompleted == null
           ? null
-          : (local, global) =>
-              _endDrag(allParts: allParts, layout: layout, localPosition: local, globalPosition: global),
+          : (local, global) => _endDrag(
+              allParts: allParts,
+              layout: layout,
+              localPosition: local,
+              globalPosition: global,
+            ),
       onLongPressCancel: widget.onDragCompleted == null ? null : _cancelDrag,
       painter: ScoreNotationPainter(
         parts: allParts,
@@ -179,7 +201,8 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
         playbackPartIndex: widget.playbackPartIndex,
         playbackMeasureIndex: widget.playbackMeasureIndex,
         playbackSymbolIndex: widget.playbackSymbolIndex,
-        dragFeedback: _dragSession == null ||
+        dragFeedback:
+            _dragSession == null ||
                 _dragSession!.toPartIndex != _dragSession!.fromPartIndex ||
                 _dragSession!.toMeasureIndex != _dragSession!.fromMeasureIndex
             ? null
@@ -255,7 +278,8 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     if (insertTarget != null) {
       toPartIndex = insertTarget.partIndex;
       toMeasureIndex = insertTarget.measureIndex;
-      final sameMeasure = insertTarget.partIndex == drag.fromPartIndex &&
+      final sameMeasure =
+          insertTarget.partIndex == drag.fromPartIndex &&
           insertTarget.measureIndex == drag.fromMeasureIndex;
       if (sameMeasure) {
         final idx = _targetIndexForDrag(
@@ -305,7 +329,8 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     if (insertTarget != null) {
       toPartIndex = insertTarget.partIndex;
       toMeasureIndex = insertTarget.measureIndex;
-      final sameMeasure = insertTarget.partIndex == drag.fromPartIndex &&
+      final sameMeasure =
+          insertTarget.partIndex == drag.fromPartIndex &&
           insertTarget.measureIndex == drag.fromMeasureIndex;
       if (sameMeasure) {
         final idx = _targetIndexForDrag(
@@ -321,7 +346,8 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
       }
     }
 
-    final isSamePosition = toPartIndex == drag.fromPartIndex &&
+    final isSamePosition =
+        toPartIndex == drag.fromPartIndex &&
         toMeasureIndex == drag.fromMeasureIndex &&
         toSymbolIndex == drag.fromSymbolIndex;
 
@@ -362,18 +388,25 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   }) {
     if (measureIndex < 0 || measureIndex >= measures.length) return null;
     final symbolCount = measures[measureIndex].symbols.length;
-    if (symbolCount <= 1 || fromSymbolIndex < 0 || fromSymbolIndex >= symbolCount) {
+    if (symbolCount <= 1 ||
+        fromSymbolIndex < 0 ||
+        fromSymbolIndex >= symbolCount) {
       return null;
     }
 
-    final targets = ScoreNotationPainter.buildSymbolTargets(
-      parts: [measures],
-      measuresPerRow: layout.measuresPerRow,
-      minMeasureWidth: widget.minMeasureWidth,
-      rowHeight: widget.rowHeight,
-      padding: widget.padding,
-      rowPrefixWidth: layout.rowPrefixWidth,
-    ).where((target) => target.measureIndex == measureIndex && target.symbolIndex != fromSymbolIndex);
+    final targets =
+        ScoreNotationPainter.buildSymbolTargets(
+          parts: [measures],
+          measuresPerRow: layout.measuresPerRow,
+          minMeasureWidth: widget.minMeasureWidth,
+          rowHeight: widget.rowHeight,
+          padding: widget.padding,
+          rowPrefixWidth: layout.rowPrefixWidth,
+        ).where(
+          (target) =>
+              target.measureIndex == measureIndex &&
+              target.symbolIndex != fromSymbolIndex,
+        );
 
     var insertIndex = 0;
     for (final target in targets) {
@@ -416,27 +449,38 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
       for (var partIdx = 0; partIdx < partCount; partIdx++) {
         final measures = allParts[partIdx];
         final rowStartMeasure = systemIndex * layout.measuresPerRow;
-        final rowEndExclusive =
-            (rowStartMeasure + layout.measuresPerRow).clamp(0, measures.length).toInt();
+        final rowEndExclusive = (rowStartMeasure + layout.measuresPerRow)
+            .clamp(0, measures.length)
+            .toInt();
         if (rowStartMeasure >= rowEndExclusive) continue;
 
-        final staffTop = widget.padding.top +
+        final staffTop =
+            widget.padding.top +
             systemIndex * (partCount * widget.rowHeight) +
             partIdx * widget.rowHeight +
             28;
-        final staffBottom = staffTop + ScoreNotationPainter.staffLineSpacing * 4;
-        if (position.dy < staffTop - 28 || position.dy > staffBottom + 28) continue;
+        final staffBottom =
+            staffTop + ScoreNotationPainter.staffLineSpacing * 4;
+        if (position.dy < staffTop - 28 || position.dy > staffBottom + 28)
+          continue;
 
-        for (var measureInRow = 0; measureInRow < rowEndExclusive - rowStartMeasure; measureInRow++) {
+        for (
+          var measureInRow = 0;
+          measureInRow < rowEndExclusive - rowStartMeasure;
+          measureInRow++
+        ) {
           final absoluteMeasureIndex = rowStartMeasure + measureInRow;
-          final measureStartX = contentStartX + (measureInRow * widget.minMeasureWidth);
+          final measureStartX =
+              contentStartX + (measureInRow * widget.minMeasureWidth);
           final measureEndX = measureStartX + widget.minMeasureWidth;
-          if (position.dx < measureStartX || position.dx > measureEndX) continue;
+          if (position.dx < measureStartX || position.dx > measureEndX)
+            continue;
 
           final measure = measures[absoluteMeasureIndex];
-          final drawableWidth = ((measureEndX - measureStartX) - (innerPadding * 2))
-              .clamp(12.0, double.infinity)
-              .toDouble();
+          final drawableWidth =
+              ((measureEndX - measureStartX) - (innerPadding * 2))
+                  .clamp(12.0, double.infinity)
+                  .toDouble();
           final clampedX = position.dx
               .clamp(measureStartX + innerPadding, measureEndX - innerPadding)
               .toDouble();
@@ -445,12 +489,16 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
 
           for (var i = 0; i < symbolCount; i++) {
             final progress = (i + 1) / (symbolCount + 1);
-            final symbolX = measureStartX + innerPadding + (drawableWidth * progress);
+            final symbolX =
+                measureStartX + innerPadding + (drawableWidth * progress);
             if (clampedX > symbolX) insertIndex++;
           }
 
           final indicatorProgress = (insertIndex + 1) / (symbolCount + 2);
-          final indicatorX = measureStartX + innerPadding + (drawableWidth * indicatorProgress);
+          final indicatorX =
+              measureStartX +
+              innerPadding +
+              (drawableWidth * indicatorProgress);
           final clefSign = measure.clef?.sign ?? 'G';
           final pitch = StaffPitchMapper.pitchForY(
             y: position.dy,
@@ -479,7 +527,9 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   }
 
   List<Measure> _measuresFor(Score? score) {
-    if (score == null || score.parts.isEmpty || widget.selectedPartIndex >= score.parts.length) {
+    if (score == null ||
+        score.parts.isEmpty ||
+        widget.selectedPartIndex >= score.parts.length) {
       return const <Measure>[];
     }
     return score.parts[widget.selectedPartIndex].measures;
@@ -523,16 +573,22 @@ class _NotationCanvasFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     final canvas = GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTapUp: onTapUp == null ? null : (details) => onTapUp!(details.localPosition),
+      onTapUp: onTapUp == null
+          ? null
+          : (details) => onTapUp!(details.localPosition),
       onLongPressStart: onLongPressStart == null
           ? null
           : (details) => onLongPressStart!(details.localPosition),
       onLongPressMoveUpdate: onLongPressMoveUpdate == null
           ? null
-          : (details) => onLongPressMoveUpdate!(details.localPosition, details.globalPosition),
+          : (details) => onLongPressMoveUpdate!(
+              details.localPosition,
+              details.globalPosition,
+            ),
       onLongPressEnd: onLongPressEnd == null
           ? null
-          : (details) => onLongPressEnd!(details.localPosition, details.globalPosition),
+          : (details) =>
+                onLongPressEnd!(details.localPosition, details.globalPosition),
       onLongPressCancel: onLongPressCancel,
       child: ColoredBox(
         color: backgroundColor,

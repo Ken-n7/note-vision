@@ -24,8 +24,12 @@ class DetectionResult {
     return {
       'imageId': imageId,
       'staffs': staffs.map((staff) => staff.toJson()).toList(growable: false),
-      'barlines': barlines.map((barline) => barline.toJson()).toList(growable: false),
-      'symbols': symbols.map((symbol) => symbol.toJson()).toList(growable: false),
+      'barlines': barlines
+          .map((barline) => barline.toJson())
+          .toList(growable: false),
+      'symbols': symbols
+          .map((symbol) => symbol.toJson())
+          .toList(growable: false),
     };
   }
 
@@ -59,9 +63,9 @@ class DetectionResult {
 
   @override
   int get hashCode => Object.hash(
-        imageId,
-        Object.hashAll(staffs),
-        Object.hashAll(barlines),
-        Object.hashAll(symbols),
-      );
+    imageId,
+    Object.hashAll(staffs),
+    Object.hashAll(barlines),
+    Object.hashAll(symbols),
+  );
 }

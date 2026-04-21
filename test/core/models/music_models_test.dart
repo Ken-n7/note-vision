@@ -114,49 +114,56 @@ void main() {
   });
 
   group('Part and Score aggregates', () {
-    test('measureCount, partCount, and totalMeasures are computed correctly', () {
-      const part1 = Part(
-        id: 'p1',
-        name: 'Piano RH',
-        measures: [
-          Measure(number: 1, symbols: []),
-          Measure(number: 2, symbols: []),
-        ],
-      );
+    test(
+      'measureCount, partCount, and totalMeasures are computed correctly',
+      () {
+        const part1 = Part(
+          id: 'p1',
+          name: 'Piano RH',
+          measures: [
+            Measure(number: 1, symbols: []),
+            Measure(number: 2, symbols: []),
+          ],
+        );
 
-      const part2 = Part(
-        id: 'p2',
-        name: 'Piano LH',
-        measures: [
-          Measure(number: 1, symbols: []),
-        ],
-      );
+        const part2 = Part(
+          id: 'p2',
+          name: 'Piano LH',
+          measures: [Measure(number: 1, symbols: [])],
+        );
 
-      const score = Score(
-        id: 's1',
-        title: 'Etude',
-        composer: 'Composer',
-        parts: [part1, part2],
-      );
+        const score = Score(
+          id: 's1',
+          title: 'Etude',
+          composer: 'Composer',
+          parts: [part1, part2],
+        );
 
-      expect(part1.measureCount, 2);
-      expect(part2.measureCount, 1);
-      expect(score.partCount, 2);
-      expect(score.totalMeasures, 3);
-    });
+        expect(part1.measureCount, 2);
+        expect(part2.measureCount, 1);
+        expect(score.partCount, 2);
+        expect(score.totalMeasures, 3);
+      },
+    );
   });
 
   group('Simple model toString smoke checks', () {
-    test('clef, rest, and time signature toString are stable and informative', () {
-      expect(const Clef(sign: 'F', line: 4).toString(), 'Clef(sign: F, line: 4)');
-      expect(
-        const Rest(duration: 2, type: 'half', voice: 1, staff: 2).toString(),
-        'Rest(duration: 2, type: half, voice: 1, staff: 2)',
-      );
-      expect(
-        const TimeSignature(beats: 3, beatType: 4).toString(),
-        'TimeSignature(3/4)',
-      );
-    });
+    test(
+      'clef, rest, and time signature toString are stable and informative',
+      () {
+        expect(
+          const Clef(sign: 'F', line: 4).toString(),
+          'Clef(sign: F, line: 4)',
+        );
+        expect(
+          const Rest(duration: 2, type: 'half', voice: 1, staff: 2).toString(),
+          'Rest(duration: 2, type: half, voice: 1, staff: 2)',
+        );
+        expect(
+          const TimeSignature(beats: 3, beatType: 4).toString(),
+          'TimeSignature(3/4)',
+        );
+      },
+    );
   });
 }

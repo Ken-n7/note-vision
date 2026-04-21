@@ -44,9 +44,9 @@ class CountsSection extends StatelessWidget {
 
   String _formatNumber(int n) {
     return n.toString().replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (m) => '${m[1]},',
-        );
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]},',
+    );
   }
 }
 

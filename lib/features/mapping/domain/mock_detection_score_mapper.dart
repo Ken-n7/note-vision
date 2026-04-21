@@ -10,9 +10,8 @@ import 'score_mapper_service.dart';
 class MockDetectionScoreMapper {
   final ScoreMapperService _mapper;
 
-  const MockDetectionScoreMapper({
-    required ScoreMapperService mapper,
-  }) : _mapper = mapper;
+  const MockDetectionScoreMapper({required ScoreMapperService mapper})
+    : _mapper = mapper;
 
   MappingResult mapJson(Map<String, dynamic> json) {
     final detection = DetectionResult.fromJson(json);

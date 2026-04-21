@@ -9,10 +9,7 @@ class StaffOwnedSymbol {
   final DetectedSymbol symbol;
   final DetectedStaff staff;
 
-  const StaffOwnedSymbol({
-    required this.symbol,
-    required this.staff,
-  });
+  const StaffOwnedSymbol({required this.symbol, required this.staff});
 
   double get symbolCenterX => symbol.x + ((symbol.width ?? 0) / 2);
 }

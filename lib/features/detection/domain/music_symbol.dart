@@ -66,40 +66,50 @@ enum MusicSymbol {
 
   // helper to group symbols for UI color coding later
   bool get isNote => [
-        noteheadBlack,
-        noteheadHalf,
-        noteheadWhole,
-        noteheadDoubleWhole,
-      ].contains(this);
+    noteheadBlack,
+    noteheadHalf,
+    noteheadWhole,
+    noteheadDoubleWhole,
+  ].contains(this);
 
   bool get isRest => [
-        restQuarter,
-        restHalf,
-        restWhole,
-        rest8th,
-        rest16th,
-        rest32nd,
-        rest64th,
-        rest128th,
-        restDoubleWhole,
-        restHBar,
-        restHNr,
-        restLonga,
-      ].contains(this);
+    restQuarter,
+    restHalf,
+    restWhole,
+    rest8th,
+    rest16th,
+    rest32nd,
+    rest64th,
+    rest128th,
+    restDoubleWhole,
+    restHBar,
+    restHNr,
+    restLonga,
+  ].contains(this);
 
   bool get isClef => [fClef, gClef].contains(this);
 
   bool get isTimeSignature => [
-        timeSig0, timeSig1, timeSig2, timeSig3, timeSig4,
-        timeSig5, timeSig6, timeSig7, timeSig8, timeSig9,
-        timeSigCommon, timeSigCutCommon, combTimeSignature,
-      ].contains(this);
+    timeSig0,
+    timeSig1,
+    timeSig2,
+    timeSig3,
+    timeSig4,
+    timeSig5,
+    timeSig6,
+    timeSig7,
+    timeSig8,
+    timeSig9,
+    timeSigCommon,
+    timeSigCutCommon,
+    combTimeSignature,
+  ].contains(this);
 
   bool get isAccidental => [
-        accidentalFlat,
-        accidentalSharp,
-        accidentalNatural,
-        accidentalDoubleFlat,
-        accidentalDoubleSharp,
-      ].contains(this);
+    accidentalFlat,
+    accidentalSharp,
+    accidentalNatural,
+    accidentalDoubleFlat,
+    accidentalDoubleSharp,
+  ].contains(this);
 }

@@ -23,7 +23,8 @@ class ScanActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
     final stackButtons = isLandscape && onImport != null;
 
     return Container(
@@ -43,7 +44,10 @@ class ScanActions extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
-                SizedBox(width: double.infinity, child: _buildContinueButton(flex: 1)),
+                SizedBox(
+                  width: double.infinity,
+                  child: _buildContinueButton(flex: 1),
+                ),
               ],
             )
           : Row(
@@ -189,8 +193,12 @@ class _TappableButtonState extends State<_TappableButton> {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTapDown: widget.onPressed == null ? null : (_) => setState(() => _pressed = true),
-      onTapCancel: widget.onPressed == null ? null : () => setState(() => _pressed = false),
+      onTapDown: widget.onPressed == null
+          ? null
+          : (_) => setState(() => _pressed = true),
+      onTapCancel: widget.onPressed == null
+          ? null
+          : () => setState(() => _pressed = false),
       onTap: widget.onPressed == null
           ? null
           : () {

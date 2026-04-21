@@ -28,12 +28,12 @@ const _minimalScoreJson =
     '{"id":"test","title":"Test","composer":"","parts":[{"id":"P1","name":"Part 1","measures":[{"number":1,"clef":null,"timeSignature":null,"keySignature":null,"symbols":[]}]}]}';
 
 Project _makeProject(String name, {String id = '1'}) => Project(
-      id: id,
-      name: name,
-      createdAt: DateTime(2026, 1, 1),
-      updatedAt: DateTime(2026, 3, 20),
-      scoreJson: _minimalScoreJson,
-    );
+  id: id,
+  name: name,
+  createdAt: DateTime(2026, 1, 1),
+  updatedAt: DateTime(2026, 3, 20),
+  scoreJson: _minimalScoreJson,
+);
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -126,7 +126,8 @@ void main() {
           onGenerateRoute: (settings) {
             if (settings.name == EditorShellScreen.routeName) {
               return MaterialPageRoute<void>(
-                builder: (_) => const Scaffold(body: Text('Editor Route Opened')),
+                builder: (_) =>
+                    const Scaffold(body: Text('Editor Route Opened')),
               );
             }
             return MaterialPageRoute<void>(

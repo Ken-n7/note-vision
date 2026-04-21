@@ -68,7 +68,9 @@ void main() {
     );
   }
 
-  testWidgets('renders editor shell sections and action buttons', (tester) async {
+  testWidgets('renders editor shell sections and action buttons', (
+    tester,
+  ) async {
     final score = buildScore();
 
     await pumpEditorShell(tester, score: score);
@@ -109,7 +111,9 @@ void main() {
     expect(find.text('C4'), findsOneWidget);
   });
 
-  testWidgets('tapping symbols selects, reselects, and deselects', (tester) async {
+  testWidgets('tapping symbols selects, reselects, and deselects', (
+    tester,
+  ) async {
     final score = buildScore();
 
     await pumpEditorShell(tester, score: score);
@@ -120,10 +124,14 @@ void main() {
     );
     expect(tester.widget<InkWell>(moveUpButtonFinder.first).onTap, isNull);
 
-    final notationBox = tester.renderObject<RenderBox>(find.byType(ScoreNotationViewer));
+    final notationBox = tester.renderObject<RenderBox>(
+      find.byType(ScoreNotationViewer),
+    );
 
     await tester.tapAt(
-      notationBox.localToGlobal(_symbolCenterOffset(score, measureIndex: 0, symbolIndex: 0)),
+      notationBox.localToGlobal(
+        _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 0),
+      ),
     );
     await tester.pump();
     expect(find.text('SELECTION'), findsOneWidget);
@@ -131,97 +139,112 @@ void main() {
     expect(tester.widget<InkWell>(moveUpButtonFinder.first).onTap, isNotNull);
 
     await tester.tapAt(
-      notationBox.localToGlobal(_symbolCenterOffset(score, measureIndex: 0, symbolIndex: 1)),
+      notationBox.localToGlobal(
+        _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 1),
+      ),
     );
     await tester.pump();
     expect(find.text('Rest'), findsWidgets);
     expect(find.text('quarter'), findsOneWidget);
 
     await tester.tapAt(
-      notationBox.localToGlobal(_symbolCenterOffset(score, measureIndex: 0, symbolIndex: 1)),
+      notationBox.localToGlobal(
+        _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 1),
+      ),
     );
     await tester.pump();
     expect(find.text('Tap a note or rest to select it'), findsOneWidget);
     expect(tester.widget<InkWell>(moveUpButtonFinder.first).onTap, isNull);
   });
 
-  testWidgets('drag reorder updates model order and undo restores original order', (
-    tester,
-  ) async {
-    final score = Score(
-      id: 'score-reorder',
-      title: 'Test Score',
-      composer: 'Composer',
-      parts: [
-        Part(
-          id: 'P1',
-          name: 'Part 1',
-          measures: [
-            Measure(
-              number: 1,
-              symbols: const [
-                Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
-                Note(step: 'E', octave: 4, duration: 1, type: 'quarter'),
-                Rest(duration: 1, type: 'quarter'),
-              ],
-            ),
-          ],
+  testWidgets(
+    'drag reorder updates model order and undo restores original order',
+    (tester) async {
+      final score = Score(
+        id: 'score-reorder',
+        title: 'Test Score',
+        composer: 'Composer',
+        parts: [
+          Part(
+            id: 'P1',
+            name: 'Part 1',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: const [
+                  Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                  Note(step: 'E', octave: 4, duration: 1, type: 'quarter'),
+                  Rest(duration: 1, type: 'quarter'),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+
+      await pumpEditorShell(tester, score: score);
+
+      // Invoke the drag-completed callback directly to avoid InteractiveViewer
+      // gesture competition — the viewer's drag logic is tested separately in
+      // score_notation_viewer_test.dart.
+      final viewer = tester.widget<ScoreNotationViewer>(
+        find.byType(ScoreNotationViewer),
+      );
+      viewer.onDragCompleted!(
+        const NotationSymbolReorder(
+          fromPartIndex: 0,
+          fromMeasureIndex: 0,
+          fromSymbolIndex: 0,
+          toPartIndex: 0,
+          toMeasureIndex: 0,
+          toSymbolIndex: 2,
         ),
-      ],
-    );
+        Offset.zero,
+      );
+      await tester.pump();
 
-    await pumpEditorShell(tester, score: score);
+      // After reorder: C4 moved to index 2, E4 is now at index 0.
+      // moveSymbolToDest selects the moved symbol (C4 at index 2).
+      expect(find.text('C4'), findsOneWidget);
 
-    // Invoke the drag-completed callback directly to avoid InteractiveViewer
-    // gesture competition — the viewer's drag logic is tested separately in
-    // score_notation_viewer_test.dart.
-    final viewer = tester.widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer));
-    viewer.onDragCompleted!(
-      const NotationSymbolReorder(
-        fromPartIndex: 0,
-        fromMeasureIndex: 0,
-        fromSymbolIndex: 0,
-        toPartIndex: 0,
-        toMeasureIndex: 0,
-        toSymbolIndex: 2,
-      ),
-      Offset.zero,
-    );
-    await tester.pump();
+      // Invoke onSymbolTap directly — y-coordinates differ per pitch so tapAt
+      // risks missing the hit rect when pitch changes after a reorder.
+      final viewer2 = tester.widget<ScoreNotationViewer>(
+        find.byType(ScoreNotationViewer),
+      );
+      viewer2.onSymbolTap!(
+        const NotationSymbolTarget(
+          partIndex: 0,
+          measureIndex: 0,
+          symbolIndex: 0,
+          center: Offset.zero,
+          hitRect: Rect.zero,
+        ),
+      );
+      await tester.pump();
+      expect(find.text('E4'), findsOneWidget);
 
-    // After reorder: C4 moved to index 2, E4 is now at index 0.
-    // moveSymbolToDest selects the moved symbol (C4 at index 2).
-    expect(find.text('C4'), findsOneWidget);
+      final undoButton = find.byTooltip('Undo');
+      await tester.tap(undoButton);
+      await tester.pump();
 
-    // Invoke onSymbolTap directly — y-coordinates differ per pitch so tapAt
-    // risks missing the hit rect when pitch changes after a reorder.
-    final viewer2 = tester.widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer));
-    viewer2.onSymbolTap!(const NotationSymbolTarget(
-      partIndex: 0,
-      measureIndex: 0,
-      symbolIndex: 0,
-      center: Offset.zero,
-      hitRect: Rect.zero,
-    ));
-    await tester.pump();
-    expect(find.text('E4'), findsOneWidget);
-
-    final undoButton = find.byTooltip('Undo');
-    await tester.tap(undoButton);
-    await tester.pump();
-
-    // After undo: C4 is back at index 0.
-    final viewer3 = tester.widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer));
-    viewer3.onSymbolTap!(const NotationSymbolTarget(
-      partIndex: 0,
-      measureIndex: 0,
-      symbolIndex: 0,
-      center: Offset.zero,
-      hitRect: Rect.zero,
-    ));
-    await tester.pump();
-    expect(find.text('C4'), findsOneWidget);
-  });
+      // After undo: C4 is back at index 0.
+      final viewer3 = tester.widget<ScoreNotationViewer>(
+        find.byType(ScoreNotationViewer),
+      );
+      viewer3.onSymbolTap!(
+        const NotationSymbolTarget(
+          partIndex: 0,
+          measureIndex: 0,
+          symbolIndex: 0,
+          center: Offset.zero,
+          hitRect: Rect.zero,
+        ),
+      );
+      await tester.pump();
+      expect(find.text('C4'), findsOneWidget);
+    },
+  );
 
   testWidgets('landscape keeps controls beside notation without overlap', (
     tester,
@@ -236,7 +259,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('portrait narrow screen renders without overflow', (tester) async {
+  testWidgets('portrait narrow screen renders without overflow', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(360, 800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -260,42 +285,47 @@ void main() {
     expect(find.text('PITCH'), findsOneWidget);
   });
 
-  testWidgets('compact selection card shows pitch and duration without overflow', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(360, 800);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    'compact selection card shows pitch and duration without overflow',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    final score = buildScore();
-    await tester.pumpWidget(
-      MaterialApp(
-        home: EditorShellScreen(
-          args: EditorShellArgs(
-            score: score,
-            initialState: EditorState(score: score),
+      final score = buildScore();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: EditorShellScreen(
+            args: EditorShellArgs(
+              score: score,
+              initialState: EditorState(score: score),
+            ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    // Select a note via callback to trigger the compact selection card.
-    final viewer = tester.widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer));
-    viewer.onSymbolTap!(const NotationSymbolTarget(
-      partIndex: 0,
-      measureIndex: 0,
-      symbolIndex: 0,
-      center: Offset.zero,
-      hitRect: Rect.zero,
-    ));
-    await tester.pump();
+      // Select a note via callback to trigger the compact selection card.
+      final viewer = tester.widget<ScoreNotationViewer>(
+        find.byType(ScoreNotationViewer),
+      );
+      viewer.onSymbolTap!(
+        const NotationSymbolTarget(
+          partIndex: 0,
+          measureIndex: 0,
+          symbolIndex: 0,
+          center: Offset.zero,
+          hitRect: Rect.zero,
+        ),
+      );
+      await tester.pump();
 
-    expect(tester.takeException(), isNull);
-    expect(find.text('C4'), findsOneWidget);
-    expect(find.text('quarter'), findsOneWidget);
-  });
+      expect(tester.takeException(), isNull);
+      expect(find.text('C4'), findsOneWidget);
+      expect(find.text('quarter'), findsOneWidget);
+    },
+  );
 
   testWidgets('header edit count text stays within bounds after edits', (
     tester,
@@ -320,14 +350,18 @@ void main() {
 
     // Select a symbol then insert a note via the inspector button to
     // trigger the edit count display in the header subtitle Row.
-    final viewer = tester.widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer));
-    viewer.onSymbolTap!(const NotationSymbolTarget(
-      partIndex: 0,
-      measureIndex: 0,
-      symbolIndex: 0,
-      center: Offset.zero,
-      hitRect: Rect.zero,
-    ));
+    final viewer = tester.widget<ScoreNotationViewer>(
+      find.byType(ScoreNotationViewer),
+    );
+    viewer.onSymbolTap!(
+      const NotationSymbolTarget(
+        partIndex: 0,
+        measureIndex: 0,
+        symbolIndex: 0,
+        center: Offset.zero,
+        hitRect: Rect.zero,
+      ),
+    );
     await tester.pump();
 
     await tester.tap(find.text('Note').first, warnIfMissed: false);
@@ -357,16 +391,19 @@ Offset _symbolCenterOffset(
     padding: padding,
   );
 
-  final target = ScoreNotationPainter.buildSymbolTargets(
-    parts: [measures],
-    measuresPerRow: layout.measuresPerRow,
-    minMeasureWidth: minMeasureWidth,
-    rowHeight: rowHeight,
-    padding: padding,
-    rowPrefixWidth: layout.rowPrefixWidth,
-  ).firstWhere(
-    (entry) => entry.measureIndex == measureIndex && entry.symbolIndex == symbolIndex,
-  );
+  final target =
+      ScoreNotationPainter.buildSymbolTargets(
+        parts: [measures],
+        measuresPerRow: layout.measuresPerRow,
+        minMeasureWidth: minMeasureWidth,
+        rowHeight: rowHeight,
+        padding: padding,
+        rowPrefixWidth: layout.rowPrefixWidth,
+      ).firstWhere(
+        (entry) =>
+            entry.measureIndex == measureIndex &&
+            entry.symbolIndex == symbolIndex,
+      );
 
   return target.center;
 }

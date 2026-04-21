@@ -63,9 +63,9 @@ class StatusDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = switch (status) {
-      ScreenState.empty           => const Color(0xFFD1D1D1),
-      ScreenState.success         => const Color(0xFF22C55E),
-      ScreenState.parseError      => const Color(0xFFEF4444),
+      ScreenState.empty => const Color(0xFFD1D1D1),
+      ScreenState.success => const Color(0xFF22C55E),
+      ScreenState.parseError => const Color(0xFFEF4444),
       ScreenState.validationError => const Color(0xFFF97316),
     };
     return Container(
@@ -86,10 +86,22 @@ class ParseBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return switch (status) {
-      ScreenState.empty           => const InspectorBadge(label: 'Parse: —',    style: BadgeStyle.neutral),
-      ScreenState.success         => const InspectorBadge(label: 'Parse: OK',   style: BadgeStyle.success),
-      ScreenState.parseError      => const InspectorBadge(label: 'Parse: FAIL', style: BadgeStyle.fail),
-      ScreenState.validationError => const InspectorBadge(label: 'Parse: OK',   style: BadgeStyle.success),
+      ScreenState.empty => const InspectorBadge(
+        label: 'Parse: —',
+        style: BadgeStyle.neutral,
+      ),
+      ScreenState.success => const InspectorBadge(
+        label: 'Parse: OK',
+        style: BadgeStyle.success,
+      ),
+      ScreenState.parseError => const InspectorBadge(
+        label: 'Parse: FAIL',
+        style: BadgeStyle.fail,
+      ),
+      ScreenState.validationError => const InspectorBadge(
+        label: 'Parse: OK',
+        style: BadgeStyle.success,
+      ),
     };
   }
 }
@@ -104,10 +116,22 @@ class ValidationBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return switch (status) {
-      ScreenState.empty           => const InspectorBadge(label: 'Validation: —',       style: BadgeStyle.neutral),
-      ScreenState.success         => const InspectorBadge(label: 'Validation: OK',      style: BadgeStyle.success),
-      ScreenState.parseError      => const InspectorBadge(label: 'Validation: —',       style: BadgeStyle.neutral),
-      ScreenState.validationError => const InspectorBadge(label: 'Validation: INVALID', style: BadgeStyle.fail),
+      ScreenState.empty => const InspectorBadge(
+        label: 'Validation: —',
+        style: BadgeStyle.neutral,
+      ),
+      ScreenState.success => const InspectorBadge(
+        label: 'Validation: OK',
+        style: BadgeStyle.success,
+      ),
+      ScreenState.parseError => const InspectorBadge(
+        label: 'Validation: —',
+        style: BadgeStyle.neutral,
+      ),
+      ScreenState.validationError => const InspectorBadge(
+        label: 'Validation: INVALID',
+        style: BadgeStyle.fail,
+      ),
     };
   }
 }

@@ -67,10 +67,7 @@ class HeaderDrawer extends StatelessWidget {
               const SizedBox(height: 16),
 
               // ── Divider ─────────────────────────────────────────────────
-              Container(
-                height: 1,
-                color: const Color(0xFF222222),
-              ),
+              Container(height: 1, color: const Color(0xFF222222)),
             ],
           ),
         );

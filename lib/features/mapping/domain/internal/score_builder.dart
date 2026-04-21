@@ -36,13 +36,15 @@ class ScoreBuilder {
       if (m.timeSignature != null) lastTime = m.timeSignature;
       if (m.keySignature != null) lastKey = m.keySignature;
 
-      built.add(Measure(
-        number: m.number,
-        clef: m.clef ?? lastClef,
-        timeSignature: m.timeSignature ?? lastTime,
-        keySignature: m.keySignature ?? lastKey,
-        symbols: m.symbols,
-      ));
+      built.add(
+        Measure(
+          number: m.number,
+          clef: m.clef ?? lastClef,
+          timeSignature: m.timeSignature ?? lastTime,
+          keySignature: m.keySignature ?? lastKey,
+          symbols: m.symbols,
+        ),
+      );
     }
 
     return Part(id: partId, name: partName, measures: List.unmodifiable(built));
@@ -55,7 +57,13 @@ class ScoreBuilder {
       title: '',
       composer: '',
       parts: parts.isEmpty
-          ? const [Part(id: 'P1', name: 'Detected Part', measures: [Measure(number: 1, symbols: [])])]
+          ? const [
+              Part(
+                id: 'P1',
+                name: 'Detected Part',
+                measures: [Measure(number: 1, symbols: [])],
+              ),
+            ]
           : parts,
     );
   }
@@ -68,15 +76,15 @@ class ScoreBuilder {
   }
 
   Score buildEmpty() => const Score(
-        id: 'mapped-score',
-        title: '',
-        composer: '',
-        parts: [
-          Part(
-            id: 'P1',
-            name: 'Detected Part',
-            measures: [Measure(number: 1, symbols: [])],
-          ),
-        ],
-      );
+    id: 'mapped-score',
+    title: '',
+    composer: '',
+    parts: [
+      Part(
+        id: 'P1',
+        name: 'Detected Part',
+        measures: [Measure(number: 1, symbols: [])],
+      ),
+    ],
+  );
 }

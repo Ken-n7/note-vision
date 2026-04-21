@@ -15,7 +15,7 @@ class MetadataSection extends StatelessWidget {
       child: Column(
         children: [
           MetaRow(label: 'Root tag', value: metadata?.rootTag, mono: true),
-          MetaRow(label: 'Title',    value: metadata?.title),
+          MetaRow(label: 'Title', value: metadata?.title),
           MetaRow(label: 'Composer', value: metadata?.composer),
         ],
       ),
@@ -30,7 +30,12 @@ class MetaRow extends StatelessWidget {
   final String? value;
   final bool mono;
 
-  const MetaRow({super.key, required this.label, this.value, this.mono = false});
+  const MetaRow({
+    super.key,
+    required this.label,
+    this.value,
+    this.mono = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +56,9 @@ class MetaRow extends StatelessWidget {
               isEmpty ? '—' : value!,
               style: TextStyle(
                 fontSize: mono ? 11 : 12,
-                color: isEmpty ? const Color(0xFFBBBBBB) : const Color(0xFF111111),
+                color: isEmpty
+                    ? const Color(0xFFBBBBBB)
+                    : const Color(0xFF111111),
                 fontStyle: isEmpty ? FontStyle.italic : FontStyle.normal,
                 fontFamily: mono ? 'monospace' : null,
               ),

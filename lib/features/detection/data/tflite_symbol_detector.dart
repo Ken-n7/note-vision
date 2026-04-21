@@ -16,10 +16,12 @@ class TfliteSymbolDetector implements SymbolDetector {
 
   // Per-group confidence thresholds — real-world scans need looser thresholds
   // for the symbol classes that are most commonly missed.
-  static const double _noteheadThreshold = 0.65;   // noteheadBlack / Half / Whole
-  static const double _structuralThreshold = 0.60;  // clef, timeSig, keySig, combStaff
-  static const double _decorativeThreshold = 0.55;  // accidentals, flags, beam, dot
-  static const double _defaultThreshold = 0.75;     // everything else
+  static const double _noteheadThreshold = 0.65; // noteheadBlack / Half / Whole
+  static const double _structuralThreshold =
+      0.60; // clef, timeSig, keySig, combStaff
+  static const double _decorativeThreshold =
+      0.55; // accidentals, flags, beam, dot
+  static const double _defaultThreshold = 0.75; // everything else
 
   static const double _iouThreshold = 0.35;
   static const int _inputSize = 640;
@@ -153,13 +155,10 @@ class TfliteSymbolDetector implements SymbolDetector {
     final input = [
       List.generate(
         _inputSize,
-        (y) => List.generate(
-          _inputSize,
-          (x) {
-            final base = (y * _inputSize + x) * 3;
-            return [inputData[base], inputData[base + 1], inputData[base + 2]];
-          },
-        ),
+        (y) => List.generate(_inputSize, (x) {
+          final base = (y * _inputSize + x) * 3;
+          return [inputData[base], inputData[base + 1], inputData[base + 2]];
+        }),
       ),
     ];
 
@@ -220,7 +219,9 @@ class TfliteSymbolDetector implements SymbolDetector {
       final box = s.boundingBox;
       if (box == null) return true;
       final centerY = box.center.dy;
-      return staves.any((staff) => centerY >= staff.topY && centerY <= staff.bottomY);
+      return staves.any(
+        (staff) => centerY >= staff.topY && centerY <= staff.bottomY,
+      );
     }).toList();
   }
 

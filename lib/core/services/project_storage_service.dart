@@ -21,7 +21,7 @@ class ProjectStorageService {
   final Future<Directory> Function()? _projectsDirOverride;
 
   ProjectStorageService({Future<Directory> Function()? projectsDirOverride})
-      : _projectsDirOverride = projectsDirOverride;
+    : _projectsDirOverride = projectsDirOverride;
 
   // ── directory / file helpers ────────────────────────────────────────────
 

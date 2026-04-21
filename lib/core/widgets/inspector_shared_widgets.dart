@@ -50,7 +50,7 @@ class InspectorBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final (bg, fg) = switch (style) {
       BadgeStyle.success => (const Color(0xFFDCFCE7), const Color(0xFF15803D)),
-      BadgeStyle.fail    => (const Color(0xFFFEE2E2), const Color(0xFFB91C1C)),
+      BadgeStyle.fail => (const Color(0xFFFEE2E2), const Color(0xFFB91C1C)),
       BadgeStyle.neutral => (const Color(0xFFEFEFEF), const Color(0xFFAAAAAA)),
     };
     return Container(

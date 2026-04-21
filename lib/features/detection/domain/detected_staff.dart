@@ -14,12 +14,7 @@ class DetectedStaff {
   });
 
   Map<String, Object?> toJson() {
-    return {
-      'id': id,
-      'topY': topY,
-      'bottomY': bottomY,
-      'lineYs': lineYs,
-    };
+    return {'id': id, 'topY': topY, 'bottomY': bottomY, 'lineYs': lineYs};
   }
 
   factory DetectedStaff.fromJson(Map<String, dynamic> json) {

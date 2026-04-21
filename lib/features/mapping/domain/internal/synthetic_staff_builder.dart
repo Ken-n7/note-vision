@@ -22,20 +22,18 @@ class SyntheticStaffBuilder {
   const SyntheticStaffBuilder();
 
   DetectedStaff? build(List<DetectedSymbol> symbols) {
-    final centerYs = symbols
-        .where((s) => SymbolClassifier.isNotehead(s.type))
-        .map((s) => s.y + ((s.height ?? 0) / 2))
-        .toList()
-      ..sort();
+    final centerYs =
+        symbols
+            .where((s) => SymbolClassifier.isNotehead(s.type))
+            .map((s) => s.y + ((s.height ?? 0) / 2))
+            .toList()
+          ..sort();
 
     if (centerYs.length < 2) return null;
 
     // Trim the outer 10 % from each end to reduce ledger-line distortion.
     final trimCount = (centerYs.length * 0.1).round();
-    final trimmed = centerYs.sublist(
-      trimCount,
-      centerYs.length - trimCount,
-    );
+    final trimmed = centerYs.sublist(trimCount, centerYs.length - trimCount);
 
     if (trimmed.isEmpty) return null;
 

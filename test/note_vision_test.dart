@@ -4,9 +4,9 @@ import 'package:note_vision/main.dart';
 import 'package:note_vision/features/landing/presentation/landing_screen.dart';
 
 void main() {
-  testWidgets('App builds and shows LandingScreen',
-      (WidgetTester tester) async {
-
+  testWidgets('App builds and shows LandingScreen', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(const App());
 
     expect(find.byType(MaterialApp), findsOneWidget);

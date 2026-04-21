@@ -151,9 +151,7 @@ class EditorState {
   static void _validateSelectedSymbolType(ScoreSymbol? symbol) {
     if (symbol == null) return;
     if (symbol is! Note && symbol is! Rest) {
-      throw ArgumentError(
-        'selectedSymbol must be either a Note or a Rest.',
-      );
+      throw ArgumentError('selectedSymbol must be either a Note or a Rest.');
     }
   }
 

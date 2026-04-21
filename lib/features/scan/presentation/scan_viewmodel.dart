@@ -40,8 +40,9 @@ class ScanViewModel extends ChangeNotifier {
       state = ScanState.detectingStaves;
       notifyListeners();
 
-      final List<DetectedStaff> staves =
-          _staffDetector.detect(preprocessed.bytes);
+      final List<DetectedStaff> staves = _staffDetector.detect(
+        preprocessed.bytes,
+      );
 
       // Step 3 — symbol detection (stave-tiled or full-image fallback)
       state = ScanState.detecting;

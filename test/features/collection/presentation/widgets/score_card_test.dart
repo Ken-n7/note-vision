@@ -3,13 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:note_vision/features/collection/presentation/widgets/score_card.dart';
 
 void main() {
-  testWidgets('ScoreCard renders an image inside ClipRRect',
-      (WidgetTester tester) async {
+  testWidgets('ScoreCard renders an image inside ClipRRect', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(
       const MaterialApp(
-        home: Scaffold(
-          body: ScoreCard(imagePath: '/fake/path/image.jpg'),
-        ),
+        home: Scaffold(body: ScoreCard(imagePath: '/fake/path/image.jpg')),
       ),
     );
 

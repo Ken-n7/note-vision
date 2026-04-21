@@ -23,27 +23,27 @@ class Note extends ScoreSymbol {
 
   @override
   Map<String, dynamic> toJson() => {
-        'symbolType': 'note',
-        'step': step,
-        'octave': octave,
-        if (alter != null) 'alter': alter,
-        'duration': duration,
-        'type': type,
-        if (voice != null) 'voice': voice,
-        if (staff != null) 'staff': staff,
-        if (beamed) 'beamed': true,
-      };
+    'symbolType': 'note',
+    'step': step,
+    'octave': octave,
+    if (alter != null) 'alter': alter,
+    'duration': duration,
+    'type': type,
+    if (voice != null) 'voice': voice,
+    if (staff != null) 'staff': staff,
+    if (beamed) 'beamed': true,
+  };
 
   factory Note.fromJson(Map<String, dynamic> json) => Note(
-        step: json['step'] as String,
-        octave: json['octave'] as int,
-        alter: json['alter'] as int?,
-        duration: json['duration'] as int,
-        type: json['type'] as String,
-        voice: json['voice'] as int?,
-        staff: json['staff'] as int?,
-        beamed: json['beamed'] as bool? ?? false,
-      );
+    step: json['step'] as String,
+    octave: json['octave'] as int,
+    alter: json['alter'] as int?,
+    duration: json['duration'] as int,
+    type: json['type'] as String,
+    voice: json['voice'] as int?,
+    staff: json['staff'] as int?,
+    beamed: json['beamed'] as bool? ?? false,
+  );
 
   String get pitch {
     final accidental = switch (alter) {

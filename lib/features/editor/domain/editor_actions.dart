@@ -93,9 +93,7 @@ extension EditorActions on EditorState {
   EditorState insertRestAfterSelection() {
     if (selectedPartIndex == null || selectedMeasureIndex == null) return this;
 
-    return _appendToSelectedMeasure(
-      const Rest(duration: 2, type: 'quarter'),
-    );
+    return _appendToSelectedMeasure(const Rest(duration: 2, type: 'quarter'));
   }
 
   EditorState deleteSelectedMeasureIfEmpty() {
@@ -107,7 +105,10 @@ extension EditorActions on EditorState {
     if (measures[measureIndex].symbols.isNotEmpty) return this; // not empty
 
     final nextScore = score.deleteMeasureFromAllParts(measureIndex);
-    final nextMeasureIndex = (measureIndex - 1).clamp(0, nextScore.parts[partIndex].measures.length - 1);
+    final nextMeasureIndex = (measureIndex - 1).clamp(
+      0,
+      nextScore.parts[partIndex].measures.length - 1,
+    );
     return applyEdit(
       score: nextScore,
       selectedPartIndex: partIndex,
@@ -138,9 +139,15 @@ extension EditorActions on EditorState {
     final measureIndex = selectedMeasureIndex!;
     final symbolIndex = selectedSymbolIndex!;
 
-    final currentSymbols = score.parts[partIndex].measures[measureIndex].symbols;
-    final symbols = List<ScoreSymbol>.from(currentSymbols)..removeAt(symbolIndex);
-    final nextScore = score.deleteSymbolAt(partIndex, measureIndex, symbolIndex);
+    final currentSymbols =
+        score.parts[partIndex].measures[measureIndex].symbols;
+    final symbols = List<ScoreSymbol>.from(currentSymbols)
+      ..removeAt(symbolIndex);
+    final nextScore = score.deleteSymbolAt(
+      partIndex,
+      measureIndex,
+      symbolIndex,
+    );
 
     if (symbols.isEmpty) {
       return applyEdit(
@@ -194,10 +201,13 @@ extension EditorActions on EditorState {
     final measures = score.parts[partIndex].measures;
     if (toMeasureIndex < 0 || toMeasureIndex >= measures.length) return this;
 
-    final fromSymbols = List<ScoreSymbol>.from(measures[fromMeasureIndex].symbols);
+    final fromSymbols = List<ScoreSymbol>.from(
+      measures[fromMeasureIndex].symbols,
+    );
     final toSymbols = List<ScoreSymbol>.from(measures[toMeasureIndex].symbols);
     final fromSymbolIndex = selectedSymbolIndex!;
-    if (fromSymbolIndex < 0 || fromSymbolIndex >= fromSymbols.length) return this;
+    if (fromSymbolIndex < 0 || fromSymbolIndex >= fromSymbols.length)
+      return this;
 
     final moved = fromSymbols[fromSymbolIndex];
     final withoutSource = score.deleteSymbolAt(
@@ -205,7 +215,8 @@ extension EditorActions on EditorState {
       fromMeasureIndex,
       fromSymbolIndex,
     );
-    final toInsertIndex = score.parts[partIndex].measures[toMeasureIndex].symbols.length;
+    final toInsertIndex =
+        score.parts[partIndex].measures[toMeasureIndex].symbols.length;
     final nextScore = withoutSource.insertSymbolAt(
       partIndex,
       toMeasureIndex,
@@ -236,18 +247,28 @@ extension EditorActions on EditorState {
     if (toPartIndex < 0 || toPartIndex >= score.parts.length) return this;
     final fromMeasures = score.parts[fromPartIndex].measures;
     final toMeasures = score.parts[toPartIndex].measures;
-    if (fromMeasureIndex < 0 || fromMeasureIndex >= fromMeasures.length) return this;
+    if (fromMeasureIndex < 0 || fromMeasureIndex >= fromMeasures.length)
+      return this;
     if (toMeasureIndex < 0 || toMeasureIndex >= toMeasures.length) return this;
-    if (fromSymbolIndex < 0 || fromSymbolIndex >= fromMeasures[fromMeasureIndex].symbols.length) return this;
+    if (fromSymbolIndex < 0 ||
+        fromSymbolIndex >= fromMeasures[fromMeasureIndex].symbols.length)
+      return this;
 
-    final sameMeasure = fromPartIndex == toPartIndex && fromMeasureIndex == toMeasureIndex;
+    final sameMeasure =
+        fromPartIndex == toPartIndex && fromMeasureIndex == toMeasureIndex;
 
     if (sameMeasure) {
       final symbolCount = fromMeasures[fromMeasureIndex].symbols.length;
       final clampedTo = toSymbolIndex.clamp(0, symbolCount - 1);
       if (fromSymbolIndex == clampedTo) return this;
-      final nextScore = score.reorderSymbol(fromPartIndex, fromMeasureIndex, fromSymbolIndex, clampedTo);
-      final symbols = nextScore.parts[fromPartIndex].measures[fromMeasureIndex].symbols;
+      final nextScore = score.reorderSymbol(
+        fromPartIndex,
+        fromMeasureIndex,
+        fromSymbolIndex,
+        clampedTo,
+      );
+      final symbols =
+          nextScore.parts[fromPartIndex].measures[fromMeasureIndex].symbols;
       return applyEdit(
         score: nextScore,
         selectedPartIndex: fromPartIndex,
@@ -259,10 +280,23 @@ extension EditorActions on EditorState {
 
     // Cross-measure move: delete from source, insert at destination.
     final moved = fromMeasures[fromMeasureIndex].symbols[fromSymbolIndex];
-    final withoutSource = score.deleteSymbolAt(fromPartIndex, fromMeasureIndex, fromSymbolIndex);
-    final destCount = withoutSource.parts[toPartIndex].measures[toMeasureIndex].symbols.length;
+    final withoutSource = score.deleteSymbolAt(
+      fromPartIndex,
+      fromMeasureIndex,
+      fromSymbolIndex,
+    );
+    final destCount = withoutSource
+        .parts[toPartIndex]
+        .measures[toMeasureIndex]
+        .symbols
+        .length;
     final clampedTo = toSymbolIndex.clamp(0, destCount);
-    final nextScore = withoutSource.insertSymbolAt(toPartIndex, toMeasureIndex, clampedTo, moved);
+    final nextScore = withoutSource.insertSymbolAt(
+      toPartIndex,
+      toMeasureIndex,
+      clampedTo,
+      moved,
+    );
 
     return applyEdit(
       score: nextScore,
@@ -284,8 +318,10 @@ extension EditorActions on EditorState {
     if (measureIndex < 0 || measureIndex >= measures.length) return this;
 
     final currentSymbols = measures[measureIndex].symbols;
-    if (fromSymbolIndex < 0 || fromSymbolIndex >= currentSymbols.length) return this;
-    if (toSymbolIndex < 0 || toSymbolIndex >= currentSymbols.length) return this;
+    if (fromSymbolIndex < 0 || fromSymbolIndex >= currentSymbols.length)
+      return this;
+    if (toSymbolIndex < 0 || toSymbolIndex >= currentSymbols.length)
+      return this;
     if (fromSymbolIndex == toSymbolIndex) return this;
 
     final nextScore = score.reorderSymbol(
@@ -318,9 +354,11 @@ extension EditorActions on EditorState {
 
     if (selectedIndex == fromSymbolIndex) {
       nextSelectedIndex = toSymbolIndex;
-    } else if (fromSymbolIndex < selectedIndex && toSymbolIndex >= selectedIndex) {
+    } else if (fromSymbolIndex < selectedIndex &&
+        toSymbolIndex >= selectedIndex) {
       nextSelectedIndex = selectedIndex - 1;
-    } else if (fromSymbolIndex > selectedIndex && toSymbolIndex <= selectedIndex) {
+    } else if (fromSymbolIndex > selectedIndex &&
+        toSymbolIndex <= selectedIndex) {
       nextSelectedIndex = selectedIndex + 1;
     }
 
@@ -363,24 +401,9 @@ extension EditorActions on EditorState {
     if (score.parts.isEmpty) return this;
     final measures = score.parts[partIndex].measures;
     if (measureIndex < 0 || measureIndex >= measures.length) return this;
-    if (insertIndex < 0 || insertIndex > measures[measureIndex].symbols.length) return this;
+    if (insertIndex < 0 || insertIndex > measures[measureIndex].symbols.length)
+      return this;
 
-    final nextScore = score.insertSymbolAt(partIndex, measureIndex, insertIndex, symbol);
-
-    return applyEdit(
-      score: nextScore,
-      selectedPartIndex: partIndex,
-      selectedMeasureIndex: measureIndex,
-      selectedSymbolIndex: insertIndex,
-      selectedSymbol: symbol,
-    );
-  }
-
-  EditorState _appendToSelectedMeasure(ScoreSymbol symbol) {
-    final partIndex = selectedPartIndex!;
-    final measureIndex = selectedMeasureIndex!;
-
-    final insertIndex = score.parts[partIndex].measures[measureIndex].symbols.length;
     final nextScore = score.insertSymbolAt(
       partIndex,
       measureIndex,
@@ -397,6 +420,27 @@ extension EditorActions on EditorState {
     );
   }
 
+  EditorState _appendToSelectedMeasure(ScoreSymbol symbol) {
+    final partIndex = selectedPartIndex!;
+    final measureIndex = selectedMeasureIndex!;
+
+    final insertIndex =
+        score.parts[partIndex].measures[measureIndex].symbols.length;
+    final nextScore = score.insertSymbolAt(
+      partIndex,
+      measureIndex,
+      insertIndex,
+      symbol,
+    );
+
+    return applyEdit(
+      score: nextScore,
+      selectedPartIndex: partIndex,
+      selectedMeasureIndex: measureIndex,
+      selectedSymbolIndex: insertIndex,
+      selectedSymbol: symbol,
+    );
+  }
 }
 
 Note _moveNoteByScaleStep(Note note, int steps) {

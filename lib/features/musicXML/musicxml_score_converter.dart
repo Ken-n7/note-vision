@@ -38,7 +38,10 @@ class MusicXmlScoreConverter {
     return root.findElements('part').map((partElement) {
       final partId = partElement.getAttribute('id') ?? 'unknown-part';
       final partName = partNamesById[partId] ?? partId;
-      final measures = partElement.findElements('measure').map(_buildMeasure).toList();
+      final measures = partElement
+          .findElements('measure')
+          .map(_buildMeasure)
+          .toList();
 
       return Part(id: partId, name: partName, measures: measures);
     }).toList();
@@ -51,7 +54,8 @@ class MusicXmlScoreConverter {
     final measuresByPartId = <String, List<Measure>>{};
 
     for (final measureElement in root.findElements('measure')) {
-      final measureNumber = int.tryParse(measureElement.getAttribute('number') ?? '') ?? 0;
+      final measureNumber =
+          int.tryParse(measureElement.getAttribute('number') ?? '') ?? 0;
 
       for (final partInMeasure in measureElement.findElements('part')) {
         final partId = partInMeasure.getAttribute('id') ?? 'unknown-part';
@@ -59,7 +63,9 @@ class MusicXmlScoreConverter {
           partInMeasure,
           explicitNumber: measureNumber,
         );
-        measuresByPartId.putIfAbsent(partId, () => <Measure>[]).add(rebuiltMeasure);
+        measuresByPartId
+            .putIfAbsent(partId, () => <Measure>[])
+            .add(rebuiltMeasure);
       }
     }
 
@@ -116,7 +122,10 @@ class MusicXmlScoreConverter {
     for (final scorePart in partList.findElements('score-part')) {
       final id = scorePart.getAttribute('id');
       final partName = _firstInnerText(scorePart, 'part-name')?.trim();
-      if (id != null && id.isNotEmpty && partName != null && partName.isNotEmpty) {
+      if (id != null &&
+          id.isNotEmpty &&
+          partName != null &&
+          partName.isNotEmpty) {
         partNamesById[id] = partName;
       }
     }
@@ -125,7 +134,10 @@ class MusicXmlScoreConverter {
   }
 
   Measure _buildMeasure(XmlElement measureElement, {int? explicitNumber}) {
-    final number = explicitNumber ?? int.tryParse(measureElement.getAttribute('number') ?? '') ?? 0;
+    final number =
+        explicitNumber ??
+        int.tryParse(measureElement.getAttribute('number') ?? '') ??
+        0;
 
     final attributes = _firstOrNull(measureElement.findElements('attributes'));
     final clef = _buildClef(attributes);
@@ -151,7 +163,9 @@ class MusicXmlScoreConverter {
   }
 
   ScoreSymbol? _buildSymbol(XmlElement noteElement) {
-    final duration = int.tryParse(_firstInnerText(noteElement, 'duration') ?? '');
+    final duration = int.tryParse(
+      _firstInnerText(noteElement, 'duration') ?? '',
+    );
     final type = _firstInnerText(noteElement, 'type')?.trim();
 
     if (duration == null || type == null || type.isEmpty) {
@@ -190,7 +204,9 @@ class MusicXmlScoreConverter {
   }
 
   Clef? _buildClef(XmlElement? attributes) {
-    final clefElement = attributes == null ? null : _firstOrNull(attributes.findElements('clef'));
+    final clefElement = attributes == null
+        ? null
+        : _firstOrNull(attributes.findElements('clef'));
     if (clefElement == null) {
       return null;
     }
@@ -205,13 +221,17 @@ class MusicXmlScoreConverter {
   }
 
   TimeSignature? _buildTimeSignature(XmlElement? attributes) {
-    final timeElement = attributes == null ? null : _firstOrNull(attributes.findElements('time'));
+    final timeElement = attributes == null
+        ? null
+        : _firstOrNull(attributes.findElements('time'));
     if (timeElement == null) {
       return null;
     }
 
     final beats = int.tryParse(_firstInnerText(timeElement, 'beats') ?? '');
-    final beatType = int.tryParse(_firstInnerText(timeElement, 'beat-type') ?? '');
+    final beatType = int.tryParse(
+      _firstInnerText(timeElement, 'beat-type') ?? '',
+    );
     if (beats == null || beatType == null) {
       return null;
     }
@@ -220,7 +240,9 @@ class MusicXmlScoreConverter {
   }
 
   KeySignature? _buildKeySignature(XmlElement? attributes) {
-    final keyElement = attributes == null ? null : _firstOrNull(attributes.findElements('key'));
+    final keyElement = attributes == null
+        ? null
+        : _firstOrNull(attributes.findElements('key'));
     if (keyElement == null) {
       return null;
     }

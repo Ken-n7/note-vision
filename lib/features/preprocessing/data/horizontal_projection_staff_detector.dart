@@ -28,10 +28,10 @@ class HorizontalProjectionStaffDetector implements StaffLineDetector {
     double lineMinDarkFraction = 0.25,
     double maxInterLineGapMultiplier = 2.5,
     int minBandRows = 1,
-  })  : _darkThreshold = darkThreshold,
-        _lineMinDarkFraction = lineMinDarkFraction,
-        _maxInterLineGapMultiplier = maxInterLineGapMultiplier,
-        _minBandRows = minBandRows;
+  }) : _darkThreshold = darkThreshold,
+       _lineMinDarkFraction = lineMinDarkFraction,
+       _maxInterLineGapMultiplier = maxInterLineGapMultiplier,
+       _minBandRows = minBandRows;
 
   /// Pixel luminance below which a pixel is counted as "dark".
   final int _darkThreshold;
@@ -116,13 +116,17 @@ class HorizontalProjectionStaffDetector implements StaffLineDetector {
         // Extend top/bottom by half the inter-line spacing so the crop
         // includes space above line 1 and below line 5.
         final halfSpace = (staveLines[1] - staveLines[0]) / 2;
-        staves.add(DetectedStaff(
-          id: 'staff-$staffIndex',
-          topY: (staveLines.first - halfSpace).clamp(0.0, height.toDouble()),
-          bottomY:
-              (staveLines.last + halfSpace).clamp(0.0, height.toDouble()),
-          lineYs: staveLines,
-        ));
+        staves.add(
+          DetectedStaff(
+            id: 'staff-$staffIndex',
+            topY: (staveLines.first - halfSpace).clamp(0.0, height.toDouble()),
+            bottomY: (staveLines.last + halfSpace).clamp(
+              0.0,
+              height.toDouble(),
+            ),
+            lineYs: staveLines,
+          ),
+        );
         staffIndex++;
         i = j;
       } else {

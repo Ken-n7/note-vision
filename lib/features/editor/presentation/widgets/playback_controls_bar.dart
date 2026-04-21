@@ -47,7 +47,8 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
       stream: _svc.stateStream,
       initialData: PlaybackState(status: _svc.status),
       builder: (context, snap) {
-        final state = snap.data ?? PlaybackState(status: PlaybackStatus.stopped);
+        final state =
+            snap.data ?? PlaybackState(status: PlaybackStatus.stopped);
         final isPlaying = state.isPlaying;
         final isPaused = state.isPaused;
         final isStopped = state.isStopped;
@@ -65,7 +66,9 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
             children: [
               // ── Play / Pause toggle ──────────────────────────────────
               _ControlButton(
-                icon: isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                icon: isPlaying
+                    ? Icons.pause_rounded
+                    : Icons.play_arrow_rounded,
                 tooltip: isPlaying ? 'Pause' : 'Play',
                 filled: true,
                 disabled: disabled || hasError,
@@ -95,7 +98,11 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
               const SizedBox(width: 12),
 
               // ── Tempo label ──────────────────────────────────────────
-              const Icon(Icons.speed_rounded, size: 14, color: AppColors.textSecondary),
+              const Icon(
+                Icons.speed_rounded,
+                size: 14,
+                color: AppColors.textSecondary,
+              ),
               const SizedBox(width: 6),
 
               // ── Tempo slider ─────────────────────────────────────────
@@ -111,8 +118,12 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
                         : AppColors.accent,
                     overlayColor: AppColors.accent.withValues(alpha: 0.12),
                     trackHeight: 2.5,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 6,
+                    ),
+                    overlayShape: const RoundSliderOverlayShape(
+                      overlayRadius: 14,
+                    ),
                   ),
                   child: Slider(
                     value: _tempo.clamp(40, 200),
@@ -205,7 +216,11 @@ class _ControlButton extends StatelessWidget {
             child: InkWell(
               borderRadius: BorderRadius.circular(17),
               onTap: disabled ? null : onPressed,
-              child: Icon(icon, size: 20, color: disabled ? effectiveColor : AppColors.accent),
+              child: Icon(
+                icon,
+                size: 20,
+                color: disabled ? effectiveColor : AppColors.accent,
+              ),
             ),
           ),
         ),

@@ -42,13 +42,13 @@ class SymbolClassifier {
   /// Maps an accidental type to its MusicXML `alter` value, or null if
   /// the type is not a recognised accidental.
   static int? alterFor(String type) => switch (type) {
-        'accidentalSharp' => 1,
-        'accidentalFlat' => -1,
-        'accidentalNatural' => 0,
-        'accidentalDoubleSharp' => 2,
-        'accidentalDoubleFlat' => -2,
-        _ => null,
-      };
+    'accidentalSharp' => 1,
+    'accidentalFlat' => -1,
+    'accidentalNatural' => 0,
+    'accidentalDoubleSharp' => 2,
+    'accidentalDoubleFlat' => -2,
+    _ => null,
+  };
 
   static bool isSignatureSymbol(String type) =>
       isSupportedClef(type) ||
@@ -56,18 +56,24 @@ class SymbolClassifier {
       isKeySignatureAccidental(type);
 
   static String? timeSigDigit(String type) => const {
-        'timeSig0': '0', 'timeSig1': '1', 'timeSig2': '2',
-        'timeSig3': '3', 'timeSig4': '4', 'timeSig5': '5',
-        'timeSig6': '6', 'timeSig7': '7', 'timeSig8': '8',
-        'timeSig9': '9',
-      }[type];
+    'timeSig0': '0',
+    'timeSig1': '1',
+    'timeSig2': '2',
+    'timeSig3': '3',
+    'timeSig4': '4',
+    'timeSig5': '5',
+    'timeSig6': '6',
+    'timeSig7': '7',
+    'timeSig8': '8',
+    'timeSig9': '9',
+  }[type];
 
   static int durationFor(String type) => switch (type) {
-        'whole' => 4,
-        'half' => 2,
-        'quarter' => 1,
-        'eighth' => 1,
-        'sixteenth' => 1,
-        _ => 1,
-      };
+    'whole' => 4,
+    'half' => 2,
+    'quarter' => 1,
+    'eighth' => 1,
+    'sixteenth' => 1,
+    _ => 1,
+  };
 }

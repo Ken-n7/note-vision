@@ -46,11 +46,8 @@ class DetectionOverlay extends StatelessWidget {
           children: [
             // ── Staff bounding boxes + line indicators ────────────────────
             ...staffs.map(
-              (staff) => _StaffOverlay(
-                staff: staff,
-                scaleX: scaleX,
-                scaleY: scaleY,
-              ),
+              (staff) =>
+                  _StaffOverlay(staff: staff, scaleX: scaleX, scaleY: scaleY),
             ),
 
             // ── Musical symbol bounding boxes ─────────────────────────────
@@ -164,10 +161,7 @@ class _StaffOverlay extends StatelessWidget {
               left: 0,
               right: 0,
               top: relY,
-              child: Container(
-                height: 1,
-                color: _color.withValues(alpha: 0.6),
-              ),
+              child: Container(height: 1, color: _color.withValues(alpha: 0.6)),
             );
           }),
         ],

@@ -138,14 +138,16 @@ class DetectionInspectorController extends ChangeNotifier {
     sb.writeln('Parts: ${score.parts.length}');
     for (final part in score.parts) {
       sb.writeln(
-          '  Part "${part.name}" (${part.id}): ${part.measures.length} measure(s)');
+        '  Part "${part.name}" (${part.id}): ${part.measures.length} measure(s)',
+      );
       for (final m in part.measures) {
         final clefStr = m.clef != null ? '${m.clef!.sign}-clef' : 'no clef';
         final timeSigStr = m.timeSignature != null
             ? '${m.timeSignature!.beats}/${m.timeSignature!.beatType}'
             : 'no time sig';
         sb.writeln(
-            '    Measure ${m.number}: $clefStr, $timeSigStr, ${m.symbols.length} symbol(s)');
+          '    Measure ${m.number}: $clefStr, $timeSigStr, ${m.symbols.length} symbol(s)',
+        );
         for (final sym in m.symbols) {
           sb.writeln('      • $sym');
         }
@@ -160,7 +162,8 @@ class DetectionInspectorController extends ChangeNotifier {
       sb.writeln('  Dropped:        ${cs.droppedSymbolCount}');
       if (cs.averageDetectionConfidence != null) {
         sb.writeln(
-            '  Avg confidence: ${(cs.averageDetectionConfidence! * 100).toStringAsFixed(1)}%');
+          '  Avg confidence: ${(cs.averageDetectionConfidence! * 100).toStringAsFixed(1)}%',
+        );
       }
     }
 

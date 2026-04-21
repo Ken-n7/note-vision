@@ -7,9 +7,9 @@ class KeySignature extends ScoreSymbol {
 
   @override
   Map<String, dynamic> toJson() => {
-        'symbolType': 'keySignature',
-        'fifths': fifths,
-      };
+    'symbolType': 'keySignature',
+    'fifths': fifths,
+  };
 
   factory KeySignature.fromJson(Map<String, dynamic> json) =>
       KeySignature(fifths: json['fifths'] as int);
