@@ -11,7 +11,6 @@ import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
 import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart';
-import 'package:note_vision/core/widgets/score_notation/staff_pitch_mapper.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 
 void main() {
