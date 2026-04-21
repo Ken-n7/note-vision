@@ -235,6 +235,107 @@ void main() {
     expect(symbolLabelRect.left, greaterThan(notationRect.right));
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('portrait narrow screen renders without overflow', (tester) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final score = buildScore();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EditorShellScreen(
+          args: EditorShellArgs(
+            score: score,
+            initialState: EditorState(score: score),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Save'), findsOneWidget);
+    expect(find.text('PITCH'), findsOneWidget);
+  });
+
+  testWidgets('compact selection card shows pitch and duration without overflow', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final score = buildScore();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EditorShellScreen(
+          args: EditorShellArgs(
+            score: score,
+            initialState: EditorState(score: score),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Select a note via callback to trigger the compact selection card.
+    final viewer = tester.widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer));
+    viewer.onSymbolTap!(const NotationSymbolTarget(
+      partIndex: 0,
+      measureIndex: 0,
+      symbolIndex: 0,
+      center: Offset.zero,
+      hitRect: Rect.zero,
+    ));
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('C4'), findsOneWidget);
+    expect(find.text('quarter'), findsOneWidget);
+  });
+
+  testWidgets('header edit count text stays within bounds after edits', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final score = buildScore();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EditorShellScreen(
+          args: EditorShellArgs(
+            score: score,
+            initialState: EditorState(score: score),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Select a symbol then insert a note via the inspector button to
+    // trigger the edit count display in the header subtitle Row.
+    final viewer = tester.widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer));
+    viewer.onSymbolTap!(const NotationSymbolTarget(
+      partIndex: 0,
+      measureIndex: 0,
+      symbolIndex: 0,
+      center: Offset.zero,
+      hitRect: Rect.zero,
+    ));
+    await tester.pump();
+
+    await tester.tap(find.text('Note').first, warnIfMissed: false);
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Score Editor'), findsOneWidget);
+  });
 }
 
 Offset _symbolCenterOffset(

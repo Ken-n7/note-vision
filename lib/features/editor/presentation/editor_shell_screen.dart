@@ -721,15 +721,21 @@ class _EditorHeader extends StatelessWidget {
                 ),
                 Row(
                   children: [
-                    const Text(
-                      'Score Editor',
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 10),
+                    Flexible(
+                      child: Text(
+                        'Score Editor',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+                      ),
                     ),
                     if (editCount > 0) ...[
                       const SizedBox(width: 6),
-                      Text(
-                        '· $editCount ${editCount == 1 ? 'edit' : 'edits'}',
-                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+                      Flexible(
+                        child: Text(
+                          '· $editCount ${editCount == 1 ? 'edit' : 'edits'}',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+                        ),
                       ),
                     ],
                   ],
@@ -1626,39 +1632,53 @@ class _SelectionCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            if (hasSelection) ...[
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(5),
-                ),
-                child: Icon(
-                  _isNote ? Icons.music_note_rounded : Icons.horizontal_rule_rounded,
-                  size: 13,
-                  color: AppColors.accent,
-                ),
+            Expanded(
+              child: Row(
+                children: [
+                  if (hasSelection) ...[
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(5),
+                      ),
+                      child: Icon(
+                        _isNote ? Icons.music_note_rounded : Icons.horizontal_rule_rounded,
+                        size: 13,
+                        color: AppColors.accent,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        _pitchLabel,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        _durLabel,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                      ),
+                    ),
+                  ] else
+                    Expanded(
+                      child: Text(
+                        'Tap a symbol to select',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                      ),
+                    ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Text(
-                _pitchLabel,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                _durLabel,
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
-              ),
-            ] else
-              const Text(
-                'Tap a symbol to select',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-              ),
-            const Spacer(),
+            ),
             measureNav,
           ],
         ),
