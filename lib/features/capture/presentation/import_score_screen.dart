@@ -192,10 +192,11 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
   }
 
   Widget _buildPreviewArea() {
+    final previewBackground = _importedScore != null ? const Color(0xFFF9FAFB) : _surface;
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: _surface,
+        color: previewBackground,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _border),
       ),
