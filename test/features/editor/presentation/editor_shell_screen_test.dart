@@ -256,7 +256,8 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Save'), findsOneWidget);
-    expect(find.text('PITCH'), findsOneWidget);
+    // Toolbar buttons use 3-char labels in portrait mode
+    expect(find.text('PIT'), findsOneWidget);
   });
 
   testWidgets('compact selection card shows pitch and duration without overflow', (
@@ -329,6 +330,9 @@ void main() {
     ));
     await tester.pump();
 
+    // Open the INSERT group popup first, then tap Note
+    await tester.tap(find.text('INS'), warnIfMissed: false);
+    await tester.pump();
     await tester.tap(find.text('Note').first, warnIfMissed: false);
     await tester.pump();
 

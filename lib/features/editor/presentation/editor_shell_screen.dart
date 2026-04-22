@@ -570,21 +570,15 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                             ),
                           ],
                         )
-                      : Column(
+                      : Stack(
                           children: [
-                            Expanded(
+                            Positioned.fill(
                               child: Padding(
-                                padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+                                padding: const EdgeInsets.fromLTRB(12, 0, 58, 0),
                                 child: notationArea,
                               ),
                             ),
-                            SizedBox(
-                              height: (constraints.maxHeight * 0.36).clamp(200.0, 280.0),
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                                child: inspectorPanel,
-                              ),
-                            ),
+                            Positioned.fill(child: inspectorPanel),
                           ],
                         ),
                 ),
@@ -700,19 +694,23 @@ class _EditorHeader extends StatelessWidget {
                       ),
                     ),
                     if (hasUnsavedChanges) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.accent.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          'Unsaved',
-                          style: TextStyle(
-                            color: AppColors.accent,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.accent.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'Unsaved',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: AppColors.accent,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
@@ -1280,7 +1278,7 @@ class _ZoomBtn extends StatelessWidget {
 // Inspector panel (routes to landscape or portrait variant)
 // ---------------------------------------------------------------------------
 
-class _InspectorPanel extends StatelessWidget {
+class _InspectorPanel extends StatefulWidget {
   const _InspectorPanel({
     required this.isLandscape,
     required this.selected,
@@ -1330,69 +1328,96 @@ class _InspectorPanel extends StatelessWidget {
   final VoidCallback onDeleteMeasure;
 
   @override
-  Widget build(BuildContext context) {
-    final selectionCard = _SelectionCard(
-      selected: selected,
-      hasSelection: hasSelection,
-      selectedMeasureIndex: selectedMeasureIndex,
-      measureCount: measureCount,
-      onPrevMeasure: onPrevMeasure,
-      onNextMeasure: onNextMeasure,
-      compact: !isLandscape,
-    );
+  State<_InspectorPanel> createState() => _InspectorPanelState();
+}
 
-    final isNoteSelected = selected is Note;
-    final currentAlter = isNoteSelected ? (selected as Note).alter : null;
+class _InspectorPanelState extends State<_InspectorPanel> {
+  int? _activeGroupIndex;
 
-    final groups = [
+  static const _groupIcons = [
+    Icons.unfold_more_rounded,
+    Icons.piano_rounded,
+    Icons.access_time_rounded,
+    Icons.grid_on_rounded,
+    Icons.add_circle_outline_rounded,
+  ];
+
+  VoidCallback? _wrapAction(VoidCallback? action) {
+    if (action == null) return null;
+    return () {
+      setState(() => _activeGroupIndex = null);
+      action();
+    };
+  }
+
+  List<_ActionGroup> _buildGroups() {
+    final isNoteSelected = widget.selected is Note;
+    final currentAlter = isNoteSelected ? (widget.selected as Note).alter : null;
+
+    return [
       _ActionGroup(
         label: 'PITCH',
         children: [
-          _ActionTile(icon: Icons.keyboard_arrow_up_rounded, label: 'Up', onPressed: hasSelection ? onMoveUp : null),
-          _ActionTile(icon: Icons.keyboard_arrow_down_rounded, label: 'Down', onPressed: hasSelection ? onMoveDown : null),
+          _ActionTile(icon: Icons.keyboard_arrow_up_rounded, label: 'Up', onPressed: _wrapAction(widget.hasSelection ? widget.onMoveUp : null)),
+          _ActionTile(icon: Icons.keyboard_arrow_down_rounded, label: 'Down', onPressed: _wrapAction(widget.hasSelection ? widget.onMoveDown : null)),
         ],
       ),
       _ActionGroup(
         label: 'ACCIDENTAL',
         children: [
           _AccTile(label: '—', sublabel: 'None', isActive: isNoteSelected && currentAlter == null,
-              onPressed: isNoteSelected ? () => onSetAccidental(null) : null),
+              onPressed: _wrapAction(isNoteSelected ? () => widget.onSetAccidental(null) : null)),
           _AccTile(label: '♯', sublabel: 'Sharp', isActive: isNoteSelected && currentAlter == 1,
-              onPressed: isNoteSelected ? () => onSetAccidental(1) : null),
+              onPressed: _wrapAction(isNoteSelected ? () => widget.onSetAccidental(1) : null)),
           _AccTile(label: '♭', sublabel: 'Flat', isActive: isNoteSelected && currentAlter == -1,
-              onPressed: isNoteSelected ? () => onSetAccidental(-1) : null),
+              onPressed: _wrapAction(isNoteSelected ? () => widget.onSetAccidental(-1) : null)),
           _AccTile(label: '♮', sublabel: 'Natural', isActive: isNoteSelected && currentAlter == 0,
-              onPressed: isNoteSelected ? () => onSetAccidental(0) : null),
+              onPressed: _wrapAction(isNoteSelected ? () => widget.onSetAccidental(0) : null)),
         ],
       ),
       _ActionGroup(
         label: 'DURATION',
         children: [
-          _DurTile(label: 'W', sublabel: 'Whole', onPressed: hasSelection ? onWhole : null),
-          _DurTile(label: 'H', sublabel: 'Half', onPressed: hasSelection ? onHalf : null),
-          _DurTile(label: '♩', sublabel: 'Qtr', onPressed: hasSelection ? onQuarter : null),
-          _DurTile(label: '♪', sublabel: '8th', onPressed: hasSelection ? onEighth : null),
+          _DurTile(label: 'W', sublabel: 'Whole', onPressed: _wrapAction(widget.hasSelection ? widget.onWhole : null)),
+          _DurTile(label: 'H', sublabel: 'Half', onPressed: _wrapAction(widget.hasSelection ? widget.onHalf : null)),
+          _DurTile(label: '♩', sublabel: 'Qtr', onPressed: _wrapAction(widget.hasSelection ? widget.onQuarter : null)),
+          _DurTile(label: '♪', sublabel: '8th', onPressed: _wrapAction(widget.hasSelection ? widget.onEighth : null)),
         ],
       ),
       _ActionGroup(
         label: 'MEASURE',
         children: [
-          _ActionTile(icon: Icons.skip_previous_rounded, label: 'Prev', onPressed: hasSelection ? onMoveToPrev : null),
-          _ActionTile(icon: Icons.skip_next_rounded, label: 'Next', onPressed: hasSelection ? onMoveToNext : null),
-          _ActionTile(icon: Icons.add_rounded, label: 'Add', onPressed: hasMeasureContext ? onAddMeasure : null),
-          _ActionTile(icon: Icons.remove_rounded, label: 'Del', onPressed: canDeleteMeasure ? onDeleteMeasure : null, danger: true),
+          _ActionTile(icon: Icons.skip_previous_rounded, label: 'Prev', onPressed: _wrapAction(widget.hasSelection ? widget.onMoveToPrev : null)),
+          _ActionTile(icon: Icons.skip_next_rounded, label: 'Next', onPressed: _wrapAction(widget.hasSelection ? widget.onMoveToNext : null)),
+          _ActionTile(icon: Icons.add_rounded, label: 'Add', onPressed: _wrapAction(widget.hasMeasureContext ? widget.onAddMeasure : null)),
+          _ActionTile(icon: Icons.remove_rounded, label: 'Del', onPressed: _wrapAction(widget.canDeleteMeasure ? widget.onDeleteMeasure : null), danger: true),
         ],
       ),
       _ActionGroup(
         label: 'INSERT',
         children: [
-          _ActionTile(icon: Icons.music_note_rounded, label: 'Note', onPressed: hasMeasureContext ? onInsertNote : null),
-          _ActionTile(icon: Icons.horizontal_rule_rounded, label: 'Rest', onPressed: hasMeasureContext ? onInsertRest : null),
+          _ActionTile(icon: Icons.music_note_rounded, label: 'Note', onPressed: _wrapAction(widget.hasMeasureContext ? widget.onInsertNote : null)),
+          _ActionTile(icon: Icons.horizontal_rule_rounded, label: 'Rest', onPressed: _wrapAction(widget.hasMeasureContext ? widget.onInsertRest : null)),
         ],
       ),
     ];
+  }
 
-    if (isLandscape) {
+  @override
+  Widget build(BuildContext context) {
+    final groups = _buildGroups();
+
+    final selectionCard = _SelectionCard(
+      selected: widget.selected,
+      hasSelection: widget.hasSelection,
+      selectedMeasureIndex: widget.selectedMeasureIndex,
+      measureCount: widget.measureCount,
+      onPrevMeasure: widget.onPrevMeasure,
+      onNextMeasure: widget.onNextMeasure,
+      compact: !widget.isLandscape,
+    );
+
+    if (widget.isLandscape) {
       return Container(
         decoration: BoxDecoration(
           color: AppColors.surface,
@@ -1416,46 +1441,54 @@ class _InspectorPanel extends StatelessWidget {
       );
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        children: [
-          Center(
-            child: Container(
-              margin: const EdgeInsets.only(top: 8),
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.border,
-                borderRadius: BorderRadius.circular(2),
-              ),
+    // ── Portrait: floating toolbar ─────────────────────────────────────────
+    return Stack(
+      children: [
+        // Barrier — tapping canvas dismisses the open popup
+        if (_activeGroupIndex != null)
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: () => setState(() => _activeGroupIndex = null),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            child: selectionCard,
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: groups
-                    .map((g) => _PortraitGroup(group: g))
-                    .expand((w) => [w, _Divider()])
-                    .toList()
-                  ..removeLast(),
-              ),
+        // Selection card — top, left of toolbar
+        Positioned(
+          top: 8,
+          left: 8,
+          right: 58,
+          child: selectionCard,
+        ),
+        // Active group popup — centered vertically, just left of toolbar
+        if (_activeGroupIndex != null)
+          Positioned(
+            left: 8,
+            right: 58,
+            top: 0,
+            bottom: 0,
+            child: Align(
+              alignment: Alignment.center,
+              child: _ToolGroupPopup(group: groups[_activeGroupIndex!]),
             ),
           ),
-        ],
-      ),
+        // Floating vertical toolbar — right edge, explicit width to avoid unbounded layout
+        Positioned(
+          right: 8,
+          width: 44,
+          top: 0,
+          bottom: 0,
+          child: Center(
+            child: _FloatingToolbar(
+              groups: groups,
+              icons: _groupIcons,
+              activeIndex: _activeGroupIndex,
+              onGroupTap: (i) => setState(() {
+                _activeGroupIndex = _activeGroupIndex == i ? null : i;
+              }),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1497,32 +1530,147 @@ class _LandscapeGroup extends StatelessWidget {
   }
 }
 
-class _PortraitGroup extends StatelessWidget {
-  const _PortraitGroup({required this.group});
+// ---------------------------------------------------------------------------
+// Floating toolbar + popup (portrait inspector)
+// ---------------------------------------------------------------------------
+
+class _FloatingToolbar extends StatelessWidget {
+  const _FloatingToolbar({
+    required this.groups,
+    required this.icons,
+    required this.activeIndex,
+    required this.onGroupTap,
+  });
+
+  final List<_ActionGroup> groups;
+  final List<IconData> icons;
+  final int? activeIndex;
+  final ValueChanged<int> onGroupTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 44,
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.25),
+            blurRadius: 8,
+            offset: const Offset(-2, 0),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(groups.length, (i) {
+          final isActive = activeIndex == i;
+          return _ToolbarButton(
+            icon: icons[i],
+            label: groups[i].label,
+            isActive: isActive,
+            onTap: () => onGroupTap(i),
+          );
+        }),
+      ),
+    );
+  }
+}
+
+class _ToolbarButton extends StatelessWidget {
+  const _ToolbarButton({
+    required this.icon,
+    required this.label,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 44,
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        decoration: BoxDecoration(
+          color: isActive
+              ? AppColors.accent.withValues(alpha: 0.15)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: isActive ? AppColors.accent : AppColors.textSecondary,
+            ),
+            const SizedBox(height: 3),
+            Text(
+              label.length > 3 ? label.substring(0, 3) : label,
+              style: TextStyle(
+                fontSize: 7,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.3,
+                color: isActive ? AppColors.accent : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ToolGroupPopup extends StatelessWidget {
+  const _ToolGroupPopup({required this.group});
 
   final _ActionGroup group;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          group.label,
-          style: const TextStyle(
-            fontSize: 9,
-            color: AppColors.textSecondary,
-            letterSpacing: 0.8,
-            fontWeight: FontWeight.w600,
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 220),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 14,
+            offset: const Offset(-4, 0),
           ),
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: group.children
-              .map((c) => Padding(padding: const EdgeInsets.only(right: 4), child: c))
-              .toList(),
-        ),
-      ],
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            group.label,
+            style: const TextStyle(
+              fontSize: 9,
+              color: AppColors.textSecondary,
+              letterSpacing: 1.0,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(spacing: 4, runSpacing: 4, children: group.children),
+        ],
+      ),
     );
   }
 }
@@ -1565,18 +1713,6 @@ class _TrashZone extends StatelessWidget {
         color: Colors.white,
         size: 24,
       ),
-    );
-  }
-}
-
-class _Divider extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 52,
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      color: AppColors.border,
     );
   }
 }
