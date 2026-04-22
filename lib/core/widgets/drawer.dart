@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/services/user_profile_service.dart';
 import 'package:note_vision/core/widgets/user_avatar.dart';
+import 'package:note_vision/features/info/presentation/about_screen.dart';
+import 'package:note_vision/features/info/presentation/instructions_screen.dart';
 import 'package:note_vision/features/profile/presentation/profile_stats_screen.dart';
 
 class CollectionDrawer extends StatelessWidget {
@@ -84,19 +86,20 @@ class CollectionDrawer extends StatelessWidget {
               ),
 
               _DrawerItem(
-                icon: Icons.edit_outlined,
-                title: 'Digital Writing',
-                onTap: () => Navigator.pop(context),
-              ),
-              _DrawerItem(
                 icon: Icons.school_outlined,
                 title: 'Instruction',
-                onTap: () => Navigator.pop(context),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.pushNamed(context, InstructionsScreen.routeName);
+                },
               ),
               _DrawerItem(
                 icon: Icons.info_outline,
                 title: 'About',
-                onTap: () => Navigator.pop(context),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.pushNamed(context, AboutScreen.routeName);
+                },
               ),
 
               const Spacer(),

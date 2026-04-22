@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'core/theme/app_theme.dart';
 import 'features/editor/presentation/editor_shell_screen.dart';
+import 'features/info/presentation/about_screen.dart';
+import 'features/info/presentation/instructions_screen.dart';
 import 'features/landing/presentation/landing_screen.dart';
 import 'features/profile/presentation/profile_stats_screen.dart';
 
@@ -28,6 +30,16 @@ class App extends StatelessWidget {
         if (settings.name == ProfileStatsScreen.routeName) {
           return MaterialPageRoute(
             builder: (_) => const ProfileStatsScreen(),
+          );
+        }
+        if (settings.name == InstructionsScreen.routeName) {
+          return MaterialPageRoute(
+            builder: (_) => const InstructionsScreen(),
+          );
+        }
+        if (settings.name == AboutScreen.routeName) {
+          return MaterialPageRoute(
+            builder: (_) => const AboutScreen(),
           );
         }
         return null;
