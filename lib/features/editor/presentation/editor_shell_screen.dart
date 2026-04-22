@@ -574,7 +574,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                           children: [
                             Positioned.fill(
                               child: Padding(
-                                padding: const EdgeInsets.fromLTRB(12, 0, 58, 0),
+                                padding: const EdgeInsets.fromLTRB(12, 0, 12, _kInspectorBarHeight),
                                 child: notationArea,
                               ),
                             ),
@@ -805,6 +805,9 @@ class _EditorHeader extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Notation area — A4-like canvas with InteractiveViewer for pan/zoom
 // ---------------------------------------------------------------------------
+
+// Inspector bar height (portrait bottom action bar, sits above PlaybackControlsBar).
+const double _kInspectorBarHeight = 56.0;
 
 // Page geometry constants (portrait A4-like layout at logical pixels).
 const double _kPageWidth = 760.0;
@@ -1441,7 +1444,7 @@ class _InspectorPanelState extends State<_InspectorPanel> {
       );
     }
 
-    // ── Portrait: floating toolbar ─────────────────────────────────────────
+    // ── Portrait: bottom inspector bar ────────────────────────────────────
     return Stack(
       children: [
         // Barrier — tapping canvas dismisses the open popup
@@ -1452,40 +1455,35 @@ class _InspectorPanelState extends State<_InspectorPanel> {
               onTap: () => setState(() => _activeGroupIndex = null),
             ),
           ),
-        // Selection card — top, left of toolbar
+        // Selection card — top of canvas
         Positioned(
           top: 8,
           left: 8,
-          right: 58,
+          right: 8,
           child: selectionCard,
         ),
-        // Active group popup — centered vertically, just left of toolbar
+        // Active group popup — floats above the bottom bar
         if (_activeGroupIndex != null)
           Positioned(
-            left: 8,
-            right: 58,
-            top: 0,
-            bottom: 0,
-            child: Align(
-              alignment: Alignment.center,
+            left: 0,
+            right: 0,
+            bottom: _kInspectorBarHeight + 8,
+            child: Center(
               child: _ToolGroupPopup(group: groups[_activeGroupIndex!]),
             ),
           ),
-        // Floating vertical toolbar — right edge, explicit width to avoid unbounded layout
+        // Bottom inspector bar
         Positioned(
-          right: 8,
-          width: 44,
-          top: 0,
+          left: 0,
+          right: 0,
           bottom: 0,
-          child: Center(
-            child: _FloatingToolbar(
-              groups: groups,
-              icons: _groupIcons,
-              activeIndex: _activeGroupIndex,
-              onGroupTap: (i) => setState(() {
-                _activeGroupIndex = _activeGroupIndex == i ? null : i;
-              }),
-            ),
+          child: _BottomInspectorBar(
+            groups: groups,
+            icons: _groupIcons,
+            activeIndex: _activeGroupIndex,
+            onGroupTap: (i) => setState(() {
+              _activeGroupIndex = _activeGroupIndex == i ? null : i;
+            }),
           ),
         ),
       ],
@@ -1531,11 +1529,11 @@ class _LandscapeGroup extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Floating toolbar + popup (portrait inspector)
+// Bottom inspector bar (portrait)
 // ---------------------------------------------------------------------------
 
-class _FloatingToolbar extends StatelessWidget {
-  const _FloatingToolbar({
+class _BottomInspectorBar extends StatelessWidget {
+  const _BottomInspectorBar({
     required this.groups,
     required this.icons,
     required this.activeIndex,
@@ -1550,83 +1548,63 @@ class _FloatingToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 44,
-      decoration: BoxDecoration(
+      height: _kInspectorBarHeight,
+      decoration: const BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
+        border: Border(top: BorderSide(color: AppColors.border)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
+            color: Color(0x33000000),
             blurRadius: 8,
-            offset: const Offset(-2, 0),
+            offset: Offset(0, -2),
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
+      child: Row(
         children: List.generate(groups.length, (i) {
           final isActive = activeIndex == i;
-          return _ToolbarButton(
-            icon: icons[i],
-            label: groups[i].label,
-            isActive: isActive,
-            onTap: () => onGroupTap(i),
-          );
-        }),
-      ),
-    );
-  }
-}
-
-class _ToolbarButton extends StatelessWidget {
-  const _ToolbarButton({
-    required this.icon,
-    required this.label,
-    required this.isActive,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        width: 44,
-        padding: const EdgeInsets.symmetric(vertical: 7),
-        decoration: BoxDecoration(
-          color: isActive
-              ? AppColors.accent.withValues(alpha: 0.15)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 18,
-              color: isActive ? AppColors.accent : AppColors.textSecondary,
-            ),
-            const SizedBox(height: 3),
-            Text(
-              label.length > 3 ? label.substring(0, 3) : label,
-              style: TextStyle(
-                fontSize: 7,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.3,
-                color: isActive ? AppColors.accent : AppColors.textSecondary,
+          return Expanded(
+            child: GestureDetector(
+              onTap: () => onGroupTap(i),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? AppColors.accent.withValues(alpha: 0.10)
+                      : Colors.transparent,
+                  border: Border(
+                    top: BorderSide(
+                      color: isActive ? AppColors.accent : Colors.transparent,
+                      width: 2,
+                    ),
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      icons[i],
+                      size: 20,
+                      color: isActive ? AppColors.accent : AppColors.textSecondary,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      groups[i].label.length > 3
+                          ? groups[i].label.substring(0, 3)
+                          : groups[i].label,
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
+                        color: isActive ? AppColors.accent : AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ],
-        ),
+          );
+        }),
       ),
     );
   }
