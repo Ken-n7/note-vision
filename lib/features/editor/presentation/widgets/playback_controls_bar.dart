@@ -55,110 +55,115 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
         final disabled = widget.isEmpty;
 
         return Container(
-          height: 56,
           decoration: const BoxDecoration(
             color: AppColors.surface,
             border: Border(top: BorderSide(color: AppColors.border)),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            children: [
-              // ── Play / Pause toggle ──────────────────────────────────
-              _ControlButton(
-                icon: isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                tooltip: isPlaying ? 'Pause' : 'Play',
-                filled: true,
-                disabled: disabled || hasError,
-                onPressed: () {
-                  if (isPlaying) {
-                    widget.onPause();
-                  } else if (isPaused) {
-                    widget.onResume();
-                  } else {
-                    widget.onPlay();
-                  }
-                },
-              ),
-              const SizedBox(width: 4),
-
-              // ── Stop ────────────────────────────────────────────────
-              _ControlButton(
-                icon: Icons.stop_rounded,
-                tooltip: 'Stop',
-                disabled: disabled || isStopped || hasError,
-                onPressed: widget.onStop,
-              ),
-              const SizedBox(width: 12),
-
-              // ── Divider ─────────────────────────────────────────────
-              Container(width: 1, height: 24, color: AppColors.border),
-              const SizedBox(width: 12),
-
-              // ── Tempo label ──────────────────────────────────────────
-              const Icon(Icons.speed_rounded, size: 14, color: AppColors.textSecondary),
-              const SizedBox(width: 6),
-
-              // ── Tempo slider ─────────────────────────────────────────
-              Expanded(
-                child: SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    activeTrackColor: disabled
-                        ? AppColors.textSecondary.withValues(alpha: 0.2)
-                        : AppColors.accent,
-                    inactiveTrackColor: AppColors.border,
-                    thumbColor: disabled
-                        ? AppColors.textSecondary.withValues(alpha: 0.3)
-                        : AppColors.accent,
-                    overlayColor: AppColors.accent.withValues(alpha: 0.12),
-                    trackHeight: 2.5,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ── Row 1: transport controls ──────────────────────────
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _ControlButton(
+                        icon: isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                        tooltip: isPlaying ? 'Pause' : 'Play',
+                        filled: true,
+                        disabled: disabled || hasError,
+                        onPressed: () {
+                          if (isPlaying) {
+                            widget.onPause();
+                          } else if (isPaused) {
+                            widget.onResume();
+                          } else {
+                            widget.onPlay();
+                          }
+                        },
+                      ),
+                      const SizedBox(width: 12),
+                      _ControlButton(
+                        icon: Icons.stop_rounded,
+                        tooltip: 'Stop',
+                        disabled: disabled || isStopped || hasError,
+                        onPressed: widget.onStop,
+                      ),
+                      if (hasError) ...[
+                        const SizedBox(width: 10),
+                        Tooltip(
+                          message: state.error ?? 'Playback error',
+                          child: const Icon(
+                            Icons.warning_amber_rounded,
+                            size: 16,
+                            color: Color(0xFFF59E0B),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  child: Slider(
-                    value: _tempo.clamp(40, 200),
-                    min: 40,
-                    max: 200,
-                    divisions: 160,
-                    onChanged: disabled
-                        ? null
-                        : (v) {
-                            setState(() => _tempo = v);
-                            widget.onTempoChanged(v.round());
-                          },
+                  const SizedBox(height: 8),
+                  // ── Row 2: tempo ───────────────────────────────────────
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.speed_rounded,
+                        size: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            activeTrackColor: disabled
+                                ? AppColors.textSecondary.withValues(alpha: 0.2)
+                                : AppColors.accent,
+                            inactiveTrackColor: AppColors.border,
+                            thumbColor: disabled
+                                ? AppColors.textSecondary.withValues(alpha: 0.3)
+                                : AppColors.accent,
+                            overlayColor: AppColors.accent.withValues(alpha: 0.12),
+                            trackHeight: 2.5,
+                            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                            overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                          ),
+                          child: Slider(
+                            value: _tempo.clamp(40, 200),
+                            min: 40,
+                            max: 200,
+                            divisions: 160,
+                            onChanged: disabled
+                                ? null
+                                : (v) {
+                                    setState(() => _tempo = v);
+                                    widget.onTempoChanged(v.round());
+                                  },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      SizedBox(
+                        width: 54,
+                        child: Text(
+                          '${_tempo.round()} BPM',
+                          style: TextStyle(
+                            color: disabled
+                                ? AppColors.textSecondary.withValues(alpha: 0.4)
+                                : AppColors.textSecondary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            fontFeatures: const [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
+                ],
               ),
-              const SizedBox(width: 6),
-
-              // ── BPM value ────────────────────────────────────────────
-              SizedBox(
-                width: 54,
-                child: Text(
-                  '${_tempo.round()} BPM',
-                  style: TextStyle(
-                    color: disabled
-                        ? AppColors.textSecondary.withValues(alpha: 0.4)
-                        : AppColors.textSecondary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-
-              // ── Error indicator ──────────────────────────────────────
-              if (hasError) ...[
-                const SizedBox(width: 4),
-                Tooltip(
-                  message: state.error ?? 'Playback error',
-                  child: const Icon(
-                    Icons.warning_amber_rounded,
-                    size: 16,
-                    color: Color(0xFFF59E0B),
-                  ),
-                ),
-              ],
-            ],
+            ),
           ),
         );
       },
