@@ -227,6 +227,85 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     if (mounted) setState(() => _scoreEditCount = count);
   }
 
+  Future<void> _showMetadataSheet() async {
+    final score = _editorState.score;
+    final titleCtrl = TextEditingController(text: score.title);
+    final composerCtrl = TextEditingController(text: score.composer);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            20, 20, 20,
+            MediaQuery.viewInsetsOf(ctx).bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Score Metadata',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _MetadataField(label: 'Title', controller: titleCtrl),
+              const SizedBox(height: 12),
+              _MetadataField(label: 'Composer', controller: composerCtrl),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () {
+                    final newTitle = titleCtrl.text.trim();
+                    final newComposer = composerCtrl.text.trim();
+                    _updateState((s) {
+                      final updatedScore = Score(
+                        id: s.score.id,
+                        title: newTitle,
+                        composer: newComposer,
+                        parts: s.score.parts,
+                      );
+                      return s.copyWith(
+                        score: updatedScore,
+                        hasUnsavedChanges: true,
+                      );
+                    });
+                    Navigator.of(ctx).pop();
+                  },
+                  child: const Text('Save'),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    titleCtrl.dispose();
+    composerCtrl.dispose();
+  }
+
   void _updateState(EditorState Function(EditorState state) updater) {
     setState(() {
       final prev = _editorState;
@@ -387,6 +466,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               isDraggingNote: _isDraggingNote,
               dragGlobal: _dragGlobal,
               trashZoneKey: _trashZoneKey,
+              showTrashZone: isLandscape,
               onToggleInsertMode: _toggleInsertMode,
               onPaletteTypeTap: _onPaletteTypeTap,
               onSymbolTap: (target) {
@@ -506,6 +586,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   onUndo: () => _updateState((s) => s.applyUndo()),
                   onRedo: () => _updateState((s) => s.applyRedo()),
                   onSave: _onSave,
+                  onMetadataTap: _showMetadataSheet,
                   onExportXml: () async {
                     try {
                       final path = await const MusicXmlExportService().exportToDevice(_editorState.score);
@@ -579,6 +660,26 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                               ),
                             ),
                             Positioned.fill(child: inspectorPanel),
+                            if (_isDraggingNote)
+                              Positioned(
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                height: _kInspectorBarHeight,
+                                child: Center(
+                                  child: _TrashZone(
+                                    key: _trashZoneKey,
+                                    isHovered: () {
+                                      if (_dragGlobal == Offset.zero) return false;
+                                      final box = _trashZoneKey.currentContext
+                                          ?.findRenderObject() as RenderBox?;
+                                      if (box == null) return false;
+                                      return (box.localToGlobal(Offset.zero) & box.size)
+                                          .contains(_dragGlobal);
+                                    }(),
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                 ),
@@ -641,6 +742,7 @@ class _EditorHeader extends StatelessWidget {
     required this.onExportXml,
     required this.onExportPdf,
     required this.scoreIsEmpty,
+    required this.onMetadataTap,
   });
 
   final String title;
@@ -655,6 +757,7 @@ class _EditorHeader extends StatelessWidget {
   final VoidCallback onExportXml;
   final VoidCallback onExportPdf;
   final bool scoreIsEmpty;
+  final VoidCallback onMetadataTap;
 
   @override
   Widget build(BuildContext context) {
@@ -675,7 +778,9 @@ class _EditorHeader extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Expanded(
-            child: Column(
+            child: GestureDetector(
+              onTap: onMetadataTap,
+              child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -741,6 +846,7 @@ class _EditorHeader extends StatelessWidget {
               ],
             ),
           ),
+        ),
           IconButton(
             onPressed: canUndo ? onUndo : null,
             icon: const Icon(Icons.undo_rounded, size: 18),
@@ -830,6 +936,7 @@ class _NotationArea extends StatefulWidget {
     required this.isDraggingNote,
     required this.dragGlobal,
     required this.trashZoneKey,
+    this.showTrashZone = true,
     required this.onToggleInsertMode,
     required this.onPaletteTypeTap,
     required this.onSymbolTap,
@@ -848,6 +955,7 @@ class _NotationArea extends StatefulWidget {
   final bool isDraggingNote;
   final Offset dragGlobal;
   final GlobalKey trashZoneKey;
+  final bool showTrashZone;
   final VoidCallback onToggleInsertMode;
   final ValueChanged<PaletteSymbolType> onPaletteTypeTap;
   final ValueChanged<NotationSymbolTarget?> onSymbolTap;
@@ -1092,8 +1200,9 @@ class _NotationAreaState extends State<_NotationArea> {
                   ),
                 ),
 
-              // Trash zone — appears during note drag
-              if (widget.isDraggingNote)
+              // Trash zone — only shown here in landscape; portrait renders it
+              // in the outer Stack so it overlays the inspector bar.
+              if (widget.showTrashZone && widget.isDraggingNote)
                 Positioned(
                   bottom: 12,
                   left: 0,
@@ -2085,6 +2194,53 @@ class _AccTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _MetadataField extends StatelessWidget {
+  const _MetadataField({required this.label, required this.controller});
+
+  final String label;
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+          cursorColor: AppColors.accent,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: AppColors.background,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.accent),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+        ),
+      ],
     );
   }
 }
