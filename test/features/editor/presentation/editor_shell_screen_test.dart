@@ -293,6 +293,94 @@ void main() {
     expect(find.text('quarter'), findsOneWidget);
   });
 
+  group('portrait inspector group popup closes after action tap', () {
+    Future<void> pumpPortrait(WidgetTester tester, Score score) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: EditorShellScreen(
+            args: EditorShellArgs(
+              score: score,
+              initialState: EditorState(score: score),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    void selectFirstNote(WidgetTester tester) {
+      tester.widget<ScoreNotationViewer>(
+        find.byType(ScoreNotationViewer),
+      ).onSymbolTap!(const NotationSymbolTarget(
+        partIndex: 0,
+        measureIndex: 0,
+        symbolIndex: 0,
+        center: Offset.zero,
+        hitRect: Rect.zero,
+      ));
+    }
+
+    testWidgets('PITCH — Up tap dismisses popup', (tester) async {
+      await pumpPortrait(tester, buildScore());
+      selectFirstNote(tester);
+      await tester.pump();
+
+      await tester.tap(find.text('PIT'));
+      await tester.pump();
+      expect(find.text('Up'), findsOneWidget);
+
+      await tester.tap(find.text('Up'));
+      await tester.pump();
+      expect(find.text('Up'), findsNothing);
+    });
+
+    testWidgets('ACCIDENTAL — sharp tap dismisses popup', (tester) async {
+      await pumpPortrait(tester, buildScore());
+      selectFirstNote(tester);
+      await tester.pump();
+
+      await tester.tap(find.text('ACC'));
+      await tester.pump();
+      expect(find.text('♯'), findsOneWidget);
+
+      await tester.tap(find.text('♯'));
+      await tester.pump();
+      expect(find.text('♯'), findsNothing);
+    });
+
+    testWidgets('DURATION — 8th tap dismisses popup', (tester) async {
+      await pumpPortrait(tester, buildScore());
+      selectFirstNote(tester);
+      await tester.pump();
+
+      await tester.tap(find.text('DUR'));
+      await tester.pump();
+      expect(find.text('8th'), findsOneWidget);
+
+      await tester.tap(find.text('8th'));
+      await tester.pump();
+      expect(find.text('8th'), findsNothing);
+    });
+
+    testWidgets('MEASURE — Add tap dismisses popup', (tester) async {
+      await pumpPortrait(tester, buildScore());
+      selectFirstNote(tester);
+      await tester.pump();
+
+      await tester.tap(find.text('MEA'));
+      await tester.pump();
+      expect(find.text('Add'), findsOneWidget);
+
+      await tester.tap(find.text('Add'));
+      await tester.pump();
+      expect(find.text('Add'), findsNothing);
+    });
+  });
+
   testWidgets('header edit count text stays within bounds after edits', (
     tester,
   ) async {
