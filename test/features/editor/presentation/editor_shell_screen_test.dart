@@ -80,13 +80,12 @@ void main() {
     expect(find.text('Half'), findsWidgets);
     expect(find.text('Qtr'), findsOneWidget);
     expect(find.text('8th'), findsOneWidget);
-    expect(find.text('Note'), findsOneWidget);
-    expect(find.text('Rest'), findsWidgets);
+    expect(find.text('Add'), findsOneWidget);
     expect(find.byTooltip('Undo'), findsOneWidget);
     expect(find.byTooltip('Redo'), findsOneWidget);
   });
 
-  testWidgets('keeps insert actions enabled with default measure context', (
+  testWidgets('keeps measure actions enabled with default measure context', (
     tester,
   ) async {
     final score = buildScore(withSymbols: false);
@@ -96,16 +95,13 @@ void main() {
     final moveUpButton = actionTileForLabel(tester, 'Up');
     expect(moveUpButton.onTap, isNull);
 
-    final insertNoteButton = actionTileForLabel(tester, 'Note');
-    expect(insertNoteButton.onTap, isNotNull);
+    final addMeasureButton = actionTileForLabel(tester, 'Add');
+    expect(addMeasureButton.onTap, isNotNull);
 
-    await tester.tap(find.text('Up'));
-    await tester.tap(find.text('Note').first);
+    await tester.tap(find.text('Add'));
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('SELECTION'), findsOneWidget);
-    expect(find.text('C4'), findsOneWidget);
   });
 
   testWidgets('tapping symbols selects, reselects, and deselects', (tester) async {
@@ -133,7 +129,7 @@ void main() {
       notationBox.localToGlobal(_symbolCenterOffset(score, measureIndex: 0, symbolIndex: 1)),
     );
     await tester.pump();
-    expect(find.text('Rest'), findsWidgets);
+    expect(find.text('Rest'), findsOneWidget);
     expect(find.text('quarter'), findsOneWidget);
 
     await tester.tapAt(
@@ -330,10 +326,10 @@ void main() {
     ));
     await tester.pump();
 
-    // Open the INSERT group popup first, then tap Note
-    await tester.tap(find.text('INS'), warnIfMissed: false);
+    // Open the DURATION group popup first, then change duration
+    await tester.tap(find.text('DUR'), warnIfMissed: false);
     await tester.pump();
-    await tester.tap(find.text('Note').first, warnIfMissed: false);
+    await tester.tap(find.text('Whole').first, warnIfMissed: false);
     await tester.pump();
 
     expect(tester.takeException(), isNull);

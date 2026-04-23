@@ -559,8 +559,6 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               onQuarter: () => _updateState((s) => s.setSelectedDuration(quarterDuration)),
               onEighth: () => _updateState((s) => s.setSelectedDuration(eighthDuration)),
               onSetAccidental: (alter) => _updateState((s) => s.setSelectedNoteAccidental(alter)),
-              onInsertNote: () => _updateState((s) => s.insertNoteAfterSelection()),
-              onInsertRest: () => _updateState((s) => s.insertRestAfterSelection()),
               onMoveToPrev: () => _updateState((s) => s.moveSelectedSymbolToMeasureOffset(-1)),
               onMoveToNext: () => _updateState((s) => s.moveSelectedSymbolToMeasureOffset(1)),
               onAddMeasure: () => _updateState((s) => s.addMeasureAfterSelected()),
@@ -1407,8 +1405,6 @@ class _InspectorPanel extends StatefulWidget {
     required this.onQuarter,
     required this.onEighth,
     required this.onSetAccidental,
-    required this.onInsertNote,
-    required this.onInsertRest,
     required this.onMoveToPrev,
     required this.onMoveToNext,
     required this.onAddMeasure,
@@ -1431,8 +1427,6 @@ class _InspectorPanel extends StatefulWidget {
   final VoidCallback onQuarter;
   final VoidCallback onEighth;
   final void Function(int? alter) onSetAccidental;
-  final VoidCallback onInsertNote;
-  final VoidCallback onInsertRest;
   final VoidCallback onMoveToPrev;
   final VoidCallback onMoveToNext;
   final VoidCallback onAddMeasure;
@@ -1451,7 +1445,6 @@ class _InspectorPanelState extends State<_InspectorPanel> {
     Icons.piano_rounded,
     Icons.access_time_rounded,
     Icons.grid_on_rounded,
-    Icons.add_circle_outline_rounded,
   ];
 
   VoidCallback? _wrapAction(VoidCallback? action) {
@@ -1503,13 +1496,6 @@ class _InspectorPanelState extends State<_InspectorPanel> {
           _ActionTile(icon: Icons.skip_next_rounded, label: 'Next', onPressed: _wrapAction(widget.hasSelection ? widget.onMoveToNext : null)),
           _ActionTile(icon: Icons.add_rounded, label: 'Add', onPressed: _wrapAction(widget.hasMeasureContext ? widget.onAddMeasure : null)),
           _ActionTile(icon: Icons.remove_rounded, label: 'Del', onPressed: _wrapAction(widget.canDeleteMeasure ? widget.onDeleteMeasure : null), danger: true),
-        ],
-      ),
-      _ActionGroup(
-        label: 'INSERT',
-        children: [
-          _ActionTile(icon: Icons.music_note_rounded, label: 'Note', onPressed: _wrapAction(widget.hasMeasureContext ? widget.onInsertNote : null)),
-          _ActionTile(icon: Icons.horizontal_rule_rounded, label: 'Rest', onPressed: _wrapAction(widget.hasMeasureContext ? widget.onInsertRest : null)),
         ],
       ),
     ];
