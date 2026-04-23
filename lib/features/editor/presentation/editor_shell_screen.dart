@@ -1447,13 +1447,7 @@ class _InspectorPanelState extends State<_InspectorPanel> {
     Icons.grid_on_rounded,
   ];
 
-  VoidCallback? _wrapAction(VoidCallback? action) {
-    if (action == null) return null;
-    return () {
-      setState(() => _activeGroupIndex = null);
-      action();
-    };
-  }
+  VoidCallback? _wrapAction(VoidCallback? action) => action;
 
   List<_ActionGroup> _buildGroups() {
     final isNoteSelected = widget.selected is Note;

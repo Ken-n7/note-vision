@@ -293,7 +293,7 @@ void main() {
     expect(find.text('quarter'), findsOneWidget);
   });
 
-  group('portrait inspector group popup closes after action tap', () {
+  group('portrait inspector group popup stays open after action tap', () {
     Future<void> pumpPortrait(WidgetTester tester, Score score) async {
       tester.view.physicalSize = const Size(360, 800);
       tester.view.devicePixelRatio = 1.0;
@@ -324,7 +324,7 @@ void main() {
       ));
     }
 
-    testWidgets('PITCH — Up tap dismisses popup', (tester) async {
+    testWidgets('PITCH — Up tap keeps popup open', (tester) async {
       await pumpPortrait(tester, buildScore());
       selectFirstNote(tester);
       await tester.pump();
@@ -335,10 +335,10 @@ void main() {
 
       await tester.tap(find.text('Up'));
       await tester.pump();
-      expect(find.text('Up'), findsNothing);
+      expect(find.text('Up'), findsOneWidget);
     });
 
-    testWidgets('ACCIDENTAL — sharp tap dismisses popup', (tester) async {
+    testWidgets('ACCIDENTAL — sharp tap keeps popup open', (tester) async {
       await pumpPortrait(tester, buildScore());
       selectFirstNote(tester);
       await tester.pump();
@@ -349,10 +349,10 @@ void main() {
 
       await tester.tap(find.text('♯'));
       await tester.pump();
-      expect(find.text('♯'), findsNothing);
+      expect(find.text('♯'), findsOneWidget);
     });
 
-    testWidgets('DURATION — 8th tap dismisses popup', (tester) async {
+    testWidgets('DURATION — 8th tap keeps popup open', (tester) async {
       await pumpPortrait(tester, buildScore());
       selectFirstNote(tester);
       await tester.pump();
@@ -363,10 +363,10 @@ void main() {
 
       await tester.tap(find.text('8th'));
       await tester.pump();
-      expect(find.text('8th'), findsNothing);
+      expect(find.text('8th'), findsOneWidget);
     });
 
-    testWidgets('MEASURE — Add tap dismisses popup', (tester) async {
+    testWidgets('MEASURE — Add tap keeps popup open', (tester) async {
       await pumpPortrait(tester, buildScore());
       selectFirstNote(tester);
       await tester.pump();
@@ -377,7 +377,21 @@ void main() {
 
       await tester.tap(find.text('Add'));
       await tester.pump();
-      expect(find.text('Add'), findsNothing);
+      expect(find.text('Add'), findsOneWidget);
+    });
+
+    testWidgets('PITCH — re-tapping tab closes popup', (tester) async {
+      await pumpPortrait(tester, buildScore());
+      selectFirstNote(tester);
+      await tester.pump();
+
+      await tester.tap(find.text('PIT'));
+      await tester.pump();
+      expect(find.text('Up'), findsOneWidget);
+
+      await tester.tap(find.text('PIT'));
+      await tester.pump();
+      expect(find.text('Up'), findsNothing);
     });
   });
 
