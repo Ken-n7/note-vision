@@ -324,6 +324,16 @@ void main() {
       expect(decoded.id, score.id);
       expect(decoded.parts[0].measures[0].symbols.length, 4);
     });
+
+    test('fromJson defaults composer to empty string when field is absent', () {
+      final json = {
+        'id': 'old-project',
+        'title': 'Legacy Score',
+        'parts': <dynamic>[],
+      };
+      final score = Score.fromJson(json);
+      expect(score.composer, '');
+    });
   });
 
   // ── Project serialization ─────────────────────────────────────────────────
