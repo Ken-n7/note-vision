@@ -78,7 +78,8 @@ Camera / Gallery / MusicXML file
 5. Editor
    EditorShellScreen — CustomPainter notation viewer
    Symbol selection, pitch move, accidental toggle, delete, duration change,
-   insert note/rest, drag-to-reorder, undo/redo (50 levels)
+   drag-to-delete, drag-to-reorder, undo/redo (50 levels)
+   insert note/rest via drag-from-palette (no inspector button)
         ↓
 6. Export / Playback  [Sprint 7]
    MusicXML export, PDF export, flutter_midi_pro audio playback
@@ -192,7 +193,7 @@ These are final unless explicitly changed:
 - **Staff detection:** Two sources merged — model `combStaff` detections (preferred) + `HorizontalProjectionStaffDetector` supplement + `SyntheticStaffBuilder` fallback. `SyntheticStaffBuilder` uses notehead Y distribution to estimate staff geometry when no staves detected.
 - **Notation renderer:** CustomPainter — not a text list, not an SVG library
 - **Undo/redo:** Whole-state snapshot, max 50 entries, new edit clears redo stack
-- **Insert default:** C4 quarter note / quarter rest, appended to end of selected measure, auto-selected after insert
+- **Insert default:** C4 quarter note / quarter rest, appended to end of selected measure, auto-selected after insert — only via drag-from-palette. The INSERT inspector button group was removed in Sprint 9 as a side task (redundant with drag-drop). `insertNoteAfterSelection()` / `insertRestAfterSelection()` still exist in `EditorActions` for future use.
 - **Drag insert:** LongPressDraggable from palette → DragTarget on staff. Drop Y → pitch via PitchCalculator. Drop X → insert index.
 - **PDF export:** `pdf` package with programmatic Canvas drawing — replicates CustomPainter logic
 - **Audio playback:** `flutter_midi_pro` — synthesizes from Note step+octave+duration directly. Requires `assets/soundfonts/piano.sf2` (any standard GM SF2 file, not committed). After adding the file run `flutter clean && flutter pub get` then do a full restart (not hot reload) to rebundle assets.
@@ -200,7 +201,8 @@ These are final unless explicitly changed:
 - **MusicXML export:** `xml` package, valid MusicXML 3.1. `exportToDevice(Score)` opens system save dialog via `file_picker` — returns saved path or `null` if cancelled.
 - **PDF export:** `pdf` package, `exportToDevice(Score)` opens system save dialog via `file_picker` — returns saved path or `null` if cancelled.
 - **Export filename:** shared `safeExportFileName(title)` in `lib/core/utils/export_file_name.dart`.
-- **Delete symbol:** drag-to-trash gesture — drag a symbol to the trash zone in `EditorShellScreen`; no separate delete button.
+- **Delete symbol:** drag-to-trash gesture — drag a symbol to the trash zone in `EditorShellScreen`; no separate delete button. In portrait mode the trash zone overlays the inspector bar (`bottom: 0, height: _kInspectorBarHeight`) while a drag is active so it stays reachable at the bottom edge.
+- **Portrait inspector:** `_BottomInspectorBar` — a 56 px horizontal bar (`_kInspectorBarHeight = 56.0`) above `PlaybackControlsBar` with four tab buttons (PITCH, ACCIDENTAL, DURATION, MEASURE). Tapping a tab opens a popup that floats upward; every action button closes the popup via `_wrapAction`. Landscape keeps the original side-panel layout.
 - **Cross-measure/part drag reorder:** `moveSymbolToDest()` in `editor_actions.dart` — same-measure delegates to `reorderSymbol`; cross-measure deletes from source + inserts at destination; cross-part supported.
 - **Collection = project list:** `CollectionScreen` owns both the scan history and the saved project list. `ProjectListScreen` was deleted; `/projects` route removed.
 - **Analytics:** Local only — scans, edits, exports, playbacks as integers in shared_preferences. No backend.
@@ -232,8 +234,8 @@ moveSelectedSymbolUp/Down()         // Diatonic pitch move, preserves alter
 setSelectedDuration(spec)           // No-op if same duration
 setSelectedNoteAccidental(int?)     // null=none 1=♯ -1=♭ 0=♮; no-op for rests/same value
 deleteSelectedSymbol()              // Keeps measure context for re-insert
-insertNoteAfterSelection()          // Appends C4 quarter, auto-selects
-insertRestAfterSelection()          // Appends quarter rest, auto-selects
+insertNoteAfterSelection()          // Appends C4 quarter, auto-selects (no UI button — used by drag-palette)
+insertRestAfterSelection()          // Appends quarter rest, auto-selects (no UI button — used by drag-palette)
 reorderSymbolWithinMeasure()        // Cannot cross measure boundary (legacy path; prefer moveSymbolToDest)
 moveSelectedSymbolToMeasureOffset() // Move symbol to adjacent measure
 moveSymbolToDest(fromPart, fromMeasure, fromSymbol, toPart, toMeasure, toSymbol)
@@ -374,7 +376,7 @@ reorderSymbol(partIndex, measureIndex, fromIndex, toIndex)
 | 35 | Execute mapping pipeline test cases | Galanza |
 | 36 | Create mapping regression checklist | Galanza |
 
-### Sprint 5 🔄 In Progress
+### Sprint 5 ✅ Complete
 | # | Ticket | Owner | Status |
 |---|--------|-------|--------|
 | 37 | Reconvert YOLO model to 640×640 TFLite | Canete | ✅ Done — int8 model at assets/models/best_int8.tflite |
@@ -396,7 +398,7 @@ reorderSymbol(partIndex, measureIndex, fromIndex, toIndex)
 | 53 | Execute Sprint 5 editor test cases | Galanza | ⚠️ Tests pass, no formal report |
 | 54 | Create Sprint 5 editor regression checklist | Galanza | ❌ Not done |
 
-### Sprint 6 🔄 In Progress
+### Sprint 6 ✅ Complete
 | # | Ticket | Owner | Duration | Status |
 |---|--------|-------|----------|--------|
 | 55 | Build symbol palette widget | Boleche | 2H | ✅ Done |
@@ -413,7 +415,7 @@ reorderSymbol(partIndex, measureIndex, fromIndex, toIndex)
 | 65 | Execute Sprint 6 test cases | Galanza | 2H | ⏳ Not started |
 | 66 | Create Sprint 6 regression checklist | Galanza | 1H | ⏳ Not started |
 
-### Sprint 7 🔄 In Progress
+### Sprint 7 ✅ Complete
 | # | Ticket | Owner | Duration | Status |
 |---|--------|-------|----------|--------|
 | 67 | Build playback module (flutter_midi_pro) | Canete | 3H | ✅ Done |
@@ -428,17 +430,28 @@ reorderSymbol(partIndex, measureIndex, fromIndex, toIndex)
 | 76 | Execute Sprint 7 test cases | Galanza | 3H | ⏳ Not started |
 | 77 | Create Sprint 7 regression checklist | Galanza | 1H | ⏳ Not started |
 
-### Sprint 8 ⏳ Not Started
-| # | Ticket | Owner | Duration |
-|---|--------|-------|----------|
-| 78 | Improve symbol detection from real-world results | Canete | 3H |
-| 79 | Improve reconstruction from real-world results | Canete | 3H |
-| 80 | Stabilize editor + playback + export post-integration | Canete | 1H |
-| 81 | Add PDF beam rendering | Canete | 2H |
-| 82 | Build local usage stats + profile screen | Boleche | 1H |
-| 83 | IT: Full end-to-end system test on real sheet music | Boleche/Galanza | 1H |
-| 84 | Execute full system regression test cases | Galanza | 3H |
-| 85 | Create final regression checklist | Galanza | 2H |
+### Sprint 8 ✅ Complete
+| # | Ticket | Owner | Duration | Status |
+|---|--------|-------|----------|--------|
+| 78 | Improve symbol detection from real-world results | Canete | 3H | ✅ Done |
+| 79 | Improve reconstruction from real-world results | Canete | 3H | ✅ Done |
+| 80 | Stabilize editor + playback + export post-integration | Canete | 1H | ✅ Done |
+| 81 | Add PDF beam rendering | Canete | 2H | ✅ Done |
+| 82 | Build local usage stats + profile screen | Boleche | 1H | ✅ Done |
+| 83 | IT: Full end-to-end system test on real sheet music | Boleche/Galanza | 1H | ✅ Done |
+| 84 | Execute full system regression test cases | Galanza | 3H | ✅ Done |
+| 85 | Create final regression checklist | Galanza | 2H | ✅ Done |
+
+### Sprint 9 🔄 In Progress
+| # | Ticket | Owner | Duration | Status |
+|---|--------|-------|----------|--------|
+| 88 | Clean Up Drawer: Remove Digital Writing, Add Instructions & About | Boleche | 2H | ✅ Done (on main) |
+| 89 | Editor: Make Playback Controls Static, Utilize Space Below | Boleche | 2H | 🔄 In Progress (pb-bar — approach changed, see delivery notes) |
+| 90 | PDF Export: Display Composer for Credits | Canete | 1H | ✅ Done (pb-bar, not merged) |
+| 91 | Lock Editor Interactions During Playback | Canete | 2H | ⏳ Not started |
+| 92 | Fix XML Import Preview: Black Background Hides Symbols | Boleche | 1H | ✅ Done (pb-bar, not merged) |
+| 93 | IT: Sprint 9 Feature Verification & Regression | Galanza | 3H | ⏳ Not started |
+
 
 ---
 
@@ -750,6 +763,106 @@ Real TFLite detection connected to reconstruction pipeline end-to-end. Major cha
 - **`share_plus: ^12.0.2` added** to pubspec (resolved by `flutter pub add` due to web package conflict with file_picker)
 - **Landing screen test fix** — `Pressing Get Started navigates to CollectionScreen` required `SharedPreferences.setMockInitialValues({'onboarding_complete': true})` because `UserProfileService.isOnboardingComplete()` reads SharedPreferences asynchronously
 - **`!mounted` / `this.context` pattern** — `landing_screen.dart` now correctly guards async gap with `State.mounted` (`if (!mounted) return`) then uses `this.context` (State's own context), not `context.mounted` on the parameter
+
+---
+
+## Sprint 8 Delivery Notes
+
+### BGC-78 & BGC-79 — Improved Detection + Reconstruction (branch bgc-78-79)
+
+- YOLO confidence threshold tuned; reconstruction pipeline hardened against real-world edge cases
+- `feat(stats): track edits per score instead of globally` — analytics now per-project
+
+### BGC-80 — Stabilize Editor + Playback + Export
+
+- **Auto-scroll during playback** — `ScoreNotationViewer` scrolls to keep the highlighted note visible
+- **Soundfont double-load fix** — `PlaybackService` guards against being initialized twice; `dispose()` now correctly unloads the soundfont and cancels the timer to prevent audio leaks
+- **P0/P1/P2 bug fixes from sprint 8 audit** — editor shows project name in header instead of score title; `.musicxml` extension dropped in favour of `.xml` only; MusicXML importer tests updated; profile screen setState issues resolved
+
+### BGC-81 — PDF Beam Rendering (branch 81)
+
+- `PdfScoreRenderer` now draws beams connecting consecutive eighth-note stems in the same measure
+- Beam is a filled rect spanning from the tip of the first stem to the tip of the last stem in a beamed group
+
+### BGC-82 — Usage Stats + Profile Screen (branch bgc-82)
+
+- **`UsageStatsService`** — increments scan/edit/export/playback counters in `SharedPreferences`; edit counter is per-score, not global
+- **`ProfileStatsScreen`** — displays username, profile photo, and local usage counters; accessible from the drawer
+
+---
+
+## Sprint 9 Delivery Notes (in progress, branch pb-bar)
+
+### BGC-88 — Clean Up Drawer: Instructions + About Screens
+
+- `InstructionsScreen` and `AboutScreen` added; accessible from the app drawer
+- "Digital Writing" drawer item removed
+- Widget tests added for both screens
+
+### BGC-89 — Editor: Make Playback Controls Static, Utilize Space Below
+
+Scope evolved across multiple iterations on branch `pb-bar`:
+
+**Attempt 1 — two-row playback bar** (`8443544`, reverted `8d20526`)
+- Expanded `PlaybackControlsBar` to two rows (transport + tempo); `SafeArea` aware
+- Reverted after UX review — controls felt cramped; bottom space still underused in portrait
+
+**Approach shift — portrait inspector moved to bottom bar**
+- Rather than expanding the playback bar, the portrait inspector panel (previously a right-side floating vertical toolbar) was redesigned as a `_BottomInspectorBar` sitting directly above `PlaybackControlsBar`
+- This fully utilizes the bottom zone and keeps `PlaybackControlsBar` static and uncluttered
+- Canvas gets full width back; playback bar never moves
+
+**Changes shipped on pb-bar (not yet merged to main):**
+- `_BottomInspectorBar` — 56 px horizontal bar (`_kInspectorBarHeight = 56.0`) with four tabs: PITCH, ACCIDENTAL, DURATION, MEASURE
+- Tapping a tab opens a popup that floats upward (`bottom: _kInspectorBarHeight + 8`); tapping canvas or another tab dismisses it
+- `_wrapAction` — every button tap closes the popup before firing the action (auto-dismiss UX)
+- INSERT group removed from inspector (Note/Rest insert is already covered by drag-from-palette)
+- Drag-to-delete regression fixed: `_NotationArea` gains `showTrashZone` param; in portrait the trash zone overlays the inspector bar at `bottom: 0, height: _kInspectorBarHeight` during a drag
+
+### BGC-90 — PDF Export: Display Composer for Credits
+
+Nearly fully pre-built — only one bug found and fixed:
+
+- `_showMetadataSheet` in `EditorShellScreen` already existed with Title + Composer fields, pre-filled from `score.title` / `score.composer`, saves via `_updateState`
+- `PdfScoreRenderer._drawTitleBlock` already renders `score.composer` at top-right of first page when non-empty
+- `MusicXmlExportService` already emits `<creator type="composer">` when set
+- `Score.toJson` / `Score.fromJson` already serialised `composer`
+- **Bug fixed:** `Score.fromJson` was casting `json['composer'] as String` (non-nullable) — crashes when loading projects saved before the `composer` field existed. Fixed to `(json['composer'] as String?) ?? ''`
+- Regression test added: `fromJson defaults composer to empty string when field is absent`
+
+### BGC-92 — Fix XML Import Preview Background
+
+- `fix(import): use light background on score preview container` (`2a2e557`)
+- Import screen preview container now uses `Color(0xFFF9FAFB)` background instead of `AppColors.surface` — symbols are legible before the user taps Continue
+- Done on pb-bar, not yet merged to main
+
+- **Before:** right-side floating vertical toolbar (iBis Paint X style), 58 px wide, overlapped the canvas
+- **After:** `_BottomInspectorBar` — 56 px horizontal bar (`_kInspectorBarHeight = 56.0`) pinned above `PlaybackControlsBar`
+  - Four tab buttons: PITCH, ACCIDENTAL, DURATION, MEASURE (each `Expanded`)
+  - Active tab highlighted with accent top border + tinted background
+  - Tapping a tab opens a `_ToolGroupPopup` that floats upward (`bottom: _kInspectorBarHeight + 8`)
+  - Tapping the canvas or another tab dismisses the popup
+- Canvas in portrait mode gets `Padding(bottom: _kInspectorBarHeight)` so it doesn't scroll under the bar
+- Landscape is unchanged — side panel layout retained
+
+**Remove INSERT inspector group**
+
+- INSERT group (Note + Rest buttons) removed from `_InspectorPanel._buildGroups()`
+- `onInsertNote` / `onInsertRest` params dropped from `_InspectorPanel` constructor
+- Insert is still available via drag-from-palette; `EditorActions.insertNoteAfterSelection()` / `insertRestAfterSelection()` kept for future use
+- `_groupIcons` reduced from 5 to 4 entries
+
+**Fix drag-to-delete regression**
+
+- **Root cause:** adding `Padding(bottom: _kInspectorBarHeight)` to the notation area shrunk the canvas by 56 px, pushing the internal `_TrashZone` up off the bottom edge — users dragging to the very bottom of the screen missed it
+- **Fix:** `_NotationArea` gains a `showTrashZone` bool (default `true`); set to `false` in portrait so the internal zone is suppressed
+- A `_TrashZone` is overlaid in the portrait Stack at `Positioned(left: 0, right: 0, bottom: 0, height: _kInspectorBarHeight)` — appears on top of the inspector bar only while a drag is in progress (`if (_isDraggingNote)`)
+- Landscape is unaffected (`showTrashZone: isLandscape`)
+
+### Auto-close popup on every inspector action
+
+- `_wrapAction(VoidCallback? action)` helper in `_InspectorPanelState` wraps every button callback: fires `setState(() => _activeGroupIndex = null)` then the action
+- Result: tapping any button in any group dismisses the popup; user must re-open to take another action
 
 ---
 
