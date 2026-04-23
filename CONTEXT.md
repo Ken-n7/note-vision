@@ -202,7 +202,7 @@ These are final unless explicitly changed:
 - **PDF export:** `pdf` package, `exportToDevice(Score)` opens system save dialog via `file_picker` — returns saved path or `null` if cancelled.
 - **Export filename:** shared `safeExportFileName(title)` in `lib/core/utils/export_file_name.dart`.
 - **Delete symbol:** drag-to-trash gesture — drag a symbol to the trash zone in `EditorShellScreen`; no separate delete button. In portrait mode the trash zone overlays the inspector bar (`bottom: 0, height: _kInspectorBarHeight`) while a drag is active so it stays reachable at the bottom edge.
-- **Portrait inspector:** `_BottomInspectorBar` — a 56 px horizontal bar (`_kInspectorBarHeight = 56.0`) above `PlaybackControlsBar` with four tab buttons (PITCH, ACCIDENTAL, DURATION, MEASURE). Tapping a tab opens a popup that floats upward; every action button closes the popup via `_wrapAction`. Landscape keeps the original side-panel layout.
+- **Portrait inspector:** `_BottomInspectorBar` — a 56 px horizontal bar (`_kInspectorBarHeight = 56.0`) above `PlaybackControlsBar` with four tab buttons (PITCH, ACCIDENTAL, DURATION, MEASURE). Tapping a tab opens a popup that floats upward; action buttons keep the popup open so the user can press repeatedly (e.g. Up/Down multiple times). Close by re-tapping the same tab or tapping the canvas. Landscape keeps the original side-panel layout.
 - **Cross-measure/part drag reorder:** `moveSymbolToDest()` in `editor_actions.dart` — same-measure delegates to `reorderSymbol`; cross-measure deletes from source + inserts at destination; cross-part supported.
 - **Collection = project list:** `CollectionScreen` owns both the scan history and the saved project list. `ProjectListScreen` was deleted; `/projects` route removed.
 - **Analytics:** Local only — scans, edits, exports, playbacks as integers in shared_preferences. No backend.
@@ -815,7 +815,7 @@ Scope evolved across multiple iterations on branch `pb-bar`:
 **Changes shipped on pb-bar (not yet merged to main):**
 - `_BottomInspectorBar` — 56 px horizontal bar (`_kInspectorBarHeight = 56.0`) with four tabs: PITCH, ACCIDENTAL, DURATION, MEASURE
 - Tapping a tab opens a popup that floats upward (`bottom: _kInspectorBarHeight + 8`); tapping canvas or another tab dismisses it
-- `_wrapAction` — every button tap closes the popup before firing the action (auto-dismiss UX)
+- `_wrapAction` — thin passthrough (`VoidCallback? _wrapAction(action) => action`); popup stays open after action so user can repeat (e.g. pitch Up/Down multiple times)
 - INSERT group removed from inspector (Note/Rest insert is already covered by drag-from-palette)
 - Drag-to-delete regression fixed: `_NotationArea` gains `showTrashZone` param; in portrait the trash zone overlays the inspector bar at `bottom: 0, height: _kInspectorBarHeight` during a drag
 
@@ -841,7 +841,7 @@ Nearly fully pre-built — only one bug found and fixed:
   - Four tab buttons: PITCH, ACCIDENTAL, DURATION, MEASURE (each `Expanded`)
   - Active tab highlighted with accent top border + tinted background
   - Tapping a tab opens a `_ToolGroupPopup` that floats upward (`bottom: _kInspectorBarHeight + 8`)
-  - Tapping the canvas or another tab dismisses the popup
+  - Popup stays open after action — close by re-tapping the same tab or tapping the canvas barrier
 - Canvas in portrait mode gets `Padding(bottom: _kInspectorBarHeight)` so it doesn't scroll under the bar
 - Landscape is unchanged — side panel layout retained
 
@@ -861,8 +861,7 @@ Nearly fully pre-built — only one bug found and fixed:
 
 ### Auto-close popup on every inspector action
 
-- `_wrapAction(VoidCallback? action)` helper in `_InspectorPanelState` wraps every button callback: fires `setState(() => _activeGroupIndex = null)` then the action
-- Result: tapping any button in any group dismisses the popup; user must re-open to take another action
+- `_wrapAction(VoidCallback? action)` is a thin passthrough — popup stays open after any button tap so the user can repeat actions (e.g. pitch Up/Down multiple times). Close by re-tapping the active tab or tapping the canvas barrier.
 
 ---
 
