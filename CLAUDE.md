@@ -448,9 +448,9 @@ reorderSymbol(partIndex, measureIndex, fromIndex, toIndex)
 | 88 | Clean Up Drawer: Remove Digital Writing, Add Instructions & About | Boleche | 2H | ✅ Done (on main) |
 | 89 | Editor: Make Playback Controls Static, Utilize Space Below | Boleche | 2H | 🔄 In Progress (pb-bar — approach changed, see delivery notes) |
 | 90 | PDF Export: Display Composer for Credits | Canete | 1H | ✅ Done (pb-bar, not merged) |
-| 91 | Lock Editor Interactions During Playback | Canete | 2H | ⏳ Not started |
+| 91 | Lock Editor Interactions During Playback | Canete | 2H | ✅ Done (pb-bar, not merged) |
 | 92 | Fix XML Import Preview: Black Background Hides Symbols | Boleche | 1H | ✅ Done (pb-bar, not merged) |
-| 93 | IT: Sprint 9 Feature Verification & Regression | Galanza | 3H | ⏳ Not started |
+| 93 | IT: Sprint 9 Feature Verification & Regression | Galanza | 3H | 🔄 In Progress (pb-bar) |
 
 
 ---
@@ -829,6 +829,54 @@ Nearly fully pre-built — only one bug found and fixed:
 - `Score.toJson` / `Score.fromJson` already serialised `composer`
 - **Bug fixed:** `Score.fromJson` was casting `json['composer'] as String` (non-nullable) — crashes when loading projects saved before the `composer` field existed. Fixed to `(json['composer'] as String?) ?? ''`
 - Regression test added: `fromJson defaults composer to empty string when field is absent`
+
+### BGC-91 — Lock Editor Interactions During Playback
+
+Implemented in `lib/features/editor/presentation/editor_shell_screen.dart`:
+
+- **Playback status tracking** — `_EditorShellScreenState` adds `PlaybackStatus _playbackStatus` and `StreamSubscription<PlaybackState>? _stateSub`; subscribes to `PlaybackService.stateStream` in `_initPlayback()`, cancels in `dispose()`
+- **`isPlaybackActive` flag** — derived as `_playbackStatus == PlaybackStatus.playing` in `build()`; threaded into `_NotationArea`, `_InspectorPanel`, and `_EditorHeader`
+- **Locked interactions when playing:**
+  - **Symbol tap / insert tap / drag-to-reorder** — `onSymbolTap`, `onInsertTap`, `onDragStarted` nulled in `ScoreNotationViewer` bindings
+  - **External palette drop** — `canAcceptExternalDrop` returns false; `onExternalDrop` nulled
+  - **Symbol palette** — wrapped with `IgnorePointer(ignoring: isPlaybackActive)`; `selectedType` forced to null
+  - **Insert-mode toggle** — `_FloatingControls.onToggleInsertMode` replaced with a no-op; `insertMode` forced to false visually
+  - **Inspector actions** — `_wrapAction()` in `_InspectorPanelState` returns null when `isPlaybackActive`, which disables all pitch/accidental/duration/measure tiles automatically
+  - **Portrait inspector popup** — auto-closed in `_InspectorPanelState.didUpdateWidget` when playback starts; `_BottomInspectorBar` gains `disabled` param — tab taps suppressed and icons greyed (30% opacity)
+  - **Undo / Redo** — `canUndo && !isPlaybackActive` / `canRedo && !isPlaybackActive` in header; buttons grey out during playback
+- **Pan/zoom unaffected** — `InteractiveViewer` is untouched; user can still scroll and zoom to follow the playback highlight
+- **Lock scope** — `playing` state only; `paused` leaves interactions enabled so the user can edit between playback sessions
+- **No new tests** — all changes are UI-layer gating; 278 existing tests pass
+
+### BGC-93 — IT: Sprint 9 Feature Verification & Regression (partial)
+
+Automated test coverage added for BGC-91 (playback lock). Manual device testing of all Sprint 9 features still required from Galanza.
+
+**BGC-91 test group** — 8 new tests in `test/features/editor/presentation/editor_shell_screen_test.dart`:
+- `landscape: action tiles have callbacks before playback` — baseline: Up/Down tiles enabled before playing
+- `landscape: action tiles are nulled while playing` — Up/Down/Add all null when `PlaybackStatus.playing`
+- `landscape: interactions restored when playback stops` — Up tile re-enables after `stopped`
+- `landscape: undo button disabled while playing` — undo `IconButton.onPressed` is null while playing
+- `landscape: ScoreNotationViewer callbacks nulled while playing` — `onSymbolTap` and `onDragStarted` null while playing
+- `portrait: tab taps suppressed while playing` — tapping PIT tab does not open popup while playing
+- `portrait: open popup hidden when playback starts` — open popup is hidden when playing starts
+- `portrait: tabs re-enable after playback stops` — PIT tab opens popup again after stop
+
+**Supporting changes:**
+- `PlaybackService.emitStateForTesting(PlaybackState)` — `@visibleForTesting` hook added to allow simulating playback state in tests (`lib/core/services/playback_service.dart`)
+- `_initPlayback()` reordered — `_positionSub`/`_stateSub` subscribed BEFORE `await _playback.init()` so state changes are received even if soundfont load is slow or never completes in tests
+- `_InspectorPanelState.didUpdateWidget` — uses `addPostFrameCallback` + `setState` to reset `_activeGroupIndex = null` when playback becomes active (avoids popup reappearing when playback stops)
+- `_InspectorPanelState.build` — popup condition guarded with `&& !widget.isPlaybackActive` as a defence-in-depth visual suppression during the frame before the setState fires
+
+**Full suite: 286 tests, all pass.**
+
+**Manual regression still needed (Galanza):**
+- BGC-88: Instructions and About screens open from drawer correctly, Digital Writing removed
+- BGC-89: Portrait bottom inspector bar tabs open/close popups; playback controls visible and static
+- BGC-90: PDF export includes composer credit on first page
+- BGC-91: On-device — editor is non-interactive during playback, re-enables after stop/pause
+- BGC-92: MusicXML import preview shows symbols on light background
+- Full scan → edit → export end-to-end regression
 
 ### BGC-92 — Fix XML Import Preview Background
 

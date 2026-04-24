@@ -5,6 +5,7 @@ import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/services/playback_service.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
 import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart';
@@ -394,6 +395,181 @@ void main() {
       expect(find.text('Up'), findsNothing);
     });
   });
+
+  // ── BGC-91: editor interactions locked during playback ──────────────────
+
+  group('BGC-91 — playback lock', () {
+    void emitPlaying() => PlaybackService.instance.emitStateForTesting(
+          const PlaybackState(status: PlaybackStatus.playing),
+        );
+
+    void emitStopped() => PlaybackService.instance.emitStateForTesting(
+          const PlaybackState(status: PlaybackStatus.stopped),
+        );
+
+    setUp(emitStopped);
+    tearDown(emitStopped);
+
+    Future<void> pumpPortrait(WidgetTester tester, Score score) async {
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: EditorShellScreen(
+            args: EditorShellArgs(
+              score: score,
+              initialState: EditorState(score: score),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('landscape: action tiles have callbacks before playback', (tester) async {
+      final score = buildScore();
+      await pumpEditorShell(tester, score: score);
+
+      final viewer = tester.widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer));
+      viewer.onSymbolTap!(const NotationSymbolTarget(
+        partIndex: 0, measureIndex: 0, symbolIndex: 0,
+        center: Offset.zero, hitRect: Rect.zero,
+      ));
+      await tester.pump();
+
+      expect(actionTileForLabel(tester, 'Up').onTap, isNotNull);
+      expect(actionTileForLabel(tester, 'Down').onTap, isNotNull);
+    });
+
+    testWidgets('landscape: action tiles are nulled while playing', (tester) async {
+      final score = buildScore();
+      await pumpEditorShell(tester, score: score);
+
+      final viewer = tester.widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer));
+      viewer.onSymbolTap!(const NotationSymbolTarget(
+        partIndex: 0, measureIndex: 0, symbolIndex: 0,
+        center: Offset.zero, hitRect: Rect.zero,
+      ));
+      await tester.pump();
+
+      emitPlaying();
+      await tester.pump();
+
+      expect(actionTileForLabel(tester, 'Up').onTap, isNull);
+      expect(actionTileForLabel(tester, 'Down').onTap, isNull);
+      expect(actionTileForLabel(tester, 'Add').onTap, isNull);
+    });
+
+    testWidgets('landscape: interactions restored when playback stops', (tester) async {
+      final score = buildScore();
+      await pumpEditorShell(tester, score: score);
+
+      final viewer = tester.widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer));
+      viewer.onSymbolTap!(const NotationSymbolTarget(
+        partIndex: 0, measureIndex: 0, symbolIndex: 0,
+        center: Offset.zero, hitRect: Rect.zero,
+      ));
+      await tester.pump();
+
+      emitPlaying();
+      await tester.pump();
+      expect(actionTileForLabel(tester, 'Up').onTap, isNull);
+
+      emitStopped();
+      await tester.pump();
+      expect(actionTileForLabel(tester, 'Up').onTap, isNotNull);
+    });
+
+    testWidgets('landscape: undo button disabled while playing', (tester) async {
+      final score = buildScore();
+      await pumpEditorShell(tester, score: score);
+
+      // Select note then tap Down to create an undo entry.
+      final viewer = tester.widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer));
+      viewer.onSymbolTap!(const NotationSymbolTarget(
+        partIndex: 0, measureIndex: 0, symbolIndex: 0,
+        center: Offset.zero, hitRect: Rect.zero,
+      ));
+      await tester.pump();
+      actionTileForLabel(tester, 'Down').onTap!();
+      await tester.pump();
+
+      final undoFinder = find.ancestor(
+        of: find.byIcon(Icons.undo_rounded),
+        matching: find.byType(IconButton),
+      );
+      expect(tester.widget<IconButton>(undoFinder).onPressed, isNotNull);
+
+      emitPlaying();
+      await tester.pumpAndSettle();
+
+      expect(tester.widget<IconButton>(undoFinder).onPressed, isNull);
+    });
+
+    testWidgets('landscape: ScoreNotationViewer callbacks nulled while playing', (tester) async {
+      final score = buildScore();
+      await pumpEditorShell(tester, score: score);
+
+      expect(tester.widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer)).onSymbolTap, isNotNull);
+      expect(tester.widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer)).onDragStarted, isNotNull);
+
+      emitPlaying();
+      await tester.pumpAndSettle();
+
+      final viewer = tester.widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer));
+      expect(viewer.onSymbolTap, isNull);
+      expect(viewer.onDragStarted, isNull);
+    });
+
+    testWidgets('portrait: tab taps suppressed while playing', (tester) async {
+      await pumpPortrait(tester, buildScore());
+
+      emitPlaying();
+      await tester.pump();
+
+      // Tapping a tab while disabled should not open the popup.
+      await tester.tap(find.text('PIT'));
+      await tester.pump();
+      expect(find.text('Up'), findsNothing);
+    });
+
+    testWidgets('portrait: open popup hidden when playback starts', (tester) async {
+      await pumpPortrait(tester, buildScore());
+
+      // Open the PITCH popup.
+      await tester.tap(find.text('PIT'));
+      await tester.pump();
+      expect(find.text('Up'), findsOneWidget);
+
+      // Start playback — popup should be suppressed.
+      emitPlaying();
+      await tester.pumpAndSettle();
+      expect(find.text('Up'), findsNothing);
+    });
+
+    testWidgets('portrait: tabs re-enable after playback stops', (tester) async {
+      await pumpPortrait(tester, buildScore());
+
+      emitPlaying();
+      await tester.pump();
+
+      // Confirm tab is suppressed.
+      await tester.tap(find.text('PIT'));
+      await tester.pump();
+      expect(find.text('Up'), findsNothing);
+
+      // Stop playback — tab should work again.
+      emitStopped();
+      await tester.pump();
+      await tester.tap(find.text('PIT'));
+      await tester.pump();
+      expect(find.text('Up'), findsOneWidget);
+    });
+  });
+
+  // ── existing tests continue ──────────────────────────────────────────────
 
   testWidgets('header edit count text stays within bounds after edits', (
     tester,

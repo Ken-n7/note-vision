@@ -58,7 +58,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   // Playback
   final _playback = PlaybackService.instance;
   PlaybackPosition _playbackPosition = PlaybackPosition.none;
+  PlaybackStatus _playbackStatus = PlaybackStatus.stopped;
   StreamSubscription<PlaybackPosition>? _positionSub;
+  StreamSubscription<PlaybackState>? _stateSub;
 
   final _storage = ProjectStorageService();
   Project? _currentProject;
@@ -76,15 +78,21 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   }
 
   Future<void> _initPlayback() async {
-    await _playback.init();
+    // Subscribe before awaiting init so state changes are received even if
+    // the soundfont load is slow or fails (and in tests where it never completes).
     _positionSub = _playback.positionStream.listen((pos) {
       if (mounted) setState(() => _playbackPosition = pos);
     });
+    _stateSub = _playback.stateStream.listen((state) {
+      if (mounted) setState(() => _playbackStatus = state.status);
+    });
+    await _playback.init();
   }
 
   @override
   void dispose() {
     _positionSub?.cancel();
+    _stateSub?.cancel();
     _playback.stop();
     super.dispose();
   }
@@ -431,6 +439,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isPlaybackActive = _playbackStatus == PlaybackStatus.playing;
     final selected = _editorState.selectedSymbol;
     final hasSelection = _editorState.hasSelection;
     final hasMeasureContext =
@@ -467,6 +476,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               dragGlobal: _dragGlobal,
               trashZoneKey: _trashZoneKey,
               showTrashZone: isLandscape,
+              isPlaybackActive: isPlaybackActive,
               onToggleInsertMode: _toggleInsertMode,
               onPaletteTypeTap: _onPaletteTypeTap,
               onSymbolTap: (target) {
@@ -531,6 +541,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
             final inspectorPanel = _InspectorPanel(
               isLandscape: isLandscape,
+              isPlaybackActive: isPlaybackActive,
               selected: selected,
               hasSelection: hasSelection,
               hasMeasureContext: hasMeasureContext,
@@ -578,8 +589,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                           : _editorState.score.title),
                   hasUnsavedChanges: _editorState.hasUnsavedChanges,
                   editCount: _scoreEditCount,
-                  canUndo: _editorState.canUndo,
-                  canRedo: _editorState.canRedo,
+                  canUndo: _editorState.canUndo && !isPlaybackActive,
+                  canRedo: _editorState.canRedo && !isPlaybackActive,
                   onBack: () => Navigator.of(context).maybePop(),
                   onUndo: () => _updateState((s) => s.applyUndo()),
                   onRedo: () => _updateState((s) => s.applyRedo()),
@@ -935,6 +946,7 @@ class _NotationArea extends StatefulWidget {
     required this.dragGlobal,
     required this.trashZoneKey,
     this.showTrashZone = true,
+    required this.isPlaybackActive,
     required this.onToggleInsertMode,
     required this.onPaletteTypeTap,
     required this.onSymbolTap,
@@ -954,6 +966,7 @@ class _NotationArea extends StatefulWidget {
   final Offset dragGlobal;
   final GlobalKey trashZoneKey;
   final bool showTrashZone;
+  final bool isPlaybackActive;
   final VoidCallback onToggleInsertMode;
   final ValueChanged<PaletteSymbolType> onPaletteTypeTap;
   final ValueChanged<NotationSymbolTarget?> onSymbolTap;
@@ -1137,16 +1150,21 @@ class _NotationAreaState extends State<_NotationArea> {
                                   ? null
                                   : widget.playbackPosition.symbolIndex,
                               insertMode: widget.insertMode,
-                              canAcceptExternalDrop: (data) =>
-                                  data is PaletteDragData,
+                              canAcceptExternalDrop: widget.isPlaybackActive
+                                  ? (_) => false
+                                  : (data) => data is PaletteDragData,
                               externalPreviewResolver:
                                   _previewGlyphForDragData,
-                              onExternalDrop: widget.onExternalDrop,
-                              onSymbolTap:
-                                  widget.insertMode ? null : widget.onSymbolTap,
-                              onInsertTap:
-                                  widget.insertMode ? widget.onInsertTap : null,
-                              onDragStarted: widget.insertMode
+                              onExternalDrop: widget.isPlaybackActive
+                                  ? null
+                                  : widget.onExternalDrop,
+                              onSymbolTap: (widget.insertMode || widget.isPlaybackActive)
+                                  ? null
+                                  : widget.onSymbolTap,
+                              onInsertTap: (widget.insertMode && !widget.isPlaybackActive)
+                                  ? widget.onInsertTap
+                                  : null,
+                              onDragStarted: (widget.insertMode || widget.isPlaybackActive)
                                   ? null
                                   : widget.onDragStarted,
                               onDragGlobalUpdate: widget.onDragGlobalUpdate,
@@ -1226,19 +1244,26 @@ class _NotationAreaState extends State<_NotationArea> {
                 bottom: 8,
                 child: _FloatingControls(
                   zoomPercent: _zoomPercent,
-                  insertMode: widget.insertMode,
+                  insertMode: widget.insertMode && !widget.isPlaybackActive,
                   onZoomIn: _zoomIn,
                   onZoomOut: _zoomOut,
                   onFitToScreen: _fitToScreen,
-                  onToggleInsertMode: widget.onToggleInsertMode,
+                  onToggleInsertMode: widget.isPlaybackActive
+                      ? () {}
+                      : widget.onToggleInsertMode,
                 ),
               ),
             ],
           ),
         ),
-        SymbolPalette(
-          selectedType: widget.insertMode ? widget.insertSymbolType : null,
-          onTypeTap: widget.onPaletteTypeTap,
+        IgnorePointer(
+          ignoring: widget.isPlaybackActive,
+          child: SymbolPalette(
+            selectedType: widget.insertMode && !widget.isPlaybackActive
+                ? widget.insertSymbolType
+                : null,
+            onTypeTap: widget.onPaletteTypeTap,
+          ),
         ),
       ],
     );
@@ -1391,6 +1416,7 @@ class _ZoomBtn extends StatelessWidget {
 class _InspectorPanel extends StatefulWidget {
   const _InspectorPanel({
     required this.isLandscape,
+    required this.isPlaybackActive,
     required this.selected,
     required this.hasSelection,
     required this.hasMeasureContext,
@@ -1413,6 +1439,7 @@ class _InspectorPanel extends StatefulWidget {
   });
 
   final bool isLandscape;
+  final bool isPlaybackActive;
   final ScoreSymbol? selected;
   final bool hasSelection;
   final bool hasMeasureContext;
@@ -1447,7 +1474,19 @@ class _InspectorPanelState extends State<_InspectorPanel> {
     Icons.grid_on_rounded,
   ];
 
-  VoidCallback? _wrapAction(VoidCallback? action) => action;
+  @override
+  void didUpdateWidget(_InspectorPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isPlaybackActive && !oldWidget.isPlaybackActive && _activeGroupIndex != null) {
+      // Use post-frame to avoid calling setState during a build cycle.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _activeGroupIndex = null);
+      });
+    }
+  }
+
+  VoidCallback? _wrapAction(VoidCallback? action) =>
+      widget.isPlaybackActive ? null : action;
 
   List<_ActionGroup> _buildGroups() {
     final isNoteSelected = widget.selected is Note;
@@ -1552,7 +1591,7 @@ class _InspectorPanelState extends State<_InspectorPanel> {
           child: selectionCard,
         ),
         // Active group popup — floats above the bottom bar
-        if (_activeGroupIndex != null)
+        if (_activeGroupIndex != null && !widget.isPlaybackActive)
           Positioned(
             left: 0,
             right: 0,
@@ -1570,6 +1609,7 @@ class _InspectorPanelState extends State<_InspectorPanel> {
             groups: groups,
             icons: _groupIcons,
             activeIndex: _activeGroupIndex,
+            disabled: widget.isPlaybackActive,
             onGroupTap: (i) => setState(() {
               _activeGroupIndex = _activeGroupIndex == i ? null : i;
             }),
@@ -1627,12 +1667,14 @@ class _BottomInspectorBar extends StatelessWidget {
     required this.icons,
     required this.activeIndex,
     required this.onGroupTap,
+    this.disabled = false,
   });
 
   final List<_ActionGroup> groups;
   final List<IconData> icons;
   final int? activeIndex;
   final ValueChanged<int> onGroupTap;
+  final bool disabled;
 
   @override
   Widget build(BuildContext context) {
@@ -1652,18 +1694,25 @@ class _BottomInspectorBar extends StatelessWidget {
       child: Row(
         children: List.generate(groups.length, (i) {
           final isActive = activeIndex == i;
+          final iconColor = disabled
+              ? AppColors.textSecondary.withValues(alpha: 0.3)
+              : isActive
+                  ? AppColors.accent
+                  : AppColors.textSecondary;
           return Expanded(
             child: GestureDetector(
-              onTap: () => onGroupTap(i),
+              onTap: disabled ? null : () => onGroupTap(i),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 decoration: BoxDecoration(
-                  color: isActive
+                  color: isActive && !disabled
                       ? AppColors.accent.withValues(alpha: 0.10)
                       : Colors.transparent,
                   border: Border(
                     top: BorderSide(
-                      color: isActive ? AppColors.accent : Colors.transparent,
+                      color: isActive && !disabled
+                          ? AppColors.accent
+                          : Colors.transparent,
                       width: 2,
                     ),
                   ),
@@ -1671,11 +1720,7 @@ class _BottomInspectorBar extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      icons[i],
-                      size: 20,
-                      color: isActive ? AppColors.accent : AppColors.textSecondary,
-                    ),
+                    Icon(icons[i], size: 20, color: iconColor),
                     const SizedBox(height: 2),
                     Text(
                       groups[i].label.length > 3
@@ -1685,7 +1730,7 @@ class _BottomInspectorBar extends StatelessWidget {
                         fontSize: 9,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0.3,
-                        color: isActive ? AppColors.accent : AppColors.textSecondary,
+                        color: iconColor,
                       ),
                     ),
                   ],

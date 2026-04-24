@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_midi_pro/flutter_midi_pro.dart';
 
 import '../models/score.dart';
@@ -130,6 +131,13 @@ class PlaybackService {
 
   PlaybackStatus get status => _status;
   int get tempo => _tempo;
+
+  // Emit a state directly — used only in tests to simulate playback transitions.
+  @visibleForTesting
+  void emitStateForTesting(PlaybackState state) {
+    _status = state.status;
+    _stateController.add(state);
+  }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────
 
