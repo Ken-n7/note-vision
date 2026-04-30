@@ -58,7 +58,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   // Playback
   final _playback = PlaybackService.instance;
   PlaybackPosition _playbackPosition = PlaybackPosition.none;
+  PlaybackStatus _playbackStatus = PlaybackStatus.stopped;
   StreamSubscription<PlaybackPosition>? _positionSub;
+  StreamSubscription<PlaybackState>? _stateSub;
 
   final _storage = ProjectStorageService();
   Project? _currentProject;
@@ -76,15 +78,21 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   }
 
   Future<void> _initPlayback() async {
-    await _playback.init();
+    // Subscribe before awaiting init so state changes are received even if
+    // the soundfont load is slow or fails (and in tests where it never completes).
     _positionSub = _playback.positionStream.listen((pos) {
       if (mounted) setState(() => _playbackPosition = pos);
     });
+    _stateSub = _playback.stateStream.listen((state) {
+      if (mounted) setState(() => _playbackStatus = state.status);
+    });
+    await _playback.init();
   }
 
   @override
   void dispose() {
     _positionSub?.cancel();
+    _stateSub?.cancel();
     _playback.stop();
     super.dispose();
   }
@@ -227,6 +235,85 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     if (mounted) setState(() => _scoreEditCount = count);
   }
 
+  Future<void> _showMetadataSheet() async {
+    final score = _editorState.score;
+    final titleCtrl = TextEditingController(text: score.title);
+    final composerCtrl = TextEditingController(text: score.composer);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            20, 20, 20,
+            MediaQuery.viewInsetsOf(ctx).bottom + 24,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Score Metadata',
+                      style: TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _MetadataField(label: 'Title', controller: titleCtrl),
+              const SizedBox(height: 12),
+              _MetadataField(label: 'Composer', controller: composerCtrl),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () {
+                    final newTitle = titleCtrl.text.trim();
+                    final newComposer = composerCtrl.text.trim();
+                    _updateState((s) {
+                      final updatedScore = Score(
+                        id: s.score.id,
+                        title: newTitle,
+                        composer: newComposer,
+                        parts: s.score.parts,
+                      );
+                      return s.copyWith(
+                        score: updatedScore,
+                        hasUnsavedChanges: true,
+                      );
+                    });
+                    Navigator.of(ctx).pop();
+                  },
+                  child: const Text('Save'),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    titleCtrl.dispose();
+    composerCtrl.dispose();
+  }
+
   void _updateState(EditorState Function(EditorState state) updater) {
     setState(() {
       final prev = _editorState;
@@ -352,6 +439,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isPlaybackActive = _playbackStatus == PlaybackStatus.playing;
     final selected = _editorState.selectedSymbol;
     final hasSelection = _editorState.hasSelection;
     final hasMeasureContext =
@@ -387,6 +475,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               isDraggingNote: _isDraggingNote,
               dragGlobal: _dragGlobal,
               trashZoneKey: _trashZoneKey,
+              showTrashZone: isLandscape,
+              isPlaybackActive: isPlaybackActive,
               onToggleInsertMode: _toggleInsertMode,
               onPaletteTypeTap: _onPaletteTypeTap,
               onSymbolTap: (target) {
@@ -451,6 +541,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
             final inspectorPanel = _InspectorPanel(
               isLandscape: isLandscape,
+              isPlaybackActive: isPlaybackActive,
               selected: selected,
               hasSelection: hasSelection,
               hasMeasureContext: hasMeasureContext,
@@ -479,8 +570,6 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               onQuarter: () => _updateState((s) => s.setSelectedDuration(quarterDuration)),
               onEighth: () => _updateState((s) => s.setSelectedDuration(eighthDuration)),
               onSetAccidental: (alter) => _updateState((s) => s.setSelectedNoteAccidental(alter)),
-              onInsertNote: () => _updateState((s) => s.insertNoteAfterSelection()),
-              onInsertRest: () => _updateState((s) => s.insertRestAfterSelection()),
               onMoveToPrev: () => _updateState((s) => s.moveSelectedSymbolToMeasureOffset(-1)),
               onMoveToNext: () => _updateState((s) => s.moveSelectedSymbolToMeasureOffset(1)),
               onAddMeasure: () => _updateState((s) => s.addMeasureAfterSelected()),
@@ -500,12 +589,13 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                           : _editorState.score.title),
                   hasUnsavedChanges: _editorState.hasUnsavedChanges,
                   editCount: _scoreEditCount,
-                  canUndo: _editorState.canUndo,
-                  canRedo: _editorState.canRedo,
+                  canUndo: _editorState.canUndo && !isPlaybackActive,
+                  canRedo: _editorState.canRedo && !isPlaybackActive,
                   onBack: () => Navigator.of(context).maybePop(),
                   onUndo: () => _updateState((s) => s.applyUndo()),
                   onRedo: () => _updateState((s) => s.applyRedo()),
                   onSave: _onSave,
+                  onMetadataTap: _showMetadataSheet,
                   onExportXml: () async {
                     try {
                       final path = await const MusicXmlExportService().exportToDevice(_editorState.score);
@@ -570,21 +660,35 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                             ),
                           ],
                         )
-                      : Column(
+                      : Stack(
                           children: [
-                            Expanded(
+                            Positioned.fill(
                               child: Padding(
-                                padding: const EdgeInsets.fromLTRB(12, 0, 12, 0),
+                                padding: const EdgeInsets.fromLTRB(12, 0, 12, _kInspectorBarHeight),
                                 child: notationArea,
                               ),
                             ),
-                            SizedBox(
-                              height: (constraints.maxHeight * 0.36).clamp(200.0, 280.0),
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                                child: inspectorPanel,
+                            Positioned.fill(child: inspectorPanel),
+                            if (_isDraggingNote)
+                              Positioned(
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                height: _kInspectorBarHeight,
+                                child: Center(
+                                  child: _TrashZone(
+                                    key: _trashZoneKey,
+                                    isHovered: () {
+                                      if (_dragGlobal == Offset.zero) return false;
+                                      final box = _trashZoneKey.currentContext
+                                          ?.findRenderObject() as RenderBox?;
+                                      if (box == null) return false;
+                                      return (box.localToGlobal(Offset.zero) & box.size)
+                                          .contains(_dragGlobal);
+                                    }(),
+                                  ),
+                                ),
                               ),
-                            ),
                           ],
                         ),
                 ),
@@ -647,6 +751,7 @@ class _EditorHeader extends StatelessWidget {
     required this.onExportXml,
     required this.onExportPdf,
     required this.scoreIsEmpty,
+    required this.onMetadataTap,
   });
 
   final String title;
@@ -661,6 +766,7 @@ class _EditorHeader extends StatelessWidget {
   final VoidCallback onExportXml;
   final VoidCallback onExportPdf;
   final bool scoreIsEmpty;
+  final VoidCallback onMetadataTap;
 
   @override
   Widget build(BuildContext context) {
@@ -681,7 +787,9 @@ class _EditorHeader extends StatelessWidget {
           ),
           const SizedBox(width: 4),
           Expanded(
-            child: Column(
+            child: GestureDetector(
+              onTap: onMetadataTap,
+              child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -700,19 +808,23 @@ class _EditorHeader extends StatelessWidget {
                       ),
                     ),
                     if (hasUnsavedChanges) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppColors.accent.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          'Unsaved',
-                          style: TextStyle(
-                            color: AppColors.accent,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.accent.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'Unsaved',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: AppColors.accent,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ),
@@ -743,6 +855,7 @@ class _EditorHeader extends StatelessWidget {
               ],
             ),
           ),
+        ),
           IconButton(
             onPressed: canUndo ? onUndo : null,
             icon: const Icon(Icons.undo_rounded, size: 18),
@@ -808,6 +921,9 @@ class _EditorHeader extends StatelessWidget {
 // Notation area — A4-like canvas with InteractiveViewer for pan/zoom
 // ---------------------------------------------------------------------------
 
+// Inspector bar height (portrait bottom action bar, sits above PlaybackControlsBar).
+const double _kInspectorBarHeight = 56.0;
+
 // Page geometry constants (portrait A4-like layout at logical pixels).
 const double _kPageWidth = 760.0;
 const double _kPagePaddingH = 16.0;
@@ -829,6 +945,8 @@ class _NotationArea extends StatefulWidget {
     required this.isDraggingNote,
     required this.dragGlobal,
     required this.trashZoneKey,
+    this.showTrashZone = true,
+    required this.isPlaybackActive,
     required this.onToggleInsertMode,
     required this.onPaletteTypeTap,
     required this.onSymbolTap,
@@ -847,6 +965,8 @@ class _NotationArea extends StatefulWidget {
   final bool isDraggingNote;
   final Offset dragGlobal;
   final GlobalKey trashZoneKey;
+  final bool showTrashZone;
+  final bool isPlaybackActive;
   final VoidCallback onToggleInsertMode;
   final ValueChanged<PaletteSymbolType> onPaletteTypeTap;
   final ValueChanged<NotationSymbolTarget?> onSymbolTap;
@@ -1030,16 +1150,21 @@ class _NotationAreaState extends State<_NotationArea> {
                                   ? null
                                   : widget.playbackPosition.symbolIndex,
                               insertMode: widget.insertMode,
-                              canAcceptExternalDrop: (data) =>
-                                  data is PaletteDragData,
+                              canAcceptExternalDrop: widget.isPlaybackActive
+                                  ? (_) => false
+                                  : (data) => data is PaletteDragData,
                               externalPreviewResolver:
                                   _previewGlyphForDragData,
-                              onExternalDrop: widget.onExternalDrop,
-                              onSymbolTap:
-                                  widget.insertMode ? null : widget.onSymbolTap,
-                              onInsertTap:
-                                  widget.insertMode ? widget.onInsertTap : null,
-                              onDragStarted: widget.insertMode
+                              onExternalDrop: widget.isPlaybackActive
+                                  ? null
+                                  : widget.onExternalDrop,
+                              onSymbolTap: (widget.insertMode || widget.isPlaybackActive)
+                                  ? null
+                                  : widget.onSymbolTap,
+                              onInsertTap: (widget.insertMode && !widget.isPlaybackActive)
+                                  ? widget.onInsertTap
+                                  : null,
+                              onDragStarted: (widget.insertMode || widget.isPlaybackActive)
                                   ? null
                                   : widget.onDragStarted,
                               onDragGlobalUpdate: widget.onDragGlobalUpdate,
@@ -1091,8 +1216,9 @@ class _NotationAreaState extends State<_NotationArea> {
                   ),
                 ),
 
-              // Trash zone — appears during note drag
-              if (widget.isDraggingNote)
+              // Trash zone — only shown here in landscape; portrait renders it
+              // in the outer Stack so it overlays the inspector bar.
+              if (widget.showTrashZone && widget.isDraggingNote)
                 Positioned(
                   bottom: 12,
                   left: 0,
@@ -1118,19 +1244,26 @@ class _NotationAreaState extends State<_NotationArea> {
                 bottom: 8,
                 child: _FloatingControls(
                   zoomPercent: _zoomPercent,
-                  insertMode: widget.insertMode,
+                  insertMode: widget.insertMode && !widget.isPlaybackActive,
                   onZoomIn: _zoomIn,
                   onZoomOut: _zoomOut,
                   onFitToScreen: _fitToScreen,
-                  onToggleInsertMode: widget.onToggleInsertMode,
+                  onToggleInsertMode: widget.isPlaybackActive
+                      ? () {}
+                      : widget.onToggleInsertMode,
                 ),
               ),
             ],
           ),
         ),
-        SymbolPalette(
-          selectedType: widget.insertMode ? widget.insertSymbolType : null,
-          onTypeTap: widget.onPaletteTypeTap,
+        IgnorePointer(
+          ignoring: widget.isPlaybackActive,
+          child: SymbolPalette(
+            selectedType: widget.insertMode && !widget.isPlaybackActive
+                ? widget.insertSymbolType
+                : null,
+            onTypeTap: widget.onPaletteTypeTap,
+          ),
         ),
       ],
     );
@@ -1280,9 +1413,10 @@ class _ZoomBtn extends StatelessWidget {
 // Inspector panel (routes to landscape or portrait variant)
 // ---------------------------------------------------------------------------
 
-class _InspectorPanel extends StatelessWidget {
+class _InspectorPanel extends StatefulWidget {
   const _InspectorPanel({
     required this.isLandscape,
+    required this.isPlaybackActive,
     required this.selected,
     required this.hasSelection,
     required this.hasMeasureContext,
@@ -1297,8 +1431,6 @@ class _InspectorPanel extends StatelessWidget {
     required this.onQuarter,
     required this.onEighth,
     required this.onSetAccidental,
-    required this.onInsertNote,
-    required this.onInsertRest,
     required this.onMoveToPrev,
     required this.onMoveToNext,
     required this.onAddMeasure,
@@ -1307,6 +1439,7 @@ class _InspectorPanel extends StatelessWidget {
   });
 
   final bool isLandscape;
+  final bool isPlaybackActive;
   final ScoreSymbol? selected;
   final bool hasSelection;
   final bool hasMeasureContext;
@@ -1321,8 +1454,6 @@ class _InspectorPanel extends StatelessWidget {
   final VoidCallback onQuarter;
   final VoidCallback onEighth;
   final void Function(int? alter) onSetAccidental;
-  final VoidCallback onInsertNote;
-  final VoidCallback onInsertRest;
   final VoidCallback onMoveToPrev;
   final VoidCallback onMoveToNext;
   final VoidCallback onAddMeasure;
@@ -1330,69 +1461,94 @@ class _InspectorPanel extends StatelessWidget {
   final VoidCallback onDeleteMeasure;
 
   @override
-  Widget build(BuildContext context) {
-    final selectionCard = _SelectionCard(
-      selected: selected,
-      hasSelection: hasSelection,
-      selectedMeasureIndex: selectedMeasureIndex,
-      measureCount: measureCount,
-      onPrevMeasure: onPrevMeasure,
-      onNextMeasure: onNextMeasure,
-      compact: !isLandscape,
-    );
+  State<_InspectorPanel> createState() => _InspectorPanelState();
+}
 
-    final isNoteSelected = selected is Note;
-    final currentAlter = isNoteSelected ? (selected as Note).alter : null;
+class _InspectorPanelState extends State<_InspectorPanel> {
+  int? _activeGroupIndex;
 
-    final groups = [
+  static const _groupIcons = [
+    Icons.unfold_more_rounded,
+    Icons.piano_rounded,
+    Icons.access_time_rounded,
+    Icons.grid_on_rounded,
+  ];
+
+  @override
+  void didUpdateWidget(_InspectorPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isPlaybackActive && !oldWidget.isPlaybackActive && _activeGroupIndex != null) {
+      // Use post-frame to avoid calling setState during a build cycle.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _activeGroupIndex = null);
+      });
+    }
+  }
+
+  VoidCallback? _wrapAction(VoidCallback? action) =>
+      widget.isPlaybackActive ? null : action;
+
+  List<_ActionGroup> _buildGroups() {
+    final isNoteSelected = widget.selected is Note;
+    final currentAlter = isNoteSelected ? (widget.selected as Note).alter : null;
+
+    return [
       _ActionGroup(
         label: 'PITCH',
         children: [
-          _ActionTile(icon: Icons.keyboard_arrow_up_rounded, label: 'Up', onPressed: hasSelection ? onMoveUp : null),
-          _ActionTile(icon: Icons.keyboard_arrow_down_rounded, label: 'Down', onPressed: hasSelection ? onMoveDown : null),
+          _ActionTile(icon: Icons.keyboard_arrow_up_rounded, label: 'Up', onPressed: _wrapAction(widget.hasSelection ? widget.onMoveUp : null)),
+          _ActionTile(icon: Icons.keyboard_arrow_down_rounded, label: 'Down', onPressed: _wrapAction(widget.hasSelection ? widget.onMoveDown : null)),
         ],
       ),
       _ActionGroup(
         label: 'ACCIDENTAL',
         children: [
           _AccTile(label: '—', sublabel: 'None', isActive: isNoteSelected && currentAlter == null,
-              onPressed: isNoteSelected ? () => onSetAccidental(null) : null),
+              onPressed: _wrapAction(isNoteSelected ? () => widget.onSetAccidental(null) : null)),
           _AccTile(label: '♯', sublabel: 'Sharp', isActive: isNoteSelected && currentAlter == 1,
-              onPressed: isNoteSelected ? () => onSetAccidental(1) : null),
+              onPressed: _wrapAction(isNoteSelected ? () => widget.onSetAccidental(1) : null)),
           _AccTile(label: '♭', sublabel: 'Flat', isActive: isNoteSelected && currentAlter == -1,
-              onPressed: isNoteSelected ? () => onSetAccidental(-1) : null),
+              onPressed: _wrapAction(isNoteSelected ? () => widget.onSetAccidental(-1) : null)),
           _AccTile(label: '♮', sublabel: 'Natural', isActive: isNoteSelected && currentAlter == 0,
-              onPressed: isNoteSelected ? () => onSetAccidental(0) : null),
+              onPressed: _wrapAction(isNoteSelected ? () => widget.onSetAccidental(0) : null)),
         ],
       ),
       _ActionGroup(
         label: 'DURATION',
         children: [
-          _DurTile(label: 'W', sublabel: 'Whole', onPressed: hasSelection ? onWhole : null),
-          _DurTile(label: 'H', sublabel: 'Half', onPressed: hasSelection ? onHalf : null),
-          _DurTile(label: '♩', sublabel: 'Qtr', onPressed: hasSelection ? onQuarter : null),
-          _DurTile(label: '♪', sublabel: '8th', onPressed: hasSelection ? onEighth : null),
+          _DurTile(label: 'W', sublabel: 'Whole', onPressed: _wrapAction(widget.hasSelection ? widget.onWhole : null)),
+          _DurTile(label: 'H', sublabel: 'Half', onPressed: _wrapAction(widget.hasSelection ? widget.onHalf : null)),
+          _DurTile(label: '♩', sublabel: 'Qtr', onPressed: _wrapAction(widget.hasSelection ? widget.onQuarter : null)),
+          _DurTile(label: '♪', sublabel: '8th', onPressed: _wrapAction(widget.hasSelection ? widget.onEighth : null)),
         ],
       ),
       _ActionGroup(
         label: 'MEASURE',
         children: [
-          _ActionTile(icon: Icons.skip_previous_rounded, label: 'Prev', onPressed: hasSelection ? onMoveToPrev : null),
-          _ActionTile(icon: Icons.skip_next_rounded, label: 'Next', onPressed: hasSelection ? onMoveToNext : null),
-          _ActionTile(icon: Icons.add_rounded, label: 'Add', onPressed: hasMeasureContext ? onAddMeasure : null),
-          _ActionTile(icon: Icons.remove_rounded, label: 'Del', onPressed: canDeleteMeasure ? onDeleteMeasure : null, danger: true),
-        ],
-      ),
-      _ActionGroup(
-        label: 'INSERT',
-        children: [
-          _ActionTile(icon: Icons.music_note_rounded, label: 'Note', onPressed: hasMeasureContext ? onInsertNote : null),
-          _ActionTile(icon: Icons.horizontal_rule_rounded, label: 'Rest', onPressed: hasMeasureContext ? onInsertRest : null),
+          _ActionTile(icon: Icons.skip_previous_rounded, label: 'Prev', onPressed: _wrapAction(widget.hasSelection ? widget.onMoveToPrev : null)),
+          _ActionTile(icon: Icons.skip_next_rounded, label: 'Next', onPressed: _wrapAction(widget.hasSelection ? widget.onMoveToNext : null)),
+          _ActionTile(icon: Icons.add_rounded, label: 'Add', onPressed: _wrapAction(widget.hasMeasureContext ? widget.onAddMeasure : null)),
+          _ActionTile(icon: Icons.remove_rounded, label: 'Del', onPressed: _wrapAction(widget.canDeleteMeasure ? widget.onDeleteMeasure : null), danger: true),
         ],
       ),
     ];
+  }
 
-    if (isLandscape) {
+  @override
+  Widget build(BuildContext context) {
+    final groups = _buildGroups();
+
+    final selectionCard = _SelectionCard(
+      selected: widget.selected,
+      hasSelection: widget.hasSelection,
+      selectedMeasureIndex: widget.selectedMeasureIndex,
+      measureCount: widget.measureCount,
+      onPrevMeasure: widget.onPrevMeasure,
+      onNextMeasure: widget.onNextMeasure,
+      compact: !widget.isLandscape,
+    );
+
+    if (widget.isLandscape) {
       return Container(
         decoration: BoxDecoration(
           color: AppColors.surface,
@@ -1416,46 +1572,50 @@ class _InspectorPanel extends StatelessWidget {
       );
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        children: [
-          Center(
-            child: Container(
-              margin: const EdgeInsets.only(top: 8),
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: AppColors.border,
-                borderRadius: BorderRadius.circular(2),
-              ),
+    // ── Portrait: bottom inspector bar ────────────────────────────────────
+    return Stack(
+      children: [
+        // Barrier — tapping canvas dismisses the open popup
+        if (_activeGroupIndex != null)
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: () => setState(() => _activeGroupIndex = null),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            child: selectionCard,
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: groups
-                    .map((g) => _PortraitGroup(group: g))
-                    .expand((w) => [w, _Divider()])
-                    .toList()
-                  ..removeLast(),
-              ),
+        // Selection card — top of canvas
+        Positioned(
+          top: 8,
+          left: 8,
+          right: 8,
+          child: selectionCard,
+        ),
+        // Active group popup — floats above the bottom bar
+        if (_activeGroupIndex != null && !widget.isPlaybackActive)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: _kInspectorBarHeight + 8,
+            child: Center(
+              child: _ToolGroupPopup(group: groups[_activeGroupIndex!]),
             ),
           ),
-        ],
-      ),
+        // Bottom inspector bar
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: _BottomInspectorBar(
+            groups: groups,
+            icons: _groupIcons,
+            activeIndex: _activeGroupIndex,
+            disabled: widget.isPlaybackActive,
+            onGroupTap: (i) => setState(() {
+              _activeGroupIndex = _activeGroupIndex == i ? null : i;
+            }),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1497,32 +1657,132 @@ class _LandscapeGroup extends StatelessWidget {
   }
 }
 
-class _PortraitGroup extends StatelessWidget {
-  const _PortraitGroup({required this.group});
+// ---------------------------------------------------------------------------
+// Bottom inspector bar (portrait)
+// ---------------------------------------------------------------------------
+
+class _BottomInspectorBar extends StatelessWidget {
+  const _BottomInspectorBar({
+    required this.groups,
+    required this.icons,
+    required this.activeIndex,
+    required this.onGroupTap,
+    this.disabled = false,
+  });
+
+  final List<_ActionGroup> groups;
+  final List<IconData> icons;
+  final int? activeIndex;
+  final ValueChanged<int> onGroupTap;
+  final bool disabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: _kInspectorBarHeight,
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.border)),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0x33000000),
+            blurRadius: 8,
+            offset: Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: List.generate(groups.length, (i) {
+          final isActive = activeIndex == i;
+          final iconColor = disabled
+              ? AppColors.textSecondary.withValues(alpha: 0.3)
+              : isActive
+                  ? AppColors.accent
+                  : AppColors.textSecondary;
+          return Expanded(
+            child: GestureDetector(
+              onTap: disabled ? null : () => onGroupTap(i),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                decoration: BoxDecoration(
+                  color: isActive && !disabled
+                      ? AppColors.accent.withValues(alpha: 0.10)
+                      : Colors.transparent,
+                  border: Border(
+                    top: BorderSide(
+                      color: isActive && !disabled
+                          ? AppColors.accent
+                          : Colors.transparent,
+                      width: 2,
+                    ),
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icons[i], size: 20, color: iconColor),
+                    const SizedBox(height: 2),
+                    Text(
+                      groups[i].label.length > 3
+                          ? groups[i].label.substring(0, 3)
+                          : groups[i].label,
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
+                        color: iconColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
+class _ToolGroupPopup extends StatelessWidget {
+  const _ToolGroupPopup({required this.group});
 
   final _ActionGroup group;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          group.label,
-          style: const TextStyle(
-            fontSize: 9,
-            color: AppColors.textSecondary,
-            letterSpacing: 0.8,
-            fontWeight: FontWeight.w600,
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 220),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 14,
+            offset: const Offset(-4, 0),
           ),
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: group.children
-              .map((c) => Padding(padding: const EdgeInsets.only(right: 4), child: c))
-              .toList(),
-        ),
-      ],
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            group.label,
+            style: const TextStyle(
+              fontSize: 9,
+              color: AppColors.textSecondary,
+              letterSpacing: 1.0,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(spacing: 4, runSpacing: 4, children: group.children),
+        ],
+      ),
     );
   }
 }
@@ -1565,18 +1825,6 @@ class _TrashZone extends StatelessWidget {
         color: Colors.white,
         size: 24,
       ),
-    );
-  }
-}
-
-class _Divider extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 52,
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      color: AppColors.border,
     );
   }
 }
@@ -1971,6 +2219,53 @@ class _AccTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _MetadataField extends StatelessWidget {
+  const _MetadataField({required this.label, required this.controller});
+
+  final String label;
+  final TextEditingController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: controller,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+          cursorColor: AppColors.accent,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: AppColors.background,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.accent),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+        ),
+      ],
     );
   }
 }

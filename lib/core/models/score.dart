@@ -25,7 +25,7 @@ class Score {
   factory Score.fromJson(Map<String, dynamic> json) => Score(
         id: json['id'] as String,
         title: json['title'] as String,
-        composer: json['composer'] as String,
+        composer: (json['composer'] as String?) ?? '',
         parts: (json['parts'] as List<dynamic>)
             .map((p) => Part.fromJson(p as Map<String, dynamic>))
             .toList(),
