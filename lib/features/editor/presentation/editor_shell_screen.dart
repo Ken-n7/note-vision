@@ -101,38 +101,45 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   // ── Save logic ─────────────────────────────────────────────────────────────
 
   Future<void> _onSave() async {
-    try {
-      if (_currentProject == null) {
-        final defaultName = _editorState.score.title.trim().isEmpty
-            ? 'Untitled'
-            : _editorState.score.title.trim();
-        final name = await _showNameDialog(defaultName);
-        if (name == null || !mounted) return;
+    if (_currentProject == null) {
+      final defaultName = _editorState.score.title.trim().isEmpty
+          ? 'Untitled'
+          : _editorState.score.title.trim();
+      final name = await _showNameDialog(defaultName);
+      if (name == null || !mounted) return;
 
-        final project = Project.create(name: name, score: _editorState.score);
+      final project = Project.create(name: name, score: _editorState.score);
+      try {
         await _storage.saveProject(project);
-
+      } catch (e) {
         if (!mounted) return;
-        setState(() {
-          _currentProject = project;
-          _editorState = _editorState.copyWith(hasUnsavedChanges: false);
-        });
-        _showSavedSnackbar(name);
-      } else {
-        final updated =
-            _currentProject!.copyWithUpdated(score: _editorState.score);
-        await _storage.saveProject(updated);
-
-        if (!mounted) return;
-        setState(() {
-          _currentProject = updated;
-          _editorState = _editorState.copyWith(hasUnsavedChanges: false);
-        });
-        _showSavedSnackbar(updated.name);
+        setState(() => _saveError = e.toString());
+        return;
       }
-    } catch (e) {
+
       if (!mounted) return;
-      setState(() => _saveError = e.toString());
+      setState(() {
+        _currentProject = project;
+        _editorState = _editorState.copyWith(hasUnsavedChanges: false);
+      });
+      _showSavedSnackbar(name);
+    } else {
+      final updated =
+          _currentProject!.copyWithUpdated(score: _editorState.score);
+      try {
+        await _storage.saveProject(updated);
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _saveError = e.toString());
+        return;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _currentProject = updated;
+        _editorState = _editorState.copyWith(hasUnsavedChanges: false);
+      });
+      _showSavedSnackbar(updated.name);
     }
   }
 
