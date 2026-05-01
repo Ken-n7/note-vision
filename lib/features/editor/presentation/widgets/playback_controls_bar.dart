@@ -94,55 +94,49 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
               Container(width: 1, height: 24, color: AppColors.border),
               const SizedBox(width: 12),
 
-              // ── Tempo label ──────────────────────────────────────────
-              const Icon(Icons.speed_rounded, size: 14, color: AppColors.textSecondary),
-              const SizedBox(width: 6),
-
-              // ── Tempo slider ─────────────────────────────────────────
+              // ── Tempo stepper ─────────────────────────────────────────
               Expanded(
-                child: SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    activeTrackColor: disabled
-                        ? AppColors.textSecondary.withValues(alpha: 0.2)
-                        : AppColors.accent,
-                    inactiveTrackColor: AppColors.border,
-                    thumbColor: disabled
-                        ? AppColors.textSecondary.withValues(alpha: 0.3)
-                        : AppColors.accent,
-                    overlayColor: AppColors.accent.withValues(alpha: 0.12),
-                    trackHeight: 2.5,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-                  ),
-                  child: Slider(
-                    value: _tempo.clamp(40, 200),
-                    min: 40,
-                    max: 200,
-                    divisions: 160,
-                    onChanged: disabled
-                        ? null
-                        : (v) {
-                            setState(() => _tempo = v);
-                            widget.onTempoChanged(v.round());
-                          },
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-
-              // ── BPM value ────────────────────────────────────────────
-              SizedBox(
-                width: 54,
-                child: Text(
-                  '${_tempo.round()} BPM',
-                  style: TextStyle(
-                    color: disabled
-                        ? AppColors.textSecondary.withValues(alpha: 0.4)
-                        : AppColors.textSecondary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.speed_rounded, size: 14, color: AppColors.textSecondary),
+                    const SizedBox(width: 8),
+                    _TempoButton(
+                      icon: Icons.remove,
+                      disabled: disabled || _tempo <= 40,
+                      onPressed: () {
+                        final next = (_tempo.round() - 5).clamp(40, 200).toDouble();
+                        setState(() => _tempo = next);
+                        widget.onTempoChanged(next.round());
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                    SizedBox(
+                      width: 60,
+                      child: Text(
+                        '${_tempo.round()} BPM',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: disabled
+                              ? AppColors.textSecondary.withValues(alpha: 0.4)
+                              : AppColors.textPrimary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    _TempoButton(
+                      icon: Icons.add,
+                      disabled: disabled || _tempo >= 200,
+                      onPressed: () {
+                        final next = (_tempo.round() + 5).clamp(40, 200).toDouble();
+                        setState(() => _tempo = next);
+                        widget.onTempoChanged(next.round());
+                      },
+                    ),
+                  ],
                 ),
               ),
 
@@ -167,8 +161,45 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
 }
 
 // ---------------------------------------------------------------------------
-// Internal button widget
+// Internal widgets
 // ---------------------------------------------------------------------------
+
+class _TempoButton extends StatelessWidget {
+  const _TempoButton({
+    required this.icon,
+    required this.onPressed,
+    required this.disabled,
+  });
+
+  final IconData icon;
+  final VoidCallback onPressed;
+  final bool disabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 28,
+      height: 28,
+      child: Material(
+        color: disabled
+            ? AppColors.border.withValues(alpha: 0.3)
+            : AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(6),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: disabled ? null : onPressed,
+          child: Icon(
+            icon,
+            size: 14,
+            color: disabled
+                ? AppColors.textSecondary.withValues(alpha: 0.3)
+                : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _ControlButton extends StatelessWidget {
   const _ControlButton({

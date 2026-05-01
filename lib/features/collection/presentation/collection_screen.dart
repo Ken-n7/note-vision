@@ -289,49 +289,14 @@ class _CollectionScreenState extends State<CollectionScreen>
           horizontalPadding,
           isLandscape ? 8 : 12,
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'MY COLLECTION',
-              style: TextStyle(
-                fontSize: isLandscape ? 10 : 11,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
-                letterSpacing: 2.0,
-              ),
-            ),
-            if (_userProfile != null)
-              Row(
-                children: [
-                  Text(
-                    _userProfile!.name,
-                    style: TextStyle(
-                      fontSize: isLandscape ? 10 : 11,
-                      color: AppColors.textSecondary,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  UserAvatar(
-                    initial: _userProfile!.initial,
-                    photoPath: _userProfile!.photoPath,
-                    size: 24,
-                    borderColor: const Color(0xFF2A2A2A),
-                    borderWidth: 1.5,
-                  ),
-                ],
-              )
-            else if (!_isLoading && _projects.isNotEmpty)
-              Text(
-                '${_projects.length} items',
-                style: TextStyle(
-                  fontSize: isLandscape ? 10 : 11,
-                  color: AppColors.textSecondary,
-                  letterSpacing: 0.3,
-                ),
-              ),
-          ],
+        child: Text(
+          'MY COLLECTION',
+          style: TextStyle(
+            fontSize: isLandscape ? 10 : 11,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
+            letterSpacing: 2.0,
+          ),
         ),
       ),
     );
@@ -378,28 +343,6 @@ class _CollectionScreenState extends State<CollectionScreen>
     );
   }
 
-  Widget _buildFab() {
-    return GestureDetector(
-      onTap: _goToCapture,
-      child: Container(
-        width: 52,
-        height: 52,
-        decoration: BoxDecoration(
-          color: AppColors.textPrimary,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.accent.withValues(alpha: 0.2),
-              blurRadius: 16,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: const Icon(Icons.add, color: AppColors.background, size: 24),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final orientation = MediaQuery.of(context).orientation;
@@ -414,7 +357,6 @@ class _CollectionScreenState extends State<CollectionScreen>
         if (!isOpen) _loadProfile();
       },
       endDrawer: const CollectionDrawer(),
-      floatingActionButton: _projects.isNotEmpty ? _buildFab() : null,
       appBar: AppBar(
         leading: Padding(
           padding: EdgeInsets.only(left: horizontalPadding),
@@ -437,10 +379,21 @@ class _CollectionScreenState extends State<CollectionScreen>
         bottom: _buildAppBarBottom(isLandscape, horizontalPadding),
         actions: [
           Builder(
-            builder: (context) => IconButton(
-              icon: const Icon(Icons.menu,
-                  color: AppColors.textPrimary, size: 22),
-              onPressed: () => Scaffold.of(context).openEndDrawer(),
+            builder: (context) => Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: GestureDetector(
+                onTap: () => Scaffold.of(context).openEndDrawer(),
+                child: _userProfile != null
+                    ? UserAvatar(
+                        initial: _userProfile!.initial,
+                        photoPath: _userProfile!.photoPath,
+                        size: 28,
+                        borderColor: AppColors.accent.withValues(alpha: 0.5),
+                        borderWidth: 1.5,
+                      )
+                    : const Icon(Icons.person_rounded,
+                        color: AppColors.textPrimary, size: 24),
+              ),
             ),
           ),
         ],

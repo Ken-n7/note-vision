@@ -65,6 +65,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   final _storage = ProjectStorageService();
   Project? _currentProject;
   int _scoreEditCount = 0;
+  String? _saveError;
 
   @override
   void initState() {
@@ -100,33 +101,38 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   // ── Save logic ─────────────────────────────────────────────────────────────
 
   Future<void> _onSave() async {
-    if (_currentProject == null) {
-      final defaultName = _editorState.score.title.trim().isEmpty
-          ? 'Untitled'
-          : _editorState.score.title.trim();
-      final name = await _showNameDialog(defaultName);
-      if (name == null || !mounted) return;
+    try {
+      if (_currentProject == null) {
+        final defaultName = _editorState.score.title.trim().isEmpty
+            ? 'Untitled'
+            : _editorState.score.title.trim();
+        final name = await _showNameDialog(defaultName);
+        if (name == null || !mounted) return;
 
-      final project = Project.create(name: name, score: _editorState.score);
-      await _storage.saveProject(project);
+        final project = Project.create(name: name, score: _editorState.score);
+        await _storage.saveProject(project);
 
+        if (!mounted) return;
+        setState(() {
+          _currentProject = project;
+          _editorState = _editorState.copyWith(hasUnsavedChanges: false);
+        });
+        _showSavedSnackbar(name);
+      } else {
+        final updated =
+            _currentProject!.copyWithUpdated(score: _editorState.score);
+        await _storage.saveProject(updated);
+
+        if (!mounted) return;
+        setState(() {
+          _currentProject = updated;
+          _editorState = _editorState.copyWith(hasUnsavedChanges: false);
+        });
+        _showSavedSnackbar(updated.name);
+      }
+    } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _currentProject = project;
-        _editorState = _editorState.copyWith(hasUnsavedChanges: false);
-      });
-      _showSavedSnackbar(name);
-    } else {
-      final updated =
-          _currentProject!.copyWithUpdated(score: _editorState.score);
-      await _storage.saveProject(updated);
-
-      if (!mounted) return;
-      setState(() {
-        _currentProject = updated;
-        _editorState = _editorState.copyWith(hasUnsavedChanges: false);
-      });
-      _showSavedSnackbar(updated.name);
+      setState(() => _saveError = e.toString());
     }
   }
 
@@ -580,8 +586,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
             final scoreIsEmpty = _editorState.score.parts.isEmpty ||
                 _editorState.score.parts.every((p) => p.measures.every((m) => m.symbols.isEmpty));
 
-            return Column(
+            return Stack(
               children: [
+                Column(
+                children: [
                 _EditorHeader(
                   title: _currentProject?.name ??
                       (_editorState.score.title.isEmpty
@@ -701,7 +709,18 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   onTempoChanged: _playback.setTempo,
                 ),
               ],
-            );
+            ),
+            if (_saveError != null)
+              _SaveErrorOverlay(
+                message: _saveError!,
+                onDismiss: () => setState(() => _saveError = null),
+                onRetry: () {
+                  setState(() => _saveError = null);
+                  _onSave();
+                },
+              ),
+          ],
+        );
           },
         ),
       ),
@@ -2328,6 +2347,84 @@ class _DurTile extends StatelessWidget {
                 maxLines: 1,
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Save error overlay
+// ---------------------------------------------------------------------------
+
+class _SaveErrorOverlay extends StatelessWidget {
+  const _SaveErrorOverlay({
+    required this.message,
+    required this.onDismiss,
+    required this.onRetry,
+  });
+
+  final String message;
+  final VoidCallback onDismiss;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFFB91C1C),
+      child: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline_rounded,
+                    color: Colors.white, size: 64),
+                const SizedBox(height: 16),
+                const Text(
+                  'Save Failed',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 32),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    OutlinedButton(
+                      onPressed: onDismiss,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Colors.white54),
+                      ),
+                      child: const Text('Dismiss'),
+                    ),
+                    const SizedBox(width: 12),
+                    FilledButton(
+                      onPressed: onRetry,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFFB91C1C),
+                      ),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
