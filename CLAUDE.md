@@ -211,6 +211,7 @@ These are final unless explicitly changed:
 - **Username:** Name + profile photo. First-launch onboarding. Stored locally.
 - **App is fully offline:** No network calls, no auth, no backend, ever.
 - **noteheadBlack fallback:** When YOLO misses the stem of a black notehead, the note is assumed quarter rather than dropped. Priority: (1) stem + flag/beam → eighth, (2) stem only → quarter, (3) beam but no stem → eighth, (4) no stem/beam → quarter.
+- **Multi-page rendering:** Editor splits the score into pages of `_kMeasuresPerPage = 9` measures (3 rows × 3). `_currentPageIndex` lives in `_EditorShellScreenState` (not `EditorState`) so undo/redo don't change pages. `ScoreNotationViewer` accepts `firstMeasureIndex` + `pageMeasureCount` to slice measures; `_NotationAreaState` translates all interaction indices (tap, insert, drag, drop) between page-relative and absolute. Measure prev/next navigation auto-switches pages at boundaries.
 
 ---
 
@@ -332,9 +333,9 @@ Sprints 1–9 (tickets 1–93) are fully shipped. Sprint 10 is the active sprint
 | # | Ticket | Owner | Status |
 |---|--------|-------|--------|
 | 94 | Collection Screen: Remove Redundant Add Button | Boleche | ✅ Done (sprint10-quick-fixes) |
-| 95 | Editor: Add Multi-Page Score Support | Canete | ⏳ Not started |
-| 96 | Editor: Replace Measure Navigation with Page Navigation | Boleche | ⏳ Not started |
-| 97 | Editor: Score Page Tab Bar | Boleche | ⏳ Not started |
+| 95 | Editor: Add Multi-Page Score Support | Canete | ✅ Done (sprint10-quick-fixes) |
+| 96 | Editor: Replace Measure Navigation with Page Navigation | Boleche | ✅ Done (sprint10-quick-fixes) |
+| 97 | Editor: Score Page Tab Bar | Boleche | ✅ Done (sprint10-quick-fixes) |
 | 98 | Editor: Redesign Tempo Control | Boleche | ✅ Done (sprint10-quick-fixes) |
 | 99 | Editor: In-Project Scan (Add a New Page from the Editor) | Canete | ⏳ Not started |
 | 100 | Settings: Independent Scan Preview/Review Toggles | Canete | ⏳ Not started |
