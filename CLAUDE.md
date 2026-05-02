@@ -331,16 +331,16 @@ Sprints 1–9 (tickets 1–93) are fully shipped. Sprint 10 is the active sprint
 ### Sprint 10 🔄 In Progress
 | # | Ticket | Owner | Status |
 |---|--------|-------|--------|
-| 94 | Collection Screen: Remove Redundant Add Button | Boleche | ⏳ Not started |
+| 94 | Collection Screen: Remove Redundant Add Button | Boleche | ✅ Done (sprint10-quick-fixes) |
 | 95 | Editor: Add Multi-Page Score Support | Canete | ⏳ Not started |
 | 96 | Editor: Replace Measure Navigation with Page Navigation | Boleche | ⏳ Not started |
 | 97 | Editor: Score Page Tab Bar | Boleche | ⏳ Not started |
-| 98 | Editor: Redesign Tempo Control | Boleche | ⏳ Not started |
+| 98 | Editor: Redesign Tempo Control | Boleche | ✅ Done (sprint10-quick-fixes) |
 | 99 | Editor: In-Project Scan (Add a New Page from the Editor) | Canete | ⏳ Not started |
 | 100 | Settings: Independent Scan Preview/Review Toggles | Canete | ⏳ Not started |
-| 101 | Replace Burger Menu Button with Profile Icon as Drawer Trigger | Boleche | ⏳ Not started |
+| 101 | Replace Burger Menu Button with Profile Icon as Drawer Trigger | Boleche | ✅ Done (sprint10-quick-fixes) |
 | 102 | Editor: Smooth Page Transition During Playback | Canete | ⏳ Not started |
-| 103 | Editor: Full-Screen Error State on Save Failure | Canete | ⏳ Not started |
+| 103 | Editor: Full-Screen Error State on Save Failure | Canete | ✅ Done (sprint10-quick-fixes) |
 | 104 | Editor: Playback Auto-Advances Page | Canete | ⏳ Not started |
 
 ### Sprint 11 — Planned: Reconstruction Improvements

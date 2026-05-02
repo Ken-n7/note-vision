@@ -5,7 +5,7 @@ import '../../../../core/theme/app_theme.dart';
 
 /// Playback controls bar rendered at the bottom of the editor screen.
 ///
-/// Contains: play/pause toggle, stop button, tempo slider with BPM label.
+/// Contains: play/pause toggle, stop button, tempo stepper (+/- 5 BPM).
 /// Connects directly to [PlaybackService.instance] streams.
 class PlaybackControlsBar extends StatefulWidget {
   const PlaybackControlsBar({
@@ -34,6 +34,12 @@ class PlaybackControlsBar extends StatefulWidget {
 class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
   final _svc = PlaybackService.instance;
   late double _tempo;
+
+  void _adjustTempo(int delta) {
+    final next = (_tempo.round() + delta).clamp(40, 200).toDouble();
+    setState(() => _tempo = next);
+    widget.onTempoChanged(next.round());
+  }
 
   @override
   void initState() {
@@ -104,11 +110,7 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
                     _TempoButton(
                       icon: Icons.remove,
                       disabled: disabled || _tempo <= 40,
-                      onPressed: () {
-                        final next = (_tempo.round() - 5).clamp(40, 200).toDouble();
-                        setState(() => _tempo = next);
-                        widget.onTempoChanged(next.round());
-                      },
+                      onPressed: () => _adjustTempo(-5),
                     ),
                     const SizedBox(width: 6),
                     SizedBox(
@@ -130,11 +132,7 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
                     _TempoButton(
                       icon: Icons.add,
                       disabled: disabled || _tempo >= 200,
-                      onPressed: () {
-                        final next = (_tempo.round() + 5).clamp(40, 200).toDouble();
-                        setState(() => _tempo = next);
-                        widget.onTempoChanged(next.round());
-                      },
+                      onPressed: () => _adjustTempo(5),
                     ),
                   ],
                 ),

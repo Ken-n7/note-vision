@@ -22,6 +22,8 @@ class ScoreNotationViewer extends StatefulWidget {
     this.rowHeight = 140,
     this.padding = const EdgeInsets.all(16),
     this.backgroundColor = const Color(0xFFF9FAFB),
+    this.firstMeasureIndex = 0,
+    this.pageMeasureCount,
     this.selectedMeasureIndex,
     this.selectedSymbolIndex,
     this.playbackPartIndex,
@@ -46,6 +48,13 @@ class ScoreNotationViewer extends StatefulWidget {
   final double rowHeight;
   final EdgeInsets padding;
   final Color backgroundColor;
+
+  /// Index of the first measure to render (for multi-page display).
+  final int firstMeasureIndex;
+
+  /// Number of measures to render starting at [firstMeasureIndex]; null = all.
+  final int? pageMeasureCount;
+
   final int? selectedMeasureIndex;
   final int? selectedSymbolIndex;
 
@@ -473,16 +482,25 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     return null;
   }
 
+  List<Measure> _sliceMeasures(List<Measure> measures) {
+    final start = widget.firstMeasureIndex.clamp(0, measures.length);
+    final count = widget.pageMeasureCount;
+    final end = count != null
+        ? (start + count).clamp(start, measures.length)
+        : measures.length;
+    return measures.sublist(start, end);
+  }
+
   List<List<Measure>> _partsFor(Score? score) {
     if (score == null || score.parts.isEmpty) return const [];
-    return score.parts.map((p) => p.measures).toList(growable: false);
+    return score.parts.map((p) => _sliceMeasures(p.measures)).toList(growable: false);
   }
 
   List<Measure> _measuresFor(Score? score) {
     if (score == null || score.parts.isEmpty || widget.selectedPartIndex >= score.parts.length) {
       return const <Measure>[];
     }
-    return score.parts[widget.selectedPartIndex].measures;
+    return _sliceMeasures(score.parts[widget.selectedPartIndex].measures);
   }
 }
 
