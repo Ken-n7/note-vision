@@ -205,6 +205,8 @@ These are final unless explicitly changed:
 - **Delete symbol:** drag-to-trash gesture — drag a symbol to the trash zone in `EditorShellScreen`; no separate delete button. In portrait mode the trash zone overlays the inspector bar (`bottom: 0, height: _kInspectorBarHeight`) while a drag is active so it stays reachable at the bottom edge.
 - **Portrait inspector:** `_BottomInspectorBar` — a 56 px horizontal bar (`_kInspectorBarHeight = 56.0`) above `PlaybackControlsBar` with four tab buttons (PITCH, ACCIDENTAL, DURATION, MEASURE). Tapping a tab opens a popup that floats upward; action buttons keep the popup open so the user can press repeatedly (e.g. Up/Down multiple times). Close by re-tapping the same tab or tapping the canvas. Landscape keeps the original side-panel layout.
 - **Playback lock:** all editor interactions (symbol tap, drag, palette, insert mode, inspector tiles, undo/redo) are disabled when `PlaybackStatus.playing`. Pan/zoom is unaffected. `paused` leaves interactions enabled so the user can edit between playback sessions.
+- **Playback page auto-advance:** `positionStream` from `PlaybackService` updates `_currentPageIndex` in `_EditorShellScreenState` when `measureIndex ~/ _kMeasuresPerPage` changes. Viewport zoom/fit is NOT reset on playback-driven page changes (only on manual navigation).
+- **Smooth page transition:** `AnimatedSwitcher` (250ms crossfade) wraps the white-sheet `Container` inside `InteractiveViewer`, keyed by `pageFirstMeasure`. Triggers on both manual and playback-driven page changes.
 - **Cross-measure/part drag reorder:** `moveSymbolToDest()` in `editor_actions.dart` — same-measure delegates to `reorderSymbol`; cross-measure deletes from source + inserts at destination; cross-part supported.
 - **Collection = project list:** `CollectionScreen` owns both the scan history and the saved project list. `ProjectListScreen` was deleted; `/projects` route removed.
 - **Analytics:** Local only — scans, edits, exports, playbacks as integers in shared_preferences. No backend.
@@ -340,9 +342,9 @@ Sprints 1–9 (tickets 1–93) are fully shipped. Sprint 10 is the active sprint
 | 99 | Editor: In-Project Scan (Add a New Page from the Editor) | Canete | ⏳ Not started |
 | 100 | Settings: Independent Scan Preview/Review Toggles | Canete | ⏳ Not started |
 | 101 | Replace Burger Menu Button with Profile Icon as Drawer Trigger | Boleche | ✅ Done (sprint10-quick-fixes) |
-| 102 | Editor: Smooth Page Transition During Playback | Canete | ⏳ Not started |
+| 102 | Editor: Smooth Page Transition During Playback | Canete | ✅ Done (sprint10-quick-fixes) |
 | 103 | Editor: Full-Screen Error State on Save Failure | Canete | ✅ Done (sprint10-quick-fixes) |
-| 104 | Editor: Playback Auto-Advances Page | Canete | ⏳ Not started |
+| 104 | Editor: Playback Auto-Advances Page | Canete | ✅ Done (sprint10-quick-fixes) |
 
 ### Sprint 11 — Planned: Reconstruction Improvements
 Tickets to be defined. Focus: improving OMR accuracy and reconstruction quality from real-world scans.

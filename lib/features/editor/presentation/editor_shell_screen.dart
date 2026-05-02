@@ -99,7 +99,16 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     // Subscribe before awaiting init so state changes are received even if
     // the soundfont load is slow or fails (and in tests where it never completes).
     _positionSub = _playback.positionStream.listen((pos) {
-      if (mounted) setState(() => _playbackPosition = pos);
+      if (!mounted) return;
+      setState(() {
+        _playbackPosition = pos;
+        if (!pos.isNone) {
+          final targetPage = pos.measureIndex ~/ _kMeasuresPerPage;
+          if (targetPage != _currentPageIndex) {
+            _currentPageIndex = targetPage.clamp(0, _totalPages - 1);
+          }
+        }
+      });
     });
     _stateSub = _playback.stateStream.listen((state) {
       if (mounted) setState(() => _playbackStatus = state.status);
@@ -1055,7 +1064,7 @@ class _NotationAreaState extends State<_NotationArea> {
         if (mounted) _fitToScreen();
       });
     }
-    if (oldWidget.pageFirstMeasure != widget.pageFirstMeasure) {
+    if (oldWidget.pageFirstMeasure != widget.pageFirstMeasure && !widget.isPlaybackActive) {
       _fittedOnce = false;
     }
   }
@@ -1178,18 +1187,23 @@ class _NotationAreaState extends State<_NotationArea> {
                           minScale: 0.15,
                           maxScale: 5.0,
                           boundaryMargin: const EdgeInsets.all(double.infinity),
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Color(0x40000000),
-                                  blurRadius: 20,
-                                  offset: Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: ScoreNotationViewer(
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 250),
+                            transitionBuilder: (child, animation) =>
+                                FadeTransition(opacity: animation, child: child),
+                            child: Container(
+                              key: ValueKey(widget.pageFirstMeasure),
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Color(0x40000000),
+                                    blurRadius: 20,
+                                    offset: Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: ScoreNotationViewer(
                               score: widget.editorState.score,
                               selectedPartIndex:
                                   widget.editorState.selectedPartIndex ?? 0,
@@ -1307,6 +1321,7 @@ class _NotationAreaState extends State<_NotationArea> {
                           ),
                         ),
                       ),
+                    ),
                     );
                   },
                 ),
