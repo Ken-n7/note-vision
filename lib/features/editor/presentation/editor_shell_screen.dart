@@ -2,11 +2,15 @@ import 'dart:async' show StreamSubscription, unawaited;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
+import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/project.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
+import 'package:note_vision/core/utils/image_picker_helper.dart';
+import 'package:note_vision/features/scan/presentation/scan_screen.dart';
 import 'package:note_vision/core/services/playback_service.dart';
 import 'package:note_vision/core/services/project_storage_service.dart';
 import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
@@ -15,6 +19,7 @@ import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
+import 'package:note_vision/features/editor/model/editor_state_history.dart';
 import 'package:note_vision/features/editor/presentation/widgets/playback_controls_bar.dart';
 import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.dart';
 import 'package:note_vision/core/services/usage_stats_service.dart';
@@ -233,6 +238,104 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         duration: const Duration(seconds: 2),
       ),
     );
+  }
+
+  // ── Scan new page ──────────────────────────────────────────────────────────
+
+  Future<void> _onScanPage() async {
+    final useCamera = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.camera_alt_rounded, color: AppColors.accent),
+                title: const Text('Camera', style: TextStyle(color: AppColors.textPrimary)),
+                onTap: () => Navigator.pop(ctx, true),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_rounded, color: AppColors.accent),
+                title: const Text('Gallery', style: TextStyle(color: AppColors.textPrimary)),
+                onTap: () => Navigator.pop(ctx, false),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (useCamera == null || !mounted) return;
+
+    // mounted checked above; ImagePickerHelper also guards context.mounted internally
+    // ignore: use_build_context_synchronously
+    final file = await (useCamera
+        ? ImagePickerHelper.pickFromCamera(context)
+        : ImagePickerHelper.pickFromGallery(context));
+    if (file == null || !mounted) return;
+
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
+
+    final navigator = Navigator.of(context);
+    final scanned = await navigator.push<Score>(
+      PageRouteBuilder(
+        pageBuilder: (_, _, _) => ScanScreenProvider(imageBytes: bytes, appendMode: true),
+        transitionsBuilder: (_, animation, _, child) =>
+            FadeTransition(opacity: animation, child: child),
+        transitionDuration: const Duration(milliseconds: 400),
+      ),
+    );
+
+    if (scanned == null || !mounted) return;
+    _appendScannedPage(scanned);
+  }
+
+  void _appendScannedPage(Score scanned) {
+    if (scanned.parts.isEmpty) return;
+    setState(() {
+      final prev = _editorState;
+      final merged = _mergeScores(prev.score, scanned);
+      _editorState = prev.applyEdit(score: merged, clearSelection: true);
+      if (_editorState.undoStack.length > prev.undoStack.length) {
+        _scoreEditCount++;
+        unawaited(UsageStatsService.incrementScoreEdits(_editorState.score.id));
+      }
+      _currentPageIndex = _totalPages - 1;
+    });
+  }
+
+  Score _mergeScores(Score current, Score scanned) {
+    final count = math.min(current.parts.length, scanned.parts.length);
+    final updatedParts = <Part>[];
+    for (int i = 0; i < current.parts.length; i++) {
+      final cp = current.parts[i];
+      if (i < count) {
+        final sp = scanned.parts[i];
+        final combined = [...cp.measures, ...sp.measures];
+        final renumbered = [
+          for (int j = 0; j < combined.length; j++)
+            Measure(
+              number: j + 1,
+              clef: combined[j].clef,
+              timeSignature: combined[j].timeSignature,
+              keySignature: combined[j].keySignature,
+              symbols: combined[j].symbols,
+            ),
+        ];
+        updatedParts.add(Part(id: cp.id, name: cp.name, measures: renumbered));
+      } else {
+        updatedParts.add(cp);
+      }
+    }
+    return Score(id: current.id, title: current.title, composer: current.composer, parts: updatedParts);
   }
 
   Future<void> _handlePopAttempt() async {
@@ -680,6 +783,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       );
                     }
                   },
+                  onScanPage: isPlaybackActive ? null : _onScanPage,
                 ),
                 Expanded(
                   child: isLandscape
@@ -803,6 +907,7 @@ class _EditorHeader extends StatelessWidget {
     required this.onExportPdf,
     required this.scoreIsEmpty,
     required this.onMetadataTap,
+    this.onScanPage,
   });
 
   final String title;
@@ -818,6 +923,7 @@ class _EditorHeader extends StatelessWidget {
   final VoidCallback onExportPdf;
   final bool scoreIsEmpty;
   final VoidCallback onMetadataTap;
+  final VoidCallback? onScanPage;
 
   @override
   Widget build(BuildContext context) {
@@ -960,6 +1066,14 @@ class _EditorHeader extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+          IconButton(
+            onPressed: onScanPage,
+            icon: const Icon(Icons.add_photo_alternate_rounded, size: 18),
+            color: AppColors.textPrimary,
+            disabledColor: AppColors.textSecondary.withValues(alpha: 0.3),
+            tooltip: 'Scan New Page',
+            visualDensity: VisualDensity.compact,
           ),
           const SizedBox(width: 4),
         ],
