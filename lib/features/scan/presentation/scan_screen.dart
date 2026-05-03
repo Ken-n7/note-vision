@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/services/scan_preferences_service.dart';
 import 'package:note_vision/core/services/usage_stats_service.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/theme/responsive_layout.dart';
@@ -30,11 +31,17 @@ class ScanScreen extends StatefulWidget {
 }
 
 class _ScanScreenState extends State<ScanScreen> {
+  bool _skipReview   = false;
+  bool _autoNavigated = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ScanViewModel>().run(widget.imageBytes);
+    });
+    ScanPreferencesService.getSkipReview().then((v) {
+      if (mounted) setState(() => _skipReview = v);
     });
   }
 
@@ -87,10 +94,46 @@ class _ScanScreenState extends State<ScanScreen> {
     );
   }
 
+  void _navigateContinue(BuildContext context, ScanViewModel vm) {
+    unawaited(UsageStatsService.incrementScans());
+    final mappedScore = vm.mappingResult?.score ??
+        const Score(
+          id: 'scan-score',
+          title: 'Scanned Score',
+          composer: 'Unknown',
+          parts: [
+            Part(
+              id: 'P1',
+              name: 'Part 1',
+              measures: [Measure(number: 1, symbols: [])],
+            ),
+          ],
+        );
+
+    if (widget.appendMode) {
+      Navigator.pop(context, mappedScore);
+    } else {
+      Navigator.pushNamed(
+        context,
+        EditorShellScreen.routeName,
+        arguments: EditorShellArgs(
+          score: mappedScore,
+          initialState: EditorState(score: mappedScore),
+        ),
+      );
+    }
+  }
+
   Widget _buildDone(BuildContext context, ScanViewModel vm) {
+    final hasDetections = vm.result?.hasDetections ?? false;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!vm.result!.hasDetections && context.mounted) {
+      if (!context.mounted) return;
+      if (!hasDetections) {
         _showNoDetectionsBar(context);
+      } else if (_skipReview && !_autoNavigated) {
+        _autoNavigated = true;
+        _navigateContinue(context, vm);
       }
     });
 
@@ -103,36 +146,8 @@ class _ScanScreenState extends State<ScanScreen> {
           padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
           child: ScanActions(
             onRedo: () => Navigator.pop(context),
-            canContinue: vm.result?.hasDetections ?? false,
-            onContinue: () {
-              unawaited(UsageStatsService.incrementScans());
-              final mappedScore = vm.mappingResult?.score ??
-                  const Score(
-                    id: 'scan-score',
-                    title: 'Scanned Score',
-                    composer: 'Unknown',
-                    parts: [
-                      Part(
-                        id: 'P1',
-                        name: 'Part 1',
-                        measures: [Measure(number: 1, symbols: [])],
-                      ),
-                    ],
-                  );
-
-              if (widget.appendMode) {
-                Navigator.pop(context, mappedScore);
-              } else {
-                Navigator.pushNamed(
-                  context,
-                  EditorShellScreen.routeName,
-                  arguments: EditorShellArgs(
-                    score: mappedScore,
-                    initialState: EditorState(score: mappedScore),
-                  ),
-                );
-              }
-            },
+            canContinue: hasDetections,
+            onContinue: () => _navigateContinue(context, vm),
           ),
         );
 

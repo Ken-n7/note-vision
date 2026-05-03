@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
 
+import 'package:note_vision/core/services/scan_preferences_service.dart';
 import 'package:note_vision/core/utils/image_picker_helper.dart';
 import 'package:note_vision/core/widgets/drawer.dart';
 import 'package:note_vision/features/scan/presentation/scan_screen.dart';
@@ -17,6 +18,7 @@ class CaptureScreen extends StatefulWidget {
 class _CaptureScreenState extends State<CaptureScreen>
     with SingleTickerProviderStateMixin {
   File? _selectedImage;
+  bool _skipPreview = false;
 
   late AnimationController _previewController;
   late Animation<double> _previewFade;
@@ -49,6 +51,10 @@ class _CaptureScreenState extends State<CaptureScreen>
     _previewScale = Tween<double>(begin: 0.96, end: 1.0).animate(
       CurvedAnimation(parent: _previewController, curve: Curves.easeOut),
     );
+
+    ScanPreferencesService.getSkipPreview().then((v) {
+      if (mounted) setState(() => _skipPreview = v);
+    });
   }
 
   @override
@@ -57,16 +63,38 @@ class _CaptureScreenState extends State<CaptureScreen>
     super.dispose();
   }
 
+  Future<void> _continueWithFile(File file) async {
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
+    // ignore: use_build_context_synchronously
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (_, _, _) => ScanScreenProvider(imageBytes: bytes),
+        transitionsBuilder: (_, animation, _, child) =>
+            FadeTransition(opacity: animation, child: child),
+        transitionDuration: const Duration(milliseconds: 400),
+      ),
+    );
+  }
+
   Future<void> _openCameraAndShowPreview() async {
     final file = await ImagePickerHelper.pickFromCamera(context);
     if (file == null || !mounted) return;
-    setState(() => _selectedImage = file);
-    _previewController.forward(from: 0);
+    if (_skipPreview) {
+      await _continueWithFile(file);
+    } else {
+      setState(() => _selectedImage = file);
+      _previewController.forward(from: 0);
+    }
   }
 
   Future<void> _pickFromGallery() async {
     final file = await ImagePickerHelper.pickFromGallery(context);
-    if (file != null && mounted) {
+    if (file == null || !mounted) return;
+    if (_skipPreview) {
+      await _continueWithFile(file);
+    } else {
       setState(() => _selectedImage = file);
       _previewController.forward(from: 0);
     }
@@ -236,19 +264,7 @@ class _CaptureScreenState extends State<CaptureScreen>
 
   Widget _buildContinueButton() {
     return _TappableButton(
-      onPressed: () async {
-        final bytes = await _selectedImage!.readAsBytes();
-        if (!mounted) return;
-        Navigator.push(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (_, _, _) => ScanScreenProvider(imageBytes: bytes),
-            transitionsBuilder: (_, animation, _, child) =>
-                FadeTransition(opacity: animation, child: child),
-            transitionDuration: const Duration(milliseconds: 400),
-          ),
-        );
-      },
+      onPressed: () => _continueWithFile(_selectedImage!),
       child: Container(
         width: double.infinity,
         height: 52,

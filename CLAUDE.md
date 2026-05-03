@@ -204,6 +204,8 @@ These are final unless explicitly changed:
 - **Export filename:** shared `safeExportFileName(title)` in `lib/core/utils/export_file_name.dart`.
 - **Delete symbol:** drag-to-trash gesture — drag a symbol to the trash zone in `EditorShellScreen`; no separate delete button. In portrait mode the trash zone overlays the inspector bar (`bottom: 0, height: _kInspectorBarHeight`) while a drag is active so it stays reachable at the bottom edge.
 - **Portrait inspector:** `_BottomInspectorBar` — a 56 px horizontal bar (`_kInspectorBarHeight = 56.0`) above `PlaybackControlsBar` with four tab buttons (PITCH, ACCIDENTAL, DURATION, MEASURE). Tapping a tab opens a popup that floats upward; action buttons keep the popup open so the user can press repeatedly (e.g. Up/Down multiple times). Close by re-tapping the same tab or tapping the canvas. Landscape keeps the original side-panel layout.
+- **In-project scan:** "Scan Page" icon button (`Icons.add_photo_alternate_rounded`) in `_EditorHeader`, disabled during playback. Tapping shows a bottom sheet (Camera / Gallery), picks image, then pushes `ScanScreenProvider(appendMode: true)`. On "Continue", `ScanScreen` pops with the scanned `Score` instead of pushing `EditorShellScreen`. The editor merges parts by index (min of current vs scanned part count), renumbers all measures, pushes to undo stack, and jumps to the last page.
+- **Scan preferences:** `ScanPreferencesService` stores two booleans in SharedPreferences (`scan_skip_preview`, `scan_skip_review`, both default `false`). Toggles live in a "SCAN SETTINGS" section at the bottom of `ProfileStatsScreen`. Skip-preview skips the image preview in `CaptureScreen` and goes straight to scanning. Skip-review auto-advances past the detection results screen in `ScanScreen` when detections are found (guarded by `_autoNavigated` flag to prevent double-fire).
 - **Playback lock:** all editor interactions (symbol tap, drag, palette, insert mode, inspector tiles, undo/redo) are disabled when `PlaybackStatus.playing`. Pan/zoom is unaffected. `paused` leaves interactions enabled so the user can edit between playback sessions.
 - **Playback page auto-advance:** `positionStream` from `PlaybackService` updates `_currentPageIndex` in `_EditorShellScreenState` when `measureIndex ~/ _kMeasuresPerPage` changes. Viewport zoom/fit is NOT reset on playback-driven page changes (only on manual navigation).
 - **Smooth page transition:** `AnimatedSwitcher` (250ms crossfade) wraps the white-sheet `Container` inside `InteractiveViewer`, keyed by `pageFirstMeasure`. Triggers on both manual and playback-driven page changes.
@@ -339,8 +341,8 @@ Sprints 1–9 (tickets 1–93) are fully shipped. Sprint 10 is the active sprint
 | 96 | Editor: Replace Measure Navigation with Page Navigation | Boleche | ✅ Done (sprint10-quick-fixes) |
 | 97 | Editor: Score Page Tab Bar | Boleche | ✅ Done (sprint10-quick-fixes) |
 | 98 | Editor: Redesign Tempo Control | Boleche | ✅ Done (sprint10-quick-fixes) |
-| 99 | Editor: In-Project Scan (Add a New Page from the Editor) | Canete | ⏳ Not started |
-| 100 | Settings: Independent Scan Preview/Review Toggles | Canete | ⏳ Not started |
+| 99 | Editor: In-Project Scan (Add a New Page from the Editor) | Canete | ✅ Done (sprint10-quick-fixes) |
+| 100 | Settings: Independent Scan Preview/Review Toggles | Canete | ✅ Done (sprint10-quick-fixes) |
 | 101 | Replace Burger Menu Button with Profile Icon as Drawer Trigger | Boleche | ✅ Done (sprint10-quick-fixes) |
 | 102 | Editor: Smooth Page Transition During Playback | Canete | ✅ Done (sprint10-quick-fixes) |
 | 103 | Editor: Full-Screen Error State on Save Failure | Canete | ✅ Done (sprint10-quick-fixes) |
