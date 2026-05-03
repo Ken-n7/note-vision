@@ -21,8 +21,9 @@ import 'widgets/scan_image_view.dart';
 
 class ScanScreen extends StatefulWidget {
   final Uint8List imageBytes;
+  final bool appendMode;
 
-  const ScanScreen({super.key, required this.imageBytes});
+  const ScanScreen({super.key, required this.imageBytes, this.appendMode = false});
 
   @override
   State<ScanScreen> createState() => _ScanScreenState();
@@ -119,14 +120,18 @@ class _ScanScreenState extends State<ScanScreen> {
                     ],
                   );
 
-              Navigator.pushNamed(
-                context,
-                EditorShellScreen.routeName,
-                arguments: EditorShellArgs(
-                  score: mappedScore,
-                  initialState: EditorState(score: mappedScore),
-                ),
-              );
+              if (widget.appendMode) {
+                Navigator.pop(context, mappedScore);
+              } else {
+                Navigator.pushNamed(
+                  context,
+                  EditorShellScreen.routeName,
+                  arguments: EditorShellArgs(
+                    score: mappedScore,
+                    initialState: EditorState(score: mappedScore),
+                  ),
+                );
+              }
             },
           ),
         );
@@ -386,8 +391,9 @@ class _TappableButtonState extends State<_TappableButton> {
 
 class ScanScreenProvider extends StatelessWidget {
   final Uint8List imageBytes;
+  final bool appendMode;
 
-  const ScanScreenProvider({super.key, required this.imageBytes});
+  const ScanScreenProvider({super.key, required this.imageBytes, this.appendMode = false});
 
   @override
   Widget build(BuildContext context) {
@@ -398,7 +404,7 @@ class ScanScreenProvider extends StatelessWidget {
         TfliteSymbolDetector(),
         mapper: const DetectionToScoreMapperService(),
       ),
-      child: ScanScreen(imageBytes: imageBytes),
+      child: ScanScreen(imageBytes: imageBytes, appendMode: appendMode),
     );
   }
 }
