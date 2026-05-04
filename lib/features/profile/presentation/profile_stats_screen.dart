@@ -319,12 +319,14 @@ class _ScanSettingsSectionState extends State<_ScanSettingsSection> {
   }
 
   Future<void> _load() async {
-    final skipPreview = await ScanPreferencesService.getSkipPreview();
-    final skipReview  = await ScanPreferencesService.getSkipReview();
+    final results = await Future.wait([
+      ScanPreferencesService.getSkipPreview(),
+      ScanPreferencesService.getSkipReview(),
+    ]);
     if (!mounted) return;
     setState(() {
-      _skipPreview = skipPreview;
-      _skipReview  = skipReview;
+      _skipPreview = results[0];
+      _skipReview  = results[1];
     });
   }
 

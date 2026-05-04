@@ -4,23 +4,14 @@ class ScanPreferencesService {
   static const String _keySkipPreview = 'scan_skip_preview';
   static const String _keySkipReview  = 'scan_skip_review';
 
-  static Future<bool> getSkipPreview() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_keySkipPreview) ?? false;
-  }
+  static Future<bool> getSkipPreview() => _get(_keySkipPreview);
+  static Future<bool> getSkipReview()  => _get(_keySkipReview);
+  static Future<void> setSkipPreview(bool v) => _set(_keySkipPreview, v);
+  static Future<void> setSkipReview(bool v)  => _set(_keySkipReview, v);
 
-  static Future<bool> getSkipReview() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_keySkipReview) ?? false;
-  }
+  static Future<bool> _get(String key) async =>
+      (await SharedPreferences.getInstance()).getBool(key) ?? false;
 
-  static Future<void> setSkipPreview(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keySkipPreview, value);
-  }
-
-  static Future<void> setSkipReview(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keySkipReview, value);
-  }
+  static Future<void> _set(String key, bool value) async =>
+      (await SharedPreferences.getInstance()).setBool(key, value);
 }

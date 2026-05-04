@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:note_vision/core/widgets/tappable_button.dart';
 
 class ScanActions extends StatelessWidget {
   final VoidCallback onRedo;
@@ -61,7 +62,7 @@ class ScanActions extends StatelessWidget {
   }
 
   Widget _buildRedoButton() {
-    return _TappableButton(
+    return TappableButton(
       onPressed: onRedo,
       child: Container(
         height: 52,
@@ -94,7 +95,7 @@ class ScanActions extends StatelessWidget {
   }
 
   Widget _buildImportButton() {
-    return _TappableButton(
+    return TappableButton(
       onPressed: onImport,
       child: Container(
         height: 52,
@@ -129,7 +130,7 @@ class ScanActions extends StatelessWidget {
   Widget _buildContinueButton({required int flex}) {
     return Expanded(
       flex: flex,
-      child: _TappableButton(
+      child: TappableButton(
         onPressed: canContinue ? onContinue : null,
         child: Container(
           height: 52,
@@ -167,43 +168,6 @@ class ScanActions extends StatelessWidget {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _TappableButton extends StatefulWidget {
-  final Widget child;
-  final VoidCallback? onPressed;
-
-  const _TappableButton({required this.child, required this.onPressed});
-
-  @override
-  State<_TappableButton> createState() => _TappableButtonState();
-}
-
-class _TappableButtonState extends State<_TappableButton> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: widget.onPressed == null ? null : (_) => setState(() => _pressed = true),
-      onTapCancel: widget.onPressed == null ? null : () => setState(() => _pressed = false),
-      onTap: widget.onPressed == null
-          ? null
-          : () {
-              setState(() => _pressed = false);
-              widget.onPressed!();
-            },
-      child: AnimatedScale(
-        scale: _pressed ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 100),
-        child: AnimatedOpacity(
-          opacity: _pressed ? 0.85 : 1.0,
-          duration: const Duration(milliseconds: 100),
-          child: widget.child,
         ),
       ),
     );

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'measure.dart';
 import 'part.dart';
 import 'score_symbol.dart';
@@ -81,6 +83,42 @@ class Score {
     final symbols = List<ScoreSymbol>.from(measure.symbols)
       ..insert(symbolIndex, symbol);
     return _replaceMeasureSymbols(partIndex, measureIndex, symbols);
+  }
+
+  /// Appends the measures of [other] to this score, matching parts by index.
+  /// Parts in [other] beyond this score's part count are ignored. Parts in
+  /// this score without a counterpart in [other] are left unchanged.
+  /// The newly appended measures are renumbered to continue from the last
+  /// measure of each existing part.
+  Score appendScore(Score other) {
+    if (other.parts.isEmpty) return this;
+    final count = math.min(parts.length, other.parts.length);
+    final updatedParts = <Part>[];
+    for (int i = 0; i < parts.length; i++) {
+      final cp = parts[i];
+      if (i >= count) {
+        updatedParts.add(cp);
+        continue;
+      }
+      final sp = other.parts[i];
+      final existingCount = cp.measures.length;
+      updatedParts.add(Part(
+        id: cp.id,
+        name: cp.name,
+        measures: [
+          ...cp.measures,
+          for (int j = 0; j < sp.measures.length; j++)
+            Measure(
+              number: existingCount + j + 1,
+              clef: sp.measures[j].clef,
+              timeSignature: sp.measures[j].timeSignature,
+              keySignature: sp.measures[j].keySignature,
+              symbols: sp.measures[j].symbols,
+            ),
+        ],
+      ));
+    }
+    return Score(id: id, title: title, composer: composer, parts: updatedParts);
   }
 
   /// Inserts a new empty measure immediately after [measureIndex] in every

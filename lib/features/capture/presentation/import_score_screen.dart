@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:note_vision/core/widgets/tappable_button.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/part.dart';
@@ -307,7 +308,7 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
         children: [
           _buildContinueButton(),
           const SizedBox(height: 10),
-          _TappableButton(
+          TappableButton(
             onPressed: _cancelSelection,
             child: Container(
               width: double.infinity,
@@ -355,7 +356,7 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
     required VoidCallback? onPressed,
   }) {
     return Expanded(
-      child: _TappableButton(
+      child: TappableButton(
         onPressed: onPressed,
         child: Container(
           height: 52,
@@ -397,7 +398,7 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
     required VoidCallback? onPressed,
   }) {
     return Expanded(
-      child: _TappableButton(
+      child: TappableButton(
         onPressed: onPressed,
         child: Container(
           height: 52,
@@ -427,7 +428,7 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
   }
 
   Widget _buildContinueButton() {
-    return _TappableButton(
+    return TappableButton(
       onPressed: _continueToEditor,
       child: Container(
         width: double.infinity,
@@ -782,43 +783,6 @@ class _BottomNavItem extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _TappableButton extends StatefulWidget {
-  final Widget child;
-  final VoidCallback? onPressed;
-
-  const _TappableButton({required this.child, required this.onPressed});
-
-  @override
-  State<_TappableButton> createState() => _TappableButtonState();
-}
-
-class _TappableButtonState extends State<_TappableButton> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: widget.onPressed == null ? null : (_) => setState(() => _pressed = true),
-      onTapCancel: widget.onPressed == null ? null : () => setState(() => _pressed = false),
-      onTap: widget.onPressed == null
-          ? null
-          : () {
-              setState(() => _pressed = false);
-              widget.onPressed!();
-            },
-      child: AnimatedScale(
-        scale: _pressed ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 100),
-        child: AnimatedOpacity(
-          opacity: _pressed ? 0.85 : 1.0,
-          duration: const Duration(milliseconds: 100),
-          child: widget.child,
         ),
       ),
     );

@@ -2,9 +2,7 @@ import 'dart:async' show StreamSubscription, unawaited;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
-import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/project.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
@@ -312,7 +310,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     if (scanned.parts.isEmpty) return;
     setState(() {
       final prev = _editorState;
-      final merged = _mergeScores(prev.score, scanned);
+      final merged = prev.score.appendScore(scanned);
       _editorState = prev.applyEdit(score: merged, clearSelection: true);
       if (_editorState.undoStack.length > prev.undoStack.length) {
         _scoreEditCount++;
@@ -320,32 +318,6 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       }
       _currentPageIndex = _totalPages - 1;
     });
-  }
-
-  Score _mergeScores(Score current, Score scanned) {
-    final count = math.min(current.parts.length, scanned.parts.length);
-    final updatedParts = <Part>[];
-    for (int i = 0; i < current.parts.length; i++) {
-      final cp = current.parts[i];
-      if (i < count) {
-        final sp = scanned.parts[i];
-        final combined = [...cp.measures, ...sp.measures];
-        final renumbered = [
-          for (int j = 0; j < combined.length; j++)
-            Measure(
-              number: j + 1,
-              clef: combined[j].clef,
-              timeSignature: combined[j].timeSignature,
-              keySignature: combined[j].keySignature,
-              symbols: combined[j].symbols,
-            ),
-        ];
-        updatedParts.add(Part(id: cp.id, name: cp.name, measures: renumbered));
-      } else {
-        updatedParts.add(cp);
-      }
-    }
-    return Score(id: current.id, title: current.title, composer: current.composer, parts: updatedParts);
   }
 
   Future<void> _handlePopAttempt() async {

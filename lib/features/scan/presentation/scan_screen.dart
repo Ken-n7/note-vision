@@ -7,6 +7,7 @@ import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/services/scan_preferences_service.dart';
 import 'package:note_vision/core/services/usage_stats_service.dart';
+import 'package:note_vision/core/widgets/tappable_button.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/theme/responsive_layout.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
@@ -31,8 +32,9 @@ class ScanScreen extends StatefulWidget {
 }
 
 class _ScanScreenState extends State<ScanScreen> {
-  bool _skipReview   = false;
-  bool _autoNavigated = false;
+  bool _skipReview       = false;
+  bool _autoNavigated    = false;
+  bool _noDetectionsShown = false;
 
   @override
   void initState() {
@@ -129,7 +131,8 @@ class _ScanScreenState extends State<ScanScreen> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!context.mounted) return;
-      if (!hasDetections) {
+      if (!hasDetections && !_noDetectionsShown) {
+        _noDetectionsShown = true;
         _showNoDetectionsBar(context);
       } else if (_skipReview && !_autoNavigated) {
         _autoNavigated = true;
@@ -254,7 +257,7 @@ class _ScanScreenState extends State<ScanScreen> {
             const SizedBox(height: 32),
 
             // ── Go back button ──────────────────────────────────────────
-            _TappableButton(
+            TappableButton(
               onPressed: () => Navigator.pop(context),
               child: Container(
                 width: double.infinity,
@@ -359,43 +362,6 @@ class _PipelineStatus extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Tappable button wrapper ──────────────────────────────────────────────────
-
-class _TappableButton extends StatefulWidget {
-  final Widget child;
-  final VoidCallback onPressed;
-
-  const _TappableButton({required this.child, required this.onPressed});
-
-  @override
-  State<_TappableButton> createState() => _TappableButtonState();
-}
-
-class _TappableButtonState extends State<_TappableButton> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) {
-        setState(() => _pressed = false);
-        widget.onPressed();
-      },
-      onTapCancel: () => setState(() => _pressed = false),
-      child: AnimatedScale(
-        scale: _pressed ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 100),
-        child: AnimatedOpacity(
-          opacity: _pressed ? 0.85 : 1.0,
-          duration: const Duration(milliseconds: 100),
-          child: widget.child,
         ),
       ),
     );
