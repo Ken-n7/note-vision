@@ -348,8 +348,17 @@ Sprints 1–9 (tickets 1–93) are fully shipped. Sprint 10 is the active sprint
 | 103 | Editor: Full-Screen Error State on Save Failure | Canete | ✅ Done (sprint10-quick-fixes) |
 | 104 | Editor: Playback Auto-Advances Page | Canete | ✅ Done (sprint10-quick-fixes) |
 
-### Sprint 11 — Planned: Reconstruction Improvements
-Tickets to be defined. Focus: improving OMR accuracy and reconstruction quality from real-world scans.
+### Sprint 11 — Reconstruction Improvements
+| # | Ticket | Owner | Status |
+|---|--------|-------|--------|
+| 105 | Dotted Note/Rest Reconstruction | Canete | ⏳ Not started |
+| 106 | Chord Reconstruction | Canete | ⏳ Not started |
+| 107 | Repeat Barline Detection | Canete | ⏳ Not started |
+| 108 | Double Whole Note Support | Canete | ⏳ Not started |
+| 109 | Ledger Line Pitch Accuracy | Canete | ⏳ Not started |
+| 110 | Per-Class Detection Confidence Thresholds | Canete | ⏳ Not started |
+| 111 | Editor Header: Collapse Action Buttons into Overflow Menu | Boleche | ⏳ Not started |
+| 112 | Score Genre/Label Classification | Canete | ⏳ Not started |
 
 ---
 

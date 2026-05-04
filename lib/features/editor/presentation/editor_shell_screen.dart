@@ -70,7 +70,6 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   final _storage = ProjectStorageService();
   Project? _currentProject;
   int _scoreEditCount = 0;
-  String? _saveError;
   bool _isSaving = false;
 
   int _currentPageIndex = 0;
@@ -137,7 +136,18 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       return true;
     } catch (e) {
       if (!mounted) return false;
-      setState(() => _saveError = e.toString());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Save failed: $e'),
+          backgroundColor: const Color(0xFFB91C1C),
+          duration: const Duration(seconds: 6),
+          action: SnackBarAction(
+            label: 'Retry',
+            textColor: Colors.white,
+            onPressed: _onSave,
+          ),
+        ),
+      );
       return false;
     }
   }
@@ -846,15 +856,6 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 ),
               ],
             ),
-            if (_saveError != null)
-              _SaveErrorOverlay(
-                message: _saveError!,
-                onDismiss: () => setState(() => _saveError = null),
-                onRetry: () {
-                  setState(() => _saveError = null);
-                  _onSave();
-                },
-              ),
           ],
         );
           },
@@ -2641,76 +2642,3 @@ class _DurTile extends StatelessWidget {
 // Save error overlay
 // ---------------------------------------------------------------------------
 
-class _SaveErrorOverlay extends StatelessWidget {
-  const _SaveErrorOverlay({
-    required this.message,
-    required this.onDismiss,
-    required this.onRetry,
-  });
-
-  final String message;
-  final VoidCallback onDismiss;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFFB91C1C),
-      child: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error_outline_rounded,
-                    color: Colors.white, size: 64),
-                const SizedBox(height: 16),
-                const Text(
-                  'Save Failed',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    OutlinedButton(
-                      onPressed: onDismiss,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Colors.white54),
-                      ),
-                      child: const Text('Dismiss'),
-                    ),
-                    const SizedBox(width: 12),
-                    FilledButton(
-                      onPressed: onRetry,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: const Color(0xFFB91C1C),
-                      ),
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
