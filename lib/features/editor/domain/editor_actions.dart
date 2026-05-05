@@ -1,6 +1,8 @@
+import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
+import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
-// import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/model/editor_state_history.dart';
@@ -125,6 +127,39 @@ extension EditorActions on EditorState {
     return applyEdit(
       score: nextScore,
       selectedPartIndex: selectedPartIndex,
+      selectedMeasureIndex: newMeasureIndex,
+      selectedSymbolIndex: null,
+      selectedSymbol: null,
+    );
+  }
+
+  EditorState addPageAtEnd() {
+    if (score.parts.isEmpty) return this;
+    final updatedParts = <Part>[];
+    for (final part in score.parts) {
+      updatedParts.add(Part(
+        id: part.id,
+        name: part.name,
+        measures: [
+          ...part.measures,
+          Measure(
+            number: part.measures.length + 1,
+            symbols: const [],
+            startsNewPage: true,
+          ),
+        ],
+      ));
+    }
+    final newMeasureIndex =
+        score.parts.isEmpty ? 0 : score.parts.first.measures.length;
+    return applyEdit(
+      score: Score(
+        id: score.id,
+        title: score.title,
+        composer: score.composer,
+        parts: updatedParts,
+      ),
+      selectedPartIndex: selectedPartIndex ?? 0,
       selectedMeasureIndex: newMeasureIndex,
       selectedSymbolIndex: null,
       selectedSymbol: null,

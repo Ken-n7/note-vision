@@ -108,6 +108,10 @@ class MusicXmlExportService {
       'measure',
       attributes: {'number': measure.number.toString()},
       nest: () {
+        if (measure.startsNewPage && !isFirst) {
+          b.element('print', attributes: {'new-page': 'yes'});
+        }
+
         final needsAttributes = isFirst ||
             measure.clef != null ||
             measure.timeSignature != null ||

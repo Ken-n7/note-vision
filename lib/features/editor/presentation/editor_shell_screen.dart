@@ -77,14 +77,43 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     return score.parts.isEmpty ? 0 : score.parts.first.measures.length;
   }
 
-  int get _totalPages =>
-      math.max(1, (_totalMeasures + _kMeasuresPerPage - 1) ~/ _kMeasuresPerPage);
+  // Returns the measure index at which each page starts.
+  // If the score has explicit startsNewPage markers those define the breaks;
+  // otherwise falls back to the fixed _kMeasuresPerPage grid so old scores
+  // display exactly as before.
+  List<int> get _pageStartIndices {
+    if (_editorState.score.parts.isEmpty) return [0];
+    final measures = _editorState.score.parts.first.measures;
+    if (measures.isEmpty) return [0];
 
-  int get _pageFirstMeasure =>
-      _currentPageIndex.clamp(0, _totalPages - 1) * _kMeasuresPerPage;
+    final hasExplicitBreaks = measures.any((m) => m.startsNewPage);
+    if (!hasExplicitBreaks) {
+      final count = math.max(
+          1, (_totalMeasures + _kMeasuresPerPage - 1) ~/ _kMeasuresPerPage);
+      return List.generate(count, (i) => i * _kMeasuresPerPage);
+    }
 
-  int get _pageMeasureCount =>
-      math.min(_kMeasuresPerPage, math.max(0, _totalMeasures - _pageFirstMeasure));
+    final indices = <int>[0];
+    for (int i = 1; i < measures.length; i++) {
+      if (measures[i].startsNewPage) indices.add(i);
+    }
+    return indices;
+  }
+
+  int get _totalPages => _pageStartIndices.length;
+
+  int get _pageFirstMeasure {
+    final indices = _pageStartIndices;
+    return indices[_currentPageIndex.clamp(0, indices.length - 1)];
+  }
+
+  int get _pageMeasureCount {
+    final indices = _pageStartIndices;
+    final clamped = _currentPageIndex.clamp(0, indices.length - 1);
+    final next =
+        clamped + 1 < indices.length ? indices[clamped + 1] : _totalMeasures;
+    return math.max(0, next - indices[clamped]);
+  }
 
   @override
   void initState() {
@@ -368,82 +397,30 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   }
 
   Future<void> _showMetadataSheet() async {
-    final score = _editorState.score;
-    final titleCtrl = TextEditingController(text: score.title);
-    final composerCtrl = TextEditingController(text: score.composer);
-
-    await showModalBottomSheet<void>(
+    final result = await showModalBottomSheet<({String title, String composer})>(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.fromLTRB(
-            20, 20, 20,
-            MediaQuery.viewInsetsOf(ctx).bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Score Metadata',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.of(ctx).pop(),
-                    icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              _MetadataField(label: 'Title', controller: titleCtrl),
-              const SizedBox(height: 12),
-              _MetadataField(label: 'Composer', controller: composerCtrl),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () {
-                    final newTitle = titleCtrl.text.trim();
-                    final newComposer = composerCtrl.text.trim();
-                    _updateState((s) {
-                      final updatedScore = Score(
-                        id: s.score.id,
-                        title: newTitle,
-                        composer: newComposer,
-                        parts: s.score.parts,
-                      );
-                      return s.copyWith(
-                        score: updatedScore,
-                        hasUnsavedChanges: true,
-                      );
-                    });
-                    Navigator.of(ctx).pop();
-                  },
-                  child: const Text('Save'),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+      builder: (_) => _MetadataSheet(
+        initialTitle: _editorState.score.title,
+        initialComposer: _editorState.score.composer,
+      ),
     );
 
-    titleCtrl.dispose();
-    composerCtrl.dispose();
+    if (result == null || !mounted) return;
+    _updateState((s) => s.copyWith(
+          score: Score(
+            id: s.score.id,
+            title: result.title,
+            composer: result.composer,
+            parts: s.score.parts,
+          ),
+          hasUnsavedChanges: true,
+        ));
+    _onSave();
   }
 
   void _updateState(EditorState Function(EditorState state) updater) {
@@ -699,6 +676,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               onMoveToPrev: () => _updateState((s) => s.moveSelectedSymbolToMeasureOffset(-1)),
               onMoveToNext: () => _updateState((s) => s.moveSelectedSymbolToMeasureOffset(1)),
               onAddMeasure: () => _updateState((s) => s.addMeasureAfterSelected()),
+              onAddPage: () {
+                _updateState((s) => s.addPageAtEnd());
+                setState(() => _currentPageIndex = _totalPages - 1);
+              },
               canDeleteMeasure: canDeleteMeasure,
               onDeleteMeasure: () => _updateState((s) => s.deleteSelectedMeasureIfEmpty()),
             );
@@ -1673,6 +1654,7 @@ class _InspectorPanel extends StatefulWidget {
     required this.onMoveToPrev,
     required this.onMoveToNext,
     required this.onAddMeasure,
+    required this.onAddPage,
     required this.canDeleteMeasure,
     required this.onDeleteMeasure,
   });
@@ -1697,6 +1679,7 @@ class _InspectorPanel extends StatefulWidget {
   final VoidCallback onMoveToPrev;
   final VoidCallback onMoveToNext;
   final VoidCallback onAddMeasure;
+  final VoidCallback onAddPage;
   final bool canDeleteMeasure;
   final VoidCallback onDeleteMeasure;
 
@@ -1768,6 +1751,7 @@ class _InspectorPanelState extends State<_InspectorPanel> {
           _ActionTile(icon: Icons.skip_previous_rounded, label: 'Prev', onPressed: _wrapAction(widget.hasSelection ? widget.onMoveToPrev : null)),
           _ActionTile(icon: Icons.skip_next_rounded, label: 'Next', onPressed: _wrapAction(widget.hasSelection ? widget.onMoveToNext : null)),
           _ActionTile(icon: Icons.add_rounded, label: 'Add', onPressed: _wrapAction(widget.hasMeasureContext ? widget.onAddMeasure : null)),
+          _ActionTile(icon: Icons.add_box_rounded, label: 'Page', onPressed: _wrapAction(widget.onAddPage)),
           _ActionTile(icon: Icons.remove_rounded, label: 'Del', onPressed: _wrapAction(widget.canDeleteMeasure ? widget.onDeleteMeasure : null), danger: true),
         ],
       ),
@@ -2496,6 +2480,82 @@ class _AccTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _MetadataSheet extends StatefulWidget {
+  const _MetadataSheet({required this.initialTitle, required this.initialComposer});
+
+  final String initialTitle;
+  final String initialComposer;
+
+  @override
+  State<_MetadataSheet> createState() => _MetadataSheetState();
+}
+
+class _MetadataSheetState extends State<_MetadataSheet> {
+  late final TextEditingController _titleCtrl;
+  late final TextEditingController _composerCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleCtrl    = TextEditingController(text: widget.initialTitle);
+    _composerCtrl = TextEditingController(text: widget.initialComposer);
+  }
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _composerCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.viewInsetsOf(context).bottom + 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Score Metadata',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _MetadataField(label: 'Title', controller: _titleCtrl),
+          const SizedBox(height: 12),
+          _MetadataField(label: 'Composer', controller: _composerCtrl),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: () => Navigator.of(context).pop((
+                title: _titleCtrl.text.trim(),
+                composer: _composerCtrl.text.trim(),
+              )),
+              child: const Text('Save'),
+            ),
+          ),
+        ],
       ),
     );
   }

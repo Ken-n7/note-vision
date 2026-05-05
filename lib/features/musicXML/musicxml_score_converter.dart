@@ -141,12 +141,16 @@ class MusicXmlScoreConverter {
       }
     }
 
+    final printEl = _firstOrNull(measureElement.findElements('print'));
+    final startsNewPage = printEl?.getAttribute('new-page') == 'yes';
+
     return Measure(
       number: number,
       clef: clef,
       timeSignature: timeSignature,
       keySignature: keySignature,
       symbols: symbols,
+      startsNewPage: startsNewPage,
     );
   }
 

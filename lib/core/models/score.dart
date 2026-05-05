@@ -114,6 +114,7 @@ class Score {
               timeSignature: sp.measures[j].timeSignature,
               keySignature: sp.measures[j].keySignature,
               symbols: sp.measures[j].symbols,
+              startsNewPage: j == 0, // each scanned page starts a new page
             ),
         ],
       ));
@@ -148,6 +149,7 @@ class Score {
             timeSignature: measures[i].timeSignature,
             keySignature: measures[i].keySignature,
             symbols: measures[i].symbols,
+            startsNewPage: measures[i].startsNewPage,
           ),
       ];
 
@@ -176,6 +178,7 @@ class Score {
             timeSignature: measures[i].timeSignature,
             keySignature: measures[i].keySignature,
             symbols: measures[i].symbols,
+            startsNewPage: measures[i].startsNewPage,
           ),
       ];
 
@@ -226,6 +229,7 @@ class Score {
       timeSignature: measure.timeSignature,
       keySignature: measure.keySignature,
       symbols: symbols,
+      startsNewPage: measure.startsNewPage,
     );
 
     updatedParts[partIndex] = Part(

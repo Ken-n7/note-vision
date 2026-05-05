@@ -11,6 +11,7 @@ class Measure {
   final TimeSignature? timeSignature;
   final KeySignature? keySignature;
   final List<ScoreSymbol> symbols;
+  final bool startsNewPage;
 
   const Measure({
     required this.number,
@@ -18,6 +19,7 @@ class Measure {
     this.timeSignature,
     this.keySignature,
     required this.symbols,
+    this.startsNewPage = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -26,6 +28,7 @@ class Measure {
         if (timeSignature != null) 'timeSignature': timeSignature!.toJson(),
         if (keySignature != null) 'keySignature': keySignature!.toJson(),
         'symbols': symbols.map((s) => s.toJson()).toList(),
+        if (startsNewPage) 'startsNewPage': true,
       };
 
   factory Measure.fromJson(Map<String, dynamic> json) => Measure(
@@ -44,6 +47,7 @@ class Measure {
         symbols: (json['symbols'] as List<dynamic>)
             .map((s) => _symbolFromJson(s as Map<String, dynamic>))
             .toList(),
+        startsNewPage: json['startsNewPage'] as bool? ?? false,
       );
 
   static ScoreSymbol _symbolFromJson(Map<String, dynamic> json) {
