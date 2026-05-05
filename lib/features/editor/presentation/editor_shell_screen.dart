@@ -128,13 +128,13 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
   // ── Save logic ─────────────────────────────────────────────────────────────
 
-  Future<bool> _trySaveProject(Project project) async {
+  Future<bool> _trySaveProject(
+      Project project, ScaffoldMessengerState messenger) async {
     try {
       await _storage.saveProject(project);
       return true;
     } catch (e) {
-      if (!mounted) return false;
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
           content: Text('Save failed: $e'),
           backgroundColor: const Color(0xFFB91C1C),
@@ -152,6 +152,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
   Future<void> _onSave() async {
     if (_isSaving) return;
+    // Capture before any await — calling of(context) after an async gap
+    // registers a stale InheritedWidget dependency that causes _dependents.isEmpty.
+    final messenger = ScaffoldMessenger.of(context);
     setState(() => _isSaving = true);
     try {
       if (_currentProject == null) {
@@ -162,25 +165,25 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         if (name == null || !mounted) return;
 
         final project = Project.create(name: name, score: _editorState.score);
-        if (!await _trySaveProject(project)) return;
+        if (!await _trySaveProject(project, messenger)) return;
 
         if (!mounted) return;
         setState(() {
           _currentProject = project;
           _editorState = _editorState.copyWith(hasUnsavedChanges: false);
         });
-        _showSavedSnackbar(name);
+        _showSavedSnackbar(messenger, name);
       } else {
         final updated =
             _currentProject!.copyWithUpdated(score: _editorState.score);
-        if (!await _trySaveProject(updated)) return;
+        if (!await _trySaveProject(updated, messenger)) return;
 
         if (!mounted) return;
         setState(() {
           _currentProject = updated;
           _editorState = _editorState.copyWith(hasUnsavedChanges: false);
         });
-        _showSavedSnackbar(updated.name);
+        _showSavedSnackbar(messenger, updated.name);
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -239,8 +242,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     );
   }
 
-  void _showSavedSnackbar(String name) {
-    ScaffoldMessenger.of(context).showSnackBar(
+  void _showSavedSnackbar(ScaffoldMessengerState messenger, String name) {
+    messenger.showSnackBar(
       SnackBar(
         content: Text('Saved as $name'),
         duration: const Duration(seconds: 2),
@@ -722,13 +725,14 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   onSave: _onSave,
                   onMetadataTap: _showMetadataSheet,
                   onExportXml: () async {
+                    final messenger = ScaffoldMessenger.of(context);
                     try {
                       final path = await const MusicXmlExportService().exportToDevice(_editorState.score);
                       if (!context.mounted) return;
                       if (path != null) {
                         await UsageStatsService.incrementExports();
                         if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        messenger.showSnackBar(
                           const SnackBar(
                             content: Text('MusicXML saved'),
                             duration: Duration(seconds: 2),
@@ -736,8 +740,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                         );
                       }
                     } catch (e) {
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         SnackBar(content: Text('Export failed: $e')),
                       );
                     }
@@ -745,13 +748,14 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   scoreIsEmpty: _editorState.score.parts.isEmpty ||
                       _editorState.score.parts.every((p) => p.measures.every((m) => m.symbols.isEmpty)),
                   onExportPdf: () async {
+                    final messenger = ScaffoldMessenger.of(context);
                     try {
                       final path = await const PdfExportService().exportToDevice(_editorState.score);
                       if (!context.mounted) return;
                       if (path != null) {
                         await UsageStatsService.incrementExports();
                         if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        messenger.showSnackBar(
                           const SnackBar(
                             content: Text('PDF saved'),
                             duration: Duration(seconds: 2),
@@ -759,8 +763,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                         );
                       }
                     } catch (e) {
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      messenger.showSnackBar(
                         SnackBar(content: Text('Export failed: $e')),
                       );
                     }
