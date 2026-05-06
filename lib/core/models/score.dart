@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'clef.dart';
 import 'measure.dart';
 import 'part.dart';
 import 'score_symbol.dart';
@@ -18,20 +19,20 @@ class Score {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'composer': composer,
-        'parts': parts.map((p) => p.toJson()).toList(),
-      };
+    'id': id,
+    'title': title,
+    'composer': composer,
+    'parts': parts.map((p) => p.toJson()).toList(),
+  };
 
   factory Score.fromJson(Map<String, dynamic> json) => Score(
-        id: json['id'] as String,
-        title: json['title'] as String,
-        composer: (json['composer'] as String?) ?? '',
-        parts: (json['parts'] as List<dynamic>)
-            .map((p) => Part.fromJson(p as Map<String, dynamic>))
-            .toList(),
-      );
+    id: json['id'] as String,
+    title: json['title'] as String,
+    composer: (json['composer'] as String?) ?? '',
+    parts: (json['parts'] as List<dynamic>)
+        .map((p) => Part.fromJson(p as Map<String, dynamic>))
+        .toList(),
+  );
 
   int get partCount => parts.length;
 
@@ -85,6 +86,25 @@ class Score {
     return _replaceMeasureSymbols(partIndex, measureIndex, symbols);
   }
 
+  Score setMeasureClef(int partIndex, int measureIndex, Clef? clef) {
+    final measure = _measureAt(partIndex, measureIndex);
+    if (measure == null) return this;
+    if (measure.clef == clef) return this;
+
+    return _replaceMeasure(
+      partIndex,
+      measureIndex,
+      Measure(
+        number: measure.number,
+        clef: clef,
+        timeSignature: measure.timeSignature,
+        keySignature: measure.keySignature,
+        symbols: measure.symbols,
+        startsNewPage: measure.startsNewPage,
+      ),
+    );
+  }
+
   /// Appends the measures of [other] to this score, matching parts by index.
   /// Parts in [other] beyond this score's part count are ignored. Parts in
   /// this score without a counterpart in [other] are left unchanged.
@@ -102,22 +122,24 @@ class Score {
       }
       final sp = other.parts[i];
       final existingCount = cp.measures.length;
-      updatedParts.add(Part(
-        id: cp.id,
-        name: cp.name,
-        measures: [
-          ...cp.measures,
-          for (int j = 0; j < sp.measures.length; j++)
-            Measure(
-              number: existingCount + j + 1,
-              clef: sp.measures[j].clef,
-              timeSignature: sp.measures[j].timeSignature,
-              keySignature: sp.measures[j].keySignature,
-              symbols: sp.measures[j].symbols,
-              startsNewPage: j == 0, // each scanned page starts a new page
-            ),
-        ],
-      ));
+      updatedParts.add(
+        Part(
+          id: cp.id,
+          name: cp.name,
+          measures: [
+            ...cp.measures,
+            for (int j = 0; j < sp.measures.length; j++)
+              Measure(
+                number: existingCount + j + 1,
+                clef: sp.measures[j].clef,
+                timeSignature: sp.measures[j].timeSignature,
+                keySignature: sp.measures[j].keySignature,
+                symbols: sp.measures[j].symbols,
+                startsNewPage: j == 0, // each scanned page starts a new page
+              ),
+          ],
+        ),
+      );
     }
     return Score(id: id, title: title, composer: composer, parts: updatedParts);
   }
@@ -153,7 +175,11 @@ class Score {
           ),
       ];
 
-      updatedParts[pi] = Part(id: part.id, name: part.name, measures: renumbered);
+      updatedParts[pi] = Part(
+        id: part.id,
+        name: part.name,
+        measures: renumbered,
+      );
     }
 
     return Score(id: id, title: title, composer: composer, parts: updatedParts);
@@ -168,7 +194,8 @@ class Score {
     final updatedParts = List<Part>.from(parts);
     for (int pi = 0; pi < updatedParts.length; pi++) {
       final part = updatedParts[pi];
-      final measures = List<Measure>.from(part.measures)..removeAt(measureIndex);
+      final measures = List<Measure>.from(part.measures)
+        ..removeAt(measureIndex);
 
       final renumbered = [
         for (int i = 0; i < measures.length; i++)
@@ -182,7 +209,11 @@ class Score {
           ),
       ];
 
-      updatedParts[pi] = Part(id: part.id, name: part.name, measures: renumbered);
+      updatedParts[pi] = Part(
+        id: part.id,
+        name: part.name,
+        measures: renumbered,
+      );
     }
 
     return Score(id: id, title: title, composer: composer, parts: updatedParts);
@@ -218,19 +249,32 @@ class Score {
     int measureIndex,
     List<ScoreSymbol> symbols,
   ) {
+    final measure = _measureAt(partIndex, measureIndex);
+    if (measure == null) return this;
+
+    return _replaceMeasure(
+      partIndex,
+      measureIndex,
+      Measure(
+        number: measure.number,
+        clef: measure.clef,
+        timeSignature: measure.timeSignature,
+        keySignature: measure.keySignature,
+        symbols: symbols,
+        startsNewPage: measure.startsNewPage,
+      ),
+    );
+  }
+
+  Score _replaceMeasure(
+    int partIndex,
+    int measureIndex,
+    Measure updatedMeasure,
+  ) {
     final updatedParts = List<Part>.from(parts);
     final part = updatedParts[partIndex];
     final updatedMeasures = List<Measure>.from(part.measures);
-    final measure = updatedMeasures[measureIndex];
-
-    updatedMeasures[measureIndex] = Measure(
-      number: measure.number,
-      clef: measure.clef,
-      timeSignature: measure.timeSignature,
-      keySignature: measure.keySignature,
-      symbols: symbols,
-      startsNewPage: measure.startsNewPage,
-    );
+    updatedMeasures[measureIndex] = updatedMeasure;
 
     updatedParts[partIndex] = Part(
       id: part.id,
@@ -238,12 +282,7 @@ class Score {
       measures: updatedMeasures,
     );
 
-    return Score(
-      id: id,
-      title: title,
-      composer: composer,
-      parts: updatedParts,
-    );
+    return Score(id: id, title: title, composer: composer, parts: updatedParts);
   }
 
   @override
