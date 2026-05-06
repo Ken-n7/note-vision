@@ -42,6 +42,8 @@ class ScoreBuilder {
         timeSignature: m.timeSignature ?? lastTime,
         keySignature: m.keySignature ?? lastKey,
         symbols: m.symbols,
+        leftBarlineType: m.leftBarlineType,
+        rightBarlineType: m.rightBarlineType,
       ));
     }
 

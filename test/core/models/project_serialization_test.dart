@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:note_vision/core/models/barline_type.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/models/measure.dart';
@@ -211,6 +212,8 @@ void main() {
         clef: Clef(sign: 'G', line: 2),
         timeSignature: TimeSignature(beats: 3, beatType: 4),
         keySignature: KeySignature(fifths: -1),
+        leftBarlineType: BarlineType.repeatStart,
+        rightBarlineType: BarlineType.repeatEnd,
         symbols: [
           Note(step: 'C', octave: 4, duration: 2, type: 'quarter'),
           Rest(duration: 2, type: 'quarter'),
@@ -223,6 +226,8 @@ void main() {
       expect(decoded.clef?.sign, 'G');
       expect(decoded.timeSignature?.beats, 3);
       expect(decoded.keySignature?.fifths, -1);
+      expect(decoded.leftBarlineType, BarlineType.repeatStart);
+      expect(decoded.rightBarlineType, BarlineType.repeatEnd);
       expect(decoded.symbols.length, 2);
       expect(decoded.symbols[0], isA<Note>());
       expect(decoded.symbols[1], isA<Rest>());

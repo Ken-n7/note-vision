@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:note_vision/core/models/barline_type.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/part.dart';
@@ -144,12 +145,28 @@ class MusicXmlExportService {
           });
         }
 
+        if (measure.leftBarlineType != null) {
+          _buildBarline(
+            b,
+            location: 'left',
+            type: measure.leftBarlineType!,
+          );
+        }
+
         for (final symbol in measure.symbols) {
           if (symbol is Note) {
             _buildNote(b, symbol);
           } else if (symbol is Rest) {
             _buildRest(b, symbol);
           }
+        }
+
+        if (measure.rightBarlineType != null) {
+          _buildBarline(
+            b,
+            location: 'right',
+            type: measure.rightBarlineType!,
+          );
         }
       },
     );
@@ -198,6 +215,23 @@ class MusicXmlExportService {
       }
       if (rest.staff != null) {
         b.element('staff', nest: rest.staff.toString());
+      }
+    });
+  }
+
+  void _buildBarline(
+    XmlBuilder b, {
+    required String location,
+    required BarlineType type,
+  }) {
+    b.element('barline', attributes: {'location': location}, nest: () {
+      switch (type) {
+        case BarlineType.repeatStart:
+          b.element('bar-style', nest: 'heavy-light');
+          b.element('repeat', attributes: {'direction': 'forward'});
+        case BarlineType.repeatEnd:
+          b.element('bar-style', nest: 'light-heavy');
+          b.element('repeat', attributes: {'direction': 'backward'});
       }
     });
   }

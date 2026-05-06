@@ -13,6 +13,8 @@ class SymbolClassifier {
 
   static bool isAugmentationDot(String type) => type == 'augmentationDot';
 
+  static bool isRepeatDot(String type) => type == 'repeatDot';
+
   static bool isSupportedFlag(String type) =>
       type == 'flag8thUp' || type == 'flag8thDown';
 

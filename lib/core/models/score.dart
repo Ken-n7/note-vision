@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'barline_type.dart';
 import 'clef.dart';
 import 'measure.dart';
 import 'part.dart';
@@ -258,6 +259,8 @@ class Score {
     Object? clef = _keep,
     List<ScoreSymbol>? symbols,
     bool? startsNewPage,
+    Object? leftBarlineType = _keep,
+    Object? rightBarlineType = _keep,
   }) {
     return Measure(
       number: number ?? measure.number,
@@ -266,6 +269,12 @@ class Score {
       keySignature: measure.keySignature,
       symbols: symbols ?? measure.symbols,
       startsNewPage: startsNewPage ?? measure.startsNewPage,
+      leftBarlineType: identical(leftBarlineType, _keep)
+          ? measure.leftBarlineType
+          : leftBarlineType as BarlineType?,
+      rightBarlineType: identical(rightBarlineType, _keep)
+          ? measure.rightBarlineType
+          : rightBarlineType as BarlineType?,
     );
   }
 

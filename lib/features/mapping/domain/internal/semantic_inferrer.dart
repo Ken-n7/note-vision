@@ -157,6 +157,8 @@ class SemanticInferrer {
             timeSignature: timeSignature,
             keySignature: keySignature,
             symbols: ordered.map((e) => e.symbol).toList(growable: false),
+            leftBarlineType: measure.leftBarlineType,
+            rightBarlineType: measure.rightBarlineType,
           );
         })
         .toList(growable: false);
