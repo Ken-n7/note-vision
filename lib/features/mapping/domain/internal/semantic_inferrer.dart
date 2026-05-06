@@ -1,6 +1,7 @@
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/rest.dart';
+import 'package:note_vision/features/detection/domain/detected_symbol.dart';
 import 'mapping_types.dart';
 import 'pitch_calculator.dart';
 import 'signature_inferrer.dart';
@@ -64,6 +65,10 @@ class SemanticInferrer {
                     !signatureIds.contains(e.symbol.id),
               )
               .toList();
+          final ledgerLines = measure.symbols
+              .where((e) => e.symbol.type == 'legerLine')
+              .map((e) => e.symbol)
+              .toList(growable: false);
           final noteAlters = _matchAccidentalsToNoteheads(
             bodyAccidentals,
             measure.symbols,
@@ -125,6 +130,7 @@ class SemanticInferrer {
                 link: link,
                 alter: noteAlters[entry.symbol.id],
                 dots: symbolDots[entry.symbol.id] ?? 0,
+                ledgerLines: ledgerLines,
                 warnings: warnings,
                 beatsUsed: beatsUsed,
                 beatsPerMeasure: beatsPerMeasure,
@@ -268,6 +274,7 @@ class SemanticInferrer {
     required StemLink link,
     required int? alter,
     required int dots,
+    required List<DetectedSymbol> ledgerLines,
     required List<String> warnings,
     required double beatsUsed,
     required int beatsPerMeasure,
@@ -311,6 +318,7 @@ class SemanticInferrer {
       symbol: entry.symbol,
       staff: entry.staff,
       clef: activeClef,
+      ledgerLines: ledgerLines,
     );
     if (pitch == null) {
       warnings.add(

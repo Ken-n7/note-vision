@@ -243,7 +243,7 @@ class ScoreClassifier {
 | 106 | Chord Reconstruction | Canete | High | ✅ Done |
 | 107 | Repeat Barline Detection | Canete | Medium | ✅ Done |
 | 108 | Double Whole Note Support | Canete | Low | ✅ Done |
-| 109 | Ledger Line Pitch Accuracy | Canete | Medium | ⏳ Not started |
+| 109 | Ledger Line Pitch Accuracy | Canete | Medium | ✅ Done |
 | 110 | Per-Class Detection Confidence Thresholds | Canete | Low | ⏳ Not started |
 | 111 | Editor Header: Collapse Action Buttons into Overflow Menu | Boleche | Medium | ⏳ Not started |
 | 112 | Score Genre/Label Classification | Canete | Medium | ⏳ Not started |

@@ -10,6 +10,7 @@ class PitchCalculator {
     required DetectedSymbol symbol,
     required DetectedStaff staff,
     required Clef? clef,
+    List<DetectedSymbol> ledgerLines = const [],
   }) {
     if (clef == null) return null;
     if (clef.sign != 'G' && clef.sign != 'F') return null;
@@ -20,15 +21,104 @@ class PitchCalculator {
     if (spacing <= 0) return null;
 
     final centerY = symbol.y + ((symbol.height ?? 0) / 2);
-    final diatonicOffset = _nearestDiatonicOffset(
+    final diatonicOffset = _diatonicOffset(
+      symbol: symbol,
       centerY: centerY,
       bottomLineY: sortedLines.last,
+      topLineY: sortedLines.first,
       lineSpacing: spacing,
+      ledgerLines: ledgerLines,
     );
 
     return clef.sign == 'G'
         ? _fromTrebleOffset(diatonicOffset)
         : _fromBassOffset(diatonicOffset);
+  }
+
+  int _diatonicOffset({
+    required DetectedSymbol symbol,
+    required double centerY,
+    required double bottomLineY,
+    required double topLineY,
+    required double lineSpacing,
+    required List<DetectedSymbol> ledgerLines,
+  }) {
+    final directOffset = _nearestDiatonicOffset(
+      centerY: centerY,
+      bottomLineY: bottomLineY,
+      lineSpacing: lineSpacing,
+    );
+
+    final lowerBound = topLineY - lineSpacing * 0.5;
+    final upperBound = bottomLineY + lineSpacing * 0.5;
+    final outsideStaff = centerY < lowerBound || centerY > upperBound;
+    if (!outsideStaff || ledgerLines.isEmpty) {
+      return directOffset;
+    }
+
+    final matchedLedger = _nearestLedgerLine(
+      symbol: symbol,
+      centerY: centerY,
+      ledgerLines: ledgerLines,
+      lineSpacing: lineSpacing,
+    );
+    if (matchedLedger == null) {
+      return directOffset;
+    }
+
+    final ledgerCenterY =
+        matchedLedger.y + ((matchedLedger.height ?? 0) / 2);
+    final ledgerOffset = _snapLedgerOffset(
+      ledgerCenterY: ledgerCenterY,
+      bottomLineY: bottomLineY,
+      lineSpacing: lineSpacing,
+    );
+    final relativeOffset =
+        ((ledgerCenterY - centerY) / (lineSpacing / 2)).round();
+    return ledgerOffset + relativeOffset;
+  }
+
+  DetectedSymbol? _nearestLedgerLine({
+    required DetectedSymbol symbol,
+    required double centerY,
+    required List<DetectedSymbol> ledgerLines,
+    required double lineSpacing,
+  }) {
+    final noteCenterX = symbol.x + ((symbol.width ?? 0) / 2);
+
+    DetectedSymbol? best;
+    double? bestScore;
+
+    for (final ledgerLine in ledgerLines) {
+      final ledgerCenterX = ledgerLine.x + ((ledgerLine.width ?? 0) / 2);
+      final horizontalDistance = (ledgerCenterX - noteCenterX).abs();
+      final horizontalLimit =
+          ((symbol.width ?? 12) + (ledgerLine.width ?? 18)) * 0.6;
+      if (horizontalDistance > horizontalLimit) continue;
+
+      final ledgerCenterY =
+          ledgerLine.y + ((ledgerLine.height ?? 0) / 2);
+      final verticalDistance = (ledgerCenterY - centerY).abs();
+      if (verticalDistance > lineSpacing * 3.5) continue;
+
+      final score = horizontalDistance + verticalDistance * 0.25;
+      if (bestScore == null || score < bestScore) {
+        bestScore = score;
+        best = ledgerLine;
+      }
+    }
+
+    return best;
+  }
+
+  int _snapLedgerOffset({
+    required double ledgerCenterY,
+    required double bottomLineY,
+    required double lineSpacing,
+  }) {
+    final rawOffset =
+        ((bottomLineY - ledgerCenterY) / (lineSpacing / 2)).round();
+    return (rawOffset / 2).round() * 2;
   }
 
   double _averageSpacing(List<double> sortedLines) {

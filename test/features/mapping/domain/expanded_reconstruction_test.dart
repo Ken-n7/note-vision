@@ -562,4 +562,87 @@ void main() {
       expect(note.pitch, 'B2');
     });
   });
+
+  group('Ledger line pitch accuracy', () {
+    test('middle C with one ledger line below treble staff reconstructs as C4', () {
+      const detection = DetectionResult(
+        imageId: 'ledger-middle-c',
+        staffs: [staff],
+        symbols: [
+          DetectedSymbol(
+            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+          ),
+          DetectedSymbol(
+            id: 'ledger-1', type: 'legerLine', x: 46, y: 149, width: 18, height: 2,
+          ),
+          DetectedSymbol(
+            id: 'note-1', type: 'noteheadBlack', x: 50, y: 146, width: 10, height: 8,
+          ),
+          DetectedSymbol(
+            id: 'stem-1', type: 'stem', x: 58, y: 112, width: 2, height: 38,
+          ),
+        ],
+      );
+
+      final result = mapper.map(detection);
+      final note = result.score.parts.single.measures.single.notes.single;
+
+      expect(note.pitch, 'C4');
+    });
+
+    test('high C with two ledger lines above treble staff reconstructs in correct octave', () {
+      const detection = DetectionResult(
+        imageId: 'ledger-high-c',
+        staffs: [staff],
+        symbols: [
+          DetectedSymbol(
+            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+          ),
+          DetectedSymbol(
+            id: 'ledger-1', type: 'legerLine', x: 46, y: 89, width: 18, height: 2,
+          ),
+          DetectedSymbol(
+            id: 'ledger-2', type: 'legerLine', x: 46, y: 79, width: 18, height: 2,
+          ),
+          DetectedSymbol(
+            id: 'note-1', type: 'noteheadBlack', x: 50, y: 76, width: 10, height: 8,
+          ),
+          DetectedSymbol(
+            id: 'stem-1', type: 'stem', x: 58, y: 76, width: 2, height: 38,
+          ),
+        ],
+      );
+
+      final result = mapper.map(detection);
+      final note = result.score.parts.single.measures.single.notes.single;
+
+      expect(note.pitch, 'C6');
+    });
+
+    test('in-staff note stays unchanged even with a nearby ledger line symbol', () {
+      const detection = DetectionResult(
+        imageId: 'ledger-in-staff-safe',
+        staffs: [staff],
+        symbols: [
+          DetectedSymbol(
+            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+          ),
+          DetectedSymbol(
+            id: 'ledger-1', type: 'legerLine', x: 46, y: 129, width: 18, height: 2,
+          ),
+          DetectedSymbol(
+            id: 'note-1', type: 'noteheadBlack', x: 50, y: 126, width: 10, height: 8,
+          ),
+          DetectedSymbol(
+            id: 'stem-1', type: 'stem', x: 58, y: 90, width: 2, height: 38,
+          ),
+        ],
+      );
+
+      final result = mapper.map(detection);
+      final note = result.score.parts.single.measures.single.notes.single;
+
+      expect(note.pitch, 'G4');
+    });
+  });
 }
