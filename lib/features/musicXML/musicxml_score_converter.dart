@@ -165,6 +165,7 @@ class MusicXmlScoreConverter {
 
     final voice = int.tryParse(_firstInnerText(noteElement, 'voice') ?? '');
     final staff = int.tryParse(_firstInnerText(noteElement, 'staff') ?? '');
+    final isChordTone = noteElement.findElements('chord').isNotEmpty;
 
     if (noteElement.findElements('rest').isNotEmpty) {
       return Rest(
@@ -198,6 +199,7 @@ class MusicXmlScoreConverter {
       voice: voice,
       staff: staff,
       dots: dots,
+      isChordTone: isChordTone,
     );
   }
 

@@ -175,7 +175,12 @@ class ScoreNotationPainter extends CustomPainter {
 
         for (var symbolIndex = 0; symbolIndex < measure.symbols.length; symbolIndex++) {
           final symbol = measure.symbols[symbolIndex];
-          final progress = (symbolIndex + 1) / (measure.symbols.length + 1);
+          if (symbol is Note && symbol.isChordTone) {
+            continue;
+          }
+          final visualSlot = _visualSlotForIndex(measure.symbols, symbolIndex);
+          final slotCount = _visualSlotCount(measure.symbols);
+          final progress = (visualSlot + 1) / (slotCount + 1);
           final x = measureStartX + innerPadding + (drawableWidth * progress);
           final y = _symbolCenterY(symbol, row.staffTop, row.staffBottom, row.clefSign, clefLine: row.clefLine);
           targets.add(
@@ -377,6 +382,7 @@ class ScoreNotationPainter extends CustomPainter {
     if (measure.symbols.isEmpty) return;
 
     final symbolCount = measure.symbols.length;
+    final slotCount = _visualSlotCount(measure.symbols);
     const innerPadding = 16.0;
     final drawableWidth = math.max(
       12.0,
@@ -414,13 +420,14 @@ class ScoreNotationPainter extends CustomPainter {
     for (var i = 0; i < symbolCount; i++) {
       if (activeDrag != null && i == activeDrag.draggedSymbolIndex) continue;
       final symbol = measure.symbols[i];
-      var visualIndex = i;
+      var visualIndex = _visualSlotForIndex(measure.symbols, i);
       if (activeDrag != null) {
-        final compactIndex = i > activeDrag.draggedSymbolIndex ? i - 1 : i;
+        final draggedSlot = _visualSlotForIndex(measure.symbols, activeDrag.draggedSymbolIndex);
+        final compactIndex = visualIndex > draggedSlot ? visualIndex - 1 : visualIndex;
         visualIndex =
             compactIndex >= activeDrag.targetSymbolIndex ? compactIndex + 1 : compactIndex;
       }
-      final progress = (visualIndex + 1) / (symbolCount + 1);
+      final progress = (visualIndex + 1) / (slotCount + 1);
       final x = measureStartX + innerPadding + (drawableWidth * progress);
 
       if (symbol is Note) {
@@ -478,7 +485,7 @@ class ScoreNotationPainter extends CustomPainter {
     List<int>? current;
     for (var i = 0; i < symbols.length; i++) {
       final sym = symbols[i];
-      if (sym is Note && sym.type == 'eighth' && sym.beamed) {
+      if (sym is Note && !sym.isChordTone && sym.type == 'eighth' && sym.beamed) {
         current ??= [];
         current.add(i);
       } else {
@@ -704,6 +711,16 @@ class ScoreNotationPainter extends CustomPainter {
       return;
     }
 
+    if (note.isChordTone) {
+      _drawAugmentationDots(
+        canvas,
+        x: x + headWidth * 0.9,
+        y: y,
+        dots: note.dots,
+      );
+      return;
+    }
+
     final stemUp = y > middleLineY;
     _drawStemAndFlag(canvas, x: x, y: y, stemUp: stemUp,
         drawFlag: isEighth && !suppressFlag);
@@ -821,6 +838,29 @@ class ScoreNotationPainter extends CustomPainter {
     for (var i = 0; i < dots; i++) {
       canvas.drawCircle(Offset(x + (i * 6), y - 2), 2.1, paint);
     }
+  }
+
+  static int _visualSlotCount(List<ScoreSymbol> symbols) {
+    var count = 0;
+    for (final symbol in symbols) {
+      if (symbol is Note && symbol.isChordTone) {
+        continue;
+      }
+      count++;
+    }
+    return math.max(count, 1);
+  }
+
+  static int _visualSlotForIndex(List<ScoreSymbol> symbols, int index) {
+    var slot = -1;
+    for (var i = 0; i <= index; i++) {
+      final symbol = symbols[i];
+      if (symbol is Note && symbol.isChordTone) {
+        continue;
+      }
+      slot++;
+    }
+    return math.max(slot, 0);
   }
 
   void _drawMeasureNumber(

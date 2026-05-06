@@ -59,8 +59,14 @@ class StemLink {
   /// True when at least one beam symbol was found adjacent to this stem,
   /// indicating the notehead belongs to a beamed eighth-note group.
   final bool hasBeam;
+  final bool isChordTone;
 
-  const StemLink({this.stem, this.flag, this.hasBeam = false});
+  const StemLink({
+    this.stem,
+    this.flag,
+    this.hasBeam = false,
+    this.isChordTone = false,
+  });
 }
 
 class Pitch {

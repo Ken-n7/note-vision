@@ -411,6 +411,34 @@ void main() {
       expect('<dot/>'.allMatches(xml).length, 1);
       expect(xml, contains('<duration>3</duration>'));
     });
+
+    test('chord tone emits chord tag before pitch', () {
+      final score = Score(
+        id: 'id',
+        title: 'T',
+        composer: 'C',
+        parts: [
+          Part(id: 'P1', name: 'P', measures: [
+            Measure(
+              number: 1,
+              symbols: const [
+                Note(step: 'C', octave: 4, duration: 2, type: 'quarter'),
+                Note(
+                  step: 'E',
+                  octave: 4,
+                  duration: 2,
+                  type: 'quarter',
+                  isChordTone: true,
+                ),
+              ],
+            ),
+          ]),
+        ],
+      );
+      final xml = service.toMusicXml(score);
+      expect(xml, contains('<chord/>'));
+      expect(xml.indexOf('<chord/>'), lessThan(xml.indexOf('<step>E</step>')));
+    });
   });
 
   // ---------------------------------------------------------------------------

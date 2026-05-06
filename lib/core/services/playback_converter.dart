@@ -14,6 +14,7 @@ class PlaybackEvent {
     required this.symbolIndex,
     required this.midiNote,
     required this.baseDurationMs,
+    this.isChordTone = false,
   });
 
   final int partIndex;
@@ -26,6 +27,7 @@ class PlaybackEvent {
   /// Duration in ms computed at [PlaybackConverter.defaultTempo] BPM.
   /// Scale by `defaultTempo / actualTempo` to get real duration.
   final int baseDurationMs;
+  final bool isChordTone;
 
   bool get isRest => midiNote < 0;
 
@@ -36,16 +38,18 @@ class PlaybackEvent {
       other.measureIndex == measureIndex &&
       other.symbolIndex == symbolIndex &&
       other.midiNote == midiNote &&
-      other.baseDurationMs == baseDurationMs;
+      other.baseDurationMs == baseDurationMs &&
+      other.isChordTone == isChordTone;
 
   @override
   int get hashCode =>
-      Object.hash(partIndex, measureIndex, symbolIndex, midiNote, baseDurationMs);
+      Object.hash(partIndex, measureIndex, symbolIndex, midiNote, baseDurationMs, isChordTone);
 
   @override
   String toString() =>
       'PlaybackEvent(part=$partIndex, m=$measureIndex, s=$symbolIndex, '
-      'midi=$midiNote, dur=${baseDurationMs}ms)';
+      'midi=$midiNote, dur=${baseDurationMs}ms'
+      '${isChordTone ? ', chord: true' : ''})';
 }
 
 // ---------------------------------------------------------------------------
@@ -126,6 +130,7 @@ class PlaybackConverter {
               symbolIndex: si,
               midiNote: midi,
               baseDurationMs: durationMs(symbol.duration),
+              isChordTone: symbol.isChordTone,
             ));
           } else if (symbol is Rest) {
             events.add(PlaybackEvent(

@@ -231,6 +231,123 @@ void main() {
     });
   });
 
+  group('Chord reconstruction', () {
+    test('two noteheads on one stem reconstruct as a two-note chord', () {
+      const detection = DetectionResult(
+        imageId: 'chord-two',
+        staffs: [staff],
+        symbols: [
+          DetectedSymbol(
+            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+          ),
+          DetectedSymbol(
+            id: 'note-1', type: 'noteheadBlack', x: 50, y: 126, width: 10, height: 8,
+          ),
+          DetectedSymbol(
+            id: 'note-2', type: 'noteheadBlack', x: 50, y: 116, width: 10, height: 8,
+          ),
+          DetectedSymbol(
+            id: 'stem-1', type: 'stem', x: 58, y: 82, width: 2, height: 52,
+          ),
+        ],
+      );
+
+      final result = mapper.map(detection);
+      final notes = result.score.parts.single.measures.single.notes;
+
+      expect(notes, hasLength(2));
+      expect(notes[0].isChordTone, isFalse);
+      expect(notes[1].isChordTone, isTrue);
+      expect(notes[0].duration, notes[1].duration);
+      expect(notes[0].type, 'quarter');
+      expect(notes[1].type, 'quarter');
+    });
+
+    test('three noteheads on one stem reconstruct as a three-note chord', () {
+      const detection = DetectionResult(
+        imageId: 'chord-three',
+        staffs: [staff],
+        symbols: [
+          DetectedSymbol(
+            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+          ),
+          DetectedSymbol(
+            id: 'note-1', type: 'noteheadBlack', x: 50, y: 136, width: 10, height: 8,
+          ),
+          DetectedSymbol(
+            id: 'note-2', type: 'noteheadBlack', x: 50, y: 126, width: 10, height: 8,
+          ),
+          DetectedSymbol(
+            id: 'note-3', type: 'noteheadBlack', x: 50, y: 116, width: 10, height: 8,
+          ),
+          DetectedSymbol(
+            id: 'stem-1', type: 'stem', x: 58, y: 82, width: 2, height: 62,
+          ),
+        ],
+      );
+
+      final result = mapper.map(detection);
+      final notes = result.score.parts.single.measures.single.notes;
+
+      expect(notes, hasLength(3));
+      expect(notes[0].isChordTone, isFalse);
+      expect(notes[1].isChordTone, isTrue);
+      expect(notes[2].isChordTone, isTrue);
+    });
+
+    test('single notehead stem remains a normal note', () {
+      const detection = DetectionResult(
+        imageId: 'chord-single',
+        staffs: [staff],
+        symbols: [
+          DetectedSymbol(
+            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+          ),
+          DetectedSymbol(
+            id: 'note-1', type: 'noteheadBlack', x: 50, y: 126, width: 10, height: 8,
+          ),
+          DetectedSymbol(
+            id: 'stem-1', type: 'stem', x: 58, y: 82, width: 2, height: 52,
+          ),
+        ],
+      );
+
+      final result = mapper.map(detection);
+      final note = result.score.parts.single.measures.single.notes.single;
+
+      expect(note.isChordTone, isFalse);
+      expect(note.type, 'quarter');
+    });
+
+    test('noteheads too far apart do not group into one chord', () {
+      const detection = DetectionResult(
+        imageId: 'chord-too-far',
+        staffs: [staff],
+        symbols: [
+          DetectedSymbol(
+            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+          ),
+          DetectedSymbol(
+            id: 'note-1', type: 'noteheadBlack', x: 50, y: 126, width: 10, height: 8,
+          ),
+          DetectedSymbol(
+            id: 'note-2', type: 'noteheadBlack', x: 50, y: 40, width: 10, height: 8,
+          ),
+          DetectedSymbol(
+            id: 'stem-1', type: 'stem', x: 58, y: 82, width: 2, height: 42,
+          ),
+        ],
+      );
+
+      final result = mapper.map(detection);
+      final notes = result.score.parts.single.measures.single.notes;
+
+      expect(notes, hasLength(2));
+      expect(notes[0].isChordTone, isFalse);
+      expect(notes[1].isChordTone, isFalse);
+    });
+  });
+
   group('Dotted reconstruction', () {
     test('augmentationDot after a notehead sets dots and effective duration', () {
       const detection = DetectionResult(

@@ -280,12 +280,13 @@ class PdfScoreRenderer {
     final drawableW =
         math.max(12.0, (measureEndX - measureStartX) - innerPad * 2);
     final count = measure.symbols.length;
+    final slotCount = _visualSlotCount(measure.symbols);
     final middleLineY = staffTop - _ls * 2; // 3rd staff line from top
 
     // Pre-compute x/y positions for all symbols.
     final xs = List<double>.generate(
       count,
-      (i) => measureStartX + innerPad + drawableW * (i + 1) / (count + 1),
+      (i) => measureStartX + innerPad + drawableW * (_visualSlotForIndex(measure.symbols, i) + 1) / (slotCount + 1),
     );
     final ys = <double>[];
     for (var i = 0; i < count; i++) {
@@ -367,7 +368,7 @@ class PdfScoreRenderer {
 
     for (var i = 0; i < symbols.length; i++) {
       final sym = symbols[i];
-      if (sym is Note && sym.type == 'eighth' && sym.beamed) {
+      if (sym is Note && !sym.isChordTone && sym.type == 'eighth' && sym.beamed) {
         current ??= [];
         current.add(i);
       } else {
@@ -428,6 +429,10 @@ class PdfScoreRenderer {
     }
 
     if (isWhole) return;
+
+    if (note.isChordTone) {
+      return;
+    }
 
     // Stem
     final stemUp = y < middleLineY;
@@ -684,6 +689,29 @@ class PdfScoreRenderer {
   }
 
   double _strWidth(String s, double size) => s.length * size * 0.52;
+
+  int _visualSlotCount(List<dynamic> symbols) {
+    var count = 0;
+    for (final symbol in symbols) {
+      if (symbol is Note && symbol.isChordTone) {
+        continue;
+      }
+      count++;
+    }
+    return math.max(count, 1);
+  }
+
+  int _visualSlotForIndex(List<dynamic> symbols, int index) {
+    var slot = -1;
+    for (var i = 0; i <= index; i++) {
+      final symbol = symbols[i];
+      if (symbol is Note && symbol.isChordTone) {
+        continue;
+      }
+      slot++;
+    }
+    return math.max(slot, 0);
+  }
 
   static String _clefSign(List<Measure> measures) {
     for (final m in measures) {

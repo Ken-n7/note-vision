@@ -75,10 +75,12 @@ class SemanticInferrer {
 
           final musicalCount = measure.symbols
               .where(
-                (e) =>
-                    !signatureIds.contains(e.symbol.id) &&
-                    (SymbolClassifier.isNotehead(e.symbol.type) ||
-                        SymbolClassifier.isSupportedRest(e.symbol.type)),
+                (e) {
+                  if (signatureIds.contains(e.symbol.id)) return false;
+                  if (SymbolClassifier.isSupportedRest(e.symbol.type)) return true;
+                  if (!SymbolClassifier.isNotehead(e.symbol.type)) return false;
+                  return !(stemLinks[e.symbol.id]?.isChordTone ?? false);
+                },
               )
               .length;
           final beatsPerMeasure = timeSignature?.beats ?? 4;
@@ -133,9 +135,13 @@ class SemanticInferrer {
                 ordered.add(
                   OrderedScoreSymbol(x: entry.symbolCenterX, symbol: note),
                 );
-                beatsUsed += _beatValueFor(note.type, note.dots);
+                if (!note.isChordTone) {
+                  beatsUsed += _beatValueFor(note.type, note.dots);
+                }
               }
-              musicalIndex++;
+              if (!link.isChordTone) {
+                musicalIndex++;
+              }
               continue;
             }
 
@@ -319,6 +325,7 @@ class SemanticInferrer {
       staff: _defaultStaff,
       beamed: noteType == 'eighth' && hasBeam,
       dots: dots,
+      isChordTone: link.isChordTone,
     );
   }
 

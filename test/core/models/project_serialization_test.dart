@@ -89,6 +89,7 @@ void main() {
         voice: 2,
         staff: 1,
         dots: 1,
+        isChordTone: true,
       );
       final decoded = Note.fromJson(note.toJson());
       expect(decoded.step, note.step);
@@ -99,6 +100,7 @@ void main() {
       expect(decoded.voice, note.voice);
       expect(decoded.staff, note.staff);
       expect(decoded.dots, note.dots);
+      expect(decoded.isChordTone, note.isChordTone);
     });
 
     test('round-trips without optional fields', () {
@@ -108,6 +110,7 @@ void main() {
       expect(decoded.voice, isNull);
       expect(decoded.staff, isNull);
       expect(decoded.dots, 0);
+      expect(decoded.isChordTone, isFalse);
     });
 
     test('toJson includes symbolType discriminator', () {

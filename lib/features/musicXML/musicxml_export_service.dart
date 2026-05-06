@@ -157,6 +157,9 @@ class MusicXmlExportService {
 
   void _buildNote(XmlBuilder b, Note note) {
     b.element('note', nest: () {
+      if (note.isChordTone) {
+        b.element('chord');
+      }
       b.element('pitch', nest: () {
         b.element('step', nest: note.step);
         if (note.alter != null && note.alter != 0) {

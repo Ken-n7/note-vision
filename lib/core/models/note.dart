@@ -10,6 +10,7 @@ class Note extends ScoreSymbol {
   final int? staff; // optional
   final bool beamed; // true when this eighth note belongs to a beamed group
   final int dots; // number of augmentation dots
+  final bool isChordTone; // true when this note starts with the preceding note
 
   const Note({
     required this.step,
@@ -21,6 +22,7 @@ class Note extends ScoreSymbol {
     this.staff,
     this.beamed = false,
     this.dots = 0,
+    this.isChordTone = false,
   });
 
   @override
@@ -35,6 +37,7 @@ class Note extends ScoreSymbol {
         if (staff != null) 'staff': staff,
         if (beamed) 'beamed': true,
         if (dots > 0) 'dots': dots,
+        if (isChordTone) 'isChordTone': true,
       };
 
   factory Note.fromJson(Map<String, dynamic> json) => Note(
@@ -47,6 +50,7 @@ class Note extends ScoreSymbol {
         staff: json['staff'] as int?,
         beamed: json['beamed'] as bool? ?? false,
         dots: json['dots'] as int? ?? 0,
+        isChordTone: json['isChordTone'] as bool? ?? false,
       );
 
   String get pitch {
@@ -67,5 +71,6 @@ class Note extends ScoreSymbol {
       '${staff != null ? ', staff: $staff' : ''}'
       '${beamed ? ', beamed: true' : ''}'
       '${dots > 0 ? ', dots: $dots' : ''}'
+      '${isChordTone ? ', isChordTone: true' : ''}'
       ')';
 }

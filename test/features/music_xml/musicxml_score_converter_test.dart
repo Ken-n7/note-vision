@@ -174,5 +174,42 @@ void main() {
       expect(rest.duration, 6);
       expect(rest.dots, 1);
     });
+
+    test('marks chord notes when MusicXML note contains chord tag', () {
+      const xml = '''<score-partwise>
+  <part-list>
+    <score-part id="P1"><part-name>Piano</part-name></score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>2</divisions>
+        <clef><sign>G</sign><line>2</line></clef>
+      </attributes>
+      <note>
+        <pitch><step>C</step><octave>4</octave></pitch>
+        <duration>2</duration>
+        <type>quarter</type>
+      </note>
+      <note>
+        <chord/>
+        <pitch><step>E</step><octave>4</octave></pitch>
+        <duration>2</duration>
+        <type>quarter</type>
+      </note>
+    </measure>
+  </part>
+</score-partwise>''';
+
+      final parseResult = parser.parse(xml);
+      expect(parseResult.success, isTrue);
+
+      final score = converter.convert(parseResult.document!);
+      final notes = score.parts.single.measures.single.notes;
+
+      expect(notes, hasLength(2));
+      expect(notes[0].isChordTone, isFalse);
+      expect(notes[1].isChordTone, isTrue);
+    });
   });
 }

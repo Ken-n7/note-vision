@@ -121,6 +121,7 @@ class PlaybackService {
 
   List<PlaybackEvent> _events = const [];
   int _currentEventIndex = 0;
+  final List<int> _activeMidiNotes = <int>[];
 
   // ── Streams ────────────────────────────────────────────────────────────
   final _stateController = StreamController<PlaybackState>.broadcast();
@@ -247,6 +248,7 @@ class PlaybackService {
   void _runLoop() async {
     while (_shouldPlay && _currentEventIndex < _events.length) {
       final event = _events[_currentEventIndex];
+      final groupEnd = _eventGroupEnd(_currentEventIndex);
 
       // Emit current score position for the viewer highlight.
       _positionController.add(PlaybackPosition(
@@ -255,31 +257,32 @@ class PlaybackService {
         symbolIndex: event.symbolIndex,
       ));
 
-      // Play MIDI note (skip for rests).
-      if (!event.isRest && _sfId != null) {
-        await _midi.playNote(
-          sfId: _sfId!,
-          channel: _midiChannel,
-          key: event.midiNote,
-          velocity: _velocity,
-        );
+      _activeMidiNotes.clear();
+
+      // Play all notes in the current rhythmic group (skip rests).
+      if (_sfId != null) {
+        for (var i = _currentEventIndex; i < groupEnd; i++) {
+          final groupedEvent = _events[i];
+          if (groupedEvent.isRest) continue;
+          await _midi.playNote(
+            sfId: _sfId!,
+            channel: _midiChannel,
+            key: groupedEvent.midiNote,
+            velocity: _velocity,
+          );
+          _activeMidiNotes.add(groupedEvent.midiNote);
+        }
       }
 
       // Wait for duration, scaled to current tempo.
       final ms = _converter.scaledDuration(event.baseDurationMs, _tempo);
       final completed = await _waitMs(ms);
 
-      // Stop note before advancing.
-      if (!event.isRest && _sfId != null) {
-        await _midi.stopNote(
-          sfId: _sfId!,
-          channel: _midiChannel,
-          key: event.midiNote,
-        );
-      }
+      // Stop sounding notes before advancing.
+      await _stopActiveNotes();
 
       if (!completed) break; // paused or stopped mid-note
-      _currentEventIndex++;
+      _currentEventIndex = groupEnd;
     }
 
     // Natural end — reset to stopped.
@@ -315,13 +318,26 @@ class PlaybackService {
   }
 
   void _stopCurrentNote() {
-    if (_sfId == null || _currentEventIndex >= _events.length) return;
-    final event = _events[_currentEventIndex];
-    if (!event.isRest) {
-      _midi.stopNote(
+    unawaited(_stopActiveNotes());
+  }
+
+  int _eventGroupEnd(int startIndex) {
+    var index = startIndex + 1;
+    while (index < _events.length && _events[index].isChordTone) {
+      index++;
+    }
+    return index;
+  }
+
+  Future<void> _stopActiveNotes() async {
+    if (_sfId == null || _activeMidiNotes.isEmpty) return;
+    final keys = List<int>.from(_activeMidiNotes);
+    _activeMidiNotes.clear();
+    for (final key in keys) {
+      await _midi.stopNote(
         sfId: _sfId!,
         channel: _midiChannel,
-        key: event.midiNote,
+        key: key,
       );
     }
   }
