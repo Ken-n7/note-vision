@@ -390,6 +390,27 @@ void main() {
       expect(xml, isNot(contains('<voice>')));
       expect(xml, isNot(contains('<staff>')));
     });
+
+    test('dotted note emits dot element and effective duration', () {
+      final score = Score(
+        id: 'id',
+        title: 'T',
+        composer: 'C',
+        parts: [
+          Part(id: 'P1', name: 'P', measures: [
+            Measure(
+              number: 1,
+              symbols: const [
+                Note(step: 'C', octave: 4, duration: 3, type: 'quarter', dots: 1),
+              ],
+            ),
+          ]),
+        ],
+      );
+      final xml = service.toMusicXml(score);
+      expect('<dot/>'.allMatches(xml).length, 1);
+      expect(xml, contains('<duration>3</duration>'));
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -453,6 +474,25 @@ void main() {
       final xml = service.toMusicXml(score);
       expect(xml, contains('<duration>8</duration>'));
       expect(xml, contains('<type>whole</type>'));
+    });
+
+    test('dotted rest emits dot element and effective duration', () {
+      final score = Score(
+        id: 'id',
+        title: 'T',
+        composer: 'C',
+        parts: [
+          Part(id: 'P1', name: 'P', measures: [
+            Measure(
+              number: 1,
+              symbols: const [Rest(duration: 6, type: 'half', dots: 1)],
+            ),
+          ]),
+        ],
+      );
+      final xml = service.toMusicXml(score);
+      expect('<dot/>'.allMatches(xml).length, 1);
+      expect(xml, contains('<duration>6</duration>'));
     });
   });
 

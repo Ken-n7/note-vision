@@ -694,11 +694,25 @@ class ScoreNotationPainter extends CustomPainter {
     }
     canvas.restore();
 
-    if (isWhole) return;
+    if (isWhole) {
+      _drawAugmentationDots(
+        canvas,
+        x: x + headWidth * 0.9,
+        y: y,
+        dots: note.dots,
+      );
+      return;
+    }
 
     final stemUp = y > middleLineY;
     _drawStemAndFlag(canvas, x: x, y: y, stemUp: stemUp,
         drawFlag: isEighth && !suppressFlag);
+    _drawAugmentationDots(
+      canvas,
+      x: x + headWidth * 0.9,
+      y: y,
+      dots: note.dots,
+    );
   }
 
   void _drawStemAndFlag(
@@ -748,6 +762,12 @@ class ScoreNotationPainter extends CustomPainter {
       final line4Y = staffTop + (staffLineSpacing * 3);
       final rect = Rect.fromCenter(center: Offset(x, line4Y + 4.3), width: 16, height: 4.8);
       canvas.drawRect(rect, paint);
+      _drawAugmentationDots(
+        canvas,
+        x: x + 12,
+        y: line4Y + 4.3,
+        dots: rest.dots,
+      );
       return;
     }
 
@@ -755,6 +775,12 @@ class ScoreNotationPainter extends CustomPainter {
       final line3Y = staffTop + (staffLineSpacing * 2);
       final rect = Rect.fromCenter(center: Offset(x, line3Y - 3.0), width: 16, height: 4.8);
       canvas.drawRect(rect, paint);
+      _drawAugmentationDots(
+        canvas,
+        x: x + 12,
+        y: line3Y - 3.0,
+        dots: rest.dots,
+      );
       return;
     }
 
@@ -772,6 +798,29 @@ class ScoreNotationPainter extends CustomPainter {
       ..lineTo(x - 1, y + 5)
       ..close();
     canvas.drawPath(path, paint);
+    _drawAugmentationDots(
+      canvas,
+      x: x + 10,
+      y: y + 8,
+      dots: rest.dots,
+    );
+  }
+
+  void _drawAugmentationDots(
+    Canvas canvas, {
+    required double x,
+    required double y,
+    required int dots,
+  }) {
+    if (dots <= 0) return;
+
+    final paint = Paint()
+      ..color = const Color(0xFF111827)
+      ..style = PaintingStyle.fill;
+
+    for (var i = 0; i < dots; i++) {
+      canvas.drawCircle(Offset(x + (i * 6), y - 2), 2.1, paint);
+    }
   }
 
   void _drawMeasureNumber(

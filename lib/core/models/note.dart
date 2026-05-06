@@ -4,11 +4,12 @@ class Note extends ScoreSymbol {
   final String step; // C, D, E, F, G, A, B
   final int octave; // usually 0-9
   final int? alter; // -1 = flat, 1 = sharp, etc.
-  final int duration; // in divisions
+  final int duration; // effective divisions, including augmentation dots
   final String type; // whole, half, quarter, eighth, etc.
   final int? voice; // optional
   final int? staff; // optional
   final bool beamed; // true when this eighth note belongs to a beamed group
+  final int dots; // number of augmentation dots
 
   const Note({
     required this.step,
@@ -19,6 +20,7 @@ class Note extends ScoreSymbol {
     this.voice,
     this.staff,
     this.beamed = false,
+    this.dots = 0,
   });
 
   @override
@@ -32,6 +34,7 @@ class Note extends ScoreSymbol {
         if (voice != null) 'voice': voice,
         if (staff != null) 'staff': staff,
         if (beamed) 'beamed': true,
+        if (dots > 0) 'dots': dots,
       };
 
   factory Note.fromJson(Map<String, dynamic> json) => Note(
@@ -43,6 +46,7 @@ class Note extends ScoreSymbol {
         voice: json['voice'] as int?,
         staff: json['staff'] as int?,
         beamed: json['beamed'] as bool? ?? false,
+        dots: json['dots'] as int? ?? 0,
       );
 
   String get pitch {
@@ -62,5 +66,6 @@ class Note extends ScoreSymbol {
       '${voice != null ? ', voice: $voice' : ''}'
       '${staff != null ? ', staff: $staff' : ''}'
       '${beamed ? ', beamed: true' : ''}'
+      '${dots > 0 ? ', dots: $dots' : ''}'
       ')';
 }

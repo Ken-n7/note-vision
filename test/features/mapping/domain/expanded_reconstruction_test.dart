@@ -231,6 +231,61 @@ void main() {
     });
   });
 
+  group('Dotted reconstruction', () {
+    test('augmentationDot after a notehead sets dots and effective duration', () {
+      const detection = DetectionResult(
+        imageId: 'dotted-note',
+        staffs: [staff],
+        symbols: [
+          DetectedSymbol(
+            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+          ),
+          DetectedSymbol(
+            id: 'note-1', type: 'noteheadBlack', x: 50, y: 116, width: 10, height: 8,
+          ),
+          DetectedSymbol(
+            id: 'stem-1', type: 'stem', x: 58, y: 82, width: 2, height: 38,
+          ),
+          DetectedSymbol(
+            id: 'dot-1', type: 'augmentationDot', x: 66, y: 117, width: 4, height: 4,
+          ),
+        ],
+      );
+
+      final result = mapper.map(detection);
+      final note = result.score.parts.single.measures.single.notes.single;
+
+      expect(note.type, 'quarter');
+      expect(note.duration, 3);
+      expect(note.dots, 1);
+    });
+
+    test('augmentationDot after a rest sets dots and effective duration', () {
+      const detection = DetectionResult(
+        imageId: 'dotted-rest',
+        staffs: [staff],
+        symbols: [
+          DetectedSymbol(
+            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+          ),
+          DetectedSymbol(
+            id: 'rest-1', type: 'restQuarter', x: 60, y: 116, width: 10, height: 20,
+          ),
+          DetectedSymbol(
+            id: 'dot-1', type: 'augmentationDot', x: 74, y: 120, width: 4, height: 4,
+          ),
+        ],
+      );
+
+      final result = mapper.map(detection);
+      final rest = result.score.parts.single.measures.single.rests.single;
+
+      expect(rest.type, 'quarter');
+      expect(rest.duration, 3);
+      expect(rest.dots, 1);
+    });
+  });
+
   // ─────────────────────────────────────────────────────────────
   // EIGHTH AND SIXTEENTH RESTS
   // ─────────────────────────────────────────────────────────────

@@ -1,16 +1,18 @@
 import 'score_symbol.dart';
 
 class Rest extends ScoreSymbol {
-  final int duration; // in divisions
+  final int duration; // effective divisions, including augmentation dots
   final String type; // whole, half, quarter, eighth, etc.
   final int? voice;
   final int? staff;
+  final int dots;
 
   const Rest({
     required this.duration,
     required this.type,
     this.voice,
     this.staff,
+    this.dots = 0,
   });
 
   @override
@@ -20,6 +22,7 @@ class Rest extends ScoreSymbol {
         'type': type,
         if (voice != null) 'voice': voice,
         if (staff != null) 'staff': staff,
+        if (dots > 0) 'dots': dots,
       };
 
   factory Rest.fromJson(Map<String, dynamic> json) => Rest(
@@ -27,6 +30,7 @@ class Rest extends ScoreSymbol {
         type: json['type'] as String,
         voice: json['voice'] as int?,
         staff: json['staff'] as int?,
+        dots: json['dots'] as int? ?? 0,
       );
 
   @override
@@ -34,5 +38,6 @@ class Rest extends ScoreSymbol {
       'Rest(duration: $duration, type: $type'
       '${voice != null ? ', voice: $voice' : ''}'
       '${staff != null ? ', staff: $staff' : ''}'
+      '${dots > 0 ? ', dots: $dots' : ''}'
       ')';
 }

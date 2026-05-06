@@ -11,6 +11,8 @@ class SymbolClassifier {
       type == 'rest8th' ||
       type == 'rest16th';
 
+  static bool isAugmentationDot(String type) => type == 'augmentationDot';
+
   static bool isSupportedFlag(String type) =>
       type == 'flag8thUp' || type == 'flag8thDown';
 
@@ -63,11 +65,20 @@ class SymbolClassifier {
       }[type];
 
   static int durationFor(String type) => switch (type) {
-        'whole' => 4,
-        'half' => 2,
-        'quarter' => 1,
+        'whole' => 8,
+        'half' => 4,
+        'quarter' => 2,
         'eighth' => 1,
         'sixteenth' => 1,
         _ => 1,
       };
-}
+
+  static double beatValueFor(String type) => switch (type) {
+        'whole' => 4,
+        'half' => 2,
+        'quarter' => 1,
+        'eighth' => 0.5,
+        'sixteenth' => 0.25,
+        _ => 1,
+      };
+} 

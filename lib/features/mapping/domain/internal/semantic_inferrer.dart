@@ -57,8 +57,19 @@ class SemanticInferrer {
                     !signatureIds.contains(e.symbol.id),
               )
               .toList();
+          final augmentationDots = measure.symbols
+              .where(
+                (e) =>
+                    SymbolClassifier.isAugmentationDot(e.symbol.type) &&
+                    !signatureIds.contains(e.symbol.id),
+              )
+              .toList();
           final noteAlters = _matchAccidentalsToNoteheads(
             bodyAccidentals,
+            measure.symbols,
+          );
+          final symbolDots = _matchAugmentationDots(
+            augmentationDots,
             measure.symbols,
           );
 
@@ -71,7 +82,7 @@ class SemanticInferrer {
               )
               .length;
           final beatsPerMeasure = timeSignature?.beats ?? 4;
-          var beatsUsed = 0;
+          var beatsUsed = 0.0;
           var musicalIndex = 0;
 
           final ordered = <OrderedScoreSymbol>[];
@@ -87,15 +98,19 @@ class SemanticInferrer {
             }
             // All accidentals (body or otherwise) are pre-processed; skip.
             if (SymbolClassifier.isAnyAccidental(type)) continue;
+            if (SymbolClassifier.isAugmentationDot(type)) continue;
             // Beams consumed by StemAssociator (via hasBeam flag).
             if (type == 'beam') continue;
 
             if (SymbolClassifier.isSupportedRest(type)) {
-              final rest = _buildRest(type: type);
+              final rest = _buildRest(
+                type: type,
+                dots: symbolDots[entry.symbol.id] ?? 0,
+              );
               ordered.add(
                 OrderedScoreSymbol(x: entry.symbolCenterX, symbol: rest),
               );
-              beatsUsed += SymbolClassifier.durationFor(rest.type);
+              beatsUsed += _beatValueFor(rest.type, rest.dots);
               musicalIndex++;
               continue;
             }
@@ -107,6 +122,7 @@ class SemanticInferrer {
                 activeClef: clef,
                 link: link,
                 alter: noteAlters[entry.symbol.id],
+                dots: symbolDots[entry.symbol.id] ?? 0,
                 warnings: warnings,
                 beatsUsed: beatsUsed,
                 beatsPerMeasure: beatsPerMeasure,
@@ -117,7 +133,7 @@ class SemanticInferrer {
                 ordered.add(
                   OrderedScoreSymbol(x: entry.symbolCenterX, symbol: note),
                 );
-                beatsUsed += SymbolClassifier.durationFor(note.type);
+                beatsUsed += _beatValueFor(note.type, note.dots);
               }
               musicalIndex++;
               continue;
@@ -186,13 +202,66 @@ class SemanticInferrer {
     return result;
   }
 
+  Map<String, int> _matchAugmentationDots(
+    List<StaffOwnedSymbol> dots,
+    List<StaffOwnedSymbol> allSymbols,
+  ) {
+    if (dots.isEmpty) return const {};
+
+    final candidates = allSymbols
+        .where(
+          (e) =>
+              SymbolClassifier.isNotehead(e.symbol.type) ||
+              SymbolClassifier.isSupportedRest(e.symbol.type),
+        )
+        .toList()
+      ..sort((a, b) => a.symbolCenterX.compareTo(b.symbolCenterX));
+
+    final result = <String, int>{};
+
+    for (final dot in dots) {
+      final dotCenterY = dot.symbol.y + ((dot.symbol.height ?? 0) / 2);
+      StaffOwnedSymbol? nearest;
+      double? nearestScore;
+
+      for (final candidate in candidates) {
+        final candidateRight = candidate.symbol.x + (candidate.symbol.width ?? 12.0);
+        final horizontalDistance = dot.symbol.x - candidateRight;
+        if (horizontalDistance < -4) continue;
+
+        final maxHorizontalDistance = (candidate.symbol.width ?? 12.0) * 2 + 18;
+        if (horizontalDistance > maxHorizontalDistance) continue;
+
+        final candidateCenterY =
+            candidate.symbol.y + ((candidate.symbol.height ?? 0) / 2);
+        final verticalDistance = (candidateCenterY - dotCenterY).abs();
+        final maxVerticalDistance =
+            ((candidate.symbol.height ?? 10.0) + (dot.symbol.height ?? 6.0)) * 1.5 + 10;
+        if (verticalDistance > maxVerticalDistance) continue;
+
+        final score = horizontalDistance + (verticalDistance * 0.6);
+        if (nearestScore == null || score < nearestScore) {
+          nearestScore = score;
+          nearest = candidate;
+        }
+      }
+
+      if (nearest != null) {
+        result.update(nearest.symbol.id, (value) => value + 1, ifAbsent: () => 1);
+      }
+    }
+
+    return result;
+  }
+
   Note? _buildNote({
     required StaffOwnedSymbol entry,
     required Clef? activeClef,
     required StemLink link,
     required int? alter,
+    required int dots,
     required List<String> warnings,
-    required int beatsUsed,
+    required double beatsUsed,
     required int beatsPerMeasure,
     required bool isLastMusical,
     required bool isOnlyMusical,
@@ -245,14 +314,15 @@ class SemanticInferrer {
       step: pitch.step,
       octave: pitch.octave,
       alter: alter,
-      duration: SymbolClassifier.durationFor(noteType),
+      duration: _effectiveDuration(SymbolClassifier.durationFor(noteType), dots),
       type: noteType,
       staff: _defaultStaff,
       beamed: noteType == 'eighth' && hasBeam,
+      dots: dots,
     );
   }
 
-  Rest _buildRest({required String type}) {
+  Rest _buildRest({required String type, required int dots}) {
     final restType = switch (type) {
       'restWhole' => 'whole',
       'restHalf' => 'half',
@@ -261,14 +331,15 @@ class SemanticInferrer {
       _ => 'quarter',
     };
     return Rest(
-      duration: SymbolClassifier.durationFor(restType),
+      duration: _effectiveDuration(SymbolClassifier.durationFor(restType), dots),
       type: restType,
       staff: _defaultStaff,
+      dots: dots,
     );
   }
 
   String _stemlessNoteDuration({
-    required int beatsUsed,
+    required double beatsUsed,
     required int beatsPerMeasure,
     required bool isLastMusical,
     required bool isOnlyMusical,
@@ -277,6 +348,26 @@ class SemanticInferrer {
     if (isOnlyMusical && remaining >= 4) return 'whole';
     if (isLastMusical && remaining == 2) return 'half';
     return 'quarter';
+  }
+
+  double _beatValueFor(String type, int dots) {
+    var value = SymbolClassifier.beatValueFor(type);
+    var increment = value / 2;
+    for (var i = 0; i < dots; i++) {
+      value += increment;
+      increment /= 2;
+    }
+    return value;
+  }
+
+  int _effectiveDuration(int baseDuration, int dots) {
+    var total = baseDuration.toDouble();
+    var increment = baseDuration / 2;
+    for (var i = 0; i < dots; i++) {
+      total += increment;
+      increment /= 2;
+    }
+    return total.round();
   }
 
   void _warnAboutClef(Clef? clef, MeasureSymbols measure, List<String> warnings) {

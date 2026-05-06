@@ -423,6 +423,10 @@ class PdfScoreRenderer {
       g.setColor(_ink);
     }
 
+    if (note.dots > 0) {
+      _drawAugmentationDots(g, x: x + 11, y: y, dots: note.dots);
+    }
+
     if (isWhole) return;
 
     // Stem
@@ -504,6 +508,7 @@ class PdfScoreRenderer {
       final lineY = staffTop - _ls * 3;
       g.drawRect(x - 6.5, lineY - 3.5, 13, 3.5);
       g.fillPath();
+      _drawAugmentationDots(g, x: x + 10, y: lineY - 1.5, dots: rest.dots);
       return;
     }
 
@@ -512,6 +517,7 @@ class PdfScoreRenderer {
       final lineY = staffTop - _ls * 2;
       g.drawRect(x - 6.5, lineY, 13, 3.5);
       g.fillPath();
+      _drawAugmentationDots(g, x: x + 10, y: lineY + 1.5, dots: rest.dots);
       return;
     }
 
@@ -526,6 +532,21 @@ class PdfScoreRenderer {
     g.lineTo(x + 2.5, qy + 12);
     g.lineTo(x - 3, qy + 14);
     g.strokePath();
+    _drawAugmentationDots(g, x: x + 8, y: qy + 7, dots: rest.dots);
+  }
+
+  void _drawAugmentationDots(
+    PdfGraphics g, {
+    required double x,
+    required double y,
+    required int dots,
+  }) {
+    if (dots <= 0) return;
+    g.setColor(_ink);
+    for (var i = 0; i < dots; i++) {
+      g.drawEllipse(x + (i * 5.5), y - 1.2, 2.4, 2.4);
+      g.fillPath();
+    }
   }
 
   // ── Clef ──────────────────────────────────────────────────────────────────

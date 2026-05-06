@@ -132,5 +132,47 @@ void main() {
       expect(score.composer, 'Unknown composer');
       expect(score.parts.single.measureCount, 1);
     });
+
+    test('preserves dotted durations and dot metadata', () {
+      const xml = '''<score-partwise>
+  <part-list>
+    <score-part id="P1"><part-name>Piano</part-name></score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>2</divisions>
+        <clef><sign>G</sign><line>2</line></clef>
+      </attributes>
+      <note>
+        <pitch><step>C</step><octave>4</octave></pitch>
+        <duration>3</duration>
+        <type>quarter</type>
+        <dot/>
+      </note>
+      <note>
+        <rest/>
+        <duration>6</duration>
+        <type>half</type>
+        <dot/>
+      </note>
+    </measure>
+  </part>
+</score-partwise>''';
+
+      final parseResult = parser.parse(xml);
+      expect(parseResult.success, isTrue);
+
+      final score = converter.convert(parseResult.document!);
+      final symbols = score.parts.single.measures.single.symbols;
+
+      final note = symbols[0] as Note;
+      final rest = symbols[1] as Rest;
+
+      expect(note.duration, 3);
+      expect(note.dots, 1);
+      expect(rest.duration, 6);
+      expect(rest.dots, 1);
+    });
   });
 }

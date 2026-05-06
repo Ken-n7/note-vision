@@ -169,6 +169,11 @@ class MusicXmlExportService {
         b.element('voice', nest: note.voice.toString());
       }
       b.element('type', nest: note.type);
+      if (note.dots > 0) {
+        for (var i = 0; i < note.dots; i++) {
+          b.element('dot');
+        }
+      }
       if (note.staff != null) {
         b.element('staff', nest: note.staff.toString());
       }
@@ -183,6 +188,11 @@ class MusicXmlExportService {
         b.element('voice', nest: rest.voice.toString());
       }
       b.element('type', nest: rest.type);
+      if (rest.dots > 0) {
+        for (var i = 0; i < rest.dots; i++) {
+          b.element('dot');
+        }
+      }
       if (rest.staff != null) {
         b.element('staff', nest: rest.staff.toString());
       }
@@ -198,4 +208,5 @@ class MusicXmlExportService {
       '<!DOCTYPE score-partwise PUBLIC\n'
       '  "-//Recordare//DTD MusicXML 3.1 Partwise//EN"\n'
       '  "http://www.musicxml.org/dtds/partwise.dtd">\n';
+
 }

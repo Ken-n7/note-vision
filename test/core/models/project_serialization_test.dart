@@ -88,6 +88,7 @@ void main() {
         type: 'half',
         voice: 2,
         staff: 1,
+        dots: 1,
       );
       final decoded = Note.fromJson(note.toJson());
       expect(decoded.step, note.step);
@@ -97,6 +98,7 @@ void main() {
       expect(decoded.type, note.type);
       expect(decoded.voice, note.voice);
       expect(decoded.staff, note.staff);
+      expect(decoded.dots, note.dots);
     });
 
     test('round-trips without optional fields', () {
@@ -105,6 +107,7 @@ void main() {
       expect(decoded.alter, isNull);
       expect(decoded.voice, isNull);
       expect(decoded.staff, isNull);
+      expect(decoded.dots, 0);
     });
 
     test('toJson includes symbolType discriminator', () {
@@ -123,12 +126,13 @@ void main() {
 
   group('Rest toJson / fromJson', () {
     test('round-trips all fields', () {
-      const rest = Rest(duration: 1, type: 'eighth', voice: 1, staff: 2);
+      const rest = Rest(duration: 1, type: 'eighth', voice: 1, staff: 2, dots: 1);
       final decoded = Rest.fromJson(rest.toJson());
       expect(decoded.duration, rest.duration);
       expect(decoded.type, rest.type);
       expect(decoded.voice, rest.voice);
       expect(decoded.staff, rest.staff);
+      expect(decoded.dots, rest.dots);
     });
 
     test('round-trips without optional fields', () {
@@ -136,6 +140,7 @@ void main() {
       final decoded = Rest.fromJson(rest.toJson());
       expect(decoded.voice, isNull);
       expect(decoded.staff, isNull);
+      expect(decoded.dots, 0);
     });
 
     test('toJson includes symbolType discriminator', () {

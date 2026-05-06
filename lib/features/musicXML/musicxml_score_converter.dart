@@ -157,6 +157,7 @@ class MusicXmlScoreConverter {
   ScoreSymbol? _buildSymbol(XmlElement noteElement) {
     final duration = int.tryParse(_firstInnerText(noteElement, 'duration') ?? '');
     final type = _firstInnerText(noteElement, 'type')?.trim();
+    final dots = noteElement.findElements('dot').length;
 
     if (duration == null || type == null || type.isEmpty) {
       return null;
@@ -166,7 +167,13 @@ class MusicXmlScoreConverter {
     final staff = int.tryParse(_firstInnerText(noteElement, 'staff') ?? '');
 
     if (noteElement.findElements('rest').isNotEmpty) {
-      return Rest(duration: duration, type: type, voice: voice, staff: staff);
+      return Rest(
+        duration: duration,
+        type: type,
+        voice: voice,
+        staff: staff,
+        dots: dots,
+      );
     }
 
     final pitch = _firstOrNull(noteElement.findElements('pitch'));
@@ -190,6 +197,7 @@ class MusicXmlScoreConverter {
       type: type,
       voice: voice,
       staff: staff,
+      dots: dots,
     );
   }
 
