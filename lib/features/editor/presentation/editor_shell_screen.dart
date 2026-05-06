@@ -1148,10 +1148,10 @@ class _EditorBannerData {
   final VoidCallback? onAction;
 }
 
-enum _ExportOption { exportXml, exportPdf }
+enum _HeaderMenuAction { scanPage, exportXml, exportPdf }
 
-class _ExportMenuItem extends StatelessWidget {
-  const _ExportMenuItem({required this.icon, required this.label});
+class _HeaderMenuItem extends StatelessWidget {
+  const _HeaderMenuItem({required this.icon, required this.label});
 
   final IconData icon;
   final String label;
@@ -1204,6 +1204,13 @@ class _EditorHeader extends StatelessWidget {
   final VoidCallback onMetadataTap;
   final VoidCallback? onScanPage;
 
+  static final ButtonStyle _compactIconButtonStyle = IconButton.styleFrom(
+    visualDensity: VisualDensity.compact,
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    minimumSize: const Size(36, 36),
+    padding: const EdgeInsets.all(6),
+  );
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1212,7 +1219,7 @@ class _EditorHeader extends StatelessWidget {
         color: AppColors.surface,
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 6),
       child: Row(
         children: [
           IconButton(
@@ -1220,73 +1227,65 @@ class _EditorHeader extends StatelessWidget {
             icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
             color: AppColors.textPrimary,
             tooltip: 'Back',
+            style: _compactIconButtonStyle,
           ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: GestureDetector(
-              onTap: onMetadataTap,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.textPrimary,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
+          const SizedBox(width: 2),
+          Flexible(
+            fit: FlexFit.tight,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 120),
+              child: GestureDetector(
+                onTap: onMetadataTap,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
-                      ),
-                      if (hasUnsavedChanges) ...[
-                        const SizedBox(width: 5),
-                        Flexible(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 5,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.accent.withValues(alpha: 0.18),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Text(
-                              'Unsaved',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: AppColors.accent,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
+                        if (hasUnsavedChanges) ...[
+                          const SizedBox(width: 5),
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.accent.withValues(alpha: 0.18),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'Unsaved',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: AppColors.accent,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          'Score Editor',
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 10,
-                          ),
-                        ),
-                      ),
-                      if (editCount > 0) ...[
-                        const SizedBox(width: 6),
+                    ),
+                    Row(
+                      children: [
                         Flexible(
                           child: Text(
-                            '· $editCount ${editCount == 1 ? 'edit' : 'edits'}',
+                            'Score Editor',
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: AppColors.textSecondary,
@@ -1294,10 +1293,23 @@ class _EditorHeader extends StatelessWidget {
                             ),
                           ),
                         ),
+                        if (editCount > 0) ...[
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              '· $editCount ${editCount == 1 ? 'edit' : 'edits'}',
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1308,7 +1320,7 @@ class _EditorHeader extends StatelessWidget {
                 ? AppColors.textPrimary
                 : AppColors.textSecondary.withValues(alpha: 0.3),
             tooltip: 'Undo',
-            visualDensity: VisualDensity.compact,
+            style: _compactIconButtonStyle,
           ),
           IconButton(
             onPressed: canRedo ? onRedo : null,
@@ -1317,57 +1329,61 @@ class _EditorHeader extends StatelessWidget {
                 ? AppColors.textPrimary
                 : AppColors.textSecondary.withValues(alpha: 0.3),
             tooltip: 'Redo',
-            visualDensity: VisualDensity.compact,
+            style: _compactIconButtonStyle,
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
           FilledButton.icon(
             onPressed: onSave,
             icon: const Icon(Icons.save_rounded, size: 15),
             label: const Text('Save', style: TextStyle(fontSize: 13)),
             style: FilledButton.styleFrom(
-              minimumSize: const Size(0, 34),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
+              minimumSize: const Size(60, 34),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
             ),
           ),
-          const SizedBox(width: 6),
-          PopupMenuButton<_ExportOption>(
-            onSelected: (option) {
-              if (option == _ExportOption.exportXml) {
+          const SizedBox(width: 2),
+          PopupMenuButton<_HeaderMenuAction>(
+            onSelected: (action) {
+              if (action == _HeaderMenuAction.scanPage) {
+                onScanPage?.call();
+              } else if (action == _HeaderMenuAction.exportXml) {
                 onExportXml();
-              } else if (option == _ExportOption.exportPdf) {
+              } else if (action == _HeaderMenuAction.exportPdf) {
                 onExportPdf();
               }
             },
-            tooltip: 'Export',
-            icon: const Icon(Icons.ios_share_rounded, size: 18),
+            tooltip: 'More',
+            icon: const Icon(Icons.more_vert_rounded, size: 18),
+            style: _compactIconButtonStyle,
             color: AppColors.surface,
             itemBuilder: (_) => [
+              PopupMenuItem(
+                value: _HeaderMenuAction.scanPage,
+                enabled: onScanPage != null,
+                child: const _HeaderMenuItem(
+                  icon: Icons.add_photo_alternate_rounded,
+                  label: 'Scan New Page',
+                ),
+              ),
               const PopupMenuItem(
-                value: _ExportOption.exportXml,
-                child: _ExportMenuItem(
+                value: _HeaderMenuAction.exportXml,
+                child: _HeaderMenuItem(
                   icon: Icons.download_rounded,
                   label: 'Export MusicXML…',
                 ),
               ),
               PopupMenuItem(
-                value: _ExportOption.exportPdf,
+                value: _HeaderMenuAction.exportPdf,
                 enabled: !scoreIsEmpty,
-                child: _ExportMenuItem(
+                child: _HeaderMenuItem(
                   icon: Icons.picture_as_pdf_rounded,
                   label: 'Export PDF…',
                 ),
               ),
             ],
           ),
-          IconButton(
-            onPressed: onScanPage,
-            icon: const Icon(Icons.add_photo_alternate_rounded, size: 18),
-            color: AppColors.textPrimary,
-            disabledColor: AppColors.textSecondary.withValues(alpha: 0.3),
-            tooltip: 'Scan New Page',
-            visualDensity: VisualDensity.compact,
-          ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 2),
         ],
       ),
     );

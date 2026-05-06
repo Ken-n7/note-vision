@@ -56,8 +56,9 @@ void main() {
   Future<void> pumpEditorShell(
     WidgetTester tester, {
     required Score score,
+    Size surfaceSize = const Size(1600, 900),
   }) async {
-    tester.view.physicalSize = const Size(1600, 900);
+    tester.view.physicalSize = surfaceSize;
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -130,6 +131,49 @@ void main() {
     expect(find.text('Add'), findsOneWidget);
     expect(find.byTooltip('Undo'), findsOneWidget);
     expect(find.byTooltip('Redo'), findsOneWidget);
+    expect(find.byTooltip('More'), findsOneWidget);
+  });
+
+  testWidgets('uses overflow menu for scan and export actions on narrow screens', (
+    tester,
+  ) async {
+    final score = Score(
+      id: 'score-narrow',
+      title: 'Moonlight Sonata',
+      composer: 'Composer',
+      parts: [
+        Part(
+          id: 'P1',
+          name: 'Part 1',
+          measures: const [
+            Measure(
+              number: 1,
+              symbols: [
+                Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    await pumpEditorShell(
+      tester,
+      score: score,
+      surfaceSize: const Size(360, 800),
+    );
+
+    expect(find.text('Moonlight Sonata'), findsOneWidget);
+    expect(find.byTooltip('Scan New Page'), findsNothing);
+    expect(find.byTooltip('More'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.byTooltip('More'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Scan New Page'), findsOneWidget);
+    expect(find.text('Export MusicXML…'), findsOneWidget);
+    expect(find.text('Export PDF…'), findsOneWidget);
   });
 
   testWidgets('keeps measure actions enabled with default measure context', (
