@@ -112,12 +112,10 @@ extension EditorActions on EditorState {
       0,
       nextScore.parts[partIndex].measures.length - 1,
     );
-    return applyEdit(
+    return applyEditWithMeasureContext(
       score: nextScore,
-      selectedPartIndex: partIndex,
-      selectedMeasureIndex: nextMeasureIndex,
-      selectedSymbolIndex: null,
-      selectedSymbol: null,
+      partIndex: partIndex,
+      measureIndex: nextMeasureIndex,
     );
   }
 
@@ -126,12 +124,10 @@ extension EditorActions on EditorState {
     final measureIndex = selectedMeasureIndex!;
     final nextScore = score.insertMeasureAfterInAllParts(measureIndex);
     final newMeasureIndex = measureIndex + 1;
-    return applyEdit(
+    return applyEditWithMeasureContext(
       score: nextScore,
-      selectedPartIndex: selectedPartIndex,
-      selectedMeasureIndex: newMeasureIndex,
-      selectedSymbolIndex: null,
-      selectedSymbol: null,
+      partIndex: selectedPartIndex!,
+      measureIndex: newMeasureIndex,
     );
   }
 
@@ -157,17 +153,15 @@ extension EditorActions on EditorState {
     final newMeasureIndex = score.parts.isEmpty
         ? 0
         : score.parts.first.measures.length;
-    return applyEdit(
+    return applyEditWithMeasureContext(
       score: Score(
         id: score.id,
         title: score.title,
         composer: score.composer,
         parts: updatedParts,
       ),
-      selectedPartIndex: selectedPartIndex ?? 0,
-      selectedMeasureIndex: newMeasureIndex,
-      selectedSymbolIndex: null,
-      selectedSymbol: null,
+      partIndex: selectedPartIndex ?? 0,
+      measureIndex: newMeasureIndex,
     );
   }
 
@@ -180,12 +174,8 @@ extension EditorActions on EditorState {
     if (currentClef == clef) return this;
 
     final nextScore = score.setMeasureClef(partIndex, measureIndex, clef);
-    return applyEdit(
+    return applyEditPreservingSelection(
       score: nextScore,
-      selectedPartIndex: partIndex,
-      selectedMeasureIndex: measureIndex,
-      selectedSymbolIndex: selectedSymbolIndex,
-      selectedSymbol: selectedSymbol,
     );
   }
 
@@ -207,22 +197,20 @@ extension EditorActions on EditorState {
     );
 
     if (symbols.isEmpty) {
-      return applyEdit(
+      return applyEditWithMeasureContext(
         score: nextScore,
-        selectedPartIndex: partIndex,
-        selectedMeasureIndex: measureIndex,
-        selectedSymbolIndex: null,
-        selectedSymbol: null,
+        partIndex: partIndex,
+        measureIndex: measureIndex,
       );
     }
 
     final nextIndex = symbolIndex.clamp(0, symbols.length - 1);
-    return applyEdit(
+    return applyEditWithSymbolSelection(
       score: nextScore,
-      selectedPartIndex: partIndex,
-      selectedMeasureIndex: measureIndex,
-      selectedSymbolIndex: nextIndex,
-      selectedSymbol: symbols[nextIndex],
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      symbolIndex: nextIndex,
+      symbol: symbols[nextIndex],
     );
   }
 
@@ -283,12 +271,12 @@ extension EditorActions on EditorState {
     );
     final toSymbolIndex = toSymbols.length;
 
-    return applyEdit(
+    return applyEditWithSymbolSelection(
       score: nextScore,
-      selectedPartIndex: partIndex,
-      selectedMeasureIndex: toMeasureIndex,
-      selectedSymbolIndex: toSymbolIndex,
-      selectedSymbol: moved,
+      partIndex: partIndex,
+      measureIndex: toMeasureIndex,
+      symbolIndex: toSymbolIndex,
+      symbol: moved,
     );
   }
 
@@ -329,12 +317,12 @@ extension EditorActions on EditorState {
       );
       final symbols =
           nextScore.parts[fromPartIndex].measures[fromMeasureIndex].symbols;
-      return applyEdit(
+      return applyEditWithSymbolSelection(
         score: nextScore,
-        selectedPartIndex: fromPartIndex,
-        selectedMeasureIndex: fromMeasureIndex,
-        selectedSymbolIndex: clampedTo,
-        selectedSymbol: symbols[clampedTo],
+        partIndex: fromPartIndex,
+        measureIndex: fromMeasureIndex,
+        symbolIndex: clampedTo,
+        symbol: symbols[clampedTo],
       );
     }
 
@@ -358,12 +346,12 @@ extension EditorActions on EditorState {
       moved,
     );
 
-    return applyEdit(
+    return applyEditWithSymbolSelection(
       score: nextScore,
-      selectedPartIndex: toPartIndex,
-      selectedMeasureIndex: toMeasureIndex,
-      selectedSymbolIndex: clampedTo,
-      selectedSymbol: moved,
+      partIndex: toPartIndex,
+      measureIndex: toMeasureIndex,
+      symbolIndex: clampedTo,
+      symbol: moved,
     );
   }
 
@@ -403,12 +391,8 @@ extension EditorActions on EditorState {
         selectedMeasure != measureIndex ||
         selectedIndex == null ||
         selected == null) {
-      return applyEdit(
+      return applyEditPreservingSelection(
         score: nextScore,
-        selectedPartIndex: selectedPartIndex,
-        selectedMeasureIndex: selectedMeasureIndex,
-        selectedSymbolIndex: selectedSymbolIndex,
-        selectedSymbol: selectedSymbol,
       );
     }
 
@@ -424,12 +408,12 @@ extension EditorActions on EditorState {
       nextSelectedIndex = selectedIndex + 1;
     }
 
-    return applyEdit(
+    return applyEditWithSymbolSelection(
       score: nextScore,
-      selectedPartIndex: partIndex,
-      selectedMeasureIndex: measureIndex,
-      selectedSymbolIndex: nextSelectedIndex,
-      selectedSymbol: symbols[nextSelectedIndex],
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      symbolIndex: nextSelectedIndex,
+      symbol: symbols[nextSelectedIndex],
     );
   }
 
@@ -445,12 +429,12 @@ extension EditorActions on EditorState {
       symbol,
     );
 
-    return applyEdit(
+    return applyEditWithSymbolSelection(
       score: nextScore,
-      selectedPartIndex: partIndex,
-      selectedMeasureIndex: measureIndex,
-      selectedSymbolIndex: symbolIndex,
-      selectedSymbol: symbol,
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      symbolIndex: symbolIndex,
+      symbol: symbol,
     );
   }
 
@@ -474,12 +458,12 @@ extension EditorActions on EditorState {
       symbol,
     );
 
-    return applyEdit(
+    return applyEditWithSymbolSelection(
       score: nextScore,
-      selectedPartIndex: partIndex,
-      selectedMeasureIndex: measureIndex,
-      selectedSymbolIndex: insertIndex,
-      selectedSymbol: symbol,
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      symbolIndex: insertIndex,
+      symbol: symbol,
     );
   }
 
@@ -496,12 +480,12 @@ extension EditorActions on EditorState {
       symbol,
     );
 
-    return applyEdit(
+    return applyEditWithSymbolSelection(
       score: nextScore,
-      selectedPartIndex: partIndex,
-      selectedMeasureIndex: measureIndex,
-      selectedSymbolIndex: insertIndex,
-      selectedSymbol: symbol,
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      symbolIndex: insertIndex,
+      symbol: symbol,
     );
   }
 }

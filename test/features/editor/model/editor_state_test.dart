@@ -8,6 +8,7 @@ import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/features/editor/model/editor_snapshot.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/model/editor_state_history.dart';
+import 'package:note_vision/features/editor/model/editor_state_history.dart';
 
 void main() {
   group('EditorState', () {
@@ -87,6 +88,48 @@ void main() {
       expect(state.selectedMeasureIndex, 0);
       expect(state.selectedSymbolIndex, isNull);
       expect(state.selectedSymbol, isNull);
+      expect(state.hasMeasureContext, isTrue);
+    });
+
+    test('applyEditWithMeasureContext clears symbol selection and keeps measure selection', () {
+      final score = _buildScore();
+      final selected = EditorState(score: score).copyWith(
+        selectedPartIndex: 0,
+        selectedMeasureIndex: 0,
+        selectedSymbolIndex: 0,
+        selectedSymbol: score.parts[0].measures[0].symbols[0],
+      );
+
+      final updated = selected.applyEditWithMeasureContext(
+        score: score,
+        partIndex: 0,
+        measureIndex: 0,
+      );
+
+      expect(updated.selectedPartIndex, 0);
+      expect(updated.selectedMeasureIndex, 0);
+      expect(updated.selectedSymbolIndex, isNull);
+      expect(updated.selectedSymbol, isNull);
+      expect(updated.undoStack, isNotEmpty);
+    });
+
+    test('applyEditWithSymbolSelection selects the provided symbol', () {
+      final score = _buildScore();
+      final symbol = score.parts[0].measures[0].symbols[1];
+
+      final updated = EditorState(score: score).applyEditWithSymbolSelection(
+        score: score,
+        partIndex: 0,
+        measureIndex: 0,
+        symbolIndex: 1,
+        symbol: symbol,
+      );
+
+      expect(updated.selectedPartIndex, 0);
+      expect(updated.selectedMeasureIndex, 0);
+      expect(updated.selectedSymbolIndex, 1);
+      expect(updated.selectedSymbol, same(symbol));
+      expect(updated.undoStack, isNotEmpty);
     });
 
     test('copyWith can clear symbol selection while preserving measure context', () {

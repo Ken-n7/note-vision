@@ -80,6 +80,9 @@ class EditorState {
     );
   }
 
+  bool get hasMeasureContext =>
+      selectedPartIndex != null && selectedMeasureIndex != null;
+
   static List<EditorSnapshot> _trimStack(List<EditorSnapshot> stack) {
     if (stack.length <= maxHistoryDepth) {
       return List<EditorSnapshot>.from(stack);

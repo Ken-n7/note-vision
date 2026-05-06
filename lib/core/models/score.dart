@@ -6,6 +6,8 @@ import 'part.dart';
 import 'score_symbol.dart';
 
 class Score {
+  static const Object _keep = Object();
+
   final String id;
   final String title;
   final String composer;
@@ -94,14 +96,7 @@ class Score {
     return _replaceMeasure(
       partIndex,
       measureIndex,
-      Measure(
-        number: measure.number,
-        clef: clef,
-        timeSignature: measure.timeSignature,
-        keySignature: measure.keySignature,
-        symbols: measure.symbols,
-        startsNewPage: measure.startsNewPage,
-      ),
+      _copyMeasure(measure, clef: clef),
     );
   }
 
@@ -129,12 +124,9 @@ class Score {
           measures: [
             ...cp.measures,
             for (int j = 0; j < sp.measures.length; j++)
-              Measure(
+              _copyMeasure(
+                sp.measures[j],
                 number: existingCount + j + 1,
-                clef: sp.measures[j].clef,
-                timeSignature: sp.measures[j].timeSignature,
-                keySignature: sp.measures[j].keySignature,
-                symbols: sp.measures[j].symbols,
                 startsNewPage: j == 0, // each scanned page starts a new page
               ),
           ],
@@ -162,23 +154,10 @@ class Score {
         Measure(number: insertAt + 1, symbols: const []),
       );
 
-      // Renumber every measure by its new list position.
-      final renumbered = [
-        for (int i = 0; i < measures.length; i++)
-          Measure(
-            number: i + 1,
-            clef: measures[i].clef,
-            timeSignature: measures[i].timeSignature,
-            keySignature: measures[i].keySignature,
-            symbols: measures[i].symbols,
-            startsNewPage: measures[i].startsNewPage,
-          ),
-      ];
-
       updatedParts[pi] = Part(
         id: part.id,
         name: part.name,
-        measures: renumbered,
+        measures: _renumberMeasures(measures),
       );
     }
 
@@ -197,22 +176,10 @@ class Score {
       final measures = List<Measure>.from(part.measures)
         ..removeAt(measureIndex);
 
-      final renumbered = [
-        for (int i = 0; i < measures.length; i++)
-          Measure(
-            number: i + 1,
-            clef: measures[i].clef,
-            timeSignature: measures[i].timeSignature,
-            keySignature: measures[i].keySignature,
-            symbols: measures[i].symbols,
-            startsNewPage: measures[i].startsNewPage,
-          ),
-      ];
-
       updatedParts[pi] = Part(
         id: part.id,
         name: part.name,
-        measures: renumbered,
+        measures: _renumberMeasures(measures),
       );
     }
 
@@ -255,14 +222,7 @@ class Score {
     return _replaceMeasure(
       partIndex,
       measureIndex,
-      Measure(
-        number: measure.number,
-        clef: measure.clef,
-        timeSignature: measure.timeSignature,
-        keySignature: measure.keySignature,
-        symbols: symbols,
-        startsNewPage: measure.startsNewPage,
-      ),
+      _copyMeasure(measure, symbols: symbols),
     );
   }
 
@@ -283,6 +243,30 @@ class Score {
     );
 
     return Score(id: id, title: title, composer: composer, parts: updatedParts);
+  }
+
+  List<Measure> _renumberMeasures(List<Measure> measures) {
+    return [
+      for (int i = 0; i < measures.length; i++)
+        _copyMeasure(measures[i], number: i + 1),
+    ];
+  }
+
+  Measure _copyMeasure(
+    Measure measure, {
+    int? number,
+    Object? clef = _keep,
+    List<ScoreSymbol>? symbols,
+    bool? startsNewPage,
+  }) {
+    return Measure(
+      number: number ?? measure.number,
+      clef: identical(clef, _keep) ? measure.clef : clef as Clef?,
+      timeSignature: measure.timeSignature,
+      keySignature: measure.keySignature,
+      symbols: symbols ?? measure.symbols,
+      startsNewPage: startsNewPage ?? measure.startsNewPage,
+    );
   }
 
   @override

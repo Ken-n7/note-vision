@@ -13,6 +13,27 @@ import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 
 void main() {
+  group('pageStartIndicesForMeasures', () {
+    test('uses explicit startsNewPage markers when present', () {
+      final measures = [
+        const Measure(number: 1, symbols: []),
+        const Measure(number: 2, symbols: [], startsNewPage: true),
+        const Measure(number: 3, symbols: []),
+      ];
+
+      expect(pageStartIndicesForMeasures(measures), const [0, 1]);
+    });
+
+    test('falls back to fixed page buckets for older scores', () {
+      final measures = List.generate(
+        10,
+        (i) => Measure(number: i + 1, symbols: const []),
+      );
+
+      expect(pageStartIndicesForMeasures(measures), const [0, 9]);
+    });
+  });
+
   group('pageIndexForMeasure', () {
     test('uses explicit page starts instead of fixed 9-measure buckets', () {
       expect(pageIndexForMeasure(const [0, 1], 0), 0);

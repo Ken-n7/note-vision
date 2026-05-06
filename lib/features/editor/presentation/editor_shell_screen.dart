@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/models/clef.dart';
+import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/project.dart';
 import 'package:note_vision/core/models/rest.dart';
@@ -46,6 +47,56 @@ int pageIndexForMeasure(List<int> pageStartIndices, int measureIndex) {
   return result;
 }
 
+@visibleForTesting
+List<int> pageStartIndicesForMeasures(List<Measure> measures) {
+  if (measures.isEmpty) return const [0];
+
+  final hasExplicitBreaks = measures.any((m) => m.startsNewPage);
+  if (!hasExplicitBreaks) {
+    final count = math.max(
+      1,
+      (measures.length + _kMeasuresPerPage - 1) ~/ _kMeasuresPerPage,
+    );
+    return List.generate(count, (i) => i * _kMeasuresPerPage);
+  }
+
+  final indices = <int>[0];
+  for (int i = 1; i < measures.length; i++) {
+    if (measures[i].startsNewPage) {
+      indices.add(i);
+    }
+  }
+  return indices;
+}
+
+class _EditorPageMetrics {
+  const _EditorPageMetrics({
+    required this.pageStartIndices,
+    required this.currentPageIndex,
+    required this.totalMeasures,
+  });
+
+  final List<int> pageStartIndices;
+  final int currentPageIndex;
+  final int totalMeasures;
+
+  int get totalPages => pageStartIndices.length;
+
+  int get pageFirstMeasure =>
+      pageStartIndices[currentPageIndex.clamp(0, pageStartIndices.length - 1)];
+
+  int get pageMeasureCount {
+    final clamped = currentPageIndex.clamp(0, pageStartIndices.length - 1);
+    final next = clamped + 1 < pageStartIndices.length
+        ? pageStartIndices[clamped + 1]
+        : totalMeasures;
+    return math.max(0, next - pageStartIndices[clamped]);
+  }
+
+  int pageIndexForMeasureIndex(int measureIndex) =>
+      pageIndexForMeasure(pageStartIndices, measureIndex);
+}
+
 class EditorShellArgs {
   const EditorShellArgs({
     required this.score,
@@ -61,11 +112,18 @@ class EditorShellArgs {
 }
 
 class EditorShellScreen extends StatefulWidget {
-  const EditorShellScreen({super.key, required this.args});
+  const EditorShellScreen({
+    super.key,
+    required this.args,
+    this.playbackService,
+    this.projectStorageService,
+  });
 
   static const routeName = '/editor';
 
   final EditorShellArgs args;
+  final PlaybackService? playbackService;
+  final ProjectStorageService? projectStorageService;
 
   @override
   State<EditorShellScreen> createState() => _EditorShellScreenState();
@@ -81,73 +139,44 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   PaletteSymbolType? _insertSymbolType;
 
   // Playback
-  final _playback = PlaybackService.instance;
+  late final PlaybackService _playback;
   PlaybackPosition _playbackPosition = PlaybackPosition.none;
   PlaybackStatus _playbackStatus = PlaybackStatus.stopped;
   StreamSubscription<PlaybackPosition>? _positionSub;
   StreamSubscription<PlaybackState>? _stateSub;
 
-  final _storage = ProjectStorageService();
+  late final ProjectStorageService _storage;
   Project? _currentProject;
   int _scoreEditCount = 0;
   bool _isSaving = false;
-  String? _bannerMessage;
-  Color _bannerColor = AppColors.surfaceAlt;
-  String? _bannerActionLabel;
-  VoidCallback? _bannerAction;
+  _EditorBannerData? _banner;
   Timer? _bannerTimer;
 
   int _currentPageIndex = 0;
 
-  int get _totalMeasures {
+  _EditorPageMetrics get _pageMetrics {
     final score = _editorState.score;
-    return score.parts.isEmpty ? 0 : score.parts.first.measures.length;
-  }
-
-  // Returns the measure index at which each page starts.
-  // If the score has explicit startsNewPage markers those define the breaks;
-  // otherwise falls back to the fixed _kMeasuresPerPage grid so old scores
-  // display exactly as before.
-  List<int> get _pageStartIndices {
-    if (_editorState.score.parts.isEmpty) return [0];
-    final measures = _editorState.score.parts.first.measures;
-    if (measures.isEmpty) return [0];
-
-    final hasExplicitBreaks = measures.any((m) => m.startsNewPage);
-    if (!hasExplicitBreaks) {
-      final count = math.max(
-        1,
-        (_totalMeasures + _kMeasuresPerPage - 1) ~/ _kMeasuresPerPage,
+    if (score.parts.isEmpty) {
+      return const _EditorPageMetrics(
+        pageStartIndices: [0],
+        currentPageIndex: 0,
+        totalMeasures: 0,
       );
-      return List.generate(count, (i) => i * _kMeasuresPerPage);
     }
 
-    final indices = <int>[0];
-    for (int i = 1; i < measures.length; i++) {
-      if (measures[i].startsNewPage) indices.add(i);
-    }
-    return indices;
-  }
-
-  int get _totalPages => _pageStartIndices.length;
-
-  int get _pageFirstMeasure {
-    final indices = _pageStartIndices;
-    return indices[_currentPageIndex.clamp(0, indices.length - 1)];
-  }
-
-  int get _pageMeasureCount {
-    final indices = _pageStartIndices;
-    final clamped = _currentPageIndex.clamp(0, indices.length - 1);
-    final next = clamped + 1 < indices.length
-        ? indices[clamped + 1]
-        : _totalMeasures;
-    return math.max(0, next - indices[clamped]);
+    final measures = score.parts.first.measures;
+    return _EditorPageMetrics(
+      pageStartIndices: pageStartIndicesForMeasures(measures),
+      currentPageIndex: _currentPageIndex,
+      totalMeasures: measures.length,
+    );
   }
 
   @override
   void initState() {
     super.initState();
+    _playback = widget.playbackService ?? PlaybackService.instance;
+    _storage = widget.projectStorageService ?? ProjectStorageService();
     _currentProject = widget.args.existingProject;
     _editorState = _withDefaultMeasureContext(
       widget.args.initialState.copyWith(score: widget.args.score),
@@ -164,12 +193,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       setState(() {
         _playbackPosition = pos;
         if (!pos.isNone) {
-          final targetPage = pageIndexForMeasure(
-            _pageStartIndices,
+          final targetPage = _pageMetrics.pageIndexForMeasureIndex(
             pos.measureIndex,
           );
           if (targetPage != _currentPageIndex) {
-            _currentPageIndex = targetPage.clamp(0, _totalPages - 1);
+            _currentPageIndex = targetPage.clamp(0, _pageMetrics.totalPages - 1);
           }
         }
       });
@@ -191,30 +219,46 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
   // ── Save logic ─────────────────────────────────────────────────────────────
 
-  Future<bool> _trySaveProject(
-    Project project,
-    ScaffoldMessengerState messenger,
-  ) async {
+  Future<bool> _trySaveProject(Project project) async {
     try {
       await _storage.saveProject(project);
       return true;
     } catch (e) {
       _showEditorBanner(
-        'Save failed: $e',
-        backgroundColor: const Color(0xFFB91C1C),
-        duration: const Duration(seconds: 6),
-        actionLabel: 'Retry',
-        onAction: _onSave,
+        _EditorBannerData.error(
+          'Save failed: $e',
+          duration: const Duration(seconds: 6),
+          actionLabel: 'Retry',
+          onAction: _onSave,
+        ),
       );
       return false;
     }
   }
 
+  Future<void> _runExport({
+    required Future<String?> Function() export,
+    required String successMessage,
+  }) async {
+    try {
+      final path = await export();
+      if (!context.mounted || path == null) return;
+
+      await UsageStatsService.incrementExports();
+      if (!context.mounted) return;
+      _showEditorBanner(_EditorBannerData.success(successMessage));
+    } catch (e) {
+      _showEditorBanner(
+        _EditorBannerData.error(
+          'Export failed: $e',
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    }
+  }
+
   Future<void> _onSave() async {
     if (_isSaving) return;
-    // Capture before any await — calling of(context) after an async gap
-    // registers a stale InheritedWidget dependency that causes _dependents.isEmpty.
-    final messenger = ScaffoldMessenger.of(context);
     setState(() => _isSaving = true);
     try {
       if (_currentProject == null) {
@@ -225,26 +269,26 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         if (name == null || !mounted) return;
 
         final project = Project.create(name: name, score: _editorState.score);
-        if (!await _trySaveProject(project, messenger)) return;
+        if (!await _trySaveProject(project)) return;
 
         if (!mounted) return;
         setState(() {
           _currentProject = project;
           _editorState = _editorState.copyWith(hasUnsavedChanges: false);
         });
-        _showSavedSnackbar(messenger, name);
+        _showSavedBanner(name);
       } else {
         final updated = _currentProject!.copyWithUpdated(
           score: _editorState.score,
         );
-        if (!await _trySaveProject(updated, messenger)) return;
+        if (!await _trySaveProject(updated)) return;
 
         if (!mounted) return;
         setState(() {
           _currentProject = updated;
           _editorState = _editorState.copyWith(hasUnsavedChanges: false);
         });
-        _showSavedSnackbar(messenger, updated.name);
+        _showSavedBanner(updated.name);
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -303,32 +347,17 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     );
   }
 
-  void _showSavedSnackbar(ScaffoldMessengerState messenger, String name) {
-    _showEditorBanner('Saved as $name');
+  void _showSavedBanner(String name) {
+    _showEditorBanner(_EditorBannerData.success('Saved as $name'));
   }
 
-  void _showEditorBanner(
-    String message, {
-    Color backgroundColor = AppColors.surfaceAlt,
-    Duration duration = const Duration(seconds: 2),
-    String? actionLabel,
-    VoidCallback? onAction,
-  }) {
+  void _showEditorBanner(_EditorBannerData banner) {
     _bannerTimer?.cancel();
     if (!mounted) return;
-    setState(() {
-      _bannerMessage = message;
-      _bannerColor = backgroundColor;
-      _bannerActionLabel = actionLabel;
-      _bannerAction = onAction;
-    });
-    _bannerTimer = Timer(duration, () {
+    setState(() => _banner = banner);
+    _bannerTimer = Timer(banner.duration, () {
       if (!mounted) return;
-      setState(() {
-        _bannerMessage = null;
-        _bannerActionLabel = null;
-        _bannerAction = null;
-      });
+      setState(() => _banner = null);
     });
   }
 
@@ -413,7 +442,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         _scoreEditCount++;
         unawaited(UsageStatsService.incrementScoreEdits(_editorState.score.id));
       }
-      _currentPageIndex = _totalPages - 1;
+      _currentPageIndex = _pageMetrics.totalPages - 1;
     });
   }
 
@@ -495,7 +524,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     setState(() {
       final prev = _editorState;
       _editorState = updater(_editorState);
-      _currentPageIndex = _currentPageIndex.clamp(0, _totalPages - 1);
+      _currentPageIndex = _currentPageIndex.clamp(
+        0,
+        _pageMetrics.totalPages - 1,
+      );
       if (_editorState.undoStack.length > prev.undoStack.length) {
         _scoreEditCount++;
         unawaited(UsageStatsService.incrementScoreEdits(_editorState.score.id));
@@ -688,8 +720,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
               final notationArea = _NotationArea(
                 editorState: _editorState,
-                pageFirstMeasure: _pageFirstMeasure,
-                pageMeasureCount: _pageMeasureCount,
+                pageFirstMeasure: _pageMetrics.pageFirstMeasure,
+                pageMeasureCount: _pageMetrics.pageMeasureCount,
                 insertMode: _insertMode,
                 insertSymbolType: _insertSymbolType,
                 playbackPosition: _playbackPosition,
@@ -779,11 +811,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 hasSelection: hasSelection,
                 hasMeasureContext: hasMeasureContext,
                 currentPageIndex: _currentPageIndex,
-                totalPages: _totalPages,
+                totalPages: _pageMetrics.totalPages,
                 onPrevPage: _currentPageIndex > 0
                     ? () => setState(() => _currentPageIndex--)
                     : null,
-                onNextPage: _currentPageIndex < _totalPages - 1
+                onNextPage: _currentPageIndex < _pageMetrics.totalPages - 1
                     ? () => setState(() => _currentPageIndex++)
                     : null,
                 onPageTap: (i) => setState(() => _currentPageIndex = i),
@@ -812,7 +844,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                     _updateState((s) => s.addMeasureAfterSelected()),
                 onAddPage: () {
                   _updateState((s) => s.addPageAtEnd());
-                  setState(() => _currentPageIndex = _totalPages - 1);
+                  setState(
+                    () => _currentPageIndex = _pageMetrics.totalPages - 1,
+                  );
                 },
                 canDeleteMeasure: canDeleteMeasure,
                 onDeleteMeasure: () =>
@@ -825,185 +859,186 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                     (p) => p.measures.every((m) => m.symbols.isEmpty),
                   );
 
-              return Stack(
-                children: [
-                  Column(
-                    children: [
-                      _EditorHeader(
-                        title:
-                            _currentProject?.name ??
-                            (_editorState.score.title.isEmpty
-                                ? 'Untitled Score'
-                                : _editorState.score.title),
-                        hasUnsavedChanges: _editorState.hasUnsavedChanges,
-                        editCount: _scoreEditCount,
-                        canUndo: _editorState.canUndo && !isPlaybackActive,
-                        canRedo: _editorState.canRedo && !isPlaybackActive,
-                        onBack: () => Navigator.of(context).maybePop(),
-                        onUndo: () => _updateState((s) => s.applyUndo()),
-                        onRedo: () => _updateState((s) => s.applyRedo()),
-                        onSave: _onSave,
-                        onMetadataTap: _showMetadataSheet,
-                        onExportXml: () async {
-                          try {
-                            final path = await const MusicXmlExportService()
-                                .exportToDevice(_editorState.score);
-                            if (!context.mounted) return;
-                            if (path != null) {
-                              await UsageStatsService.incrementExports();
-                              if (!context.mounted) return;
-                              _showEditorBanner('MusicXML saved');
-                            }
-                          } catch (e) {
-                            _showEditorBanner(
-                              'Export failed: $e',
-                              backgroundColor: const Color(0xFFB91C1C),
-                              duration: const Duration(seconds: 6),
-                            );
-                          }
-                        },
-                        scoreIsEmpty:
-                            _editorState.score.parts.isEmpty ||
-                            _editorState.score.parts.every(
-                              (p) => p.measures.every((m) => m.symbols.isEmpty),
-                            ),
-                        onExportPdf: () async {
-                          try {
-                            final path = await const PdfExportService()
-                                .exportToDevice(_editorState.score);
-                            if (!context.mounted) return;
-                            if (path != null) {
-                              await UsageStatsService.incrementExports();
-                              if (!context.mounted) return;
-                              _showEditorBanner('PDF saved');
-                            }
-                          } catch (e) {
-                            _showEditorBanner(
-                              'Export failed: $e',
-                              backgroundColor: const Color(0xFFB91C1C),
-                              duration: const Duration(seconds: 6),
-                            );
-                          }
-                        },
-                        onScanPage: isPlaybackActive ? null : _onScanPage,
-                      ),
-                      Expanded(
-                        child: isLandscape
-                            ? Row(
-                                children: [
-                                  Expanded(
-                                    child: Padding(
-                                      padding: const EdgeInsets.fromLTRB(
-                                        12,
-                                        0,
-                                        6,
-                                        12,
-                                      ),
-                                      child: notationArea,
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: (constraints.maxWidth * 0.3).clamp(
-                                      260.0,
-                                      320.0,
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.fromLTRB(
-                                        6,
-                                        0,
-                                        12,
-                                        12,
-                                      ),
-                                      child: inspectorPanel,
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : Stack(
-                                children: [
-                                  Positioned.fill(
-                                    child: Padding(
-                                      padding: const EdgeInsets.fromLTRB(
-                                        12,
-                                        0,
-                                        12,
-                                        _kInspectorBarHeight,
-                                      ),
-                                      child: notationArea,
-                                    ),
-                                  ),
-                                  Positioned.fill(child: inspectorPanel),
-                                  if (_isDraggingNote)
-                                    Positioned(
-                                      left: 0,
-                                      right: 0,
-                                      bottom: 0,
-                                      height: _kInspectorBarHeight,
-                                      child: Center(
-                                        child: _TrashZone(
-                                          key: _trashZoneKey,
-                                          isHovered: () {
-                                            if (_dragGlobal == Offset.zero) {
-                                              return false;
-                                            }
-                                            final box =
-                                                _trashZoneKey.currentContext
-                                                        ?.findRenderObject()
-                                                    as RenderBox?;
-                                            if (box == null) return false;
-                                            return (box.localToGlobal(
-                                                      Offset.zero,
-                                                    ) &
-                                                    box.size)
-                                                .contains(_dragGlobal);
-                                          }(),
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                      ),
-                      PlaybackControlsBar(
-                        isEmpty: scoreIsEmpty,
-                        onPlay: () => _playback.play(_editorState.score),
-                        onResume: _playback.resume,
-                        onPause: _playback.pause,
-                        onStop: _playback.stop,
-                        onTempoChanged: _playback.setTempo,
-                      ),
-                    ],
-                  ),
-                  Positioned(
-                    top: 64,
-                    left: 12,
-                    right: 12,
-                    child: IgnorePointer(
-                      ignoring: _bannerMessage == null,
-                      child: AnimatedSlide(
-                        duration: const Duration(milliseconds: 220),
-                        curve: Curves.easeOutCubic,
-                        offset: _bannerMessage == null
-                            ? const Offset(0, -1.2)
-                            : Offset.zero,
-                        child: AnimatedOpacity(
-                          duration: const Duration(milliseconds: 180),
-                          opacity: _bannerMessage == null ? 0 : 1,
-                          child: _TransientEditorBanner(
-                            message: _bannerMessage ?? '',
-                            backgroundColor: _bannerColor,
-                            actionLabel: _bannerActionLabel,
-                            onAction: _bannerAction,
-                          ),
-                        ),
-                      ),
+              return _EditorWorkspace(
+                isLandscape: isLandscape,
+                isDraggingNote: _isDraggingNote,
+                dragGlobal: _dragGlobal,
+                trashZoneKey: _trashZoneKey,
+                banner: _banner,
+                header: _EditorHeader(
+                  title:
+                      _currentProject?.name ??
+                      (_editorState.score.title.isEmpty
+                          ? 'Untitled Score'
+                          : _editorState.score.title),
+                  hasUnsavedChanges: _editorState.hasUnsavedChanges,
+                  editCount: _scoreEditCount,
+                  canUndo: _editorState.canUndo && !isPlaybackActive,
+                  canRedo: _editorState.canRedo && !isPlaybackActive,
+                  onBack: () => Navigator.of(context).maybePop(),
+                  onUndo: () => _updateState((s) => s.applyUndo()),
+                  onRedo: () => _updateState((s) => s.applyRedo()),
+                  onSave: _onSave,
+                  onMetadataTap: _showMetadataSheet,
+                  onExportXml: () => _runExport(
+                    export: () => const MusicXmlExportService().exportToDevice(
+                      _editorState.score,
                     ),
+                    successMessage: 'MusicXML saved',
                   ),
-                ],
+                  scoreIsEmpty: scoreIsEmpty,
+                  onExportPdf: () => _runExport(
+                    export: () =>
+                        const PdfExportService().exportToDevice(_editorState.score),
+                    successMessage: 'PDF saved',
+                  ),
+                  onScanPage: isPlaybackActive ? null : _onScanPage,
+                ),
+                notationArea: notationArea,
+                inspectorPanel: inspectorPanel,
+                playbackControls: PlaybackControlsBar(
+                  isEmpty: scoreIsEmpty,
+                  onPlay: () => _playback.play(_editorState.score),
+                  onResume: _playback.resume,
+                  onPause: _playback.pause,
+                  onStop: _playback.stop,
+                  onTempoChanged: _playback.setTempo,
+                ),
               );
             },
           ),
         ),
       ),
+    );
+  }
+}
+
+class _EditorWorkspace extends StatelessWidget {
+  const _EditorWorkspace({
+    required this.isLandscape,
+    required this.isDraggingNote,
+    required this.dragGlobal,
+    required this.trashZoneKey,
+    required this.banner,
+    required this.header,
+    required this.notationArea,
+    required this.inspectorPanel,
+    required this.playbackControls,
+  });
+
+  final bool isLandscape;
+  final bool isDraggingNote;
+  final Offset dragGlobal;
+  final GlobalKey trashZoneKey;
+  final _EditorBannerData? banner;
+  final Widget header;
+  final Widget notationArea;
+  final Widget inspectorPanel;
+  final Widget playbackControls;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          children: [
+            Column(
+              children: [
+                header,
+                Expanded(
+                  child: isLandscape
+                      ? Row(
+                          children: [
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(12, 0, 6, 12),
+                                child: notationArea,
+                              ),
+                            ),
+                            SizedBox(
+                              width: (constraints.maxWidth * 0.3).clamp(
+                                260.0,
+                                320.0,
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(6, 0, 12, 12),
+                                child: inspectorPanel,
+                              ),
+                            ),
+                          ],
+                        )
+                      : Stack(
+                          children: [
+                            Positioned.fill(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  12,
+                                  0,
+                                  12,
+                                  _kInspectorBarHeight,
+                                ),
+                                child: notationArea,
+                              ),
+                            ),
+                            Positioned.fill(child: inspectorPanel),
+                            if (isDraggingNote)
+                              Positioned(
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                height: _kInspectorBarHeight,
+                                child: Center(
+                                  child: _TrashZone(
+                                    key: trashZoneKey,
+                                    isHovered: () {
+                                      if (dragGlobal == Offset.zero) {
+                                        return false;
+                                      }
+                                      final box =
+                                          trashZoneKey.currentContext
+                                                  ?.findRenderObject()
+                                              as RenderBox?;
+                                      if (box == null) return false;
+                                      return (box.localToGlobal(Offset.zero) &
+                                              box.size)
+                                          .contains(dragGlobal);
+                                    }(),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                ),
+                playbackControls,
+              ],
+            ),
+            Positioned(
+              top: 64,
+              left: 12,
+              right: 12,
+              child: IgnorePointer(
+                ignoring: banner == null,
+                child: AnimatedSlide(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  offset: banner == null ? const Offset(0, -1.2) : Offset.zero,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 180),
+                    opacity: banner == null ? 0 : 1,
+                    child: _TransientEditorBanner(
+                      message: banner?.message ?? '',
+                      backgroundColor:
+                          banner?.backgroundColor ?? AppColors.surfaceAlt,
+                      actionLabel: banner?.actionLabel,
+                      onAction: banner?.onAction,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -1073,6 +1108,44 @@ class _TransientEditorBanner extends StatelessWidget {
       ),
     );
   }
+}
+
+class _EditorBannerData {
+  const _EditorBannerData({
+    required this.message,
+    required this.backgroundColor,
+    required this.duration,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  const _EditorBannerData.success(
+    String message, {
+    Duration duration = const Duration(seconds: 2),
+  }) : this(
+         message: message,
+         backgroundColor: AppColors.surfaceAlt,
+         duration: duration,
+       );
+
+  const _EditorBannerData.error(
+    String message, {
+    Duration duration = const Duration(seconds: 2),
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) : this(
+         message: message,
+         backgroundColor: const Color(0xFFB91C1C),
+         duration: duration,
+         actionLabel: actionLabel,
+         onAction: onAction,
+       );
+
+  final String message;
+  final Color backgroundColor;
+  final Duration duration;
+  final String? actionLabel;
+  final VoidCallback? onAction;
 }
 
 enum _ExportOption { exportXml, exportPdf }
