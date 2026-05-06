@@ -13,6 +13,25 @@ import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 
 void main() {
+  group('pageIndexForMeasure', () {
+    test('uses explicit page starts instead of fixed 9-measure buckets', () {
+      expect(pageIndexForMeasure(const [0, 1], 0), 0);
+      expect(pageIndexForMeasure(const [0, 1], 1), 1);
+      expect(pageIndexForMeasure(const [0, 1], 4), 1);
+    });
+
+    test('keeps later playback positions on the most recent page start', () {
+      const pageStarts = [0, 5, 8];
+
+      expect(pageIndexForMeasure(pageStarts, 0), 0);
+      expect(pageIndexForMeasure(pageStarts, 4), 0);
+      expect(pageIndexForMeasure(pageStarts, 5), 1);
+      expect(pageIndexForMeasure(pageStarts, 7), 1);
+      expect(pageIndexForMeasure(pageStarts, 8), 2);
+      expect(pageIndexForMeasure(pageStarts, 12), 2);
+    });
+  });
+
   Future<void> pumpEditorShell(
     WidgetTester tester, {
     required Score score,

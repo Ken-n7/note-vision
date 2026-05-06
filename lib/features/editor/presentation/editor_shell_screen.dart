@@ -1,6 +1,7 @@
-import 'dart:async' show StreamSubscription, unawaited;
+import 'dart:async' show StreamSubscription, Timer, unawaited;
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/project.dart';
@@ -23,6 +24,27 @@ import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.
 import 'package:note_vision/core/services/usage_stats_service.dart';
 import 'package:note_vision/features/musicXML/musicxml_export_service.dart';
 import 'package:note_vision/features/pdf/pdf_export_service.dart';
+
+@visibleForTesting
+int pageIndexForMeasure(List<int> pageStartIndices, int measureIndex) {
+  if (pageStartIndices.isEmpty) return 0;
+
+  var low = 0;
+  var high = pageStartIndices.length - 1;
+  var result = 0;
+
+  while (low <= high) {
+    final mid = low + ((high - low) >> 1);
+    if (pageStartIndices[mid] <= measureIndex) {
+      result = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+
+  return result;
+}
 
 class EditorShellArgs {
   const EditorShellArgs({
@@ -69,6 +91,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   Project? _currentProject;
   int _scoreEditCount = 0;
   bool _isSaving = false;
+  String? _bannerMessage;
+  Color _bannerColor = AppColors.surfaceAlt;
+  String? _bannerActionLabel;
+  VoidCallback? _bannerAction;
+  Timer? _bannerTimer;
 
   int _currentPageIndex = 0;
 
@@ -134,7 +161,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       setState(() {
         _playbackPosition = pos;
         if (!pos.isNone) {
-          final targetPage = pos.measureIndex ~/ _kMeasuresPerPage;
+          final targetPage =
+              pageIndexForMeasure(_pageStartIndices, pos.measureIndex);
           if (targetPage != _currentPageIndex) {
             _currentPageIndex = targetPage.clamp(0, _totalPages - 1);
           }
@@ -151,6 +179,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   void dispose() {
     _positionSub?.cancel();
     _stateSub?.cancel();
+    _bannerTimer?.cancel();
     _playback.stop();
     super.dispose();
   }
@@ -163,17 +192,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       await _storage.saveProject(project);
       return true;
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Save failed: $e'),
-          backgroundColor: const Color(0xFFB91C1C),
-          duration: const Duration(seconds: 6),
-          action: SnackBarAction(
-            label: 'Retry',
-            textColor: Colors.white,
-            onPressed: _onSave,
-          ),
-        ),
+      _showEditorBanner(
+        'Save failed: $e',
+        backgroundColor: const Color(0xFFB91C1C),
+        duration: const Duration(seconds: 6),
+        actionLabel: 'Retry',
+        onAction: _onSave,
       );
       return false;
     }
@@ -272,12 +296,32 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   }
 
   void _showSavedSnackbar(ScaffoldMessengerState messenger, String name) {
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text('Saved as $name'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    _showEditorBanner('Saved as $name');
+  }
+
+  void _showEditorBanner(
+    String message, {
+    Color backgroundColor = AppColors.surfaceAlt,
+    Duration duration = const Duration(seconds: 2),
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
+    _bannerTimer?.cancel();
+    if (!mounted) return;
+    setState(() {
+      _bannerMessage = message;
+      _bannerColor = backgroundColor;
+      _bannerActionLabel = actionLabel;
+      _bannerAction = onAction;
+    });
+    _bannerTimer = Timer(duration, () {
+      if (!mounted) return;
+      setState(() {
+        _bannerMessage = null;
+        _bannerActionLabel = null;
+        _bannerAction = null;
+      });
+    });
   }
 
   // ── Scan new page ──────────────────────────────────────────────────────────
@@ -706,46 +750,38 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   onSave: _onSave,
                   onMetadataTap: _showMetadataSheet,
                   onExportXml: () async {
-                    final messenger = ScaffoldMessenger.of(context);
                     try {
                       final path = await const MusicXmlExportService().exportToDevice(_editorState.score);
                       if (!context.mounted) return;
                       if (path != null) {
                         await UsageStatsService.incrementExports();
                         if (!context.mounted) return;
-                        messenger.showSnackBar(
-                          const SnackBar(
-                            content: Text('MusicXML saved'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
+                        _showEditorBanner('MusicXML saved');
                       }
                     } catch (e) {
-                      messenger.showSnackBar(
-                        SnackBar(content: Text('Export failed: $e')),
+                      _showEditorBanner(
+                        'Export failed: $e',
+                        backgroundColor: const Color(0xFFB91C1C),
+                        duration: const Duration(seconds: 6),
                       );
                     }
                   },
                   scoreIsEmpty: _editorState.score.parts.isEmpty ||
                       _editorState.score.parts.every((p) => p.measures.every((m) => m.symbols.isEmpty)),
                   onExportPdf: () async {
-                    final messenger = ScaffoldMessenger.of(context);
                     try {
                       final path = await const PdfExportService().exportToDevice(_editorState.score);
                       if (!context.mounted) return;
                       if (path != null) {
                         await UsageStatsService.incrementExports();
                         if (!context.mounted) return;
-                        messenger.showSnackBar(
-                          const SnackBar(
-                            content: Text('PDF saved'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
+                        _showEditorBanner('PDF saved');
                       }
                     } catch (e) {
-                      messenger.showSnackBar(
-                        SnackBar(content: Text('Export failed: $e')),
+                      _showEditorBanner(
+                        'Export failed: $e',
+                        backgroundColor: const Color(0xFFB91C1C),
+                        duration: const Duration(seconds: 6),
                       );
                     }
                   },
@@ -812,6 +848,31 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 ),
               ],
             ),
+                Positioned(
+                  top: 64,
+                  left: 12,
+                  right: 12,
+                  child: IgnorePointer(
+                    ignoring: _bannerMessage == null,
+                    child: AnimatedSlide(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      offset: _bannerMessage == null
+                          ? const Offset(0, -1.2)
+                          : Offset.zero,
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 180),
+                        opacity: _bannerMessage == null ? 0 : 1,
+                        child: _TransientEditorBanner(
+                          message: _bannerMessage ?? '',
+                          backgroundColor: _bannerColor,
+                          actionLabel: _bannerActionLabel,
+                          onAction: _bannerAction,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
           ],
         );
           },
@@ -825,6 +886,69 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 // ---------------------------------------------------------------------------
 // Header
 // ---------------------------------------------------------------------------
+
+class _TransientEditorBanner extends StatelessWidget {
+  const _TransientEditorBanner({
+    required this.message,
+    required this.backgroundColor,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final String message;
+  final Color backgroundColor;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x40000000),
+              blurRadius: 18,
+              offset: Offset(0, 8),
+            ),
+          ],
+          border: Border.all(color: Colors.white12),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(width: 12),
+              TextButton(
+                onPressed: onAction,
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.textPrimary,
+                  minimumSize: const Size(0, 32),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: Text(actionLabel!),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 enum _ExportOption { exportXml, exportPdf }
 
@@ -2676,4 +2800,3 @@ class _DurTile extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Save error overlay
 // ---------------------------------------------------------------------------
-
