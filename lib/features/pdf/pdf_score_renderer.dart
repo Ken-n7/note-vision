@@ -395,7 +395,8 @@ class PdfScoreRenderer {
     bool suppressFlag = false,
   }) {
     final type = note.type.trim().toLowerCase();
-    final isWhole = type == 'whole';
+    final isBreve = type == 'breve';
+    final isWhole = type == 'whole' || isBreve;
     final isHalf = type == 'half';
     final isEighth = type == 'eighth';
 
@@ -422,6 +423,11 @@ class PdfScoreRenderer {
       g.drawEllipse(x - hw * 0.5, y - hh * 0.4, hw, hh * 0.8);
       g.fillPath();
       g.setColor(_ink);
+    }
+
+    if (isBreve) {
+      _line(g, x - hw * 1.6, y - 11, x - hw * 1.6, y + 11, 0.8);
+      _line(g, x + hw * 1.6, y - 11, x + hw * 1.6, y + 11, 0.8);
     }
 
     if (note.dots > 0) {

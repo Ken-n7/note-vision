@@ -280,6 +280,7 @@ class SemanticInferrer {
     final hasBeam = link.hasBeam;
 
     final noteType = switch (type) {
+      'noteheadDoubleWhole' => 'breve',
       'noteheadWhole' => 'whole',
       'noteheadHalf' when hasStem => 'half',
       // Flag OR beam both indicate an eighth note.

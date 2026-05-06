@@ -451,6 +451,29 @@ void main() {
     });
   });
 
+  group('Double whole note support', () {
+    test('noteheadDoubleWhole reconstructs as breve with duration 16', () {
+      const detection = DetectionResult(
+        imageId: 'double-whole-note',
+        staffs: [staff],
+        symbols: [
+          DetectedSymbol(
+            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+          ),
+          DetectedSymbol(
+            id: 'note-1', type: 'noteheadDoubleWhole', x: 50, y: 126, width: 14, height: 10,
+          ),
+        ],
+      );
+
+      final result = mapper.map(detection);
+      final note = result.score.parts.single.measures.single.notes.single;
+
+      expect(note.type, 'breve');
+      expect(note.duration, 16);
+    });
+  });
+
   // ─────────────────────────────────────────────────────────────
   // BASS CLEF PITCH RECONSTRUCTION
   // ─────────────────────────────────────────────────────────────

@@ -19,6 +19,7 @@ class SymbolClassifier {
       type == 'flag8thUp' || type == 'flag8thDown';
 
   static bool isNotehead(String type) =>
+      type == 'noteheadDoubleWhole' ||
       type == 'noteheadWhole' ||
       type == 'noteheadHalf' ||
       type == 'noteheadBlack';
@@ -67,6 +68,7 @@ class SymbolClassifier {
       }[type];
 
   static int durationFor(String type) => switch (type) {
+        'breve' => 16,
         'whole' => 8,
         'half' => 4,
         'quarter' => 2,
@@ -76,6 +78,7 @@ class SymbolClassifier {
       };
 
   static double beatValueFor(String type) => switch (type) {
+        'breve' => 8,
         'whole' => 4,
         'half' => 2,
         'quarter' => 1,

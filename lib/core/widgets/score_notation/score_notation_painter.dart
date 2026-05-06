@@ -645,7 +645,8 @@ class ScoreNotationPainter extends CustomPainter {
     bool suppressFlag = false,
   }) {
     final normalizedType = note.type.trim().toLowerCase();
-    final isWhole = normalizedType == 'whole';
+    final isBreve = normalizedType == 'breve';
+    final isWhole = normalizedType == 'whole' || isBreve;
     final isHalf = normalizedType == 'half';
     final isEighth = normalizedType == 'eighth' ||
         normalizedType == 'flag8thup' ||
@@ -700,6 +701,14 @@ class ScoreNotationPainter extends CustomPainter {
       canvas.drawOval(noteRect, fillPaint);
     }
     canvas.restore();
+
+    if (isBreve) {
+      final sidePaint = Paint()
+        ..color = const Color(0xFF111827)
+        ..strokeWidth = 1.2;
+      canvas.drawLine(Offset(x - headWidth * 0.9, y - 10), Offset(x - headWidth * 0.9, y + 10), sidePaint);
+      canvas.drawLine(Offset(x + headWidth * 0.9, y - 10), Offset(x + headWidth * 0.9, y + 10), sidePaint);
+    }
 
     if (isWhole) {
       _drawAugmentationDots(

@@ -530,6 +530,7 @@ void main() {
 
   group('duration values match DurationSpec constants', () {
     for (final entry in const [
+      ('breve', 16),
       ('whole', 8),
       ('half', 4),
       ('quarter', 2),
