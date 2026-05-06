@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:note_vision/core/models/project.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/services/project_storage_service.dart';
+import 'package:note_vision/core/services/score_classifier.dart';
 import 'package:note_vision/core/services/user_profile_service.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/theme/responsive_layout.dart';
@@ -421,6 +422,8 @@ class _ProjectTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scoreLabel = _projectLabel(project);
+
     return InkWell(
       onTap: onTap,
       onLongPress: onLongPress,
@@ -459,6 +462,8 @@ class _ProjectTile extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  const SizedBox(height: 6),
+                  _ScoreLabelBadge(label: scoreLabel.displayName),
                   const SizedBox(height: 3),
                   Text(
                     'Last modified $formattedDate',
@@ -477,6 +482,42 @@ class _ProjectTile extends StatelessWidget {
               size: 20,
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  ScoreLabel _projectLabel(Project project) {
+    try {
+      return ScoreClassifier.classify(project.decodeScore());
+    } catch (_) {
+      return ScoreLabel.generalPiece;
+    }
+  }
+}
+
+class _ScoreLabelBadge extends StatelessWidget {
+  const _ScoreLabelBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.accent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: AppColors.accent.withValues(alpha: 0.22),
+        ),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.accent,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

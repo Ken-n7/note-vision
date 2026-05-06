@@ -13,6 +13,7 @@ import 'package:note_vision/core/utils/image_picker_helper.dart';
 import 'package:note_vision/features/scan/presentation/scan_screen.dart';
 import 'package:note_vision/core/services/playback_service.dart';
 import 'package:note_vision/core/services/project_storage_service.dart';
+import 'package:note_vision/core/services/score_classifier.dart';
 import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
 import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
@@ -873,6 +874,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                           : _editorState.score.title),
                   hasUnsavedChanges: _editorState.hasUnsavedChanges,
                   editCount: _scoreEditCount,
+                  scoreLabel: ScoreClassifier.classify(_editorState.score),
                   canUndo: _editorState.canUndo && !isPlaybackActive,
                   canRedo: _editorState.canRedo && !isPlaybackActive,
                   onBack: () => Navigator.of(context).maybePop(),
@@ -1176,6 +1178,7 @@ class _EditorHeader extends StatelessWidget {
     required this.title,
     required this.hasUnsavedChanges,
     required this.editCount,
+    required this.scoreLabel,
     required this.canUndo,
     required this.canRedo,
     required this.onBack,
@@ -1192,6 +1195,7 @@ class _EditorHeader extends StatelessWidget {
   final String title;
   final bool hasUnsavedChanges;
   final int editCount;
+  final ScoreLabel scoreLabel;
   final bool canUndo;
   final bool canRedo;
   final VoidCallback onBack;
@@ -1285,7 +1289,7 @@ class _EditorHeader extends StatelessWidget {
                       children: [
                         Flexible(
                           child: Text(
-                            'Score Editor',
+                            'Score Editor · ${scoreLabel.displayName}',
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: AppColors.textSecondary,

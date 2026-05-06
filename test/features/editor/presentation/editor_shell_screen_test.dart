@@ -117,6 +117,7 @@ void main() {
     await pumpEditorShell(tester, score: score);
 
     expect(find.text('Test Score'), findsOneWidget);
+    expect(find.text('Score Editor · Simple Melody'), findsOneWidget);
     expect(find.text('Save'), findsOneWidget);
     expect(find.text('Up'), findsOneWidget);
     expect(find.text('Down'), findsOneWidget);
@@ -791,7 +792,7 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Score Editor'), findsOneWidget);
+    expect(find.text('Score Editor · Simple Melody'), findsOneWidget);
   });
 }
 
