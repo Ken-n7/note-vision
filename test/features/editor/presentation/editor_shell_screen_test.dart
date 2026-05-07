@@ -707,8 +707,26 @@ void main() {
       const PlaybackState(status: PlaybackStatus.stopped),
     );
 
-    setUp(emitStopped);
-    tearDown(emitStopped);
+    void emitPosition(int measureIndex) =>
+        PlaybackService.instance.emitPositionForTesting(
+          PlaybackPosition(
+            partIndex: 0,
+            measureIndex: measureIndex,
+            symbolIndex: 0,
+          ),
+        );
+
+    void clearPosition() =>
+        PlaybackService.instance.emitPositionForTesting(PlaybackPosition.none);
+
+    setUp(() {
+      emitStopped();
+      clearPosition();
+    });
+    tearDown(() {
+      emitStopped();
+      clearPosition();
+    });
 
     Future<void> pumpPortrait(WidgetTester tester, Score score) async {
       tester.view.physicalSize = const Size(360, 800);
@@ -921,6 +939,88 @@ void main() {
       await tester.tap(find.text('PIT'));
       await tester.pump();
       expect(find.text('Up'), findsOneWidget);
+    });
+
+    testWidgets('playback position follows the page containing the active measure', (
+      tester,
+    ) async {
+      final score = Score(
+        id: 'score-playback-page-follow',
+        title: 'Playback Follow',
+        composer: 'Composer',
+        parts: [
+          Part(
+            id: 'P1',
+            name: 'Part 1',
+            measures: List.generate(
+              10,
+              (i) => Measure(
+                number: i + 1,
+                symbols: const [
+                  Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+
+      await pumpEditorShell(tester, score: score);
+
+      emitPosition(9);
+      await tester.pumpAndSettle();
+
+      final viewer = tester.widget<ScoreNotationViewer>(
+        find.byType(ScoreNotationViewer).last,
+      );
+      expect(viewer.firstMeasureIndex, 9);
+      expect(viewer.playbackMeasureIndex, 0);
+    });
+
+    testWidgets('new playback positions pull the view back from manual page browsing', (
+      tester,
+    ) async {
+      final score = Score(
+        id: 'score-playback-recenter',
+        title: 'Playback Recenter',
+        composer: 'Composer',
+        parts: [
+          Part(
+            id: 'P1',
+            name: 'Part 1',
+            measures: List.generate(
+              10,
+              (i) => Measure(
+                number: i + 1,
+                symbols: const [
+                  Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+
+      await pumpEditorShell(tester, score: score);
+
+      emitPosition(9);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('1').last);
+      await tester.pumpAndSettle();
+
+      var viewer = tester.widget<ScoreNotationViewer>(
+        find.byType(ScoreNotationViewer).last,
+      );
+      expect(viewer.firstMeasureIndex, 0);
+
+      emitPosition(9);
+      await tester.pumpAndSettle();
+
+      viewer = tester.widget<ScoreNotationViewer>(
+        find.byType(ScoreNotationViewer).last,
+      );
+      expect(viewer.firstMeasureIndex, 9);
     });
   });
 

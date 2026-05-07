@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:note_vision/core/models/barline_type.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/features/musicXML/musicxml_parser_service.dart';
@@ -210,6 +211,43 @@ void main() {
       expect(notes, hasLength(2));
       expect(notes[0].isChordTone, isFalse);
       expect(notes[1].isChordTone, isTrue);
+    });
+
+    test('imports repeat barlines from left and right barline elements', () {
+      const xml = '''<score-partwise>
+  <part-list>
+    <score-part id="P1"><part-name>Piano</part-name></score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="1">
+      <note>
+        <pitch><step>C</step><octave>4</octave></pitch>
+        <duration>2</duration><type>quarter</type>
+      </note>
+      <barline location="right">
+        <repeat direction="backward"/>
+      </barline>
+    </measure>
+    <measure number="2">
+      <barline location="left">
+        <repeat direction="forward"/>
+      </barline>
+      <note>
+        <pitch><step>D</step><octave>4</octave></pitch>
+        <duration>2</duration><type>quarter</type>
+      </note>
+    </measure>
+  </part>
+</score-partwise>''';
+
+      final parseResult = parser.parse(xml);
+      expect(parseResult.success, isTrue);
+
+      final score = converter.convert(parseResult.document!);
+      final measures = score.parts.single.measures;
+
+      expect(measures[0].rightBarlineType, BarlineType.repeatEnd);
+      expect(measures[1].leftBarlineType, BarlineType.repeatStart);
     });
   });
 }

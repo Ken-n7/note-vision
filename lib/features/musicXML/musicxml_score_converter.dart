@@ -1,3 +1,4 @@
+import 'package:note_vision/core/models/barline_type.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/models/measure.dart';
@@ -131,6 +132,8 @@ class MusicXmlScoreConverter {
     final clef = _buildClef(attributes);
     final timeSignature = _buildTimeSignature(attributes);
     final keySignature = _buildKeySignature(attributes);
+    final leftBarlineType = _buildBarlineType(measureElement, 'left');
+    final rightBarlineType = _buildBarlineType(measureElement, 'right');
 
     final symbols = <ScoreSymbol>[];
 
@@ -151,6 +154,8 @@ class MusicXmlScoreConverter {
       keySignature: keySignature,
       symbols: symbols,
       startsNewPage: startsNewPage,
+      leftBarlineType: leftBarlineType,
+      rightBarlineType: rightBarlineType,
     );
   }
 
@@ -245,6 +250,26 @@ class MusicXmlScoreConverter {
     }
 
     return KeySignature(fifths: fifths);
+  }
+
+  BarlineType? _buildBarlineType(XmlElement measureElement, String location) {
+    for (final barline in measureElement.findElements('barline')) {
+      final barlineLocation = barline.getAttribute('location')?.trim();
+      if (barlineLocation != location) {
+        continue;
+      }
+
+      final repeat = _firstOrNull(barline.findElements('repeat'));
+      final direction = repeat?.getAttribute('direction')?.trim();
+      if (direction == 'forward') {
+        return BarlineType.repeatStart;
+      }
+      if (direction == 'backward') {
+        return BarlineType.repeatEnd;
+      }
+    }
+
+    return null;
   }
 
   XmlElement? _firstOrNull(Iterable<XmlElement> elements) {

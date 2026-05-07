@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:note_vision/core/models/barline_type.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/models/measure.dart';
@@ -7,10 +8,14 @@ import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/time_signature.dart';
+import 'package:note_vision/features/musicXML/musicxml_parser_service.dart';
+import 'package:note_vision/features/musicXML/musicxml_score_converter.dart';
 import 'package:note_vision/features/musicXML/musicxml_export_service.dart';
 
 void main() {
   const service = MusicXmlExportService();
+  const parser = MusicXmlParserService();
+  const converter = MusicXmlScoreConverter();
 
   // ---------------------------------------------------------------------------
   // Helpers
@@ -655,6 +660,49 @@ void main() {
         minimalScore(title: 'Sonata / No. 1 in C'),
       );
       expect(xml, contains('<work-title>Sonata / No. 1 in C</work-title>'));
+    });
+  });
+
+  group('round trip', () {
+    test('repeat barlines survive export then import', () {
+      final score = Score(
+        id: 'repeat-roundtrip',
+        title: 'Repeat Roundtrip',
+        composer: 'Composer',
+        parts: [
+          Part(
+            id: 'P1',
+            name: 'Piano',
+            measures: const [
+              Measure(
+                number: 1,
+                rightBarlineType: BarlineType.repeatEnd,
+                symbols: [
+                  Note(step: 'C', octave: 4, duration: 2, type: 'quarter'),
+                ],
+              ),
+              Measure(
+                number: 2,
+                leftBarlineType: BarlineType.repeatStart,
+                symbols: [
+                  Rest(duration: 2, type: 'quarter'),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final xml = service.toMusicXml(score);
+      final parseResult = parser.parse(xml);
+
+      expect(parseResult.success, isTrue);
+
+      final decoded = converter.convert(parseResult.document!);
+      final measures = decoded.parts.single.measures;
+
+      expect(measures[0].rightBarlineType, BarlineType.repeatEnd);
+      expect(measures[1].leftBarlineType, BarlineType.repeatStart);
     });
   });
 }

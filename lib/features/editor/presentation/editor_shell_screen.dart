@@ -193,14 +193,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       if (!mounted) return;
       setState(() {
         _playbackPosition = pos;
-        if (!pos.isNone) {
-          final targetPage = _pageMetrics.pageIndexForMeasureIndex(
-            pos.measureIndex,
-          );
-          if (targetPage != _currentPageIndex) {
-            _currentPageIndex = targetPage.clamp(0, _pageMetrics.totalPages - 1);
-          }
-        }
+        _syncPageToPlaybackPosition(pos);
       });
     });
     _stateSub = _playback.stateStream.listen((state) {
@@ -443,7 +436,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         _scoreEditCount++;
         unawaited(UsageStatsService.incrementScoreEdits(_editorState.score.id));
       }
-      _currentPageIndex = _pageMetrics.totalPages - 1;
+      _jumpToLastPage();
     });
   }
 
@@ -491,7 +484,22 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     if (mounted) setState(() => _scoreEditCount = count);
   }
 
+  int _clampPageIndexForStarts(List<int> pageStarts, int pageIndex) {
+    return pageIndex.clamp(0, pageStarts.length - 1);
+  }
+
+  void _setCurrentPageIndex(int pageIndex) {
+    _currentPageIndex = _clampPageIndexForStarts(
+      _pageMetrics.pageStartIndices,
+      pageIndex,
+    );
+  }
+
   int _pageIndexForEditorState(EditorState state) {
+    final pageStarts = state.score.parts.isEmpty
+        ? const [0]
+        : pageStartIndicesForMeasures(state.score.parts.first.measures);
+
     if (state.selectedMeasureIndex != null &&
         state.score.parts.isNotEmpty &&
         state.score.parts.first.measures.isNotEmpty) {
@@ -499,17 +507,32 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         0,
         state.score.parts.first.measures.length - 1,
       );
-      final pageStarts = pageStartIndicesForMeasures(
-        state.score.parts.first.measures,
-      );
-      return pageIndexForMeasure(pageStarts, measureIndex).clamp(
-        0,
-        pageStarts.length - 1,
+      return _clampPageIndexForStarts(
+        pageStarts,
+        pageIndexForMeasure(pageStarts, measureIndex),
       );
     }
 
-    final pageStarts = _pageMetrics.pageStartIndices;
-    return _currentPageIndex.clamp(0, pageStarts.length - 1);
+    return _clampPageIndexForStarts(pageStarts, _currentPageIndex);
+  }
+
+  void _syncPageToEditorState(EditorState state) {
+    _currentPageIndex = _pageIndexForEditorState(state);
+  }
+
+  void _syncPageToPlaybackPosition(PlaybackPosition position) {
+    if (position.isNone) {
+      _setCurrentPageIndex(_currentPageIndex);
+      return;
+    }
+
+    _setCurrentPageIndex(
+      _pageMetrics.pageIndexForMeasureIndex(position.measureIndex),
+    );
+  }
+
+  void _jumpToLastPage() {
+    _setCurrentPageIndex(_pageMetrics.totalPages - 1);
   }
 
   Future<void> _showMetadataSheet() async {
@@ -547,7 +570,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       final prev = _editorState;
       final nextState = updater(_editorState);
       _editorState = nextState;
-      _currentPageIndex = _pageIndexForEditorState(nextState);
+      _syncPageToEditorState(nextState);
       if (_editorState.undoStack.length > prev.undoStack.length) {
         _scoreEditCount++;
         unawaited(UsageStatsService.incrementScoreEdits(_editorState.score.id));
@@ -833,12 +856,16 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 currentPageIndex: _currentPageIndex,
                 totalPages: _pageMetrics.totalPages,
                 onPrevPage: _currentPageIndex > 0
-                    ? () => setState(() => _currentPageIndex--)
+                    ? () => setState(
+                        () => _setCurrentPageIndex(_currentPageIndex - 1),
+                      )
                     : null,
                 onNextPage: _currentPageIndex < _pageMetrics.totalPages - 1
-                    ? () => setState(() => _currentPageIndex++)
+                    ? () => setState(
+                        () => _setCurrentPageIndex(_currentPageIndex + 1),
+                      )
                     : null,
-                onPageTap: (i) => setState(() => _currentPageIndex = i),
+                onPageTap: (i) => setState(() => _setCurrentPageIndex(i)),
                 onMoveUp: () => _updateState((s) => s.moveSelectedSymbolUp()),
                 onMoveDown: () =>
                     _updateState((s) => s.moveSelectedSymbolDown()),
@@ -864,9 +891,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                     _updateState((s) => s.addMeasureAfterSelected()),
                 onAddPage: () {
                   _updateState((s) => s.addPageAtEnd());
-                  setState(
-                    () => _currentPageIndex = _pageMetrics.totalPages - 1,
-                  );
+                  setState(_jumpToLastPage);
                 },
                 canDeleteMeasure: canDeleteMeasure,
                 onDeleteMeasure: () =>

@@ -140,6 +140,11 @@ class PlaybackService {
     _stateController.add(state);
   }
 
+  @visibleForTesting
+  void emitPositionForTesting(PlaybackPosition position) {
+    _positionController.add(position);
+  }
+
   // ── Lifecycle ──────────────────────────────────────────────────────────
 
   /// Loads the soundfont asset. Safe to call multiple times — no-ops once
