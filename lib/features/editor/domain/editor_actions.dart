@@ -589,32 +589,6 @@ extension EditorActions on EditorState {
     );
   }
 
-  EditorState _appendToSelectedMeasure(
-    ScoreSymbol symbol, {
-    required EditorEditIntent intent,
-  }) {
-    final partIndex = selectedPartIndex!;
-    final measureIndex = selectedMeasureIndex!;
-
-    final insertIndex =
-        score.parts[partIndex].measures[measureIndex].symbols.length;
-    final nextScore = score.insertSymbolAt(
-      partIndex,
-      measureIndex,
-      insertIndex,
-      symbol,
-    );
-
-    return _applySymbolSelectionEdit(
-      intent: intent,
-      score: nextScore,
-      partIndex: partIndex,
-      measureIndex: measureIndex,
-      symbolIndex: insertIndex,
-      symbol: symbol,
-    );
-  }
-
   EditorState _insertAfterSelectionOrAppend(
     ScoreSymbol symbol, {
     required EditorEditIntent intent,

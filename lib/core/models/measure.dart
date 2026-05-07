@@ -13,6 +13,7 @@ class Measure {
   final KeySignature? keySignature;
   final List<ScoreSymbol> symbols;
   final bool startsNewPage;
+  final bool startsNewSystem;
   final BarlineType? leftBarlineType;
   final BarlineType? rightBarlineType;
 
@@ -23,6 +24,7 @@ class Measure {
     this.keySignature,
     required this.symbols,
     this.startsNewPage = false,
+    this.startsNewSystem = false,
     this.leftBarlineType,
     this.rightBarlineType,
   });
@@ -34,6 +36,7 @@ class Measure {
         if (keySignature != null) 'keySignature': keySignature!.toJson(),
         'symbols': symbols.map((s) => s.toJson()).toList(),
         if (startsNewPage) 'startsNewPage': true,
+        if (startsNewSystem) 'startsNewSystem': true,
         if (leftBarlineType != null) 'leftBarlineType': leftBarlineType!.jsonValue,
         if (rightBarlineType != null) 'rightBarlineType': rightBarlineType!.jsonValue,
       };
@@ -55,6 +58,7 @@ class Measure {
             .map((s) => _symbolFromJson(s as Map<String, dynamic>))
             .toList(),
         startsNewPage: json['startsNewPage'] as bool? ?? false,
+        startsNewSystem: json['startsNewSystem'] as bool? ?? false,
         leftBarlineType: json['leftBarlineType'] != null
             ? BarlineType.fromJsonValue(json['leftBarlineType'] as String)
             : null,

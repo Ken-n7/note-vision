@@ -8,6 +8,7 @@ import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/utils/export_file_name.dart';
 import 'package:xml/xml.dart';
 
@@ -109,8 +110,11 @@ class MusicXmlExportService {
       'measure',
       attributes: {'number': measure.number.toString()},
       nest: () {
-        if (measure.startsNewPage && !isFirst) {
-          b.element('print', attributes: {'new-page': 'yes'});
+        if (!isFirst && (measure.startsNewPage || measure.startsNewSystem)) {
+          b.element('print', attributes: {
+            if (measure.startsNewPage) 'new-page': 'yes',
+            if (measure.startsNewSystem) 'new-system': 'yes',
+          });
         }
 
         final needsAttributes = isFirst ||
@@ -153,9 +157,11 @@ class MusicXmlExportService {
           );
         }
 
-        for (final symbol in measure.symbols) {
+        final symbols = measure.symbols;
+        for (var i = 0; i < symbols.length; i++) {
+          final symbol = symbols[i];
           if (symbol is Note) {
-            _buildNote(b, symbol);
+            _buildNote(b, symbol, beamValue: _beamValue(symbols, i));
           } else if (symbol is Rest) {
             _buildRest(b, symbol);
           }
@@ -172,7 +178,7 @@ class MusicXmlExportService {
     );
   }
 
-  void _buildNote(XmlBuilder b, Note note) {
+  void _buildNote(XmlBuilder b, Note note, {String? beamValue}) {
     b.element('note', nest: () {
       if (note.isChordTone) {
         b.element('chord');
@@ -197,7 +203,21 @@ class MusicXmlExportService {
       if (note.staff != null) {
         b.element('staff', nest: note.staff.toString());
       }
+      if (beamValue != null) {
+        b.element('beam', attributes: {'number': '1'}, nest: beamValue);
+      }
     });
+  }
+
+  String? _beamValue(List<ScoreSymbol> symbols, int index) {
+    final note = symbols[index];
+    if (note is! Note || !note.beamed) return null;
+    final prevBeamed = index > 0 && symbols[index - 1] is Note && (symbols[index - 1] as Note).beamed;
+    final nextBeamed = index < symbols.length - 1 && symbols[index + 1] is Note && (symbols[index + 1] as Note).beamed;
+    if (!prevBeamed && nextBeamed) return 'begin';
+    if (prevBeamed && nextBeamed) return 'continue';
+    if (prevBeamed && !nextBeamed) return 'end';
+    return 'begin';
   }
 
   void _buildRest(XmlBuilder b, Rest rest) {

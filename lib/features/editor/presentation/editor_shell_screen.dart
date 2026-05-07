@@ -3,7 +3,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/models/clef.dart';
-import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/project.dart';
 import 'package:note_vision/core/models/rest.dart';
@@ -21,82 +20,12 @@ import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/model/editor_state_history.dart';
+import 'package:note_vision/features/editor/presentation/editor_layout_policy.dart';
 import 'package:note_vision/features/editor/presentation/widgets/playback_controls_bar.dart';
 import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.dart';
 import 'package:note_vision/core/services/usage_stats_service.dart';
 import 'package:note_vision/features/musicXML/musicxml_export_service.dart';
 import 'package:note_vision/features/pdf/pdf_export_service.dart';
-
-@visibleForTesting
-int pageIndexForMeasure(List<int> pageStartIndices, int measureIndex) {
-  if (pageStartIndices.isEmpty) return 0;
-
-  var low = 0;
-  var high = pageStartIndices.length - 1;
-  var result = 0;
-
-  while (low <= high) {
-    final mid = low + ((high - low) >> 1);
-    if (pageStartIndices[mid] <= measureIndex) {
-      result = mid;
-      low = mid + 1;
-    } else {
-      high = mid - 1;
-    }
-  }
-
-  return result;
-}
-
-@visibleForTesting
-List<int> pageStartIndicesForMeasures(List<Measure> measures) {
-  if (measures.isEmpty) return const [0];
-
-  final hasExplicitBreaks = measures.any((m) => m.startsNewPage);
-  if (!hasExplicitBreaks) {
-    final count = math.max(
-      1,
-      (measures.length + _kMeasuresPerPage - 1) ~/ _kMeasuresPerPage,
-    );
-    return List.generate(count, (i) => i * _kMeasuresPerPage);
-  }
-
-  final indices = <int>[0];
-  for (int i = 1; i < measures.length; i++) {
-    if (measures[i].startsNewPage) {
-      indices.add(i);
-    }
-  }
-  return indices;
-}
-
-class _EditorPageMetrics {
-  const _EditorPageMetrics({
-    required this.pageStartIndices,
-    required this.currentPageIndex,
-    required this.totalMeasures,
-  });
-
-  final List<int> pageStartIndices;
-  final int currentPageIndex;
-  final int totalMeasures;
-
-  int get totalPages => pageStartIndices.length;
-
-  int get pageFirstMeasure =>
-      pageStartIndices[currentPageIndex.clamp(0, pageStartIndices.length - 1)];
-
-  int get pageMeasureCount {
-    final clamped = currentPageIndex.clamp(0, pageStartIndices.length - 1);
-    final next = clamped + 1 < pageStartIndices.length
-        ? pageStartIndices[clamped + 1]
-        : totalMeasures;
-    return math.max(0, next - pageStartIndices[clamped]);
-  }
-
-  int pageIndexForMeasureIndex(int measureIndex) =>
-      pageIndexForMeasure(pageStartIndices, measureIndex);
-}
 
 class EditorShellArgs {
   const EditorShellArgs({
@@ -155,10 +84,14 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
   int _currentPageIndex = 0;
 
-  _EditorPageMetrics get _pageMetrics {
+  EditorLayoutPolicy get _layoutPolicy =>
+      EditorLayoutPolicy.forPartCount(_editorState.score.parts.length);
+
+  EditorPageMetrics get _pageMetrics {
     final score = _editorState.score;
     if (score.parts.isEmpty) {
-      return const _EditorPageMetrics(
+      return EditorPageMetrics(
+        layoutPolicy: _layoutPolicy,
         pageStartIndices: [0],
         currentPageIndex: 0,
         totalMeasures: 0,
@@ -166,8 +99,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     }
 
     final measures = score.parts.first.measures;
-    return _EditorPageMetrics(
-      pageStartIndices: pageStartIndicesForMeasures(measures),
+    return EditorPageMetrics(
+      layoutPolicy: _layoutPolicy,
+      pageStartIndices: pageStartIndicesForMeasures(
+        measures,
+        layoutPolicy: _layoutPolicy,
+      ),
       currentPageIndex: _currentPageIndex,
       totalMeasures: measures.length,
     );
@@ -498,7 +435,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   int _pageIndexForEditorState(EditorState state) {
     final pageStarts = state.score.parts.isEmpty
         ? const [0]
-        : pageStartIndicesForMeasures(state.score.parts.first.measures);
+        : pageStartIndicesForMeasures(
+            state.score.parts.first.measures,
+            layoutPolicy: _layoutPolicy,
+          );
 
     if (state.selectedMeasureIndex != null &&
         state.score.parts.isNotEmpty &&
@@ -746,6 +686,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
               final notationArea = _NotationArea(
                 editorState: _editorState,
+                layoutPolicy: _pageMetrics.layoutPolicy,
                 pageFirstMeasure: _pageMetrics.pageFirstMeasure,
                 pageMeasureCount: _pageMetrics.pageMeasureCount,
                 insertMode: _insertMode,
@@ -1421,24 +1362,10 @@ class _EditorHeader extends StatelessWidget {
 // Inspector bar height (portrait bottom action bar, sits above PlaybackControlsBar).
 const double _kInspectorBarHeight = 56.0;
 
-// Page geometry constants (portrait A4-like layout at logical pixels).
-const double _kPageWidth = 760.0;
-const double _kPagePaddingH = 16.0;
-const double _kPagePaddingV = 28.0;
-const int _kMeasuresPerRow = 3;
-const int _kMeasuresPerPage = 9; // 3 rows × 3 measures
-const double _kRowHeight = 140.0;
-const double _kRowPrefixWidth = 86.0;
-const double _kMeasureWidth =
-    (_kPageWidth - _kPagePaddingH * 2 - _kRowPrefixWidth) / _kMeasuresPerRow;
-const EdgeInsets _kPagePadding = EdgeInsets.symmetric(
-  horizontal: _kPagePaddingH,
-  vertical: _kPagePaddingV,
-);
-
 class _NotationArea extends StatefulWidget {
   const _NotationArea({
     required this.editorState,
+    required this.layoutPolicy,
     required this.pageFirstMeasure,
     required this.pageMeasureCount,
     required this.insertMode,
@@ -1461,6 +1388,7 @@ class _NotationArea extends StatefulWidget {
   });
 
   final EditorState editorState;
+  final EditorLayoutPolicy layoutPolicy;
   final int pageFirstMeasure;
   final int pageMeasureCount;
   final bool insertMode;
@@ -1583,7 +1511,9 @@ class _NotationAreaState extends State<_NotationArea> {
 
   Size _computeContentSize() {
     final score = widget.editorState.score;
-    if (score.parts.isEmpty) return const Size(_kPageWidth, 400);
+    if (score.parts.isEmpty) {
+      return Size(widget.layoutPolicy.pageWidth, 400);
+    }
 
     final allMeasures = score.parts[0].measures;
     final start = widget.pageFirstMeasure.clamp(0, allMeasures.length);
@@ -1596,14 +1526,20 @@ class _NotationAreaState extends State<_NotationArea> {
     const calc = NotationLayoutCalculator();
     final layout = calc.calculate(
       measures: pageMeasures,
-      measuresPerRow: _kMeasuresPerRow,
-      minMeasureWidth: _kMeasureWidth,
-      rowHeight: _kRowHeight,
-      padding: _kPagePadding,
-      rowPrefixWidth: _kRowPrefixWidth,
+      measuresPerRow: widget.layoutPolicy.measuresPerRow,
+      minMeasureWidth: widget.layoutPolicy.minMeasureWidth,
+      rowHeight: widget.layoutPolicy.rowHeight,
+      padding: EdgeInsets.symmetric(
+        horizontal: widget.layoutPolicy.horizontalPadding,
+        vertical: widget.layoutPolicy.verticalPadding,
+      ),
+      rowPrefixWidth: widget.layoutPolicy.rowPrefixWidth,
       partCount: score.parts.length,
     );
-    return layout.size;
+    return Size(
+      widget.layoutPolicy.pageWidth,
+      math.max(widget.layoutPolicy.pageHeight, layout.size.height),
+    );
   }
 
   @override
@@ -1664,10 +1600,14 @@ class _NotationAreaState extends State<_NotationArea> {
                                 score: widget.editorState.score,
                                 selectedPartIndex:
                                     widget.editorState.selectedPartIndex ?? 0,
-                                measuresPerRow: _kMeasuresPerRow,
-                                minMeasureWidth: _kMeasureWidth,
-                                rowHeight: _kRowHeight,
-                                padding: _kPagePadding,
+                                measuresPerRow:
+                                    widget.layoutPolicy.measuresPerRow,
+                                minMeasureWidth: widget.layoutPolicy.minMeasureWidth,
+                                rowHeight: widget.layoutPolicy.rowHeight,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: widget.layoutPolicy.horizontalPadding,
+                                  vertical: widget.layoutPolicy.verticalPadding,
+                                ),
                                 backgroundColor: Colors.white,
                                 firstMeasureIndex: widget.pageFirstMeasure,
                                 pageMeasureCount: widget.pageMeasureCount,

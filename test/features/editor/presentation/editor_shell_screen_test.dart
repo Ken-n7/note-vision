@@ -10,6 +10,7 @@ import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
 import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
+import 'package:note_vision/features/editor/presentation/editor_layout_policy.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 
 void main() {
@@ -36,11 +37,44 @@ void main() {
 
     test('falls back to fixed page buckets for older scores', () {
       final measures = List.generate(
-        10,
+        21,
         (i) => Measure(number: i + 1, symbols: const []),
       );
 
-      expect(pageStartIndicesForMeasures(measures), const [0, 9]);
+      expect(pageStartIndicesForMeasures(measures), const [0, 20]);
+    });
+
+    test('uses the provided layout policy for fallback page buckets', () {
+      final measures = List.generate(
+        7,
+        (i) => Measure(number: i + 1, symbols: const []),
+      );
+
+      expect(
+        pageStartIndicesForMeasures(
+          measures,
+          layoutPolicy: const EditorLayoutPolicy(
+            measuresPerRow: 2,
+            rowsPerPage: 2,
+          ),
+        ),
+        const [0, 4],
+      );
+    });
+
+    test('part-count-derived policy reduces fallback measures per page', () {
+      final measures = List.generate(
+        9,
+        (i) => Measure(number: i + 1, symbols: const []),
+      );
+
+      expect(
+        pageStartIndicesForMeasures(
+          measures,
+          layoutPolicy: EditorLayoutPolicy.forPartCount(4),
+        ),
+        const [0, 4, 8],
+      );
     });
   });
 
@@ -374,12 +408,12 @@ void main() {
         Part(
           id: 'P1',
           name: 'Part 1',
-          measures: List.generate(10, (i) {
+          measures: List.generate(21, (i) {
             return Measure(
               number: i + 1,
               symbols: [
                 Note(
-                  step: i == 8 ? 'C' : 'D',
+                  step: i == 19 ? 'C' : 'D',
                   octave: 4,
                   duration: 1,
                   type: 'quarter',
@@ -399,7 +433,7 @@ void main() {
     viewerBefore.onSymbolTap!(
       const NotationSymbolTarget(
         partIndex: 0,
-        measureIndex: 8,
+        measureIndex: 19,
         symbolIndex: 0,
         center: Offset.zero,
         hitRect: Rect.zero,
@@ -413,7 +447,7 @@ void main() {
     final viewerAfter = tester.widget<ScoreNotationViewer>(
       find.byType(ScoreNotationViewer).last,
     );
-    expect(viewerAfter.firstMeasureIndex, 9);
+    expect(viewerAfter.firstMeasureIndex, 20);
     expect(viewerAfter.selectedMeasureIndex, 0);
   });
 
@@ -429,7 +463,7 @@ void main() {
           id: 'P1',
           name: 'Part 1',
           measures: List.generate(
-            9,
+            20,
             (i) => Measure(
               number: i + 1,
               symbols: const [
@@ -449,7 +483,7 @@ void main() {
     viewerBefore.onSymbolTap!(
       const NotationSymbolTarget(
         partIndex: 0,
-        measureIndex: 8,
+        measureIndex: 19,
         symbolIndex: 0,
         center: Offset.zero,
         hitRect: Rect.zero,
@@ -463,7 +497,7 @@ void main() {
     final viewerAfter = tester.widget<ScoreNotationViewer>(
       find.byType(ScoreNotationViewer).last,
     );
-    expect(viewerAfter.firstMeasureIndex, 9);
+    expect(viewerAfter.firstMeasureIndex, 20);
     expect(viewerAfter.pageMeasureCount, 1);
     expect(viewerAfter.selectedMeasureIndex, 0);
   });
@@ -480,7 +514,7 @@ void main() {
           id: 'P1',
           name: 'Part 1',
           measures: List.generate(
-            9,
+            20,
             (i) => Measure(
               number: i + 1,
               symbols: const [
@@ -500,7 +534,7 @@ void main() {
     viewerBefore.onSymbolTap!(
       const NotationSymbolTarget(
         partIndex: 0,
-        measureIndex: 8,
+        measureIndex: 19,
         symbolIndex: 0,
         center: Offset.zero,
         hitRect: Rect.zero,
@@ -514,7 +548,7 @@ void main() {
     var viewer = tester.widget<ScoreNotationViewer>(
       find.byType(ScoreNotationViewer).last,
     );
-    expect(viewer.firstMeasureIndex, 9);
+    expect(viewer.firstMeasureIndex, 20);
 
     await tester.tap(find.text('Del'));
     await tester.pumpAndSettle();
@@ -523,7 +557,7 @@ void main() {
       find.byType(ScoreNotationViewer).last,
     );
     expect(viewer.firstMeasureIndex, 0);
-    expect(viewer.pageMeasureCount, 9);
+    expect(viewer.pageMeasureCount, 20);
   });
 
   testWidgets('portrait narrow screen renders without overflow', (
@@ -957,7 +991,7 @@ void main() {
             id: 'P1',
             name: 'Part 1',
             measures: List.generate(
-              10,
+              21,
               (i) => Measure(
                 number: i + 1,
                 symbols: const [
@@ -971,13 +1005,13 @@ void main() {
 
       await pumpEditorShell(tester, score: score);
 
-      emitPosition(9);
+      emitPosition(20);
       await tester.pumpAndSettle();
 
       final viewer = tester.widget<ScoreNotationViewer>(
         find.byType(ScoreNotationViewer).last,
       );
-      expect(viewer.firstMeasureIndex, 9);
+      expect(viewer.firstMeasureIndex, 20);
       expect(viewer.playbackMeasureIndex, 0);
     });
 
@@ -993,7 +1027,7 @@ void main() {
             id: 'P1',
             name: 'Part 1',
             measures: List.generate(
-              10,
+              21,
               (i) => Measure(
                 number: i + 1,
                 symbols: const [
@@ -1007,7 +1041,7 @@ void main() {
 
       await pumpEditorShell(tester, score: score);
 
-      emitPosition(9);
+      emitPosition(20);
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('1').last);
@@ -1018,13 +1052,13 @@ void main() {
       );
       expect(viewer.firstMeasureIndex, 0);
 
-      emitPosition(9);
+      emitPosition(20);
       await tester.pumpAndSettle();
 
       viewer = tester.widget<ScoreNotationViewer>(
         find.byType(ScoreNotationViewer).last,
       );
-      expect(viewer.firstMeasureIndex, 9);
+      expect(viewer.firstMeasureIndex, 20);
     });
   });
 
@@ -1083,15 +1117,15 @@ Offset _symbolCenterOffset(
   required int measureIndex,
   required int symbolIndex,
 }) {
-  const measuresPerRow = 3;
-  const minMeasureWidth = 214.0;
+  const policy = EditorLayoutPolicy.standard;
+  final minMeasureWidth = policy.minMeasureWidth;
   const rowHeight = 140.0;
   const padding = EdgeInsets.symmetric(horizontal: 16.0, vertical: 28.0);
 
   final measures = score.parts.first.measures;
   final layout = const NotationLayoutCalculator().calculate(
     measures: measures,
-    measuresPerRow: measuresPerRow,
+    measuresPerRow: policy.measuresPerRow,
     minMeasureWidth: minMeasureWidth,
     rowHeight: rowHeight,
     padding: padding,

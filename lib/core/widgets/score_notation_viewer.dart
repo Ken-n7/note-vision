@@ -55,6 +55,44 @@ List<Measure> sliceMeasuresWithInheritedMetadata({
   return slice;
 }
 
+class NotationPageSlice {
+  const NotationPageSlice({
+    required this.parts,
+  });
+
+  final List<List<Measure>> parts;
+
+  List<Measure> measuresForPart(int selectedPartIndex) {
+    if (parts.isEmpty || selectedPartIndex < 0 || selectedPartIndex >= parts.length) {
+      return const <Measure>[];
+    }
+    return parts[selectedPartIndex];
+  }
+}
+
+@visibleForTesting
+NotationPageSlice sliceScoreForLayout({
+  required Score? score,
+  required int firstMeasureIndex,
+  int? pageMeasureCount,
+}) {
+  if (score == null || score.parts.isEmpty) {
+    return const NotationPageSlice(parts: <List<Measure>>[]);
+  }
+
+  return NotationPageSlice(
+    parts: score.parts
+        .map(
+          (part) => sliceMeasuresWithInheritedMetadata(
+            measures: part.measures,
+            firstMeasureIndex: firstMeasureIndex,
+            pageMeasureCount: pageMeasureCount,
+          ),
+        )
+        .toList(growable: false),
+  );
+}
+
 /// Read-only sheet music renderer for a [Score] model.
 ///
 /// Renders into a fixed-size [CustomPaint] — scrolling and zoom are handled
@@ -136,8 +174,13 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
 
   @override
   Widget build(BuildContext context) {
-    final allParts = _partsFor(widget.score);
-    final activeMeasures = _measuresFor(widget.score);
+    final pageSlice = sliceScoreForLayout(
+      score: widget.score,
+      firstMeasureIndex: widget.firstMeasureIndex,
+      pageMeasureCount: widget.pageMeasureCount,
+    );
+    final allParts = pageSlice.parts;
+    final activeMeasures = pageSlice.measuresForPart(widget.selectedPartIndex);
 
     if (allParts.isEmpty) {
       return _EmptyNotationState(backgroundColor: widget.backgroundColor);
@@ -464,26 +507,33 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   }) {
     if (allParts.isEmpty) return null;
     final partCount = allParts.length;
-    final rowCount = (allParts[0].length / layout.measuresPerRow).ceil();
     final contentStartX = widget.padding.left + layout.rowPrefixWidth;
     const innerPadding = 16.0;
 
-    for (var systemIndex = 0; systemIndex < rowCount; systemIndex++) {
+    for (final system in layout.systems) {
       for (var partIdx = 0; partIdx < partCount; partIdx++) {
         final measures = allParts[partIdx];
-        final rowStartMeasure = systemIndex * layout.measuresPerRow;
-        final rowEndExclusive =
-            (rowStartMeasure + layout.measuresPerRow).clamp(0, measures.length).toInt();
-        if (rowStartMeasure >= rowEndExclusive) continue;
+        final rowStartMeasure = system.startMeasureIndex;
+        final rowEndExclusive = system.endMeasureIndexExclusive.clamp(
+          0,
+          measures.length,
+        );
+        if (rowStartMeasure >= rowEndExclusive) {
+          continue;
+        }
 
         final staffTop = widget.padding.top +
-            systemIndex * (partCount * widget.rowHeight) +
+            system.systemIndex * (partCount * widget.rowHeight) +
             partIdx * widget.rowHeight +
             28;
         final staffBottom = staffTop + ScoreNotationPainter.staffLineSpacing * 4;
         if (position.dy < staffTop - 28 || position.dy > staffBottom + 28) continue;
 
-        for (var measureInRow = 0; measureInRow < rowEndExclusive - rowStartMeasure; measureInRow++) {
+        for (
+          var measureInRow = 0;
+          measureInRow < rowEndExclusive - rowStartMeasure;
+          measureInRow++
+        ) {
           final absoluteMeasureIndex = rowStartMeasure + measureInRow;
           final measureStartX = contentStartX + (measureInRow * widget.minMeasureWidth);
           final measureEndX = measureStartX + widget.minMeasureWidth;
@@ -529,25 +579,6 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     return null;
   }
 
-  List<Measure> _sliceMeasures(List<Measure> measures) {
-    return sliceMeasuresWithInheritedMetadata(
-      measures: measures,
-      firstMeasureIndex: widget.firstMeasureIndex,
-      pageMeasureCount: widget.pageMeasureCount,
-    );
-  }
-
-  List<List<Measure>> _partsFor(Score? score) {
-    if (score == null || score.parts.isEmpty) return const [];
-    return score.parts.map((p) => _sliceMeasures(p.measures)).toList(growable: false);
-  }
-
-  List<Measure> _measuresFor(Score? score) {
-    if (score == null || score.parts.isEmpty || widget.selectedPartIndex >= score.parts.length) {
-      return const <Measure>[];
-    }
-    return _sliceMeasures(score.parts[widget.selectedPartIndex].measures);
-  }
 }
 
 // ---------------------------------------------------------------------------
