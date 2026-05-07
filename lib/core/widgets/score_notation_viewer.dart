@@ -1,12 +1,59 @@
 import 'package:flutter/material.dart';
 
+import '../models/clef.dart';
+import '../models/key_signature.dart';
 import '../models/measure.dart';
 import '../models/score.dart';
+import '../models/time_signature.dart';
 import 'score_notation/notation_layout.dart';
 import 'score_notation/score_notation_painter.dart';
 import 'score_notation/staff_pitch_mapper.dart';
 
 export 'score_notation/staff_pitch_mapper.dart';
+
+@visibleForTesting
+List<Measure> sliceMeasuresWithInheritedMetadata({
+  required List<Measure> measures,
+  required int firstMeasureIndex,
+  int? pageMeasureCount,
+}) {
+  final start = firstMeasureIndex.clamp(0, measures.length);
+  final end = pageMeasureCount != null
+      ? (start + pageMeasureCount).clamp(start, measures.length)
+      : measures.length;
+
+  Clef? activeClef;
+  TimeSignature? activeTimeSignature;
+  KeySignature? activeKeySignature;
+
+  for (var i = 0; i < start; i++) {
+    final measure = measures[i];
+    activeClef = measure.clef ?? activeClef;
+    activeTimeSignature = measure.timeSignature ?? activeTimeSignature;
+    activeKeySignature = measure.keySignature ?? activeKeySignature;
+  }
+
+  final slice = <Measure>[];
+  for (var i = start; i < end; i++) {
+    final measure = measures[i];
+    final normalized = Measure(
+      number: measure.number,
+      clef: measure.clef ?? activeClef,
+      timeSignature: measure.timeSignature ?? activeTimeSignature,
+      keySignature: measure.keySignature ?? activeKeySignature,
+      symbols: measure.symbols,
+      startsNewPage: measure.startsNewPage,
+      leftBarlineType: measure.leftBarlineType,
+      rightBarlineType: measure.rightBarlineType,
+    );
+    slice.add(normalized);
+    activeClef = normalized.clef;
+    activeTimeSignature = normalized.timeSignature;
+    activeKeySignature = normalized.keySignature;
+  }
+
+  return slice;
+}
 
 /// Read-only sheet music renderer for a [Score] model.
 ///
@@ -483,12 +530,11 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   }
 
   List<Measure> _sliceMeasures(List<Measure> measures) {
-    final start = widget.firstMeasureIndex.clamp(0, measures.length);
-    final count = widget.pageMeasureCount;
-    final end = count != null
-        ? (start + count).clamp(start, measures.length)
-        : measures.length;
-    return measures.sublist(start, end);
+    return sliceMeasuresWithInheritedMetadata(
+      measures: measures,
+      firstMeasureIndex: widget.firstMeasureIndex,
+      pageMeasureCount: widget.pageMeasureCount,
+    );
   }
 
   List<List<Measure>> _partsFor(Score? score) {

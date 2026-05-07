@@ -3,6 +3,9 @@ import 'package:note_vision/core/theme/app_theme.dart';
 
 const Color _paletteSymbolColor = Color(0xFFE6E6E6);
 const Color _paletteSymbolSelected = Color(0xFFD4A96A);
+const double _kPaletteArrowInset = 6;
+const double _kPaletteArrowWidth = 34;
+const double _kPaletteScrollPadding = 12 + _kPaletteArrowWidth + 6;
 
 enum PaletteSymbolType {
   wholeNote,
@@ -20,7 +23,7 @@ class PaletteDragData {
   final PaletteSymbolType type;
 }
 
-class SymbolPalette extends StatelessWidget {
+class SymbolPalette extends StatefulWidget {
   const SymbolPalette({
     super.key,
     this.selectedType,
@@ -41,6 +44,57 @@ class SymbolPalette extends StatelessWidget {
   ];
 
   @override
+  State<SymbolPalette> createState() => _SymbolPaletteState();
+}
+
+class _SymbolPaletteState extends State<SymbolPalette> {
+  final ScrollController _scrollController = ScrollController();
+
+  bool _showLeftArrow = false;
+  bool _showRightArrow = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_updateArrowVisibility);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateArrowVisibility());
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_updateArrowVisibility)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _updateArrowVisibility() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    final showLeft = position.pixels > 2;
+    final showRight = position.maxScrollExtent - position.pixels > 2;
+    if (showLeft == _showLeftArrow && showRight == _showRightArrow) return;
+    setState(() {
+      _showLeftArrow = showLeft;
+      _showRightArrow = showRight;
+    });
+  }
+
+  Future<void> _scrollBy(double delta) async {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    final target = (position.pixels + delta).clamp(
+      0.0,
+      position.maxScrollExtent,
+    );
+    await _scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Container(
       key: const ValueKey('symbol-palette'),
@@ -49,22 +103,124 @@ class SymbolPalette extends StatelessWidget {
         color: AppColors.surfaceAlt,
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          children: _items
-              .map(
-                (item) => Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: _PaletteDraggableItem(
-                    item: item,
-                    isSelected: selectedType == item.type,
-                    onTap: onTypeTap != null ? () => onTypeTap!(item.type) : null,
-                  ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final scrollStep = constraints.maxWidth * 0.56;
+          return Stack(
+            children: [
+              SingleChildScrollView(
+                controller: _scrollController,
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: _kPaletteScrollPadding,
+                  vertical: 8,
                 ),
-              )
-              .toList(growable: false),
+                child: Row(
+                  children: SymbolPalette._items
+                      .map(
+                        (item) => Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: _PaletteDraggableItem(
+                            item: item,
+                            isSelected: widget.selectedType == item.type,
+                            onTap: widget.onTypeTap != null
+                                ? () => widget.onTypeTap!(item.type)
+                                : null,
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                ),
+              ),
+              _PaletteArrow(
+                key: const ValueKey('palette-left-arrow'),
+                alignment: Alignment.centerLeft,
+                icon: Icons.chevron_left_rounded,
+                visible: _showLeftArrow,
+                onTap: () => _scrollBy(-scrollStep),
+              ),
+              _PaletteArrow(
+                key: const ValueKey('palette-right-arrow'),
+                alignment: Alignment.centerRight,
+                icon: Icons.chevron_right_rounded,
+                visible: _showRightArrow,
+                onTap: () => _scrollBy(scrollStep),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _PaletteArrow extends StatelessWidget {
+  const _PaletteArrow({
+    super.key,
+    required this.alignment,
+    required this.icon,
+    required this.visible,
+    required this.onTap,
+  });
+
+  final Alignment alignment;
+  final IconData icon;
+  final bool visible;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: alignment,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: _kPaletteArrowInset),
+        child: IgnorePointer(
+          ignoring: !visible,
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 160),
+            opacity: visible ? 1 : 0,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(999),
+                gradient: LinearGradient(
+                  begin: alignment == Alignment.centerLeft
+                      ? Alignment.centerLeft
+                      : Alignment.centerRight,
+                  end: alignment == Alignment.centerLeft
+                      ? Alignment.centerRight
+                      : Alignment.centerLeft,
+                  colors: const [
+                    Color(0xF2242428),
+                    Color(0xD9242428),
+                  ],
+                ),
+                border: Border.all(
+                  color: AppColors.border.withValues(alpha: 0.85),
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x26000000),
+                    blurRadius: 10,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: IconButton(
+                onPressed: onTap,
+                icon: Icon(icon, color: AppColors.accent, size: 18),
+                tooltip: icon == Icons.chevron_left_rounded
+                    ? 'Scroll palette left'
+                    : 'Scroll palette right',
+                constraints: const BoxConstraints.tightFor(
+                  width: _kPaletteArrowWidth,
+                  height: 34,
+                ),
+                padding: EdgeInsets.zero,
+                splashRadius: 18,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -169,13 +325,41 @@ class _PaletteSymbolPainter extends CustomPainter {
 
     switch (type) {
       case PaletteSymbolType.wholeNote:
-        _drawNote(canvas, paint, size, filled: false, withStem: false, withFlag: false);
+        _drawNote(
+          canvas,
+          paint,
+          size,
+          filled: false,
+          withStem: false,
+          withFlag: false,
+        );
       case PaletteSymbolType.halfNote:
-        _drawNote(canvas, paint, size, filled: false, withStem: true, withFlag: false);
+        _drawNote(
+          canvas,
+          paint,
+          size,
+          filled: false,
+          withStem: true,
+          withFlag: false,
+        );
       case PaletteSymbolType.quarterNote:
-        _drawNote(canvas, paint, size, filled: true, withStem: true, withFlag: false);
+        _drawNote(
+          canvas,
+          paint,
+          size,
+          filled: true,
+          withStem: true,
+          withFlag: false,
+        );
       case PaletteSymbolType.eighthNote:
-        _drawNote(canvas, paint, size, filled: true, withStem: true, withFlag: true);
+        _drawNote(
+          canvas,
+          paint,
+          size,
+          filled: true,
+          withStem: true,
+          withFlag: true,
+        );
       case PaletteSymbolType.wholeRest:
         _drawWholeRest(canvas, paint, size);
       case PaletteSymbolType.halfRest:
@@ -200,7 +384,12 @@ class _PaletteSymbolPainter extends CustomPainter {
     );
 
     if (filled) {
-      canvas.drawOval(headRect, Paint()..color = color..style = PaintingStyle.fill);
+      canvas.drawOval(
+        headRect,
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.fill,
+      );
     } else {
       canvas.drawOval(headRect, paint);
     }
@@ -214,23 +403,56 @@ class _PaletteSymbolPainter extends CustomPainter {
     if (withFlag) {
       final path = Path()
         ..moveTo(stemEnd.dx, stemEnd.dy)
-        ..quadraticBezierTo(stemEnd.dx + 8, stemEnd.dy + 3, stemEnd.dx + 5, stemEnd.dy + 11);
+        ..quadraticBezierTo(
+          stemEnd.dx + 8,
+          stemEnd.dy + 3,
+          stemEnd.dx + 5,
+          stemEnd.dy + 11,
+        );
       canvas.drawPath(path, paint);
     }
   }
 
   void _drawWholeRest(Canvas canvas, Paint paint, Size size) {
     final lineY = size.height * 0.45;
-    final barRect = Rect.fromLTWH(size.width * 0.28, lineY, size.width * 0.44, 6);
-    canvas.drawRect(barRect, Paint()..color = color..style = PaintingStyle.fill);
-    canvas.drawLine(Offset(size.width * 0.2, lineY), Offset(size.width * 0.8, lineY), paint);
+    final barRect = Rect.fromLTWH(
+      size.width * 0.28,
+      lineY,
+      size.width * 0.44,
+      6,
+    );
+    canvas.drawRect(
+      barRect,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawLine(
+      Offset(size.width * 0.2, lineY),
+      Offset(size.width * 0.8, lineY),
+      paint,
+    );
   }
 
   void _drawHalfRest(Canvas canvas, Paint paint, Size size) {
     final lineY = size.height * 0.52;
-    final barRect = Rect.fromLTWH(size.width * 0.28, lineY - 6, size.width * 0.44, 6);
-    canvas.drawRect(barRect, Paint()..color = color..style = PaintingStyle.fill);
-    canvas.drawLine(Offset(size.width * 0.2, lineY), Offset(size.width * 0.8, lineY), paint);
+    final barRect = Rect.fromLTWH(
+      size.width * 0.28,
+      lineY - 6,
+      size.width * 0.44,
+      6,
+    );
+    canvas.drawRect(
+      barRect,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawLine(
+      Offset(size.width * 0.2, lineY),
+      Offset(size.width * 0.8, lineY),
+      paint,
+    );
   }
 
   void _drawQuarterRest(Canvas canvas, Paint paint, Size size) {

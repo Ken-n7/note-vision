@@ -82,6 +82,38 @@ void main() {
   });
 
   group('ScoreNotationViewer', () {
+    test('sliceMeasuresWithInheritedMetadata carries signatures into later pages', () {
+      final measures = [
+        Measure(
+          number: 1,
+          clef: const Clef(sign: 'F', line: 4),
+          timeSignature: const TimeSignature(beats: 4, beatType: 4),
+          keySignature: const KeySignature(fifths: -1),
+          symbols: const [
+            Note(step: 'C', octave: 3, duration: 1, type: 'quarter'),
+          ],
+        ),
+        Measure(
+          number: 2,
+          symbols: const [
+            Note(step: 'D', octave: 3, duration: 1, type: 'quarter'),
+          ],
+        ),
+      ];
+
+      final sliced = sliceMeasuresWithInheritedMetadata(
+        measures: measures,
+        firstMeasureIndex: 1,
+        pageMeasureCount: 1,
+      );
+
+      expect(sliced, hasLength(1));
+      expect(sliced.single.clef?.sign, 'F');
+      expect(sliced.single.timeSignature?.beats, 4);
+      expect(sliced.single.timeSignature?.beatType, 4);
+      expect(sliced.single.keySignature?.fifths, -1);
+    });
+
     testWidgets('renders empty-state text for null score', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
