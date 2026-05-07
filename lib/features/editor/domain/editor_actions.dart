@@ -214,6 +214,18 @@ extension EditorActions on EditorState {
     );
   }
 
+  EditorState appendMeasureAtEnd() {
+    if (score.parts.isEmpty) return this;
+    final lastMeasureIndex = score.parts.first.measures.length - 1;
+    final nextScore = score.insertMeasureAfterInAllParts(lastMeasureIndex);
+    return _applyMeasureContextEdit(
+      intent: EditorEditIntent.createMeasure,
+      score: nextScore,
+      partIndex: selectedPartIndex ?? 0,
+      measureIndex: lastMeasureIndex + 1,
+    );
+  }
+
   EditorState addPageAtEnd() {
     if (score.parts.isEmpty) return this;
     final updatedParts = <Part>[];

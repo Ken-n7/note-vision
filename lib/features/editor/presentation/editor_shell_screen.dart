@@ -804,8 +804,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 ),
                 onMoveToNext: () =>
                     _updateState((s) => s.moveSelectedSymbolToMeasureOffset(1)),
-                onAddMeasure: () =>
-                    _updateState((s) => s.addMeasureAfterSelected()),
+                onAddMeasure: () {
+                  _updateState((s) => s.appendMeasureAtEnd());
+                  setState(_jumpToLastPage);
+                },
                 onAddPage: () {
                   _updateState((s) => s.addPageAtEnd());
                   setState(_jumpToLastPage);
@@ -2241,9 +2243,7 @@ class _InspectorPanelState extends State<_InspectorPanel> {
           _ActionTile(
             icon: Icons.add_rounded,
             label: 'Add',
-            onPressed: _wrapAction(
-              widget.hasMeasureContext ? widget.onAddMeasure : null,
-            ),
+            onPressed: _wrapAction(widget.onAddMeasure),
           ),
           _ActionTile(
             icon: Icons.add_box_rounded,
