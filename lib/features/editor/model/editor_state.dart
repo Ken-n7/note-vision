@@ -19,15 +19,47 @@ class EditorState {
   final List<EditorSnapshot> redoStack;
   final bool hasUnsavedChanges;
 
-  EditorState({
-    required this.score,
-    this.selectedPartIndex,
-    this.selectedMeasureIndex,
-    this.selectedSymbolIndex,
-    this.selectedSymbol,
+  factory EditorState({
+    required Score score,
+    int? selectedPartIndex,
+    int? selectedMeasureIndex,
+    int? selectedSymbolIndex,
+    ScoreSymbol? selectedSymbol,
     List<EditorSnapshot>? undoStack,
     List<EditorSnapshot>? redoStack,
-    this.hasUnsavedChanges = false,
+    bool hasUnsavedChanges = false,
+  }) {
+    final normalizedSelection = _normalizeSelection(
+      score: score,
+      candidate: _Selection(
+        partIndex: selectedPartIndex,
+        measureIndex: selectedMeasureIndex,
+        symbolIndex: selectedSymbolIndex,
+        symbol: selectedSymbol,
+      ),
+    );
+
+    return EditorState._(
+      score: score,
+      selectedPartIndex: normalizedSelection.partIndex,
+      selectedMeasureIndex: normalizedSelection.measureIndex,
+      selectedSymbolIndex: normalizedSelection.symbolIndex,
+      selectedSymbol: normalizedSelection.symbol,
+      undoStack: undoStack,
+      redoStack: redoStack,
+      hasUnsavedChanges: hasUnsavedChanges,
+    );
+  }
+
+  EditorState._({
+    required this.score,
+    required this.selectedPartIndex,
+    required this.selectedMeasureIndex,
+    required this.selectedSymbolIndex,
+    required this.selectedSymbol,
+    List<EditorSnapshot>? undoStack,
+    List<EditorSnapshot>? redoStack,
+    required this.hasUnsavedChanges,
   }) : undoStack = UnmodifiableListView(_trimStack(undoStack ?? const [])),
        redoStack = UnmodifiableListView(_trimStack(redoStack ?? const [])) {
     _validateSelectedSymbolType(selectedSymbol);

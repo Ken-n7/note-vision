@@ -8,7 +8,6 @@ import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/features/editor/model/editor_snapshot.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/model/editor_state_history.dart';
-import 'package:note_vision/features/editor/model/editor_state_history.dart';
 
 void main() {
   group('EditorState', () {
@@ -89,6 +88,21 @@ void main() {
       expect(state.selectedSymbolIndex, isNull);
       expect(state.selectedSymbol, isNull);
       expect(state.hasMeasureContext, isTrue);
+    });
+
+    test('constructor normalizes invalid direct selection inputs', () {
+      final score = _buildScore();
+      final state = EditorState(
+        score: score,
+        selectedPartIndex: 99,
+        selectedMeasureIndex: 42,
+      );
+
+      expect(state.selectedPartIndex, isNull);
+      expect(state.selectedMeasureIndex, isNull);
+      expect(state.selectedSymbolIndex, isNull);
+      expect(state.selectedSymbol, isNull);
+      expect(state.hasMeasureContext, isFalse);
     });
 
     test('applyEditWithMeasureContext clears symbol selection and keeps measure selection', () {

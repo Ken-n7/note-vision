@@ -120,6 +120,20 @@ void main() {
       expect(identical(state.insertRestAfterSelection(), state), isTrue);
     });
 
+    test('insertSymbolAtMeasureIndex no-ops for invalid part targets', () {
+      final score = _baseScore(const []);
+      final state = EditorState(score: score);
+
+      final next = state.insertSymbolAtMeasureIndex(
+        partIndex: 9,
+        measureIndex: 0,
+        insertIndex: 0,
+        symbol: const Note(step: 'C', octave: 4, duration: 2, type: 'quarter'),
+      );
+
+      expect(identical(next, state), isTrue);
+    });
+
     test(
       'setSelectedMeasureClef updates only the selected part and is undoable',
       () {

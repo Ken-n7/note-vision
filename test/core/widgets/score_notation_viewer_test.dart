@@ -114,6 +114,42 @@ void main() {
       expect(sliced.single.keySignature?.fifths, -1);
     });
 
+    test('sliceMeasuresWithInheritedMetadata preserves explicit later overrides', () {
+      final measures = [
+        Measure(
+          number: 1,
+          clef: const Clef(sign: 'G', line: 2),
+          timeSignature: const TimeSignature(beats: 4, beatType: 4),
+          keySignature: const KeySignature(fifths: 0),
+          symbols: const [
+            Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+          ],
+        ),
+        Measure(
+          number: 2,
+          clef: const Clef(sign: 'F', line: 4),
+          timeSignature: const TimeSignature(beats: 3, beatType: 4),
+          keySignature: const KeySignature(fifths: -2),
+          symbols: const [
+            Note(step: 'A', octave: 3, duration: 1, type: 'quarter'),
+          ],
+        ),
+      ];
+
+      final sliced = sliceMeasuresWithInheritedMetadata(
+        measures: measures,
+        firstMeasureIndex: 1,
+        pageMeasureCount: 1,
+      );
+
+      expect(sliced, hasLength(1));
+      expect(sliced.single.clef?.sign, 'F');
+      expect(sliced.single.clef?.line, 4);
+      expect(sliced.single.timeSignature?.beats, 3);
+      expect(sliced.single.timeSignature?.beatType, 4);
+      expect(sliced.single.keySignature?.fifths, -2);
+    });
+
     testWidgets('renders empty-state text for null score', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(

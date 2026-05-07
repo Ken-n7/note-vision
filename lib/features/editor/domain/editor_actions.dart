@@ -445,6 +445,7 @@ extension EditorActions on EditorState {
     required ScoreSymbol symbol,
   }) {
     if (score.parts.isEmpty) return this;
+    if (partIndex < 0 || partIndex >= score.parts.length) return this;
     final measures = score.parts[partIndex].measures;
     if (measureIndex < 0 || measureIndex >= measures.length) return this;
     if (insertIndex < 0 || insertIndex > measures[measureIndex].symbols.length) {

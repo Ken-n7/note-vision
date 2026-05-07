@@ -491,6 +491,27 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     if (mounted) setState(() => _scoreEditCount = count);
   }
 
+  int _pageIndexForEditorState(EditorState state) {
+    if (state.selectedMeasureIndex != null &&
+        state.score.parts.isNotEmpty &&
+        state.score.parts.first.measures.isNotEmpty) {
+      final measureIndex = state.selectedMeasureIndex!.clamp(
+        0,
+        state.score.parts.first.measures.length - 1,
+      );
+      final pageStarts = pageStartIndicesForMeasures(
+        state.score.parts.first.measures,
+      );
+      return pageIndexForMeasure(pageStarts, measureIndex).clamp(
+        0,
+        pageStarts.length - 1,
+      );
+    }
+
+    final pageStarts = _pageMetrics.pageStartIndices;
+    return _currentPageIndex.clamp(0, pageStarts.length - 1);
+  }
+
   Future<void> _showMetadataSheet() async {
     final result =
         await showModalBottomSheet<({String title, String composer})>(
@@ -524,11 +545,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   void _updateState(EditorState Function(EditorState state) updater) {
     setState(() {
       final prev = _editorState;
-      _editorState = updater(_editorState);
-      _currentPageIndex = _currentPageIndex.clamp(
-        0,
-        _pageMetrics.totalPages - 1,
-      );
+      final nextState = updater(_editorState);
+      _editorState = nextState;
+      _currentPageIndex = _pageIndexForEditorState(nextState);
       if (_editorState.undoStack.length > prev.undoStack.length) {
         _scoreEditCount++;
         unawaited(UsageStatsService.incrementScoreEdits(_editorState.score.id));
