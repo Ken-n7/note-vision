@@ -332,35 +332,30 @@ All previously tracked bugs (B1–B5) have been fixed. No open bugs.
 
 ## Ticket Status
 
-### Sprints 1–9 ✅ All Complete
-Sprints 1–9 (tickets 1–93) are fully shipped. Sprint 10 is the active sprint (tickets being decided).
+### Sprints 1–10 ✅ All Complete
+Sprints 1–10 (tickets 1–104) are fully shipped.
 
-### Sprint 10 🔄 In Progress
+### Sprint 11 ✅ All Complete
 | # | Ticket | Owner | Status |
 |---|--------|-------|--------|
-| 94 | Collection Screen: Remove Redundant Add Button | Boleche | ✅ Done (sprint10-quick-fixes) |
-| 95 | Editor: Add Multi-Page Score Support | Canete | ✅ Done (sprint10-quick-fixes) |
-| 96 | Editor: Replace Measure Navigation with Page Navigation | Boleche | ✅ Done (sprint10-quick-fixes) |
-| 97 | Editor: Score Page Tab Bar | Boleche | ✅ Done (sprint10-quick-fixes) |
-| 98 | Editor: Redesign Tempo Control | Boleche | ✅ Done (sprint10-quick-fixes) |
-| 99 | Editor: In-Project Scan (Add a New Page from the Editor) | Canete | ✅ Done (sprint10-quick-fixes) |
-| 100 | Settings: Independent Scan Preview/Review Toggles | Canete | ✅ Done (sprint10-quick-fixes) |
-| 101 | Replace Burger Menu Button with Profile Icon as Drawer Trigger | Boleche | ✅ Done (sprint10-quick-fixes) |
-| 102 | Editor: Smooth Page Transition During Playback | Canete | ✅ Done (sprint10-quick-fixes) |
-| 103 | Editor: Full-Screen Error State on Save Failure | Canete | ✅ Done (sprint10-quick-fixes) |
-| 104 | Editor: Playback Auto-Advances Page | Canete | ✅ Done (sprint10-quick-fixes) |
+| 105 | Dotted Note/Rest Reconstruction | Canete | ✅ Done (milestone-3-layout-foundation) |
+| 106 | Chord Reconstruction | Canete | ✅ Done (milestone-3-layout-foundation) |
+| 107 | Repeat Barline Detection | Canete | ✅ Done (milestone-3-layout-foundation) |
+| 108 | Double Whole Note Support | Canete | ✅ Done (milestone-3-layout-foundation) |
+| 109 | Ledger Line Pitch Accuracy | Canete | ✅ Done (milestone-3-layout-foundation) |
+| 110 | Per-Class Detection Confidence Thresholds | Canete | ✅ Done (milestone-3-layout-foundation) |
+| 111 | Editor Header: Collapse Action Buttons into Overflow Menu | Boleche | ✅ Done (milestone-3-layout-foundation) |
+| 112 | Score Genre/Label Classification | Canete | ✅ Done (milestone-3-layout-foundation) |
 
-### Sprint 11 — Reconstruction Improvements
+### Sprint 12 — Editor Polish & Export Quality
 | # | Ticket | Owner | Status |
 |---|--------|-------|--------|
-| 105 | Dotted Note/Rest Reconstruction | Canete | ⏳ Not started |
-| 106 | Chord Reconstruction | Canete | ⏳ Not started |
-| 107 | Repeat Barline Detection | Canete | ⏳ Not started |
-| 108 | Double Whole Note Support | Canete | ⏳ Not started |
-| 109 | Ledger Line Pitch Accuracy | Canete | ⏳ Not started |
-| 110 | Per-Class Detection Confidence Thresholds | Canete | ⏳ Not started |
-| 111 | Editor Header: Collapse Action Buttons into Overflow Menu | Boleche | ⏳ Not started |
-| 112 | Score Genre/Label Classification | Canete | ⏳ Not started |
+| 113 | Editor: Layout grid change (4×5 = 20 measures/page) | Canete | ✅ Done (milestone-3-layout-foundation) |
+| 114 | Editor: Add Measure always appends to end | Canete | ✅ Done (milestone-3-layout-foundation) |
+| 115 | Editor: Clef change recalculates all note pitches (part-level) | Canete | ✅ Done (milestone-3-layout-foundation) |
+| 116 | MusicXML: Import/export startsNewSystem breaks | Canete | ✅ Done (milestone-3-layout-foundation) |
+| 117 | MusicXML: Import divisions normalization (any source divisions) | Canete | ✅ Done (milestone-3-layout-foundation) |
+| 118 | MusicXML: Export beam elements (begin/continue/end) | Canete | ✅ Done (milestone-3-layout-foundation) |
 
 ---
 
@@ -370,12 +365,14 @@ These are current limitations, not hard ceilings — going beyond them is fine i
 
 - Bass clef rendering ✅ done in editor and PDF export; alto clef, tenor clef still unsupported
 - Grand staff (two staves, piano LH+RH)
-- Chords (multiple notes on one stem)
-- Ties, slurs, tuplets, dotted rhythms
+- Chords ✅ reconstructed from scan; not editable in editor yet
+- Dotted note/rest rhythms ✅ reconstructed from scan
+- Repeat barlines ✅ detected and exported to MusicXML
+- Ties, slurs, tuplets
 - Sixteenth notes or smaller
 - Grace notes, ornaments
 - Dynamics, articulations, tempo markings
-- Repeat signs, D.C., D.S., coda
+- D.C., D.S., coda
 - Multiple voices on one staff
 - Lyrics
 - Handwritten music

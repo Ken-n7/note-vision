@@ -7,7 +7,7 @@
         <!-- android:maxSdkVersion="32" /> -->
         
     <application
-        android:label="app"
+        android:label="Note Vision"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

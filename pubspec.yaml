@@ -1,75 +1,58 @@
 name: note_vision
 description: "Capstone: Optical Music Recognition Mobile App."
-publish_to: 'none' 
-
+publish_to: 'none'
 
 version: 1.0.0+1
 
-
 environment:
   sdk: ^3.10.7
-
 
 dependencies:
   flutter:
     sdk: flutter
 
-  # Input
+  # Camera / image input
   camera: ^0.12.0
   image_picker: ^1.1.2
-  path_provider: ^2.1.5
-  path: ^1.9.0
-  shared_preferences: ^2.0.15
   file_picker: ^8.1.2
-  mockito: ^5.4.4
-  build_runner: ^2.4.8
-  mocktail: ^1.0.4
-  archive: ^4.0.7
 
-  # Basic preprocessing (pure Dart)
+  # Image processing (pure Dart)
   image: ^4.8.0
 
-  # State management & UI helpers
-  provider: ^6.1.5+1
-  # fluttertoast: ^8.2.8
-
-    # TFLite
+  # ML inference
   tflite_flutter: ^0.12.1
-
 
   # MusicXML parsing + export
   xml: ^6.5.0
-  share_plus: ^12.0.2
 
-  # Audio playback (Sprint 7)
-  flutter_midi_pro: ^3.1.6
-
-    # Storage & paths
-  # path_provider: ^2.1.5
-  # permission_handler: ^11.3.1
-  # sqflite: ^2.3.3+1
-  # path: ^1.9.0
-
-    # PDF export
+  # PDF export
   pdf: ^3.11.1
 
-    # State management & UI helpers
-  # provider: ^6.1.2
-  # fluttertoast: ^8.2.8
-  
-    # Future phases (commented until needed)
-  # opencv_4: ^1.0.0              # Advanced CV (deskew, staff detection)
-  # flutter_midi: ^0.0.1           # MIDI playback
-  # flutter_svg: ^2.0.10+1         # SVG rendering (if using verovio)
+  # Audio playback
+  flutter_midi_pro: ^3.1.6
+
+  # State management
+  provider: ^6.1.5+1
+
+  # Storage & paths
+  shared_preferences: ^2.0.15
+  path_provider: ^2.1.5
+  path: ^1.9.0
+
+  # File sharing
+  share_plus: ^12.0.2
+  archive: ^4.0.7
 
   cupertino_icons: ^1.0.8
-
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
-
+  mockito: ^5.4.4
+  mocktail: ^1.0.4
+  build_runner: ^2.4.8
+  flutter_launcher_icons: ^0.14.3
 
 flutter:
   uses-material-design: true
@@ -77,11 +60,19 @@ flutter:
   assets:
     - assets/images/
     - assets/fonts/
-    # - assets/models/omr_model.tflite
     - assets/models/best_int8.tflite
     - assets/soundfonts/
+
   fonts:
     - family: MaturaMTScriptCapitals
       fonts:
         - asset: assets/fonts/maturasc.ttf
 
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/app_icon.png"
+  remove_alpha_ios: true
+  min_sdk_android: 26
+  adaptive_icon_background: "#0D0D0D"
+  adaptive_icon_foreground: "assets/images/app_icon.png"
