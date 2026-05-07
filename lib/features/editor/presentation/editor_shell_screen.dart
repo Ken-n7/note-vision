@@ -584,25 +584,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           state.selectedPartIndex == partIndex &&
           state.selectedMeasureIndex == measureIndex &&
           state.selectedSymbolIndex == symbolIndex;
-      if (isSame) return _clearSymbolSelection(state);
+      if (isSame) return state.clearSymbolSelectionPreservingMeasureContext();
 
-      final parts = state.score.parts;
-      if (parts.isEmpty || partIndex >= parts.length) {
-        return state.copyWith(clearSelection: true);
-      }
-      final measures = parts[partIndex].measures;
-      if (measureIndex >= measures.length) {
-        return state.copyWith(clearSelection: true);
-      }
-      final symbols = measures[measureIndex].symbols;
-      if (symbolIndex < 0 || symbolIndex >= symbols.length) {
-        return _clearSymbolSelection(state);
-      }
-      return state.copyWith(
-        selectedPartIndex: partIndex,
-        selectedMeasureIndex: measureIndex,
-        selectedSymbolIndex: symbolIndex,
-        selectedSymbol: symbols[symbolIndex],
+      return state.selectSymbolAt(
+        partIndex: partIndex,
+        measureIndex: measureIndex,
+        symbolIndex: symbolIndex,
       );
     });
   }
@@ -685,17 +672,6 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     return state.copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
   }
 
-  EditorState _clearSymbolSelection(EditorState state) {
-    return EditorState(
-      score: state.score,
-      selectedPartIndex: state.selectedPartIndex,
-      selectedMeasureIndex: state.selectedMeasureIndex,
-      undoStack: state.undoStack,
-      redoStack: state.redoStack,
-      hasUnsavedChanges: state.hasUnsavedChanges,
-    );
-  }
-
   void _onPaletteTypeTap(PaletteSymbolType type) {
     setState(() {
       if (!_insertMode) {
@@ -748,6 +724,13 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               .measures[selectedMeasureIndex]
               .clef
         : null;
+    final selectedMeasureNumber = hasMeasureContext
+        ? _editorState
+              .score
+              .parts[selectedPartIndex]
+              .measures[selectedMeasureIndex]
+              .number
+        : null;
 
     return PopScope(
       canPop: !_editorState.hasUnsavedChanges,
@@ -777,7 +760,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 onPaletteTypeTap: _onPaletteTypeTap,
                 onSymbolTap: (target) {
                   if (target == null) {
-                    _updateState((s) => _clearSymbolSelection(s));
+                    _updateState((s) => s.clearSymbolSelectionPreservingMeasureContext());
                   } else {
                     _onNotationSymbolTap(
                       target.partIndex,
@@ -806,21 +789,13 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                           .contains(global);
                   if (isOverTrash && _dragTarget != null) {
                     final t = _dragTarget!;
-                    _updateState((s) {
-                      final symbol = s
-                          .score
-                          .parts[t.partIndex]
-                          .measures[t.measureIndex]
-                          .symbols[t.symbolIndex];
-                      return s
-                          .copyWith(
-                            selectedPartIndex: t.partIndex,
-                            selectedMeasureIndex: t.measureIndex,
-                            selectedSymbolIndex: t.symbolIndex,
-                            selectedSymbol: symbol,
-                          )
-                          .deleteSelectedSymbol();
-                    });
+                    _updateState(
+                      (s) => s.deleteSymbolAtSelectionTarget(
+                        partIndex: t.partIndex,
+                        measureIndex: t.measureIndex,
+                        symbolIndex: t.symbolIndex,
+                      ),
+                    );
                   } else if (reorder != null) {
                     _updateState(
                       (s) => s.moveSymbolToDest(
@@ -853,6 +828,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 selected: selected,
                 hasSelection: hasSelection,
                 hasMeasureContext: hasMeasureContext,
+                selectedMeasureNumber: selectedMeasureNumber,
                 currentPageIndex: _currentPageIndex,
                 totalPages: _pageMetrics.totalPages,
                 onPrevPage: _currentPageIndex > 0
@@ -2075,6 +2051,7 @@ class _InspectorPanel extends StatefulWidget {
     required this.selected,
     required this.hasSelection,
     required this.hasMeasureContext,
+    required this.selectedMeasureNumber,
     required this.currentPageIndex,
     required this.totalPages,
     required this.onPrevPage,
@@ -2102,6 +2079,7 @@ class _InspectorPanel extends StatefulWidget {
   final ScoreSymbol? selected;
   final bool hasSelection;
   final bool hasMeasureContext;
+  final int? selectedMeasureNumber;
   final int currentPageIndex;
   final int totalPages;
   final VoidCallback? onPrevPage;
@@ -2352,6 +2330,8 @@ class _InspectorPanelState extends State<_InspectorPanel> {
     final selectionCard = _SelectionCard(
       selected: widget.selected,
       hasSelection: widget.hasSelection,
+      hasMeasureContext: widget.hasMeasureContext,
+      selectedMeasureNumber: widget.selectedMeasureNumber,
       currentPageIndex: widget.currentPageIndex,
       totalPages: widget.totalPages,
       onPrevPage: widget.onPrevPage,
@@ -2646,6 +2626,8 @@ class _SelectionCard extends StatelessWidget {
   const _SelectionCard({
     required this.selected,
     required this.hasSelection,
+    required this.hasMeasureContext,
+    required this.selectedMeasureNumber,
     required this.currentPageIndex,
     required this.totalPages,
     required this.onPrevPage,
@@ -2656,6 +2638,8 @@ class _SelectionCard extends StatelessWidget {
 
   final ScoreSymbol? selected;
   final bool hasSelection;
+  final bool hasMeasureContext;
+  final int? selectedMeasureNumber;
   final int currentPageIndex;
   final int totalPages;
   final VoidCallback? onPrevPage;
@@ -2736,7 +2720,9 @@ class _SelectionCard extends StatelessWidget {
                   ] else
                     Expanded(
                       child: Text(
-                        'Tap a symbol to select',
+                        hasMeasureContext && selectedMeasureNumber != null
+                            ? 'Measure $selectedMeasureNumber selected'
+                            : 'Tap a symbol to select',
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: AppColors.textSecondary,
@@ -2820,8 +2806,10 @@ class _SelectionCard extends StatelessWidget {
               ],
             )
           else
-            const Text(
-              'Tap a note or rest to select it',
+            Text(
+              hasMeasureContext && selectedMeasureNumber != null
+                  ? 'Measure $selectedMeasureNumber selected. Tap a note or rest to edit a symbol.'
+                  : 'Tap a note or rest to select it',
               style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
             ),
         ],

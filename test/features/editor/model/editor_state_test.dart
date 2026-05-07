@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/part.dart';
@@ -20,6 +21,9 @@ void main() {
       expect(state.selectedMeasureIndex, isNull);
       expect(state.selectedSymbolIndex, isNull);
       expect(state.selectedSymbol, isNull);
+      expect(state.hasSymbolSelection, isFalse);
+      expect(state.hasEditableSymbolSelection, isFalse);
+      expect(state.selectedEditableSymbol, isNull);
     });
 
     test('represents one selected symbol at a time', () {
@@ -38,6 +42,27 @@ void main() {
       expect(state.selectedPartIndex, 0);
       expect(state.selectedMeasureIndex, 0);
       expect(state.selectedSymbolIndex, 0);
+      expect(state.hasSymbolSelection, isTrue);
+      expect(state.hasEditableSymbolSelection, isTrue);
+      expect(state.selectedEditableSymbol, same(note));
+    });
+
+    test('can keep non-note score symbols selected without exposing them as editable', () {
+      final score = _buildScoreWithMetadataSymbol();
+      final clef = score.parts[0].measures[0].symbols[0];
+
+      final state = EditorState(score: score).copyWith(
+        selectedPartIndex: 0,
+        selectedMeasureIndex: 0,
+        selectedSymbolIndex: 0,
+        selectedSymbol: clef,
+      );
+
+      expect(state.selectedSymbol, same(clef));
+      expect(state.selectedSymbol, isA<Clef>());
+      expect(state.hasSymbolSelection, isTrue);
+      expect(state.hasEditableSymbolSelection, isFalse);
+      expect(state.selectedEditableSymbol, isNull);
     });
 
     test('selection resets when selected symbol is removed in next score', () {
@@ -420,6 +445,29 @@ Score _buildScore({String id = 'score-1'}) {
             symbols: [
               Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
               Rest(duration: 1, type: 'quarter'),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+Score _buildScoreWithMetadataSymbol() {
+  return const Score(
+    id: 'score-with-clef-symbol',
+    title: 'Sample',
+    composer: 'Composer',
+    parts: [
+      Part(
+        id: 'part-1',
+        name: 'Piano',
+        measures: [
+          Measure(
+            number: 1,
+            symbols: [
+              Clef(sign: 'G', line: 2),
+              Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
             ],
           ),
         ],

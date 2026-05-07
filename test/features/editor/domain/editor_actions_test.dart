@@ -6,11 +6,55 @@ import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
+import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/model/editor_state_history.dart';
 
 void main() {
+  group('EditorEditIntent', () {
+    test('symbol-selection intents accept replace and insert operations', () {
+      final state = _selectedState(
+        const Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+      );
+
+      final replaced = state.moveSelectedSymbolUp();
+      final inserted = state.insertRestAfterSelection();
+
+      expect(replaced.selectedSymbol, isA<Note>());
+      expect(inserted.selectedSymbol, isA<Rest>());
+    });
+
+    test('measure-context intents preserve measure selection without symbol selection', () {
+      final score = Score(
+        id: 'intent-measure',
+        title: 't',
+        composer: 'c',
+        parts: const [
+          Part(
+            id: 'p1',
+            name: 'P1',
+            measures: [
+              Measure(number: 1, symbols: []),
+              Measure(number: 2, symbols: []),
+            ],
+          ),
+        ],
+      );
+
+      final state = EditorState(
+        score: score,
+      ).copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
+
+      final changed = state.addMeasureAfterSelected();
+
+      expect(changed.selectedPartIndex, 0);
+      expect(changed.selectedMeasureIndex, 1);
+      expect(changed.selectedSymbolIndex, isNull);
+      expect(changed.selectedSymbol, isNull);
+    });
+  });
+
   group('EditorActions', () {
     test(
       'move up/down is diatonic with octave transitions and preserves alter',
@@ -56,6 +100,43 @@ void main() {
       expect(identical(state.moveSelectedSymbolDown(), state), isTrue);
     });
 
+    test('selectSymbolAt selects valid symbols and preserves measure context when cleared', () {
+      final score = _twoMeasureScore();
+      final selected = EditorState(score: score).selectSymbolAt(
+        partIndex: 0,
+        measureIndex: 0,
+        symbolIndex: 0,
+      );
+
+      expect(selected.selectedPartIndex, 0);
+      expect(selected.selectedMeasureIndex, 0);
+      expect(selected.selectedSymbolIndex, 0);
+      expect(selected.selectedSymbol, same(score.parts[0].measures[0].symbols[0]));
+
+      final cleared = selected.clearSymbolSelectionPreservingMeasureContext();
+      expect(cleared.selectedPartIndex, 0);
+      expect(cleared.selectedMeasureIndex, 0);
+      expect(cleared.selectedSymbolIndex, isNull);
+      expect(cleared.selectedSymbol, isNull);
+    });
+
+    test('deleteSymbolAtSelectionTarget removes editable symbols from a location', () {
+      final score = _twoMeasureScore();
+      final state = EditorState(score: score);
+
+      final next = state.deleteSymbolAtSelectionTarget(
+        partIndex: 0,
+        measureIndex: 0,
+        symbolIndex: 0,
+      );
+
+      final symbols = next.score.parts[0].measures[0].symbols;
+      expect(symbols.length, 1);
+      expect(symbols.single, isA<Rest>());
+      expect(next.selectedPartIndex, 0);
+      expect(next.selectedMeasureIndex, 0);
+    });
+
     test('duration change to same value is a no-op and does not push undo', () {
       final state = _selectedState(
         const Note(step: 'C', octave: 4, duration: 2, type: 'quarter'),
@@ -68,7 +149,7 @@ void main() {
     });
 
     test(
-      'insert note/rest append to end of selected measure and auto-select',
+      'insert note/rest insert after selected symbol and auto-select',
       () {
         final score = Score(
           id: 's1',
@@ -100,17 +181,94 @@ void main() {
 
         final withInsertedNote = state.insertNoteAfterSelection();
         final noteSymbols = withInsertedNote.score.parts[0].measures[0].symbols;
-        expect(noteSymbols.last, isA<Note>());
-        expect((noteSymbols.last as Note).pitch, 'C4');
-        expect(withInsertedNote.selectedSymbolIndex, noteSymbols.length - 1);
+        expect(noteSymbols[1], isA<Note>());
+        expect((noteSymbols[1] as Note).pitch, 'C4');
+        expect(withInsertedNote.selectedSymbolIndex, 1);
 
         final withInsertedRest = withInsertedNote.insertRestAfterSelection();
         final restSymbols = withInsertedRest.score.parts[0].measures[0].symbols;
-        expect(restSymbols.last, isA<Rest>());
-        expect((restSymbols.last as Rest).type, 'quarter');
-        expect(withInsertedRest.selectedSymbolIndex, restSymbols.length - 1);
+        expect(restSymbols[2], isA<Rest>());
+        expect((restSymbols[2] as Rest).type, 'quarter');
+        expect(withInsertedRest.selectedSymbolIndex, 2);
       },
     );
+
+    test(
+      'insert note/rest append to measure end when only measure context exists',
+      () {
+        final score = Score(
+          id: 's1-measure-context',
+          title: 't',
+          composer: 'c',
+          parts: const [
+            Part(
+              id: 'p1',
+              name: 'P1',
+              measures: [
+                Measure(
+                  number: 1,
+                  symbols: [
+                    Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                    Rest(duration: 1, type: 'quarter'),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        );
+
+        final state = EditorState(
+          score: score,
+        ).copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
+
+        final withInsertedNote = state.insertNoteAfterSelection();
+        final noteSymbols = withInsertedNote.score.parts[0].measures[0].symbols;
+        expect(noteSymbols.last, isA<Note>());
+        expect((noteSymbols.last as Note).pitch, 'C4');
+        expect(withInsertedNote.selectedSymbolIndex, noteSymbols.length - 1);
+      },
+    );
+
+    test('non-editable symbol selection does not enable note-rest edit actions', () {
+      final score = Score(
+        id: 'metadata-selection',
+        title: 't',
+        composer: 'c',
+        parts: const [
+          Part(
+            id: 'p1',
+            name: 'P1',
+            measures: [
+              Measure(
+                number: 1,
+                symbols: [
+                  Clef(sign: 'G', line: 2),
+                  Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final state = EditorState(score: score).copyWith(
+        selectedPartIndex: 0,
+        selectedMeasureIndex: 0,
+        selectedSymbolIndex: 0,
+        selectedSymbol: score.parts[0].measures[0].symbols[0],
+      );
+
+      expect(identical(state.deleteSelectedSymbol(), state), isTrue);
+      expect(identical(state.setSelectedDuration(quarterDuration), state), isTrue);
+
+      final inserted = state.insertNoteAfterSelection();
+      final symbols = inserted.score.parts[0].measures[0].symbols;
+
+      expect(symbols.length, 3);
+      expect(symbols[0], isA<Clef>());
+      expect(symbols.last, isA<Note>());
+      expect(inserted.selectedSymbolIndex, 2);
+    });
 
     test('insert note/rest no-op with no measure context', () {
       final score = _baseScore(const []);
@@ -118,6 +276,80 @@ void main() {
 
       expect(identical(state.insertNoteAfterSelection(), state), isTrue);
       expect(identical(state.insertRestAfterSelection(), state), isTrue);
+    });
+
+    test('insert after selection no-ops when measure is already full', () {
+      final score = Score(
+        id: 's-rhythm-insert-guard',
+        title: 't',
+        composer: 'c',
+        parts: const [
+          Part(
+            id: 'p1',
+            name: 'P1',
+            measures: [
+              Measure(
+                number: 1,
+                timeSignature: TimeSignature(beats: 4, beatType: 4),
+                symbols: [
+                  Note(step: 'C', octave: 4, duration: 8, type: 'whole'),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final state = EditorState(score: score).copyWith(
+        selectedPartIndex: 0,
+        selectedMeasureIndex: 0,
+        selectedSymbolIndex: 0,
+        selectedSymbol: score.parts[0].measures[0].symbols[0],
+      );
+
+      final next = state.insertRestAfterSelection();
+
+      expect(identical(next, state), isTrue);
+      expect(next.score.parts[0].measures[0].symbols, hasLength(1));
+    });
+
+    test('duration change no-ops when it would overflow the active measure', () {
+      final score = Score(
+        id: 's-rhythm-duration-guard',
+        title: 't',
+        composer: 'c',
+        parts: const [
+          Part(
+            id: 'p1',
+            name: 'P1',
+            measures: [
+              Measure(
+                number: 1,
+                timeSignature: TimeSignature(beats: 4, beatType: 4),
+                symbols: [
+                  Note(step: 'C', octave: 4, duration: 4, type: 'half'),
+                  Note(step: 'E', octave: 4, duration: 4, type: 'half'),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final state = EditorState(score: score).copyWith(
+        selectedPartIndex: 0,
+        selectedMeasureIndex: 0,
+        selectedSymbolIndex: 1,
+        selectedSymbol: score.parts[0].measures[0].symbols[1],
+      );
+
+      final next = state.setSelectedDuration(wholeDuration);
+
+      expect(identical(next, state), isTrue);
+      expect(
+        (next.score.parts[0].measures[0].symbols[1] as Note).duration,
+        4,
+      );
     });
 
     test('insertSymbolAtMeasureIndex no-ops for invalid part targets', () {
@@ -274,6 +506,48 @@ void main() {
       expect((moved.selectedSymbol! as Note).pitch, 'C4');
       expect(moved.score.parts[0].measures[1].symbols, hasLength(2));
       expect(moved.undoStack, isNotEmpty);
+    });
+
+    test('moveSelectedSymbolToMeasureOffset no-ops when destination measure is full', () {
+      final score = Score(
+        id: 's-rhythm-move-guard',
+        title: 't',
+        composer: 'c',
+        parts: const [
+          Part(
+            id: 'p1',
+            name: 'P1',
+            measures: [
+              Measure(
+                number: 1,
+                timeSignature: TimeSignature(beats: 4, beatType: 4),
+                symbols: [
+                  Note(step: 'C', octave: 4, duration: 2, type: 'quarter'),
+                ],
+              ),
+              Measure(
+                number: 2,
+                symbols: [
+                  Note(step: 'D', octave: 4, duration: 8, type: 'whole'),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final selected = EditorState(score: score).copyWith(
+        selectedPartIndex: 0,
+        selectedMeasureIndex: 0,
+        selectedSymbolIndex: 0,
+        selectedSymbol: score.parts[0].measures[0].symbols[0],
+      );
+
+      final next = selected.moveSelectedSymbolToMeasureOffset(1);
+
+      expect(identical(next, selected), isTrue);
+      expect(next.score.parts[0].measures[0].symbols, hasLength(1));
+      expect(next.score.parts[0].measures[1].symbols, hasLength(1));
     });
 
     test(
@@ -728,6 +1002,33 @@ Score _baseScore(List<ScoreSymbol> symbols) => Score(
       id: 'part-1',
       name: 'Piano',
       measures: [Measure(number: 1, symbols: symbols)],
+    ),
+  ],
+);
+
+Score _twoMeasureScore() => const Score(
+  id: 'score-2',
+  title: 'Sample',
+  composer: 'Composer',
+  parts: [
+    Part(
+      id: 'part-1',
+      name: 'Piano',
+      measures: [
+        Measure(
+          number: 1,
+          symbols: [
+            Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+            Rest(duration: 1, type: 'quarter'),
+          ],
+        ),
+        Measure(
+          number: 2,
+          symbols: [
+            Note(step: 'D', octave: 4, duration: 1, type: 'quarter'),
+          ],
+        ),
+      ],
     ),
   ],
 );

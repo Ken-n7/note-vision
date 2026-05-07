@@ -253,8 +253,12 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.text('Tap a note or rest to select it'), findsOneWidget);
+    expect(
+      find.text('Measure 1 selected. Tap a note or rest to edit a symbol.'),
+      findsOneWidget,
+    );
     expect(tester.widget<InkWell>(moveUpButtonFinder.first).onTap, isNull);
+    expect(actionTileForLabel(tester, 'Add').onTap, isNotNull);
   });
 
   testWidgets(
