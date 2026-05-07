@@ -177,7 +177,6 @@ void main() {
     expect(find.text('CLEF'), findsOneWidget);
     expect(find.text('Treble'), findsOneWidget);
     expect(find.text('Bass'), findsOneWidget);
-    expect(find.text('Clear'), findsOneWidget);
     expect(find.text('Add'), findsOneWidget);
     expect(find.byTooltip('Undo'), findsOneWidget);
     expect(find.byTooltip('Redo'), findsOneWidget);

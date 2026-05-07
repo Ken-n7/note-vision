@@ -657,12 +657,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
             .measures[selectedMeasureIndex]
             .symbols
             .isEmpty;
-    final currentMeasureClef = hasMeasureContext
-        ? _editorState
-              .score
-              .parts[selectedPartIndex]
-              .measures[selectedMeasureIndex]
-              .clef
+    final currentMeasureClef = _editorState.score.parts.isNotEmpty &&
+            selectedPartIndex < _editorState.score.parts.length &&
+            _editorState.score.parts[selectedPartIndex].measures.isNotEmpty
+        ? _editorState.score.parts[selectedPartIndex].measures.first.clef
         : null;
     final selectedMeasureNumber = hasMeasureContext
         ? _editorState
@@ -797,8 +795,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 onSetAccidental: (alter) =>
                     _updateState((s) => s.setSelectedNoteAccidental(alter)),
                 currentMeasureClef: currentMeasureClef,
-                onSetClef: (clef) =>
-                    _updateState((s) => s.setSelectedMeasureClef(clef)),
+                onSetClef: (clef) {
+                  if (clef != null) _updateState((s) => s.setPartClef(clef));
+                },
                 onMoveToPrev: () => _updateState(
                   (s) => s.moveSelectedSymbolToMeasureOffset(-1),
                 ),
@@ -2181,16 +2180,6 @@ class _InspectorPanelState extends State<_InspectorPanel> {
                   ? () => widget.onSetClef(const Clef(sign: 'C', line: 4))
                   : null,
             ),
-          ),
-          _ActionTile(
-            icon: Icons.layers_clear_rounded,
-            label: 'Clear',
-            onPressed: _wrapAction(
-              hasMeasureContext && currentClef != null
-                  ? () => widget.onSetClef(null)
-                  : null,
-            ),
-            danger: currentClef != null,
           ),
         ],
       ),

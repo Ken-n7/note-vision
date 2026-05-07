@@ -6,6 +6,7 @@ import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/models/time_signature.dart';
+import 'package:note_vision/core/widgets/score_notation/staff_pitch_mapper.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/model/editor_state_history.dart';
 
@@ -270,6 +271,79 @@ extension EditorActions on EditorState {
     if (currentClef == clef) return this;
 
     final nextScore = score.setMeasureClef(partIndex, measureIndex, clef);
+    return _applySelectionPreservingEdit(
+      intent: EditorEditIntent.updateMeasureMetadata,
+      score: nextScore,
+    );
+  }
+
+  EditorState setPartClef(Clef newClef) {
+    if (selectedPartIndex == null) return this;
+
+    final partIndex = selectedPartIndex!;
+    final part = score.parts[partIndex];
+    if (part.measures.isEmpty) return this;
+
+    final oldClef = part.measures.first.clef ?? const Clef(sign: 'G', line: 2);
+    if (oldClef.sign == newClef.sign && oldClef.line == newClef.line) {
+      return this;
+    }
+
+    final updatedMeasures = part.measures.asMap().entries.map((entry) {
+      final i = entry.key;
+      final measure = entry.value;
+
+      final updatedSymbols = measure.symbols.map((symbol) {
+        if (symbol is! Note) return symbol;
+        final newPitch = StaffPitchMapper.recalculatePitch(
+          step: symbol.step,
+          octave: symbol.octave,
+          oldClefSign: oldClef.sign,
+          oldClefLine: oldClef.line,
+          newClefSign: newClef.sign,
+          newClefLine: newClef.line,
+        );
+        return Note(
+          step: newPitch.step,
+          octave: newPitch.octave,
+          alter: symbol.alter,
+          duration: symbol.duration,
+          type: symbol.type,
+          voice: symbol.voice,
+          staff: symbol.staff,
+          beamed: symbol.beamed,
+          dots: symbol.dots,
+          isChordTone: symbol.isChordTone,
+        );
+      }).toList();
+
+      return Measure(
+        number: measure.number,
+        clef: i == 0 ? newClef : null,
+        timeSignature: measure.timeSignature,
+        keySignature: measure.keySignature,
+        symbols: updatedSymbols,
+        startsNewPage: measure.startsNewPage,
+        startsNewSystem: measure.startsNewSystem,
+        leftBarlineType: measure.leftBarlineType,
+        rightBarlineType: measure.rightBarlineType,
+      );
+    }).toList();
+
+    final updatedParts = List<Part>.from(score.parts)
+      ..[partIndex] = Part(
+        id: part.id,
+        name: part.name,
+        measures: updatedMeasures,
+      );
+
+    final nextScore = Score(
+      id: score.id,
+      title: score.title,
+      composer: score.composer,
+      parts: updatedParts,
+    );
+
     return _applySelectionPreservingEdit(
       intent: EditorEditIntent.updateMeasureMetadata,
       score: nextScore,

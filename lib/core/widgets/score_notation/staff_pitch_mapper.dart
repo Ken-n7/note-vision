@@ -40,6 +40,33 @@ class StaffPitchMapper {
     return absolute - refAbsolute;
   }
 
+  /// Converts a pitch from one clef to another by preserving its diatonic
+  /// staff position. Used when correcting a wrongly-detected clef so all
+  /// notes in the staff shift to their correct pitches in one step.
+  static StaffPitch recalculatePitch({
+    required String step,
+    required int octave,
+    required String oldClefSign,
+    required int oldClefLine,
+    required String newClefSign,
+    required int newClefLine,
+  }) {
+    final offset = offsetFromBottomLine(
+      step: step,
+      octave: octave,
+      clefSign: oldClefSign,
+      clefLine: oldClefLine,
+    );
+    final newRef = bottomLineRef(newClefSign, clefLine: newClefLine);
+    final newRefIndex = _steps.indexOf(newRef.step);
+    final newRefAbsolute = newRef.octave * 7 + newRefIndex;
+    final newAbsolute = newRefAbsolute + offset;
+    final newStepIndex =
+        ((newAbsolute % _steps.length) + _steps.length) % _steps.length;
+    final newOctave = (newAbsolute - newStepIndex) ~/ _steps.length;
+    return StaffPitch(step: _steps[newStepIndex], octave: newOctave);
+  }
+
   /// Legacy name — kept for backward compatibility. Assumes treble clef.
   static int offsetFromTrebleBottomLine({
     required String step,
