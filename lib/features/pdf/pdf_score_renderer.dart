@@ -144,6 +144,7 @@ class PdfScoreRenderer {
           staffTop: staffTop,
           startMeasureGlobal: startM,
           clefSign: _clefSign(rowMeasures),
+          clefLine: _clefLine(rowMeasures),
           isFirstSystem: si == 0,
         );
       }
@@ -184,6 +185,7 @@ class PdfScoreRenderer {
     required double staffTop,
     required int startMeasureGlobal,
     required String clefSign,
+    required int clefLine,
     required bool isFirstSystem,
   }) {
     // staffTop = y of top staff line (PDF: y from bottom)
@@ -206,6 +208,8 @@ class PdfScoreRenderer {
     // Clef
     if (clefSign.toUpperCase() == 'F') {
       _drawBassClef(g, _marginPt + 4, staffTop, staffBottom);
+    } else if (clefSign.toUpperCase() == 'C') {
+      _drawCClef(g, _marginPt + 4, staffTop, staffBottom, clefLine: clefLine);
     } else {
       _drawTrebleClef(g, _marginPt + 6, staffTop, staffBottom);
     }
@@ -222,6 +226,7 @@ class PdfScoreRenderer {
           first.keySignature!.fifths,
           staffBottom: staffBottom,
           clefSign: clefSign,
+          clefLine: clefLine,
         );
       }
       if (first.timeSignature != null) {
@@ -259,6 +264,7 @@ class PdfScoreRenderer {
         staffTop: staffTop,
         staffBottom: staffBottom,
         clefSign: clefSign,
+        clefLine: clefLine,
       );
     }
   }
@@ -273,6 +279,7 @@ class PdfScoreRenderer {
     required double staffTop,
     required double staffBottom,
     required String clefSign,
+    int clefLine = 2,
   }) {
     if (measure.symbols.isEmpty) return;
 
@@ -298,6 +305,7 @@ class PdfScoreRenderer {
           bottomLineY: staffBottom,
           lineSpacing: _ls,
           clefSign: clefSign,
+          clefLine: clefLine,
         ));
       } else {
         ys.add(staffTop - _ls * 2);
@@ -618,6 +626,52 @@ class PdfScoreRenderer {
     g.fillPath();
   }
 
+  void _drawCClef(
+    PdfGraphics g,
+    double x,
+    double staffTop,
+    double staffBottom, {
+    required int clefLine,
+  }) {
+    final targetY = staffBottom + (clefLine - 1) * _ls;
+
+    g.setColor(_ink);
+
+    // Left vertical bar (spine) — drawn as a thick stroke
+    g.setLineWidth(3.5);
+    g.moveTo(x + 1.75, staffTop);
+    g.lineTo(x + 1.75, staffBottom);
+    g.strokePath();
+
+    // Upper bracket: horizontal then vertical down to targetY
+    g.setLineWidth(2.0);
+    g.moveTo(x + 3.5, staffTop);
+    g.lineTo(x + 14, staffTop);
+    g.strokePath();
+
+    g.setLineWidth(1.5);
+    g.moveTo(x + 14, staffTop);
+    g.lineTo(x + 14, targetY);
+    g.strokePath();
+
+    // Lower bracket: horizontal then vertical up to targetY
+    g.setLineWidth(2.0);
+    g.moveTo(x + 3.5, staffBottom);
+    g.lineTo(x + 14, staffBottom);
+    g.strokePath();
+
+    g.setLineWidth(1.5);
+    g.moveTo(x + 14, targetY);
+    g.lineTo(x + 14, staffBottom);
+    g.strokePath();
+
+    // Centre line at the target staff line
+    g.setLineWidth(1.2);
+    g.moveTo(x + 3.5, targetY);
+    g.lineTo(x + 12, targetY);
+    g.strokePath();
+  }
+
   // ── Key signature ──────────────────────────────────────────────────────────
 
   double _drawKeySignature(
@@ -627,6 +681,7 @@ class PdfScoreRenderer {
     int fifths, {
     required double staffBottom,
     required String clefSign,
+    int clefLine = 2,
   }) {
     if (fifths == 0) return x;
     final isSharp = fifths > 0;
@@ -644,11 +699,25 @@ class PdfScoreRenderer {
     const flatOrderBass = [
       ('B', 2), ('E', 3), ('A', 2), ('D', 3), ('G', 2), ('C', 3), ('F', 2),
     ];
+    const sharpOrderAlto = [
+      ('F', 4), ('C', 4), ('G', 4), ('D', 4), ('A', 4), ('E', 4), ('B', 4),
+    ];
+    const flatOrderAlto = [
+      ('B', 3), ('E', 4), ('A', 3), ('D', 4), ('G', 3), ('C', 4), ('F', 3),
+    ];
+    const sharpOrderTenor = [
+      ('F', 3), ('C', 4), ('G', 3), ('D', 4), ('A', 3), ('E', 4), ('B', 3),
+    ];
+    const flatOrderTenor = [
+      ('B', 3), ('E', 4), ('A', 3), ('D', 4), ('G', 3), ('C', 4), ('F', 3),
+    ];
 
     final isBass = clefSign.toUpperCase() == 'F';
+    final isAlto = clefSign.toUpperCase() == 'C' && clefLine == 3;
+    final isTenor = clefSign.toUpperCase() == 'C' && clefLine == 4;
     final order = isSharp
-        ? (isBass ? sharpOrderBass : sharpOrderTreble)
-        : (isBass ? flatOrderBass : flatOrderTreble);
+        ? (isBass ? sharpOrderBass : isAlto ? sharpOrderAlto : isTenor ? sharpOrderTenor : sharpOrderTreble)
+        : (isBass ? flatOrderBass : isAlto ? flatOrderAlto : isTenor ? flatOrderTenor : flatOrderTreble);
 
     for (var i = 0; i < count; i++) {
       final pitch = order[i];
@@ -658,6 +727,7 @@ class PdfScoreRenderer {
         bottomLineY: staffBottom,
         lineSpacing: _ls,
         clefSign: clefSign,
+        clefLine: clefLine,
       );
       _text(g, font, 7, isSharp ? '#' : 'b', x, y + 2);
       x += 6;
@@ -724,6 +794,13 @@ class PdfScoreRenderer {
       if (m.clef != null) return m.clef!.sign;
     }
     return 'G';
+  }
+
+  static int _clefLine(List<Measure> measures) {
+    for (final m in measures) {
+      if (m.clef != null) return m.clef!.line;
+    }
+    return 2;
   }
 }
 

@@ -1020,11 +1020,25 @@ class ScoreNotationPainter extends CustomPainter {
     const flatOrderBass = [
       ('B', 2), ('E', 3), ('A', 2), ('D', 3), ('G', 2), ('C', 3), ('F', 2),
     ];
+    const sharpOrderAlto = [
+      ('F', 4), ('C', 4), ('G', 4), ('D', 4), ('A', 4), ('E', 4), ('B', 4),
+    ];
+    const flatOrderAlto = [
+      ('B', 3), ('E', 4), ('A', 3), ('D', 4), ('G', 3), ('C', 4), ('F', 3),
+    ];
+    const sharpOrderTenor = [
+      ('F', 3), ('C', 4), ('G', 3), ('D', 4), ('A', 3), ('E', 4), ('B', 3),
+    ];
+    const flatOrderTenor = [
+      ('B', 3), ('E', 4), ('A', 3), ('D', 4), ('G', 3), ('C', 4), ('F', 3),
+    ];
 
     final isBass = clefSign.toUpperCase() == 'F';
+    final isAlto = clefSign.toUpperCase() == 'C' && clefLine == 3;
+    final isTenor = clefSign.toUpperCase() == 'C' && clefLine == 4;
     final order = isSharp
-        ? (isBass ? sharpOrderBass : sharpOrderTreble)
-        : (isBass ? flatOrderBass : flatOrderTreble);
+        ? (isBass ? sharpOrderBass : isAlto ? sharpOrderAlto : isTenor ? sharpOrderTenor : sharpOrderTreble)
+        : (isBass ? flatOrderBass : isAlto ? flatOrderAlto : isTenor ? flatOrderTenor : flatOrderTreble);
 
     for (var i = 0; i < count; i++) {
       final pitch = order[i];
