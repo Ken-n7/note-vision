@@ -29,12 +29,17 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Decode keystore
+      - name: Generate keystore
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | tr -d '\n' | base64 --decode > android/app/notevision-release.jks
-
-      - name: Create key.properties
-        run: |
+          keytool -genkey -v \
+            -keystore android/app/notevision-release.jks \
+            -alias "${{ secrets.KEY_ALIAS }}" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
+            -keypass "${{ secrets.KEY_PASSWORD }}" \
+            -dname "CN=Note Vision, OU=NoteVision, O=NoteVision, L=Philippines, ST=Philippines, C=PH"
           printf 'storePassword=%s\nkeyPassword=%s\nkeyAlias=%s\nstoreFile=%s\n' \
             "${{ secrets.KEYSTORE_PASSWORD }}" \
             "${{ secrets.KEY_PASSWORD }}" \
