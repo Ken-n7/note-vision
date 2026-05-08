@@ -862,6 +862,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 inspectorPanel: inspectorPanel,
                 playbackControls: PlaybackControlsBar(
                   isEmpty: scoreIsEmpty,
+                  totalMeasures: _editorState.score.parts.isEmpty
+                      ? 0
+                      : _editorState.score.parts
+                          .map((p) => p.measures.length)
+                          .reduce((a, b) => a > b ? a : b),
                   onPlay: () => _playback.play(
                     _editorState.score,
                     fromMeasureIndex: _editorState.selectedMeasureIndex ?? 0,
@@ -870,6 +875,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   onPause: _playback.pause,
                   onStop: _playback.stop,
                   onTempoChanged: _playback.setTempo,
+                  onSeek: (measure) => _playback.play(
+                    _editorState.score,
+                    fromMeasureIndex: measure,
+                  ),
                 ),
               );
             },
