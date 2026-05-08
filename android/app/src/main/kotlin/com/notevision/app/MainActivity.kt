@@ -1,4 +1,4 @@
-package com.example.note_vision
+package com.notevision.app
 
 import io.flutter.embedding.android.FlutterActivity
 
