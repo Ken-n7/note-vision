@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'core/services/project_storage_service.dart';
+import 'core/services/sample_seeder.dart';
 import 'core/theme/app_theme.dart';
 import 'features/editor/presentation/editor_shell_screen.dart';
 import 'features/info/presentation/about_screen.dart';
@@ -6,7 +8,9 @@ import 'features/info/presentation/instructions_screen.dart';
 import 'features/landing/presentation/landing_screen.dart';
 import 'features/profile/presentation/profile_stats_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await SampleSeeder.seedIfNeeded(ProjectStorageService());
   runApp(const App());
 }
 
