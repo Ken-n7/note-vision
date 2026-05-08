@@ -862,7 +862,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 inspectorPanel: inspectorPanel,
                 playbackControls: PlaybackControlsBar(
                   isEmpty: scoreIsEmpty,
-                  onPlay: () => _playback.play(_editorState.score),
+                  onPlay: () => _playback.play(
+                    _editorState.score,
+                    fromMeasureIndex: _editorState.selectedMeasureIndex ?? 0,
+                  ),
                   onResume: _playback.resume,
                   onPause: _playback.pause,
                   onStop: _playback.stop,

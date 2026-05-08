@@ -190,9 +190,9 @@ class PlaybackService {
 
   // ── Playback control ───────────────────────────────────────────────────
 
-  /// Starts playback from the beginning. Safe to call while already playing
-  /// (stops previous playback first).
-  Future<void> play(Score score) async {
+  /// Starts playback from [fromMeasureIndex] (default 0 = beginning).
+  /// Safe to call while already playing (stops previous playback first).
+  Future<void> play(Score score, {int fromMeasureIndex = 0}) async {
     if (_status == PlaybackStatus.playing) stop();
     if (!_initialized) await init();
     if (_status == PlaybackStatus.error) return;
@@ -200,7 +200,11 @@ class PlaybackService {
     _events = _converter.buildEvents(score);
     if (_events.isEmpty) return;
 
-    _currentEventIndex = 0;
+    _currentEventIndex = fromMeasureIndex <= 0
+        ? 0
+        : _events.indexWhere((e) => e.measureIndex >= fromMeasureIndex);
+    if (_currentEventIndex < 0) _currentEventIndex = 0;
+
     _shouldPlay = true;
     _emitState(PlaybackStatus.playing);
     unawaited(UsageStatsService.incrementPlaybacks());
