@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/services/playback_service.dart';
@@ -110,7 +112,7 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
                     _TempoButton(
                       icon: Icons.remove,
                       disabled: disabled || _tempo <= 40,
-                      onPressed: () => _adjustTempo(-5),
+                      onPressed: () => _adjustTempo(-1),
                     ),
                     const SizedBox(width: 6),
                     SizedBox(
@@ -132,7 +134,7 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
                     _TempoButton(
                       icon: Icons.add,
                       disabled: disabled || _tempo >= 200,
-                      onPressed: () => _adjustTempo(5),
+                      onPressed: () => _adjustTempo(1),
                     ),
                   ],
                 ),
@@ -162,7 +164,7 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
 // Internal widgets
 // ---------------------------------------------------------------------------
 
-class _TempoButton extends StatelessWidget {
+class _TempoButton extends StatefulWidget {
   const _TempoButton({
     required this.icon,
     required this.onPressed,
@@ -174,25 +176,58 @@ class _TempoButton extends StatelessWidget {
   final bool disabled;
 
   @override
+  State<_TempoButton> createState() => _TempoButtonState();
+}
+
+class _TempoButtonState extends State<_TempoButton> {
+  Timer? _holdTimer;
+  bool _pressed = false;
+
+  void _onPointerDown(PointerDownEvent _) {
+    if (widget.disabled) return;
+    setState(() => _pressed = true);
+    widget.onPressed();
+    // After 400 ms start repeating every 80 ms
+    _holdTimer = Timer(const Duration(milliseconds: 400), () {
+      _holdTimer = Timer.periodic(const Duration(milliseconds: 80), (_) {
+        if (!widget.disabled) widget.onPressed();
+      });
+    });
+  }
+
+  void _cancel() {
+    _holdTimer?.cancel();
+    _holdTimer = null;
+    if (mounted) setState(() => _pressed = false);
+  }
+
+  @override
+  void dispose() {
+    _holdTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 28,
-      height: 28,
-      child: Material(
-        color: disabled
-            ? AppColors.border.withValues(alpha: 0.3)
-            : AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
-        child: InkWell(
+    final color = widget.disabled
+        ? AppColors.textSecondary.withValues(alpha: 0.3)
+        : AppColors.textSecondary;
+
+    return Listener(
+      onPointerDown: _onPointerDown,
+      onPointerUp: (_) => _cancel(),
+      onPointerCancel: (_) => _cancel(),
+      child: SizedBox(
+        width: 28,
+        height: 28,
+        child: Material(
+          color: widget.disabled
+              ? AppColors.border.withValues(alpha: 0.3)
+              : _pressed
+                  ? AppColors.border
+                  : AppColors.surfaceAlt,
           borderRadius: BorderRadius.circular(6),
-          onTap: disabled ? null : onPressed,
-          child: Icon(
-            icon,
-            size: 14,
-            color: disabled
-                ? AppColors.textSecondary.withValues(alpha: 0.3)
-                : AppColors.textSecondary,
-          ),
+          child: Center(child: Icon(widget.icon, size: 14, color: color)),
         ),
       ),
     );
