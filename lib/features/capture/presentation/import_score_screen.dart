@@ -2,21 +2,14 @@ import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:note_vision/core/widgets/tappable_button.dart';
-import 'package:note_vision/core/models/measure.dart';
-import 'package:note_vision/core/models/note.dart';
-import 'package:note_vision/core/models/part.dart';
-import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
-import 'package:note_vision/core/models/score_symbol.dart';
-import 'package:note_vision/features/collection/presentation/collection_screen.dart';
+import 'package:note_vision/core/widgets/score_notation_viewer.dart';
+import 'package:note_vision/core/widgets/tappable_button.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 import 'package:note_vision/features/musicXML/musicxml_parser_service.dart';
 import 'package:note_vision/features/musicXML/musicxml_score_converter.dart';
 import 'package:note_vision/features/musicXML/musicxml_validator_service.dart';
-import 'package:note_vision/core/widgets/score_notation_viewer.dart';
-import 'package:note_vision/features/capture/presentation/capture_screen.dart';
 
 class ImportScoreScreen extends StatefulWidget {
   const ImportScoreScreen({super.key});
@@ -77,7 +70,6 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
           );
         },
       ),
-      bottomNavigationBar: _buildBottomNav(),
     );
   }
 
@@ -243,7 +235,7 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
         const SizedBox(height: 6),
         Text(
           _selectedFileName == null
-              ? 'Import MusicXML or JSON (DEV) below'
+              ? 'Import a MusicXML file below'
               : 'Selected: $_selectedFileName',
           style: TextStyle(
             fontSize: 12,
@@ -340,12 +332,6 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
           icon: Icons.library_music_outlined,
           onPressed: _isLoading ? null : _importMusicXml,
         ),
-        const SizedBox(width: 12),
-        _buildGhostButton(
-          label: 'Import JSON (DEV)',
-          icon: Icons.developer_mode_outlined,
-          onPressed: _isLoading ? null : _importJson,
-        ),
       ],
     );
   }
@@ -392,41 +378,6 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
     );
   }
 
-  Widget _buildGhostButton({
-    required String label,
-    required IconData icon,
-    required VoidCallback? onPressed,
-  }) {
-    return Expanded(
-      child: TappableButton(
-        onPressed: onPressed,
-        child: Container(
-          height: 52,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _border, width: 1),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 18, color: _textSecondary),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w400,
-                  color: _textSecondary,
-                  letterSpacing: 0.2,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildContinueButton() {
     return TappableButton(
       onPressed: _continueToEditor,
@@ -459,42 +410,6 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
             SizedBox(width: 8),
             Icon(Icons.arrow_forward, size: 18, color: _bg),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: _surface,
-        border: Border(top: BorderSide(color: _border, width: 0.5)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 60,
-          child: Row(
-            children: [
-              _BottomNavItem(
-                icon: Icons.camera_alt_outlined,
-                label: 'Scan',
-                isSelected: false,
-                onTap: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (_) => const CaptureScreen()),
-                  );
-                },
-              ),
-              _BottomNavItem(
-                icon: Icons.upload_file_outlined,
-                label: 'Import',
-                isSelected: true,
-                onTap: null,
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -575,50 +490,6 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
     }
   }
 
-  Future<void> _importJson() async {
-    setState(() {
-      _errors = const [];
-      _warnings = const [];
-      _importedScore = null;
-    });
-
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowMultiple: false,
-      withData: true,
-      allowedExtensions: const ['json'],
-    );
-
-    if (!mounted || result == null || result.files.isEmpty) return;
-    final file = result.files.single;
-    final data = file.bytes;
-
-    if (data == null) {
-      setState(() {
-        _selectedFileName = file.name;
-        _errors = const ['Unable to read JSON file.'];
-      });
-      return;
-    }
-
-    try {
-      final score = _scoreFromJson(utf8.decode(data));
-      setState(() {
-        _selectedFileName = file.name;
-        _importedScore = score;
-        _errors = const [];
-        _warnings = const ['JSON import is a temporary developer feature.'];
-      });
-    } catch (_) {
-      setState(() {
-        _selectedFileName = file.name;
-        _importedScore = null;
-        _errors = const ['Invalid score JSON format.'];
-        _warnings = const [];
-      });
-    }
-  }
-
   void _cancelSelection() {
     setState(() {
       _importedScore = null;
@@ -642,149 +513,5 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
     );
   }
 
-  void _goToCollection() {
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const CollectionScreen()),
-      (route) => false,
-    );
-  }
-
-  Score _scoreFromJson(String content) {
-    final root = jsonDecode(content);
-    if (root is! Map) {
-      throw const FormatException('JSON root must be an object');
-    }
-    final rootMap = Map<String, dynamic>.from(root);
-
-    final partMaps = (rootMap['parts'] as List?)
-            ?.whereType<Map>()
-            .map((part) => Map<String, dynamic>.from(part))
-            .toList() ??
-        [];
-    if (partMaps.isEmpty) {
-      throw const FormatException('Score JSON must include parts');
-    }
-
-    final parts = partMaps.map((part) {
-      final measureMaps = (part['measures'] as List?)
-              ?.whereType<Map>()
-              .map((measure) => Map<String, dynamic>.from(measure))
-              .toList() ??
-          [];
-      return Part(
-        id: (part['id']?.toString().isNotEmpty ?? false)
-            ? part['id'].toString()
-            : 'P1',
-        name: part['name']?.toString() ?? 'Part 1',
-        measures: measureMaps.map(_measureFromJson).toList(),
-      );
-    }).toList();
-
-    return Score(
-      id: rootMap['id']?.toString() ?? 'imported-score',
-      title: rootMap['title']?.toString() ?? 'Imported Score',
-      composer: rootMap['composer']?.toString() ?? 'Unknown',
-      parts: parts,
-    );
-  }
-
-  Measure _measureFromJson(Map<String, dynamic> measure) {
-    final symbolMaps = (measure['symbols'] as List?)
-            ?.whereType<Map>()
-            .map((symbol) => Map<String, dynamic>.from(symbol))
-            .toList() ??
-        [];
-    return Measure(
-      number: (measure['number'] as num?)?.toInt() ?? 1,
-      symbols: symbolMaps.map(_symbolFromJson).toList(),
-    );
-  }
-
-  ScoreSymbol _symbolFromJson(Map<String, dynamic> symbol) {
-    final type = symbol['type']?.toString().toLowerCase();
-    if (type == 'rest') {
-      return Rest(
-        duration: (symbol['duration'] as num?)?.toInt() ?? 1,
-        type: symbol['restType']?.toString() ??
-            symbol['noteType']?.toString() ??
-            'quarter',
-        voice: (symbol['voice'] as num?)?.toInt(),
-        staff: (symbol['staff'] as num?)?.toInt(),
-      );
-    }
-
-    final pitch = symbol['pitch']?.toString().toUpperCase() ?? 'C4';
-    final match = RegExp(r'^([A-G])([#B]*)(\d)$').firstMatch(pitch);
-    final step = match?.group(1) ?? symbol['step']?.toString().toUpperCase() ?? 'C';
-    final accidental = match?.group(2) ?? '';
-    final alter = accidental.isEmpty
-        ? (symbol['alter'] as num?)?.toInt()
-        : accidental.replaceAll('B', 'b').split('').fold<int>(
-              0,
-              (value, c) => value + (c == '#' ? 1 : c == 'b' ? -1 : 0),
-            );
-    final octave = int.tryParse(match?.group(3) ?? '') ??
-        (symbol['octave'] as num?)?.toInt() ??
-        4;
-
-    return Note(
-      step: step,
-      octave: octave,
-      alter: alter,
-      duration: (symbol['duration'] as num?)?.toInt() ?? 1,
-      type: symbol['noteType']?.toString() ??
-          symbol['typeName']?.toString() ??
-          'quarter',
-      voice: (symbol['voice'] as num?)?.toInt(),
-      staff: (symbol['staff'] as num?)?.toInt(),
-    );
-  }
-}
-
-class _BottomNavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  final VoidCallback? onTap;
-
-  const _BottomNavItem({
-    required this.icon,
-    required this.label,
-    required this.isSelected,
-    this.onTap,
-  });
-
-  static const _accent = Color(0xFFD4A96A);
-  static const _textSecondary = Color(0xFF8A8A8A);
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 22,
-              color: isSelected ? _accent : _textSecondary,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                color: isSelected ? _accent : _textSecondary,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  void _goToCollection() => Navigator.of(context).maybePop();
 }

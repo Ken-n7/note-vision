@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:note_vision/core/models/clef.dart';
+import 'package:note_vision/core/models/key_signature.dart';
+import 'package:note_vision/core/models/measure.dart';
+import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/project.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/services/project_storage_service.dart';
 import 'package:note_vision/core/services/score_classifier.dart';
 import 'package:note_vision/core/services/user_profile_service.dart';
@@ -10,6 +15,7 @@ import 'package:note_vision/core/theme/responsive_layout.dart';
 import 'package:note_vision/core/widgets/drawer.dart';
 import 'package:note_vision/core/widgets/user_avatar.dart';
 import 'package:note_vision/features/capture/presentation/capture_screen.dart';
+import 'package:note_vision/features/capture/presentation/import_score_screen.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 
@@ -28,6 +34,7 @@ class _CollectionScreenState extends State<CollectionScreen>
     with SingleTickerProviderStateMixin {
   List<Project> _projects = [];
   bool _isLoading = true;
+  bool _fabOpen = false;
   UserProfile? _userProfile;
 
   late final ProjectStorageService _storage;
@@ -148,6 +155,7 @@ class _CollectionScreenState extends State<CollectionScreen>
   }
 
   void _goToCapture() {
+    setState(() => _fabOpen = false);
     Navigator.push(
       context,
       PageRouteBuilder(
@@ -157,6 +165,70 @@ class _CollectionScreenState extends State<CollectionScreen>
         transitionDuration: const Duration(milliseconds: 400),
       ),
     ).then((_) => _loadProjects());
+  }
+
+  void _goToImport() {
+    setState(() => _fabOpen = false);
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (_, _, _) => const ImportScoreScreen(),
+        transitionsBuilder: (_, animation, _, child) =>
+            FadeTransition(opacity: animation, child: child),
+        transitionDuration: const Duration(milliseconds: 400),
+      ),
+    ).then((_) => _loadProjects());
+  }
+
+  Future<void> _showNewScoreDialog() async {
+    setState(() => _fabOpen = false);
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (_) => const _NewScoreDialog(),
+    );
+    if (result == null || !mounted) return;
+    final score = _createBlankScore(
+      title: result['title']!,
+      composer: result['composer']!,
+    );
+    await Navigator.pushNamed(
+      context,
+      EditorShellScreen.routeName,
+      arguments: EditorShellArgs(
+        score: score,
+        initialState: EditorState(score: score),
+      ),
+    );
+    if (mounted) _loadProjects();
+  }
+
+  Score _createBlankScore({required String title, required String composer}) {
+    const trebleClef = Clef(sign: 'G', line: 2);
+    const commonTime = TimeSignature(beats: 4, beatType: 4);
+    const cMajor = KeySignature(fifths: 0);
+    return Score(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: title.isEmpty ? 'Untitled' : title,
+      composer: composer,
+      parts: [
+        Part(
+          id: 'P1',
+          name: 'Part 1',
+          measures: [
+            const Measure(
+              number: 1,
+              clef: trebleClef,
+              timeSignature: commonTime,
+              keySignature: cMajor,
+              symbols: [],
+            ),
+            const Measure(number: 2, symbols: []),
+            const Measure(number: 3, symbols: []),
+            const Measure(number: 4, symbols: []),
+          ],
+        ),
+      ],
+    );
   }
 
   String _formatDate(DateTime dt) {
@@ -303,47 +375,6 @@ class _CollectionScreenState extends State<CollectionScreen>
     );
   }
 
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.border, width: 0.5)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 60,
-          child: Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: _goToCapture,
-                  behavior: HitTestBehavior.opaque,
-                  child: const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.add_circle_outline, size: 22, color: AppColors.accent),
-                      SizedBox(height: 4),
-                      Text(
-                        'Add Files',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: AppColors.accent,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final orientation = MediaQuery.of(context).orientation;
@@ -399,8 +430,255 @@ class _CollectionScreenState extends State<CollectionScreen>
           ),
         ],
       ),
-      body: _buildBody(),
-      bottomNavigationBar: _buildBottomNav(),
+      body: Stack(
+        children: [
+          _buildBody(),
+          if (_fabOpen)
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => setState(() => _fabOpen = false),
+                child: const ColoredBox(color: Colors.transparent),
+              ),
+            ),
+        ],
+      ),
+      floatingActionButton: _SpeedDialFab(
+        isOpen: _fabOpen,
+        onToggle: () => setState(() => _fabOpen = !_fabOpen),
+        items: [
+          _SpeedDialItem(
+            icon: Icons.note_add_rounded,
+            label: 'New Score',
+            onTap: _showNewScoreDialog,
+          ),
+          _SpeedDialItem(
+            icon: Icons.upload_file_outlined,
+            label: 'Import MusicXML',
+            onTap: _goToImport,
+          ),
+          _SpeedDialItem(
+            icon: Icons.camera_alt_rounded,
+            label: 'Scan Image',
+            onTap: _goToCapture,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Speed dial FAB ────────────────────────────────────────────────────────────
+
+class _SpeedDialItem {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _SpeedDialItem({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+}
+
+class _SpeedDialFab extends StatelessWidget {
+  const _SpeedDialFab({
+    required this.isOpen,
+    required this.onToggle,
+    required this.items,
+  });
+
+  final bool isOpen;
+  final VoidCallback onToggle;
+  final List<_SpeedDialItem> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        // Mini FABs fan upward — top item shown first
+        for (final item in items)
+          AnimatedSlide(
+            offset: isOpen ? Offset.zero : const Offset(0, 0.4),
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            child: AnimatedOpacity(
+              opacity: isOpen ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 180),
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _MiniFabRow(item: item),
+              ),
+            ),
+          ),
+        // Main FAB
+        FloatingActionButton(
+          heroTag: 'main_fab',
+          onPressed: onToggle,
+          backgroundColor: AppColors.accent,
+          elevation: 4,
+          child: AnimatedRotation(
+            turns: isOpen ? 0.125 : 0,
+            duration: const Duration(milliseconds: 200),
+            child: const Icon(Icons.add_rounded, color: AppColors.background, size: 28),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MiniFabRow extends StatelessWidget {
+  const _MiniFabRow({required this.item});
+
+  final _SpeedDialItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.border),
+            boxShadow: const [
+              BoxShadow(color: Color(0x40000000), blurRadius: 8, offset: Offset(0, 2)),
+            ],
+          ),
+          child: Text(
+            item.label,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        FloatingActionButton.small(
+          heroTag: item.label,
+          onPressed: item.onTap,
+          backgroundColor: AppColors.surface,
+          elevation: 2,
+          child: Icon(item.icon, size: 20, color: AppColors.accent),
+        ),
+      ],
+    );
+  }
+}
+
+// ── New Score dialog ──────────────────────────────────────────────────────────
+
+class _NewScoreDialog extends StatefulWidget {
+  const _NewScoreDialog();
+
+  @override
+  State<_NewScoreDialog> createState() => _NewScoreDialogState();
+}
+
+class _NewScoreDialogState extends State<_NewScoreDialog> {
+  final _titleController = TextEditingController();
+  final _composerController = TextEditingController();
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _composerController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text(
+        'New Score',
+        style: TextStyle(
+          color: AppColors.textPrimary,
+          fontWeight: FontWeight.w600,
+          fontSize: 17,
+        ),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _DialogTextField(
+            controller: _titleController,
+            label: 'Title',
+            hint: 'Untitled',
+            autofocus: true,
+          ),
+          const SizedBox(height: 16),
+          _DialogTextField(
+            controller: _composerController,
+            label: 'Composer',
+            hint: 'Unknown',
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text(
+            'Cancel',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop({
+            'title': _titleController.text.trim(),
+            'composer': _composerController.text.trim(),
+          }),
+          child: const Text(
+            'Create',
+            style: TextStyle(
+              color: AppColors.accent,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DialogTextField extends StatelessWidget {
+  const _DialogTextField({
+    required this.controller,
+    required this.label,
+    required this.hint,
+    this.autofocus = false,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final String hint;
+  final bool autofocus;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      autofocus: autofocus,
+      style: const TextStyle(color: AppColors.textPrimary),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        hintStyle: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.5)),
+        enabledBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: AppColors.border),
+        ),
+        focusedBorder: const UnderlineInputBorder(
+          borderSide: BorderSide(color: AppColors.accent),
+        ),
+      ),
     );
   }
 }

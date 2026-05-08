@@ -7,7 +7,6 @@ import 'package:note_vision/core/utils/image_picker_helper.dart';
 import 'package:note_vision/core/widgets/tappable_button.dart';
 import 'package:note_vision/core/widgets/drawer.dart';
 import 'package:note_vision/features/scan/presentation/scan_screen.dart';
-import 'package:note_vision/features/capture/presentation/import_score_screen.dart';
 
 class CaptureScreen extends StatefulWidget {
   const CaptureScreen({super.key});
@@ -411,7 +410,6 @@ class _CaptureScreenState extends State<CaptureScreen>
           );
         },
       ),
-      bottomNavigationBar: _buildBottomNav(),
     );
   }
 
@@ -443,91 +441,4 @@ class _CaptureScreenState extends State<CaptureScreen>
     );
   }
 
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: _surface,
-        border: Border(top: BorderSide(color: _border, width: 0.5)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 60,
-          child: Row(
-            children: [
-              _BottomNavItem(
-                icon: Icons.camera_alt_outlined,
-                label: 'Scan',
-                isSelected: true,
-                onTap: null,
-              ),
-              _BottomNavItem(
-                icon: Icons.upload_file_outlined,
-                label: 'Import',
-                isSelected: false,
-                onTap: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const ImportScoreScreen(),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Bottom nav item ──────────────────────────────────────────────────────────
-
-class _BottomNavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  final VoidCallback? onTap;
-
-  const _BottomNavItem({
-    required this.icon,
-    required this.label,
-    required this.isSelected,
-    this.onTap,
-  });
-
-  static const _accent = Color(0xFFD4A96A);
-  static const _textSecondary = Color(0xFF8A8A8A);
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 22,
-              color: isSelected ? _accent : _textSecondary,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                color: isSelected ? _accent : _textSecondary,
-                fontWeight:
-                    isSelected ? FontWeight.w600 : FontWeight.w400,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
