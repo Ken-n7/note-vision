@@ -12,3 +12,7 @@
 
 # flutter_midi_pro
 -keep class com.miditranslator.** { *; }
+
+# Flutter references these Play Core classes for deferred components (split APKs)
+# which this app does not use — suppress R8 missing-class errors
+-dontwarn com.google.android.play.core.**
