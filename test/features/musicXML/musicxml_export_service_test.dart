@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:note_vision/core/models/barline_type.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/models/measure.dart';
@@ -7,10 +8,14 @@ import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/time_signature.dart';
+import 'package:note_vision/features/musicXML/musicxml_parser_service.dart';
+import 'package:note_vision/features/musicXML/musicxml_score_converter.dart';
 import 'package:note_vision/features/musicXML/musicxml_export_service.dart';
 
 void main() {
   const service = MusicXmlExportService();
+  const parser = MusicXmlParserService();
+  const converter = MusicXmlScoreConverter();
 
   // ---------------------------------------------------------------------------
   // Helpers
@@ -390,6 +395,55 @@ void main() {
       expect(xml, isNot(contains('<voice>')));
       expect(xml, isNot(contains('<staff>')));
     });
+
+    test('dotted note emits dot element and effective duration', () {
+      final score = Score(
+        id: 'id',
+        title: 'T',
+        composer: 'C',
+        parts: [
+          Part(id: 'P1', name: 'P', measures: [
+            Measure(
+              number: 1,
+              symbols: const [
+                Note(step: 'C', octave: 4, duration: 3, type: 'quarter', dots: 1),
+              ],
+            ),
+          ]),
+        ],
+      );
+      final xml = service.toMusicXml(score);
+      expect('<dot/>'.allMatches(xml).length, 1);
+      expect(xml, contains('<duration>3</duration>'));
+    });
+
+    test('chord tone emits chord tag before pitch', () {
+      final score = Score(
+        id: 'id',
+        title: 'T',
+        composer: 'C',
+        parts: [
+          Part(id: 'P1', name: 'P', measures: [
+            Measure(
+              number: 1,
+              symbols: const [
+                Note(step: 'C', octave: 4, duration: 2, type: 'quarter'),
+                Note(
+                  step: 'E',
+                  octave: 4,
+                  duration: 2,
+                  type: 'quarter',
+                  isChordTone: true,
+                ),
+              ],
+            ),
+          ]),
+        ],
+      );
+      final xml = service.toMusicXml(score);
+      expect(xml, contains('<chord/>'));
+      expect(xml.indexOf('<chord/>'), lessThan(xml.indexOf('<step>E</step>')));
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -454,6 +508,25 @@ void main() {
       expect(xml, contains('<duration>8</duration>'));
       expect(xml, contains('<type>whole</type>'));
     });
+
+    test('dotted rest emits dot element and effective duration', () {
+      final score = Score(
+        id: 'id',
+        title: 'T',
+        composer: 'C',
+        parts: [
+          Part(id: 'P1', name: 'P', measures: [
+            Measure(
+              number: 1,
+              symbols: const [Rest(duration: 6, type: 'half', dots: 1)],
+            ),
+          ]),
+        ],
+      );
+      final xml = service.toMusicXml(score);
+      expect('<dot/>'.allMatches(xml).length, 1);
+      expect(xml, contains('<duration>6</duration>'));
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -462,6 +535,7 @@ void main() {
 
   group('duration values match DurationSpec constants', () {
     for (final entry in const [
+      ('breve', 16),
       ('whole', 8),
       ('half', 4),
       ('quarter', 2),
@@ -586,6 +660,146 @@ void main() {
         minimalScore(title: 'Sonata / No. 1 in C'),
       );
       expect(xml, contains('<work-title>Sonata / No. 1 in C</work-title>'));
+    });
+  });
+
+  group('round trip', () {
+    test('startsNewPage survives export then import', () {
+      final score = Score(
+        id: 'page-break-roundtrip',
+        title: 'Page Break',
+        composer: 'Composer',
+        parts: [
+          Part(
+            id: 'P1',
+            name: 'Piano',
+            measures: const [
+              Measure(number: 1, symbols: [Note(step: 'C', octave: 4, duration: 2, type: 'quarter')]),
+              Measure(number: 2, startsNewPage: true, symbols: [Rest(duration: 2, type: 'quarter')]),
+            ],
+          ),
+        ],
+      );
+
+      final xml = service.toMusicXml(score);
+      expect(xml, contains('new-page="yes"'));
+
+      final decoded = converter.convert(parser.parse(xml).document!);
+      expect(decoded.parts.single.measures[0].startsNewPage, isFalse);
+      expect(decoded.parts.single.measures[1].startsNewPage, isTrue);
+    });
+
+    test('startsNewSystem survives export then import', () {
+      final score = Score(
+        id: 'system-break-roundtrip',
+        title: 'System Break',
+        composer: 'Composer',
+        parts: [
+          Part(
+            id: 'P1',
+            name: 'Piano',
+            measures: const [
+              Measure(number: 1, symbols: [Note(step: 'C', octave: 4, duration: 2, type: 'quarter')]),
+              Measure(number: 2, startsNewSystem: true, symbols: [Rest(duration: 2, type: 'quarter')]),
+            ],
+          ),
+        ],
+      );
+
+      final xml = service.toMusicXml(score);
+      expect(xml, contains('new-system="yes"'));
+
+      final decoded = converter.convert(parser.parse(xml).document!);
+      expect(decoded.parts.single.measures[0].startsNewSystem, isFalse);
+      expect(decoded.parts.single.measures[1].startsNewSystem, isTrue);
+    });
+
+    test('divisions normalization: score exported at divisions=4 imports correctly', () {
+      const xml = '''<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1">
+  <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes><divisions>4</divisions></attributes>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><type>quarter</type></note>
+      <note><pitch><step>D</step><octave>4</octave></pitch><duration>8</duration><type>half</type></note>
+      <note><pitch><step>E</step><octave>4</octave></pitch><duration>2</duration><type>eighth</type></note>
+    </measure>
+  </part>
+</score-partwise>''';
+
+      final decoded = converter.convert(parser.parse(xml).document!);
+      final notes = decoded.parts.single.measures.single.symbols.cast<Note>();
+      expect(notes[0].duration, 2); // quarter normalized from 4 → 2
+      expect(notes[1].duration, 4); // half normalized from 8 → 4
+      expect(notes[2].duration, 1); // eighth normalized from 2 → 1
+    });
+
+    test('beamed notes export with correct beam elements', () {
+      final score = Score(
+        id: 'beam-export',
+        title: 'Beams',
+        composer: 'Composer',
+        parts: [
+          Part(
+            id: 'P1',
+            name: 'Piano',
+            measures: const [
+              Measure(number: 1, symbols: [
+                Note(step: 'C', octave: 4, duration: 1, type: 'eighth', beamed: true),
+                Note(step: 'D', octave: 4, duration: 1, type: 'eighth', beamed: true),
+                Note(step: 'E', octave: 4, duration: 1, type: 'eighth', beamed: true),
+              ]),
+            ],
+          ),
+        ],
+      );
+
+      final xml = service.toMusicXml(score);
+      expect(xml, contains('<beam number="1">begin</beam>'));
+      expect(xml, contains('<beam number="1">continue</beam>'));
+      expect(xml, contains('<beam number="1">end</beam>'));
+    });
+
+    test('repeat barlines survive export then import', () {
+      final score = Score(
+        id: 'repeat-roundtrip',
+        title: 'Repeat Roundtrip',
+        composer: 'Composer',
+        parts: [
+          Part(
+            id: 'P1',
+            name: 'Piano',
+            measures: const [
+              Measure(
+                number: 1,
+                rightBarlineType: BarlineType.repeatEnd,
+                symbols: [
+                  Note(step: 'C', octave: 4, duration: 2, type: 'quarter'),
+                ],
+              ),
+              Measure(
+                number: 2,
+                leftBarlineType: BarlineType.repeatStart,
+                symbols: [
+                  Rest(duration: 2, type: 'quarter'),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final xml = service.toMusicXml(score);
+      final parseResult = parser.parse(xml);
+
+      expect(parseResult.success, isTrue);
+
+      final decoded = converter.convert(parseResult.document!);
+      final measures = decoded.parts.single.measures;
+
+      expect(measures[0].rightBarlineType, BarlineType.repeatEnd);
+      expect(measures[1].leftBarlineType, BarlineType.repeatStart);
     });
   });
 }

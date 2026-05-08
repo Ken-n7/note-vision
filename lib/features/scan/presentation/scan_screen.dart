@@ -5,7 +5,9 @@ import 'package:provider/provider.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/services/scan_preferences_service.dart';
 import 'package:note_vision/core/services/usage_stats_service.dart';
+import 'package:note_vision/core/widgets/tappable_button.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/theme/responsive_layout.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
@@ -21,19 +23,27 @@ import 'widgets/scan_image_view.dart';
 
 class ScanScreen extends StatefulWidget {
   final Uint8List imageBytes;
+  final bool appendMode;
 
-  const ScanScreen({super.key, required this.imageBytes});
+  const ScanScreen({super.key, required this.imageBytes, this.appendMode = false});
 
   @override
   State<ScanScreen> createState() => _ScanScreenState();
 }
 
 class _ScanScreenState extends State<ScanScreen> {
+  bool _skipReview       = false;
+  bool _autoNavigated    = false;
+  bool _noDetectionsShown = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ScanViewModel>().run(widget.imageBytes);
+    });
+    ScanPreferencesService.getSkipReview().then((v) {
+      if (mounted) setState(() => _skipReview = v);
     });
   }
 
@@ -86,10 +96,47 @@ class _ScanScreenState extends State<ScanScreen> {
     );
   }
 
+  void _navigateContinue(BuildContext context, ScanViewModel vm) {
+    unawaited(UsageStatsService.incrementScans());
+    final mappedScore = vm.mappingResult?.score ??
+        const Score(
+          id: 'scan-score',
+          title: 'Scanned Score',
+          composer: 'Unknown',
+          parts: [
+            Part(
+              id: 'P1',
+              name: 'Part 1',
+              measures: [Measure(number: 1, symbols: [])],
+            ),
+          ],
+        );
+
+    if (widget.appendMode) {
+      Navigator.pop(context, mappedScore);
+    } else {
+      Navigator.pushNamed(
+        context,
+        EditorShellScreen.routeName,
+        arguments: EditorShellArgs(
+          score: mappedScore,
+          initialState: EditorState(score: mappedScore),
+        ),
+      );
+    }
+  }
+
   Widget _buildDone(BuildContext context, ScanViewModel vm) {
+    final hasDetections = vm.result?.hasDetections ?? false;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!vm.result!.hasDetections && context.mounted) {
+      if (!context.mounted) return;
+      if (!hasDetections && !_noDetectionsShown) {
+        _noDetectionsShown = true;
         _showNoDetectionsBar(context);
+      } else if (_skipReview && !_autoNavigated) {
+        _autoNavigated = true;
+        _navigateContinue(context, vm);
       }
     });
 
@@ -102,32 +149,8 @@ class _ScanScreenState extends State<ScanScreen> {
           padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
           child: ScanActions(
             onRedo: () => Navigator.pop(context),
-            canContinue: vm.result?.hasDetections ?? false,
-            onContinue: () {
-              unawaited(UsageStatsService.incrementScans());
-              final mappedScore = vm.mappingResult?.score ??
-                  const Score(
-                    id: 'scan-score',
-                    title: 'Scanned Score',
-                    composer: 'Unknown',
-                    parts: [
-                      Part(
-                        id: 'P1',
-                        name: 'Part 1',
-                        measures: [Measure(number: 1, symbols: [])],
-                      ),
-                    ],
-                  );
-
-              Navigator.pushNamed(
-                context,
-                EditorShellScreen.routeName,
-                arguments: EditorShellArgs(
-                  score: mappedScore,
-                  initialState: EditorState(score: mappedScore),
-                ),
-              );
-            },
+            canContinue: hasDetections,
+            onContinue: () => _navigateContinue(context, vm),
           ),
         );
 
@@ -234,7 +257,7 @@ class _ScanScreenState extends State<ScanScreen> {
             const SizedBox(height: 32),
 
             // ── Go back button ──────────────────────────────────────────
-            _TappableButton(
+            TappableButton(
               onPressed: () => Navigator.pop(context),
               child: Container(
                 width: double.infinity,
@@ -345,49 +368,13 @@ class _PipelineStatus extends StatelessWidget {
   }
 }
 
-// ─── Tappable button wrapper ──────────────────────────────────────────────────
-
-class _TappableButton extends StatefulWidget {
-  final Widget child;
-  final VoidCallback onPressed;
-
-  const _TappableButton({required this.child, required this.onPressed});
-
-  @override
-  State<_TappableButton> createState() => _TappableButtonState();
-}
-
-class _TappableButtonState extends State<_TappableButton> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _pressed = true),
-      onTapUp: (_) {
-        setState(() => _pressed = false);
-        widget.onPressed();
-      },
-      onTapCancel: () => setState(() => _pressed = false),
-      child: AnimatedScale(
-        scale: _pressed ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 100),
-        child: AnimatedOpacity(
-          opacity: _pressed ? 0.85 : 1.0,
-          duration: const Duration(milliseconds: 100),
-          child: widget.child,
-        ),
-      ),
-    );
-  }
-}
-
 // ─── Provider wrapper ─────────────────────────────────────────────────────────
 
 class ScanScreenProvider extends StatelessWidget {
   final Uint8List imageBytes;
+  final bool appendMode;
 
-  const ScanScreenProvider({super.key, required this.imageBytes});
+  const ScanScreenProvider({super.key, required this.imageBytes, this.appendMode = false});
 
   @override
   Widget build(BuildContext context) {
@@ -398,7 +385,7 @@ class ScanScreenProvider extends StatelessWidget {
         TfliteSymbolDetector(),
         mapper: const DetectionToScoreMapperService(),
       ),
-      child: ScanScreen(imageBytes: imageBytes),
+      child: ScanScreen(imageBytes: imageBytes, appendMode: appendMode),
     );
   }
 }

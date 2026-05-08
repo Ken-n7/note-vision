@@ -1,3 +1,4 @@
+import 'package:note_vision/core/models/barline_type.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
@@ -21,11 +22,15 @@ class MeasureSymbols {
   final int number;
   final DetectedStaff staff;
   final List<StaffOwnedSymbol> symbols;
+  final BarlineType? leftBarlineType;
+  final BarlineType? rightBarlineType;
 
   const MeasureSymbols({
     required this.number,
     required this.staff,
     required this.symbols,
+    this.leftBarlineType,
+    this.rightBarlineType,
   });
 }
 
@@ -35,6 +40,8 @@ class SemanticMeasure {
   final TimeSignature? timeSignature;
   final KeySignature? keySignature;
   final List<ScoreSymbol> symbols;
+  final BarlineType? leftBarlineType;
+  final BarlineType? rightBarlineType;
 
   const SemanticMeasure({
     required this.number,
@@ -42,6 +49,8 @@ class SemanticMeasure {
     required this.timeSignature,
     required this.keySignature,
     required this.symbols,
+    this.leftBarlineType,
+    this.rightBarlineType,
   });
 }
 
@@ -59,8 +68,14 @@ class StemLink {
   /// True when at least one beam symbol was found adjacent to this stem,
   /// indicating the notehead belongs to a beamed eighth-note group.
   final bool hasBeam;
+  final bool isChordTone;
 
-  const StemLink({this.stem, this.flag, this.hasBeam = false});
+  const StemLink({
+    this.stem,
+    this.flag,
+    this.hasBeam = false,
+    this.isChordTone = false,
+  });
 }
 
 class Pitch {

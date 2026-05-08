@@ -1,7 +1,12 @@
+import 'package:note_vision/core/models/clef.dart';
+import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
+import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
-// import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
+import 'package:note_vision/core/models/time_signature.dart';
+import 'package:note_vision/core/widgets/score_notation/staff_pitch_mapper.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/model/editor_state_history.dart';
 
@@ -12,6 +17,20 @@ class DurationSpec {
   final int divisions;
 }
 
+enum EditorEditIntent {
+  replaceSelection,
+  appendToMeasure,
+  insertAfterSelection,
+  insertAtTarget,
+  moveSelectionAcrossMeasures,
+  reorderWithinMeasure,
+  deleteSelection,
+  updateMeasureMetadata,
+  createMeasure,
+  createPage,
+  deleteMeasure,
+}
+
 const DurationSpec wholeDuration = DurationSpec('whole', 8);
 const DurationSpec halfDuration = DurationSpec('half', 4);
 const DurationSpec quarterDuration = DurationSpec('quarter', 2);
@@ -19,33 +38,93 @@ const DurationSpec eighthDuration = DurationSpec('eighth', 1);
 
 extension EditorActions on EditorState {
   bool get hasSelection =>
-      selectedPartIndex != null &&
-      selectedMeasureIndex != null &&
-      selectedSymbolIndex != null &&
-      selectedSymbol != null;
+      hasSymbolSelection;
+
+  bool get hasEditableSelection =>
+      hasEditableSymbolSelection;
 
   bool get canUndo => undoStack.isNotEmpty;
 
   bool get canRedo => redoStack.isNotEmpty;
 
+  EditorState selectSymbolAt({
+    required int partIndex,
+    required int measureIndex,
+    required int symbolIndex,
+  }) {
+    final parts = score.parts;
+    if (parts.isEmpty || partIndex < 0 || partIndex >= parts.length) {
+      return copyWith(clearSelection: true);
+    }
+
+    final measures = parts[partIndex].measures;
+    if (measureIndex < 0 || measureIndex >= measures.length) {
+      return copyWith(clearSelection: true);
+    }
+
+    final symbols = measures[measureIndex].symbols;
+    if (symbolIndex < 0 || symbolIndex >= symbols.length) {
+      return clearSymbolSelectionPreservingMeasureContext();
+    }
+
+    return copyWith(
+      selectedPartIndex: partIndex,
+      selectedMeasureIndex: measureIndex,
+      selectedSymbolIndex: symbolIndex,
+      selectedSymbol: symbols[symbolIndex],
+    );
+  }
+
+  EditorState clearSymbolSelectionPreservingMeasureContext() {
+    return copyWith(
+      selectedSymbolIndex: null,
+      selectedSymbol: null,
+    );
+  }
+
+  EditorState deleteSymbolAtSelectionTarget({
+    required int partIndex,
+    required int measureIndex,
+    required int symbolIndex,
+  }) {
+    final selected = selectSymbolAt(
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      symbolIndex: symbolIndex,
+    );
+    if (!selected.hasEditableSelection) {
+      return this;
+    }
+    return selected.deleteSelectedSymbol();
+  }
+
   EditorState moveSelectedSymbolUp() {
     if (!hasSelection || selectedSymbol is! Note) return this;
     final note = selectedSymbol as Note;
     final moved = _moveNoteByScaleStep(note, 1);
-    return _replaceSelectedSymbol(moved);
+    return _replaceSelectedSymbol(
+      moved,
+      intent: EditorEditIntent.replaceSelection,
+    );
   }
 
   EditorState moveSelectedSymbolDown() {
     if (!hasSelection || selectedSymbol is! Note) return this;
     final note = selectedSymbol as Note;
     final moved = _moveNoteByScaleStep(note, -1);
-    return _replaceSelectedSymbol(moved);
+    return _replaceSelectedSymbol(
+      moved,
+      intent: EditorEditIntent.replaceSelection,
+    );
   }
 
   EditorState setSelectedDuration(DurationSpec durationSpec) {
     if (!hasSelection) return this;
 
     final symbol = selectedSymbol;
+    if (!_canReplaceSelectedSymbolWithDuration(durationSpec.divisions)) {
+      return this;
+    }
     if (symbol is Note) {
       final isSameDuration =
           symbol.duration == durationSpec.divisions &&
@@ -61,6 +140,7 @@ extension EditorActions on EditorState {
           voice: symbol.voice,
           staff: symbol.staff,
         ),
+        intent: EditorEditIntent.replaceSelection,
       );
     }
 
@@ -76,6 +156,7 @@ extension EditorActions on EditorState {
           voice: symbol.voice,
           staff: symbol.staff,
         ),
+        intent: EditorEditIntent.replaceSelection,
       );
     }
 
@@ -85,16 +166,18 @@ extension EditorActions on EditorState {
   EditorState insertNoteAfterSelection() {
     if (selectedPartIndex == null || selectedMeasureIndex == null) return this;
 
-    return _appendToSelectedMeasure(
+    return _insertAfterSelectionOrAppend(
       const Note(step: 'C', octave: 4, duration: 2, type: 'quarter'),
+      intent: EditorEditIntent.insertAfterSelection,
     );
   }
 
   EditorState insertRestAfterSelection() {
     if (selectedPartIndex == null || selectedMeasureIndex == null) return this;
 
-    return _appendToSelectedMeasure(
+    return _insertAfterSelectionOrAppend(
       const Rest(duration: 2, type: 'quarter'),
+      intent: EditorEditIntent.insertAfterSelection,
     );
   }
 
@@ -107,13 +190,15 @@ extension EditorActions on EditorState {
     if (measures[measureIndex].symbols.isNotEmpty) return this; // not empty
 
     final nextScore = score.deleteMeasureFromAllParts(measureIndex);
-    final nextMeasureIndex = (measureIndex - 1).clamp(0, nextScore.parts[partIndex].measures.length - 1);
-    return applyEdit(
+    final nextMeasureIndex = (measureIndex - 1).clamp(
+      0,
+      nextScore.parts[partIndex].measures.length - 1,
+    );
+    return _applyMeasureContextEdit(
+      intent: EditorEditIntent.deleteMeasure,
       score: nextScore,
-      selectedPartIndex: partIndex,
-      selectedMeasureIndex: nextMeasureIndex,
-      selectedSymbolIndex: null,
-      selectedSymbol: null,
+      partIndex: partIndex,
+      measureIndex: nextMeasureIndex,
     );
   }
 
@@ -122,43 +207,183 @@ extension EditorActions on EditorState {
     final measureIndex = selectedMeasureIndex!;
     final nextScore = score.insertMeasureAfterInAllParts(measureIndex);
     final newMeasureIndex = measureIndex + 1;
-    return applyEdit(
+    return _applyMeasureContextEdit(
+      intent: EditorEditIntent.createMeasure,
       score: nextScore,
-      selectedPartIndex: selectedPartIndex,
-      selectedMeasureIndex: newMeasureIndex,
-      selectedSymbolIndex: null,
-      selectedSymbol: null,
+      partIndex: selectedPartIndex!,
+      measureIndex: newMeasureIndex,
+    );
+  }
+
+  EditorState appendMeasureAtEnd() {
+    if (score.parts.isEmpty) return this;
+    final lastMeasureIndex = score.parts.first.measures.length - 1;
+    final nextScore = score.insertMeasureAfterInAllParts(lastMeasureIndex);
+    return _applyMeasureContextEdit(
+      intent: EditorEditIntent.createMeasure,
+      score: nextScore,
+      partIndex: selectedPartIndex ?? 0,
+      measureIndex: lastMeasureIndex + 1,
+    );
+  }
+
+  EditorState addPageAtEnd() {
+    if (score.parts.isEmpty) return this;
+    final updatedParts = <Part>[];
+    for (final part in score.parts) {
+      updatedParts.add(
+        Part(
+          id: part.id,
+          name: part.name,
+          measures: [
+            ...part.measures,
+            Measure(
+              number: part.measures.length + 1,
+              symbols: const [],
+              startsNewPage: true,
+            ),
+          ],
+        ),
+      );
+    }
+    final newMeasureIndex = score.parts.isEmpty
+        ? 0
+        : score.parts.first.measures.length;
+    return _applyMeasureContextEdit(
+      intent: EditorEditIntent.createPage,
+      score: Score(
+        id: score.id,
+        title: score.title,
+        composer: score.composer,
+        parts: updatedParts,
+      ),
+      partIndex: selectedPartIndex ?? 0,
+      measureIndex: newMeasureIndex,
+    );
+  }
+
+  EditorState setSelectedMeasureClef(Clef? clef) {
+    if (selectedPartIndex == null || selectedMeasureIndex == null) return this;
+
+    final partIndex = selectedPartIndex!;
+    final measureIndex = selectedMeasureIndex!;
+    final currentClef = score.parts[partIndex].measures[measureIndex].clef;
+    if (currentClef == clef) return this;
+
+    final nextScore = score.setMeasureClef(partIndex, measureIndex, clef);
+    return _applySelectionPreservingEdit(
+      intent: EditorEditIntent.updateMeasureMetadata,
+      score: nextScore,
+    );
+  }
+
+  EditorState setPartClef(Clef newClef) {
+    if (selectedPartIndex == null) return this;
+
+    final partIndex = selectedPartIndex!;
+    final part = score.parts[partIndex];
+    if (part.measures.isEmpty) return this;
+
+    final oldClef = part.measures.first.clef ?? const Clef(sign: 'G', line: 2);
+    if (oldClef.sign == newClef.sign && oldClef.line == newClef.line) {
+      return this;
+    }
+
+    final updatedMeasures = part.measures.asMap().entries.map((entry) {
+      final i = entry.key;
+      final measure = entry.value;
+
+      final updatedSymbols = measure.symbols.map((symbol) {
+        if (symbol is! Note) return symbol;
+        final newPitch = StaffPitchMapper.recalculatePitch(
+          step: symbol.step,
+          octave: symbol.octave,
+          oldClefSign: oldClef.sign,
+          oldClefLine: oldClef.line,
+          newClefSign: newClef.sign,
+          newClefLine: newClef.line,
+        );
+        return Note(
+          step: newPitch.step,
+          octave: newPitch.octave,
+          alter: symbol.alter,
+          duration: symbol.duration,
+          type: symbol.type,
+          voice: symbol.voice,
+          staff: symbol.staff,
+          beamed: symbol.beamed,
+          dots: symbol.dots,
+          isChordTone: symbol.isChordTone,
+        );
+      }).toList();
+
+      return Measure(
+        number: measure.number,
+        clef: i == 0 ? newClef : null,
+        timeSignature: measure.timeSignature,
+        keySignature: measure.keySignature,
+        symbols: updatedSymbols,
+        startsNewPage: measure.startsNewPage,
+        startsNewSystem: measure.startsNewSystem,
+        leftBarlineType: measure.leftBarlineType,
+        rightBarlineType: measure.rightBarlineType,
+      );
+    }).toList();
+
+    final updatedParts = List<Part>.from(score.parts)
+      ..[partIndex] = Part(
+        id: part.id,
+        name: part.name,
+        measures: updatedMeasures,
+      );
+
+    final nextScore = Score(
+      id: score.id,
+      title: score.title,
+      composer: score.composer,
+      parts: updatedParts,
+    );
+
+    return _applySelectionPreservingEdit(
+      intent: EditorEditIntent.updateMeasureMetadata,
+      score: nextScore,
     );
   }
 
   EditorState deleteSelectedSymbol() {
-    if (!hasSelection) return this;
+    if (!hasEditableSelection) return this;
 
     final partIndex = selectedPartIndex!;
     final measureIndex = selectedMeasureIndex!;
     final symbolIndex = selectedSymbolIndex!;
 
-    final currentSymbols = score.parts[partIndex].measures[measureIndex].symbols;
-    final symbols = List<ScoreSymbol>.from(currentSymbols)..removeAt(symbolIndex);
-    final nextScore = score.deleteSymbolAt(partIndex, measureIndex, symbolIndex);
+    final currentSymbols =
+        score.parts[partIndex].measures[measureIndex].symbols;
+    final symbols = List<ScoreSymbol>.from(currentSymbols)
+      ..removeAt(symbolIndex);
+    final nextScore = score.deleteSymbolAt(
+      partIndex,
+      measureIndex,
+      symbolIndex,
+    );
 
     if (symbols.isEmpty) {
-      return applyEdit(
+      return _applyMeasureContextEdit(
+        intent: EditorEditIntent.deleteSelection,
         score: nextScore,
-        selectedPartIndex: partIndex,
-        selectedMeasureIndex: measureIndex,
-        selectedSymbolIndex: null,
-        selectedSymbol: null,
+        partIndex: partIndex,
+        measureIndex: measureIndex,
       );
     }
 
     final nextIndex = symbolIndex.clamp(0, symbols.length - 1);
-    return applyEdit(
+    return _applySymbolSelectionEdit(
+      intent: EditorEditIntent.deleteSelection,
       score: nextScore,
-      selectedPartIndex: partIndex,
-      selectedMeasureIndex: measureIndex,
-      selectedSymbolIndex: nextIndex,
-      selectedSymbol: symbols[nextIndex],
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      symbolIndex: nextIndex,
+      symbol: symbols[nextIndex],
     );
   }
 
@@ -182,11 +407,12 @@ extension EditorActions on EditorState {
         voice: note.voice,
         staff: note.staff,
       ),
+      intent: EditorEditIntent.replaceSelection,
     );
   }
 
   EditorState moveSelectedSymbolToMeasureOffset(int offset) {
-    if (!hasSelection || offset == 0) return this;
+    if (!hasEditableSelection || offset == 0) return this;
 
     final partIndex = selectedPartIndex!;
     final fromMeasureIndex = selectedMeasureIndex!;
@@ -194,18 +420,30 @@ extension EditorActions on EditorState {
     final measures = score.parts[partIndex].measures;
     if (toMeasureIndex < 0 || toMeasureIndex >= measures.length) return this;
 
-    final fromSymbols = List<ScoreSymbol>.from(measures[fromMeasureIndex].symbols);
+    final fromSymbols = List<ScoreSymbol>.from(
+      measures[fromMeasureIndex].symbols,
+    );
     final toSymbols = List<ScoreSymbol>.from(measures[toMeasureIndex].symbols);
     final fromSymbolIndex = selectedSymbolIndex!;
-    if (fromSymbolIndex < 0 || fromSymbolIndex >= fromSymbols.length) return this;
+    if (fromSymbolIndex < 0 || fromSymbolIndex >= fromSymbols.length) {
+      return this;
+    }
 
     final moved = fromSymbols[fromSymbolIndex];
+    if (!_canMeasureAcceptSymbol(
+      partIndex: partIndex,
+      measureIndex: toMeasureIndex,
+      symbol: moved,
+    )) {
+      return this;
+    }
     final withoutSource = score.deleteSymbolAt(
       partIndex,
       fromMeasureIndex,
       fromSymbolIndex,
     );
-    final toInsertIndex = score.parts[partIndex].measures[toMeasureIndex].symbols.length;
+    final toInsertIndex =
+        score.parts[partIndex].measures[toMeasureIndex].symbols.length;
     final nextScore = withoutSource.insertSymbolAt(
       partIndex,
       toMeasureIndex,
@@ -214,12 +452,13 @@ extension EditorActions on EditorState {
     );
     final toSymbolIndex = toSymbols.length;
 
-    return applyEdit(
+    return _applySymbolSelectionEdit(
+      intent: EditorEditIntent.moveSelectionAcrossMeasures,
       score: nextScore,
-      selectedPartIndex: partIndex,
-      selectedMeasureIndex: toMeasureIndex,
-      selectedSymbolIndex: toSymbolIndex,
-      selectedSymbol: moved,
+      partIndex: partIndex,
+      measureIndex: toMeasureIndex,
+      symbolIndex: toSymbolIndex,
+      symbol: moved,
     );
   }
 
@@ -236,40 +475,76 @@ extension EditorActions on EditorState {
     if (toPartIndex < 0 || toPartIndex >= score.parts.length) return this;
     final fromMeasures = score.parts[fromPartIndex].measures;
     final toMeasures = score.parts[toPartIndex].measures;
-    if (fromMeasureIndex < 0 || fromMeasureIndex >= fromMeasures.length) return this;
+    if (fromMeasureIndex < 0 || fromMeasureIndex >= fromMeasures.length) {
+      return this;
+    }
     if (toMeasureIndex < 0 || toMeasureIndex >= toMeasures.length) return this;
-    if (fromSymbolIndex < 0 || fromSymbolIndex >= fromMeasures[fromMeasureIndex].symbols.length) return this;
+    if (fromSymbolIndex < 0 ||
+        fromSymbolIndex >= fromMeasures[fromMeasureIndex].symbols.length) {
+      return this;
+    }
 
-    final sameMeasure = fromPartIndex == toPartIndex && fromMeasureIndex == toMeasureIndex;
+    final sameMeasure =
+        fromPartIndex == toPartIndex && fromMeasureIndex == toMeasureIndex;
 
     if (sameMeasure) {
       final symbolCount = fromMeasures[fromMeasureIndex].symbols.length;
       final clampedTo = toSymbolIndex.clamp(0, symbolCount - 1);
       if (fromSymbolIndex == clampedTo) return this;
-      final nextScore = score.reorderSymbol(fromPartIndex, fromMeasureIndex, fromSymbolIndex, clampedTo);
-      final symbols = nextScore.parts[fromPartIndex].measures[fromMeasureIndex].symbols;
-      return applyEdit(
+      final nextScore = score.reorderSymbol(
+        fromPartIndex,
+        fromMeasureIndex,
+        fromSymbolIndex,
+        clampedTo,
+      );
+      final symbols =
+          nextScore.parts[fromPartIndex].measures[fromMeasureIndex].symbols;
+      return _applySymbolSelectionEdit(
+        intent: EditorEditIntent.reorderWithinMeasure,
         score: nextScore,
-        selectedPartIndex: fromPartIndex,
-        selectedMeasureIndex: fromMeasureIndex,
-        selectedSymbolIndex: clampedTo,
-        selectedSymbol: symbols[clampedTo],
+        partIndex: fromPartIndex,
+        measureIndex: fromMeasureIndex,
+        symbolIndex: clampedTo,
+        symbol: symbols[clampedTo],
       );
     }
 
     // Cross-measure move: delete from source, insert at destination.
     final moved = fromMeasures[fromMeasureIndex].symbols[fromSymbolIndex];
-    final withoutSource = score.deleteSymbolAt(fromPartIndex, fromMeasureIndex, fromSymbolIndex);
-    final destCount = withoutSource.parts[toPartIndex].measures[toMeasureIndex].symbols.length;
+    if (!_canMeasureAcceptSymbol(
+      partIndex: toPartIndex,
+      measureIndex: toMeasureIndex,
+      symbol: moved,
+      replacingSymbolDuration:
+          sameMeasure ? _symbolDuration(fromMeasures[fromMeasureIndex].symbols[fromSymbolIndex]) : 0,
+    )) {
+      return this;
+    }
+    final withoutSource = score.deleteSymbolAt(
+      fromPartIndex,
+      fromMeasureIndex,
+      fromSymbolIndex,
+    );
+    final destCount = withoutSource
+        .parts[toPartIndex]
+        .measures[toMeasureIndex]
+        .symbols
+        .length;
     final clampedTo = toSymbolIndex.clamp(0, destCount);
-    final nextScore = withoutSource.insertSymbolAt(toPartIndex, toMeasureIndex, clampedTo, moved);
+    final nextScore = withoutSource.insertSymbolAt(
+      toPartIndex,
+      toMeasureIndex,
+      clampedTo,
+      moved,
+    );
 
-    return applyEdit(
+    return _applySymbolSelectionEdit(
+      intent: EditorEditIntent.moveSelectionAcrossMeasures,
       score: nextScore,
-      selectedPartIndex: toPartIndex,
-      selectedMeasureIndex: toMeasureIndex,
-      selectedSymbolIndex: clampedTo,
-      selectedSymbol: moved,
+      partIndex: toPartIndex,
+      measureIndex: toMeasureIndex,
+      symbolIndex: clampedTo,
+      symbol: moved,
     );
   }
 
@@ -284,8 +559,12 @@ extension EditorActions on EditorState {
     if (measureIndex < 0 || measureIndex >= measures.length) return this;
 
     final currentSymbols = measures[measureIndex].symbols;
-    if (fromSymbolIndex < 0 || fromSymbolIndex >= currentSymbols.length) return this;
-    if (toSymbolIndex < 0 || toSymbolIndex >= currentSymbols.length) return this;
+    if (fromSymbolIndex < 0 || fromSymbolIndex >= currentSymbols.length) {
+      return this;
+    }
+    if (toSymbolIndex < 0 || toSymbolIndex >= currentSymbols.length) {
+      return this;
+    }
     if (fromSymbolIndex == toSymbolIndex) return this;
 
     final nextScore = score.reorderSymbol(
@@ -305,12 +584,9 @@ extension EditorActions on EditorState {
         selectedMeasure != measureIndex ||
         selectedIndex == null ||
         selected == null) {
-      return applyEdit(
+      return _applySelectionPreservingEdit(
+        intent: EditorEditIntent.reorderWithinMeasure,
         score: nextScore,
-        selectedPartIndex: selectedPartIndex,
-        selectedMeasureIndex: selectedMeasureIndex,
-        selectedSymbolIndex: selectedSymbolIndex,
-        selectedSymbol: selectedSymbol,
       );
     }
 
@@ -318,22 +594,28 @@ extension EditorActions on EditorState {
 
     if (selectedIndex == fromSymbolIndex) {
       nextSelectedIndex = toSymbolIndex;
-    } else if (fromSymbolIndex < selectedIndex && toSymbolIndex >= selectedIndex) {
+    } else if (fromSymbolIndex < selectedIndex &&
+        toSymbolIndex >= selectedIndex) {
       nextSelectedIndex = selectedIndex - 1;
-    } else if (fromSymbolIndex > selectedIndex && toSymbolIndex <= selectedIndex) {
+    } else if (fromSymbolIndex > selectedIndex &&
+        toSymbolIndex <= selectedIndex) {
       nextSelectedIndex = selectedIndex + 1;
     }
 
-    return applyEdit(
+    return _applySymbolSelectionEdit(
+      intent: EditorEditIntent.reorderWithinMeasure,
       score: nextScore,
-      selectedPartIndex: partIndex,
-      selectedMeasureIndex: measureIndex,
-      selectedSymbolIndex: nextSelectedIndex,
-      selectedSymbol: symbols[nextSelectedIndex],
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      symbolIndex: nextSelectedIndex,
+      symbol: symbols[nextSelectedIndex],
     );
   }
 
-  EditorState _replaceSelectedSymbol(ScoreSymbol symbol) {
+  EditorState _replaceSelectedSymbol(
+    ScoreSymbol symbol, {
+    required EditorEditIntent intent,
+  }) {
     final partIndex = selectedPartIndex!;
     final measureIndex = selectedMeasureIndex!;
     final symbolIndex = selectedSymbolIndex!;
@@ -345,12 +627,13 @@ extension EditorActions on EditorState {
       symbol,
     );
 
-    return applyEdit(
+    return _applySymbolSelectionEdit(
+      intent: intent,
       score: nextScore,
-      selectedPartIndex: partIndex,
-      selectedMeasureIndex: measureIndex,
-      selectedSymbolIndex: symbolIndex,
-      selectedSymbol: symbol,
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      symbolIndex: symbolIndex,
+      symbol: symbol,
     );
   }
 
@@ -361,26 +644,20 @@ extension EditorActions on EditorState {
     required ScoreSymbol symbol,
   }) {
     if (score.parts.isEmpty) return this;
+    if (partIndex < 0 || partIndex >= score.parts.length) return this;
     final measures = score.parts[partIndex].measures;
     if (measureIndex < 0 || measureIndex >= measures.length) return this;
-    if (insertIndex < 0 || insertIndex > measures[measureIndex].symbols.length) return this;
+    if (insertIndex < 0 || insertIndex > measures[measureIndex].symbols.length) {
+      return this;
+    }
+    if (!_canMeasureAcceptSymbol(
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      symbol: symbol,
+    )) {
+      return this;
+    }
 
-    final nextScore = score.insertSymbolAt(partIndex, measureIndex, insertIndex, symbol);
-
-    return applyEdit(
-      score: nextScore,
-      selectedPartIndex: partIndex,
-      selectedMeasureIndex: measureIndex,
-      selectedSymbolIndex: insertIndex,
-      selectedSymbol: symbol,
-    );
-  }
-
-  EditorState _appendToSelectedMeasure(ScoreSymbol symbol) {
-    final partIndex = selectedPartIndex!;
-    final measureIndex = selectedMeasureIndex!;
-
-    final insertIndex = score.parts[partIndex].measures[measureIndex].symbols.length;
     final nextScore = score.insertSymbolAt(
       partIndex,
       measureIndex,
@@ -388,15 +665,227 @@ extension EditorActions on EditorState {
       symbol,
     );
 
-    return applyEdit(
+    return _applySymbolSelectionEdit(
+      intent: EditorEditIntent.insertAtTarget,
       score: nextScore,
-      selectedPartIndex: partIndex,
-      selectedMeasureIndex: measureIndex,
-      selectedSymbolIndex: insertIndex,
-      selectedSymbol: symbol,
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      symbolIndex: insertIndex,
+      symbol: symbol,
     );
   }
 
+  EditorState _insertAfterSelectionOrAppend(
+    ScoreSymbol symbol, {
+    required EditorEditIntent intent,
+  }) {
+    final partIndex = selectedPartIndex!;
+    final measureIndex = selectedMeasureIndex!;
+    final symbols = score.parts[partIndex].measures[measureIndex].symbols;
+
+    final insertIndex = hasEditableSelection
+        ? (selectedSymbolIndex! + 1).clamp(0, symbols.length)
+        : symbols.length;
+    if (!_canMeasureAcceptSymbol(
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      symbol: symbol,
+    )) {
+      return this;
+    }
+
+    final nextScore = score.insertSymbolAt(
+      partIndex,
+      measureIndex,
+      insertIndex,
+      symbol,
+    );
+
+    return _applySymbolSelectionEdit(
+      intent: intent,
+      score: nextScore,
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      symbolIndex: insertIndex,
+      symbol: symbol,
+    );
+  }
+
+  EditorState _applyMeasureContextEdit({
+    required EditorEditIntent intent,
+    required Score score,
+    required int partIndex,
+    required int measureIndex,
+  }) {
+    switch (intent) {
+      case EditorEditIntent.deleteMeasure:
+      case EditorEditIntent.createMeasure:
+      case EditorEditIntent.createPage:
+      case EditorEditIntent.deleteSelection:
+        return applyEditWithMeasureContext(
+          score: score,
+          partIndex: partIndex,
+          measureIndex: measureIndex,
+        );
+      default:
+        throw ArgumentError.value(
+          intent,
+          'intent',
+          'Intent does not preserve only measure context.',
+        );
+    }
+  }
+
+  EditorState _applySymbolSelectionEdit({
+    required EditorEditIntent intent,
+    required Score score,
+    required int partIndex,
+    required int measureIndex,
+    required int symbolIndex,
+    required ScoreSymbol symbol,
+  }) {
+    switch (intent) {
+      case EditorEditIntent.replaceSelection:
+      case EditorEditIntent.appendToMeasure:
+      case EditorEditIntent.insertAfterSelection:
+      case EditorEditIntent.insertAtTarget:
+      case EditorEditIntent.moveSelectionAcrossMeasures:
+      case EditorEditIntent.reorderWithinMeasure:
+      case EditorEditIntent.deleteSelection:
+        return applyEditWithSymbolSelection(
+          score: score,
+          partIndex: partIndex,
+          measureIndex: measureIndex,
+          symbolIndex: symbolIndex,
+          symbol: symbol,
+        );
+      default:
+        throw ArgumentError.value(
+          intent,
+          'intent',
+          'Intent does not preserve symbol selection.',
+        );
+    }
+  }
+
+  EditorState _applySelectionPreservingEdit({
+    required EditorEditIntent intent,
+    required Score score,
+  }) {
+    switch (intent) {
+      case EditorEditIntent.updateMeasureMetadata:
+      case EditorEditIntent.reorderWithinMeasure:
+        return applyEditPreservingSelection(score: score);
+      default:
+        throw ArgumentError.value(
+          intent,
+          'intent',
+          'Intent does not preserve existing selection.',
+        );
+    }
+  }
+
+  bool _canReplaceSelectedSymbolWithDuration(int nextDuration) {
+    if (!hasEditableSelection) {
+      return false;
+    }
+
+    final partIndex = selectedPartIndex!;
+    final measureIndex = selectedMeasureIndex!;
+    final currentDuration = _symbolDuration(selectedSymbol!);
+
+    return _canMeasureAcceptDuration(
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      nextDuration: nextDuration,
+      replacingDuration: currentDuration,
+    );
+  }
+
+  bool _canMeasureAcceptSymbol({
+    required int partIndex,
+    required int measureIndex,
+    required ScoreSymbol symbol,
+    int replacingSymbolDuration = 0,
+  }) {
+    return _canMeasureAcceptDuration(
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      nextDuration: _symbolDuration(symbol),
+      replacingDuration: replacingSymbolDuration,
+    );
+  }
+
+  bool _canMeasureAcceptDuration({
+    required int partIndex,
+    required int measureIndex,
+    required int nextDuration,
+    required int replacingDuration,
+  }) {
+    final capacity = _measureCapacityDuration(
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+    );
+    if (capacity == null || nextDuration <= 0) {
+      return true;
+    }
+
+    final used = _measureUsedDuration(
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+    );
+    return used - replacingDuration + nextDuration <= capacity;
+  }
+
+  int _measureUsedDuration({
+    required int partIndex,
+    required int measureIndex,
+  }) {
+    final measure = score.parts[partIndex].measures[measureIndex];
+    return measure.symbols.fold<int>(
+      0,
+      (sum, symbol) => sum + _symbolDuration(symbol),
+    );
+  }
+
+  int? _measureCapacityDuration({
+    required int partIndex,
+    required int measureIndex,
+  }) {
+    final timeSignature = _activeTimeSignatureForMeasure(
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+    );
+    if (timeSignature == null) {
+      return null;
+    }
+
+    return (wholeDuration.divisions * timeSignature.beats) ~/
+        timeSignature.beatType;
+  }
+
+  int _symbolDuration(ScoreSymbol symbol) {
+    return switch (symbol) {
+      Note(:final duration) => duration,
+      Rest(:final duration) => duration,
+      _ => 0,
+    };
+  }
+
+  TimeSignature? _activeTimeSignatureForMeasure({
+    required int partIndex,
+    required int measureIndex,
+  }) {
+    final measures = score.parts[partIndex].measures;
+    for (var i = measureIndex; i >= 0; i--) {
+      final timeSignature = measures[i].timeSignature;
+      if (timeSignature != null) {
+        return timeSignature;
+      }
+    }
+
+    return null;
+  }
 }
 
 Note _moveNoteByScaleStep(Note note, int steps) {

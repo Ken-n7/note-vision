@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:note_vision/core/services/scan_preferences_service.dart';
 import 'package:note_vision/core/services/usage_stats_service.dart';
 import 'package:note_vision/core/services/user_profile_service.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
@@ -89,6 +90,8 @@ class _ProfileStatsScreenState extends State<ProfileStatsScreen> {
                 ),
                 const SizedBox(height: 28),
                 _StatsSection(stats: stats),
+                const SizedBox(height: 28),
+                const _ScanSettingsSection(),
               ],
             ),
           );
@@ -291,6 +294,128 @@ class _StatCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Scan settings section ────────────────────────────────────────────────────
+
+class _ScanSettingsSection extends StatefulWidget {
+  const _ScanSettingsSection();
+
+  @override
+  State<_ScanSettingsSection> createState() => _ScanSettingsSectionState();
+}
+
+class _ScanSettingsSectionState extends State<_ScanSettingsSection> {
+  bool _skipPreview = false;
+  bool _skipReview  = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final results = await Future.wait([
+      ScanPreferencesService.getSkipPreview(),
+      ScanPreferencesService.getSkipReview(),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _skipPreview = results[0];
+      _skipReview  = results[1];
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'SCAN SETTINGS',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textSecondary,
+            letterSpacing: 2.0,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            children: [
+              _buildToggle(
+                icon: Icons.hide_image_outlined,
+                title: 'Skip image preview',
+                subtitle: 'Go straight to scanning when an image is selected',
+                value: _skipPreview,
+                onChanged: (v) async {
+                  setState(() => _skipPreview = v);
+                  await ScanPreferencesService.setSkipPreview(v);
+                },
+              ),
+              const Divider(color: AppColors.border, height: 1, indent: 16, endIndent: 16),
+              _buildToggle(
+                icon: Icons.skip_next_rounded,
+                title: 'Skip scan review',
+                subtitle: 'Auto-proceed to editor when detection completes',
+                value: _skipReview,
+                onChanged: (v) async {
+                  setState(() => _skipReview = v);
+                  await ScanPreferencesService.setSkipReview(v);
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildToggle({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      leading: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: AppColors.accent.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, size: 16, color: AppColors.accent),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(
+          color: AppColors.textPrimary,
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+      ),
+      trailing: Switch(
+        value: value,
+        onChanged: onChanged,
+        activeThumbColor: AppColors.accent,
+        activeTrackColor: AppColors.accent.withValues(alpha: 0.4),
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
     );
   }

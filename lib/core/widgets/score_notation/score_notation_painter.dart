@@ -175,7 +175,12 @@ class ScoreNotationPainter extends CustomPainter {
 
         for (var symbolIndex = 0; symbolIndex < measure.symbols.length; symbolIndex++) {
           final symbol = measure.symbols[symbolIndex];
-          final progress = (symbolIndex + 1) / (measure.symbols.length + 1);
+          if (symbol is Note && symbol.isChordTone) {
+            continue;
+          }
+          final visualSlot = _visualSlotForIndex(measure.symbols, symbolIndex);
+          final slotCount = _visualSlotCount(measure.symbols);
+          final progress = (visualSlot + 1) / (slotCount + 1);
           final x = measureStartX + innerPadding + (drawableWidth * progress);
           final y = _symbolCenterY(symbol, row.staffTop, row.staffBottom, row.clefSign, clefLine: row.clefLine);
           targets.add(
@@ -377,6 +382,7 @@ class ScoreNotationPainter extends CustomPainter {
     if (measure.symbols.isEmpty) return;
 
     final symbolCount = measure.symbols.length;
+    final slotCount = _visualSlotCount(measure.symbols);
     const innerPadding = 16.0;
     final drawableWidth = math.max(
       12.0,
@@ -414,13 +420,14 @@ class ScoreNotationPainter extends CustomPainter {
     for (var i = 0; i < symbolCount; i++) {
       if (activeDrag != null && i == activeDrag.draggedSymbolIndex) continue;
       final symbol = measure.symbols[i];
-      var visualIndex = i;
+      var visualIndex = _visualSlotForIndex(measure.symbols, i);
       if (activeDrag != null) {
-        final compactIndex = i > activeDrag.draggedSymbolIndex ? i - 1 : i;
+        final draggedSlot = _visualSlotForIndex(measure.symbols, activeDrag.draggedSymbolIndex);
+        final compactIndex = visualIndex > draggedSlot ? visualIndex - 1 : visualIndex;
         visualIndex =
             compactIndex >= activeDrag.targetSymbolIndex ? compactIndex + 1 : compactIndex;
       }
-      final progress = (visualIndex + 1) / (symbolCount + 1);
+      final progress = (visualIndex + 1) / (slotCount + 1);
       final x = measureStartX + innerPadding + (drawableWidth * progress);
 
       if (symbol is Note) {
@@ -478,7 +485,7 @@ class ScoreNotationPainter extends CustomPainter {
     List<int>? current;
     for (var i = 0; i < symbols.length; i++) {
       final sym = symbols[i];
-      if (sym is Note && sym.type == 'eighth' && sym.beamed) {
+      if (sym is Note && !sym.isChordTone && sym.type == 'eighth' && sym.beamed) {
         current ??= [];
         current.add(i);
       } else {
@@ -638,7 +645,8 @@ class ScoreNotationPainter extends CustomPainter {
     bool suppressFlag = false,
   }) {
     final normalizedType = note.type.trim().toLowerCase();
-    final isWhole = normalizedType == 'whole';
+    final isBreve = normalizedType == 'breve';
+    final isWhole = normalizedType == 'whole' || isBreve;
     final isHalf = normalizedType == 'half';
     final isEighth = normalizedType == 'eighth' ||
         normalizedType == 'flag8thup' ||
@@ -694,11 +702,43 @@ class ScoreNotationPainter extends CustomPainter {
     }
     canvas.restore();
 
-    if (isWhole) return;
+    if (isBreve) {
+      final sidePaint = Paint()
+        ..color = const Color(0xFF111827)
+        ..strokeWidth = 1.2;
+      canvas.drawLine(Offset(x - headWidth * 0.9, y - 10), Offset(x - headWidth * 0.9, y + 10), sidePaint);
+      canvas.drawLine(Offset(x + headWidth * 0.9, y - 10), Offset(x + headWidth * 0.9, y + 10), sidePaint);
+    }
+
+    if (isWhole) {
+      _drawAugmentationDots(
+        canvas,
+        x: x + headWidth * 0.9,
+        y: y,
+        dots: note.dots,
+      );
+      return;
+    }
+
+    if (note.isChordTone) {
+      _drawAugmentationDots(
+        canvas,
+        x: x + headWidth * 0.9,
+        y: y,
+        dots: note.dots,
+      );
+      return;
+    }
 
     final stemUp = y > middleLineY;
     _drawStemAndFlag(canvas, x: x, y: y, stemUp: stemUp,
         drawFlag: isEighth && !suppressFlag);
+    _drawAugmentationDots(
+      canvas,
+      x: x + headWidth * 0.9,
+      y: y,
+      dots: note.dots,
+    );
   }
 
   void _drawStemAndFlag(
@@ -748,6 +788,12 @@ class ScoreNotationPainter extends CustomPainter {
       final line4Y = staffTop + (staffLineSpacing * 3);
       final rect = Rect.fromCenter(center: Offset(x, line4Y + 4.3), width: 16, height: 4.8);
       canvas.drawRect(rect, paint);
+      _drawAugmentationDots(
+        canvas,
+        x: x + 12,
+        y: line4Y + 4.3,
+        dots: rest.dots,
+      );
       return;
     }
 
@@ -755,6 +801,12 @@ class ScoreNotationPainter extends CustomPainter {
       final line3Y = staffTop + (staffLineSpacing * 2);
       final rect = Rect.fromCenter(center: Offset(x, line3Y - 3.0), width: 16, height: 4.8);
       canvas.drawRect(rect, paint);
+      _drawAugmentationDots(
+        canvas,
+        x: x + 12,
+        y: line3Y - 3.0,
+        dots: rest.dots,
+      );
       return;
     }
 
@@ -772,6 +824,52 @@ class ScoreNotationPainter extends CustomPainter {
       ..lineTo(x - 1, y + 5)
       ..close();
     canvas.drawPath(path, paint);
+    _drawAugmentationDots(
+      canvas,
+      x: x + 10,
+      y: y + 8,
+      dots: rest.dots,
+    );
+  }
+
+  void _drawAugmentationDots(
+    Canvas canvas, {
+    required double x,
+    required double y,
+    required int dots,
+  }) {
+    if (dots <= 0) return;
+
+    final paint = Paint()
+      ..color = const Color(0xFF111827)
+      ..style = PaintingStyle.fill;
+
+    for (var i = 0; i < dots; i++) {
+      canvas.drawCircle(Offset(x + (i * 6), y - 2), 2.1, paint);
+    }
+  }
+
+  static int _visualSlotCount(List<ScoreSymbol> symbols) {
+    var count = 0;
+    for (final symbol in symbols) {
+      if (symbol is Note && symbol.isChordTone) {
+        continue;
+      }
+      count++;
+    }
+    return math.max(count, 1);
+  }
+
+  static int _visualSlotForIndex(List<ScoreSymbol> symbols, int index) {
+    var slot = -1;
+    for (var i = 0; i <= index; i++) {
+      final symbol = symbols[i];
+      if (symbol is Note && symbol.isChordTone) {
+        continue;
+      }
+      slot++;
+    }
+    return math.max(slot, 0);
   }
 
   void _drawMeasureNumber(
@@ -922,11 +1020,25 @@ class ScoreNotationPainter extends CustomPainter {
     const flatOrderBass = [
       ('B', 2), ('E', 3), ('A', 2), ('D', 3), ('G', 2), ('C', 3), ('F', 2),
     ];
+    const sharpOrderAlto = [
+      ('F', 4), ('C', 4), ('G', 4), ('D', 4), ('A', 4), ('E', 4), ('B', 4),
+    ];
+    const flatOrderAlto = [
+      ('B', 3), ('E', 4), ('A', 3), ('D', 4), ('G', 3), ('C', 4), ('F', 3),
+    ];
+    const sharpOrderTenor = [
+      ('F', 3), ('C', 4), ('G', 3), ('D', 4), ('A', 3), ('E', 4), ('B', 3),
+    ];
+    const flatOrderTenor = [
+      ('B', 3), ('E', 4), ('A', 3), ('D', 4), ('G', 3), ('C', 4), ('F', 3),
+    ];
 
     final isBass = clefSign.toUpperCase() == 'F';
+    final isAlto = clefSign.toUpperCase() == 'C' && clefLine == 3;
+    final isTenor = clefSign.toUpperCase() == 'C' && clefLine == 4;
     final order = isSharp
-        ? (isBass ? sharpOrderBass : sharpOrderTreble)
-        : (isBass ? flatOrderBass : flatOrderTreble);
+        ? (isBass ? sharpOrderBass : isAlto ? sharpOrderAlto : isTenor ? sharpOrderTenor : sharpOrderTreble)
+        : (isBass ? flatOrderBass : isAlto ? flatOrderAlto : isTenor ? flatOrderTenor : flatOrderTreble);
 
     for (var i = 0; i < count; i++) {
       final pitch = order[i];

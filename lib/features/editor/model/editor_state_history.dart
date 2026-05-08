@@ -54,6 +54,46 @@ extension EditorStateHistory on EditorState {
     );
   }
 
+  EditorState applyEditWithMeasureContext({
+    required Score score,
+    required int partIndex,
+    required int measureIndex,
+  }) {
+    return applyEdit(
+      score: score,
+      selectedPartIndex: partIndex,
+      selectedMeasureIndex: measureIndex,
+      selectedSymbolIndex: null,
+      selectedSymbol: null,
+    );
+  }
+
+  EditorState applyEditWithSymbolSelection({
+    required Score score,
+    required int partIndex,
+    required int measureIndex,
+    required int symbolIndex,
+    required ScoreSymbol symbol,
+  }) {
+    return applyEdit(
+      score: score,
+      selectedPartIndex: partIndex,
+      selectedMeasureIndex: measureIndex,
+      selectedSymbolIndex: symbolIndex,
+      selectedSymbol: symbol,
+    );
+  }
+
+  EditorState applyEditPreservingSelection({required Score score}) {
+    return applyEdit(
+      score: score,
+      selectedPartIndex: selectedPartIndex,
+      selectedMeasureIndex: selectedMeasureIndex,
+      selectedSymbolIndex: selectedSymbolIndex,
+      selectedSymbol: selectedSymbol,
+    );
+  }
+
   EditorSnapshot toSnapshot() => EditorSnapshot(
     score: score,
     selectedPartIndex: selectedPartIndex,

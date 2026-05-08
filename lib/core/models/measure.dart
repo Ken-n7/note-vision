@@ -1,3 +1,4 @@
+import 'barline_type.dart';
 import 'clef.dart';
 import 'key_signature.dart';
 import 'note.dart';
@@ -11,6 +12,10 @@ class Measure {
   final TimeSignature? timeSignature;
   final KeySignature? keySignature;
   final List<ScoreSymbol> symbols;
+  final bool startsNewPage;
+  final bool startsNewSystem;
+  final BarlineType? leftBarlineType;
+  final BarlineType? rightBarlineType;
 
   const Measure({
     required this.number,
@@ -18,6 +23,10 @@ class Measure {
     this.timeSignature,
     this.keySignature,
     required this.symbols,
+    this.startsNewPage = false,
+    this.startsNewSystem = false,
+    this.leftBarlineType,
+    this.rightBarlineType,
   });
 
   Map<String, dynamic> toJson() => {
@@ -26,6 +35,10 @@ class Measure {
         if (timeSignature != null) 'timeSignature': timeSignature!.toJson(),
         if (keySignature != null) 'keySignature': keySignature!.toJson(),
         'symbols': symbols.map((s) => s.toJson()).toList(),
+        if (startsNewPage) 'startsNewPage': true,
+        if (startsNewSystem) 'startsNewSystem': true,
+        if (leftBarlineType != null) 'leftBarlineType': leftBarlineType!.jsonValue,
+        if (rightBarlineType != null) 'rightBarlineType': rightBarlineType!.jsonValue,
       };
 
   factory Measure.fromJson(Map<String, dynamic> json) => Measure(
@@ -44,6 +57,14 @@ class Measure {
         symbols: (json['symbols'] as List<dynamic>)
             .map((s) => _symbolFromJson(s as Map<String, dynamic>))
             .toList(),
+        startsNewPage: json['startsNewPage'] as bool? ?? false,
+        startsNewSystem: json['startsNewSystem'] as bool? ?? false,
+        leftBarlineType: json['leftBarlineType'] != null
+            ? BarlineType.fromJsonValue(json['leftBarlineType'] as String)
+            : null,
+        rightBarlineType: json['rightBarlineType'] != null
+            ? BarlineType.fromJsonValue(json['rightBarlineType'] as String)
+            : null,
       );
 
   static ScoreSymbol _symbolFromJson(Map<String, dynamic> json) {
@@ -70,6 +91,8 @@ class Measure {
     if (clef != null) buffer.writeln('    $clef');
     if (timeSignature != null) buffer.writeln('    $timeSignature');
     if (keySignature != null) buffer.writeln('    $keySignature');
+    if (leftBarlineType != null) buffer.writeln('    leftBarlineType: $leftBarlineType');
+    if (rightBarlineType != null) buffer.writeln('    rightBarlineType: $rightBarlineType');
     for (final symbol in symbols) {
       buffer.writeln('    $symbol');
     }

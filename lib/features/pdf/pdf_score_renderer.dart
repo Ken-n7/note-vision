@@ -144,6 +144,7 @@ class PdfScoreRenderer {
           staffTop: staffTop,
           startMeasureGlobal: startM,
           clefSign: _clefSign(rowMeasures),
+          clefLine: _clefLine(rowMeasures),
           isFirstSystem: si == 0,
         );
       }
@@ -184,6 +185,7 @@ class PdfScoreRenderer {
     required double staffTop,
     required int startMeasureGlobal,
     required String clefSign,
+    required int clefLine,
     required bool isFirstSystem,
   }) {
     // staffTop = y of top staff line (PDF: y from bottom)
@@ -206,6 +208,8 @@ class PdfScoreRenderer {
     // Clef
     if (clefSign.toUpperCase() == 'F') {
       _drawBassClef(g, _marginPt + 4, staffTop, staffBottom);
+    } else if (clefSign.toUpperCase() == 'C') {
+      _drawCClef(g, _marginPt + 4, staffTop, staffBottom, clefLine: clefLine);
     } else {
       _drawTrebleClef(g, _marginPt + 6, staffTop, staffBottom);
     }
@@ -222,6 +226,7 @@ class PdfScoreRenderer {
           first.keySignature!.fifths,
           staffBottom: staffBottom,
           clefSign: clefSign,
+          clefLine: clefLine,
         );
       }
       if (first.timeSignature != null) {
@@ -259,6 +264,7 @@ class PdfScoreRenderer {
         staffTop: staffTop,
         staffBottom: staffBottom,
         clefSign: clefSign,
+        clefLine: clefLine,
       );
     }
   }
@@ -273,6 +279,7 @@ class PdfScoreRenderer {
     required double staffTop,
     required double staffBottom,
     required String clefSign,
+    int clefLine = 2,
   }) {
     if (measure.symbols.isEmpty) return;
 
@@ -280,12 +287,13 @@ class PdfScoreRenderer {
     final drawableW =
         math.max(12.0, (measureEndX - measureStartX) - innerPad * 2);
     final count = measure.symbols.length;
+    final slotCount = _visualSlotCount(measure.symbols);
     final middleLineY = staffTop - _ls * 2; // 3rd staff line from top
 
     // Pre-compute x/y positions for all symbols.
     final xs = List<double>.generate(
       count,
-      (i) => measureStartX + innerPad + drawableW * (i + 1) / (count + 1),
+      (i) => measureStartX + innerPad + drawableW * (_visualSlotForIndex(measure.symbols, i) + 1) / (slotCount + 1),
     );
     final ys = <double>[];
     for (var i = 0; i < count; i++) {
@@ -297,6 +305,7 @@ class PdfScoreRenderer {
           bottomLineY: staffBottom,
           lineSpacing: _ls,
           clefSign: clefSign,
+          clefLine: clefLine,
         ));
       } else {
         ys.add(staffTop - _ls * 2);
@@ -367,7 +376,7 @@ class PdfScoreRenderer {
 
     for (var i = 0; i < symbols.length; i++) {
       final sym = symbols[i];
-      if (sym is Note && sym.type == 'eighth' && sym.beamed) {
+      if (sym is Note && !sym.isChordTone && sym.type == 'eighth' && sym.beamed) {
         current ??= [];
         current.add(i);
       } else {
@@ -394,7 +403,8 @@ class PdfScoreRenderer {
     bool suppressFlag = false,
   }) {
     final type = note.type.trim().toLowerCase();
-    final isWhole = type == 'whole';
+    final isBreve = type == 'breve';
+    final isWhole = type == 'whole' || isBreve;
     final isHalf = type == 'half';
     final isEighth = type == 'eighth';
 
@@ -423,7 +433,20 @@ class PdfScoreRenderer {
       g.setColor(_ink);
     }
 
+    if (isBreve) {
+      _line(g, x - hw * 1.6, y - 11, x - hw * 1.6, y + 11, 0.8);
+      _line(g, x + hw * 1.6, y - 11, x + hw * 1.6, y + 11, 0.8);
+    }
+
+    if (note.dots > 0) {
+      _drawAugmentationDots(g, x: x + 11, y: y, dots: note.dots);
+    }
+
     if (isWhole) return;
+
+    if (note.isChordTone) {
+      return;
+    }
 
     // Stem
     final stemUp = y < middleLineY;
@@ -504,6 +527,7 @@ class PdfScoreRenderer {
       final lineY = staffTop - _ls * 3;
       g.drawRect(x - 6.5, lineY - 3.5, 13, 3.5);
       g.fillPath();
+      _drawAugmentationDots(g, x: x + 10, y: lineY - 1.5, dots: rest.dots);
       return;
     }
 
@@ -512,6 +536,7 @@ class PdfScoreRenderer {
       final lineY = staffTop - _ls * 2;
       g.drawRect(x - 6.5, lineY, 13, 3.5);
       g.fillPath();
+      _drawAugmentationDots(g, x: x + 10, y: lineY + 1.5, dots: rest.dots);
       return;
     }
 
@@ -526,6 +551,21 @@ class PdfScoreRenderer {
     g.lineTo(x + 2.5, qy + 12);
     g.lineTo(x - 3, qy + 14);
     g.strokePath();
+    _drawAugmentationDots(g, x: x + 8, y: qy + 7, dots: rest.dots);
+  }
+
+  void _drawAugmentationDots(
+    PdfGraphics g, {
+    required double x,
+    required double y,
+    required int dots,
+  }) {
+    if (dots <= 0) return;
+    g.setColor(_ink);
+    for (var i = 0; i < dots; i++) {
+      g.drawEllipse(x + (i * 5.5), y - 1.2, 2.4, 2.4);
+      g.fillPath();
+    }
   }
 
   // ── Clef ──────────────────────────────────────────────────────────────────
@@ -586,6 +626,52 @@ class PdfScoreRenderer {
     g.fillPath();
   }
 
+  void _drawCClef(
+    PdfGraphics g,
+    double x,
+    double staffTop,
+    double staffBottom, {
+    required int clefLine,
+  }) {
+    final targetY = staffBottom + (clefLine - 1) * _ls;
+
+    g.setColor(_ink);
+
+    // Left vertical bar (spine) — drawn as a thick stroke
+    g.setLineWidth(3.5);
+    g.moveTo(x + 1.75, staffTop);
+    g.lineTo(x + 1.75, staffBottom);
+    g.strokePath();
+
+    // Upper bracket: horizontal then vertical down to targetY
+    g.setLineWidth(2.0);
+    g.moveTo(x + 3.5, staffTop);
+    g.lineTo(x + 14, staffTop);
+    g.strokePath();
+
+    g.setLineWidth(1.5);
+    g.moveTo(x + 14, staffTop);
+    g.lineTo(x + 14, targetY);
+    g.strokePath();
+
+    // Lower bracket: horizontal then vertical up to targetY
+    g.setLineWidth(2.0);
+    g.moveTo(x + 3.5, staffBottom);
+    g.lineTo(x + 14, staffBottom);
+    g.strokePath();
+
+    g.setLineWidth(1.5);
+    g.moveTo(x + 14, targetY);
+    g.lineTo(x + 14, staffBottom);
+    g.strokePath();
+
+    // Centre line at the target staff line
+    g.setLineWidth(1.2);
+    g.moveTo(x + 3.5, targetY);
+    g.lineTo(x + 12, targetY);
+    g.strokePath();
+  }
+
   // ── Key signature ──────────────────────────────────────────────────────────
 
   double _drawKeySignature(
@@ -595,6 +681,7 @@ class PdfScoreRenderer {
     int fifths, {
     required double staffBottom,
     required String clefSign,
+    int clefLine = 2,
   }) {
     if (fifths == 0) return x;
     final isSharp = fifths > 0;
@@ -612,11 +699,25 @@ class PdfScoreRenderer {
     const flatOrderBass = [
       ('B', 2), ('E', 3), ('A', 2), ('D', 3), ('G', 2), ('C', 3), ('F', 2),
     ];
+    const sharpOrderAlto = [
+      ('F', 4), ('C', 4), ('G', 4), ('D', 4), ('A', 4), ('E', 4), ('B', 4),
+    ];
+    const flatOrderAlto = [
+      ('B', 3), ('E', 4), ('A', 3), ('D', 4), ('G', 3), ('C', 4), ('F', 3),
+    ];
+    const sharpOrderTenor = [
+      ('F', 3), ('C', 4), ('G', 3), ('D', 4), ('A', 3), ('E', 4), ('B', 3),
+    ];
+    const flatOrderTenor = [
+      ('B', 3), ('E', 4), ('A', 3), ('D', 4), ('G', 3), ('C', 4), ('F', 3),
+    ];
 
     final isBass = clefSign.toUpperCase() == 'F';
+    final isAlto = clefSign.toUpperCase() == 'C' && clefLine == 3;
+    final isTenor = clefSign.toUpperCase() == 'C' && clefLine == 4;
     final order = isSharp
-        ? (isBass ? sharpOrderBass : sharpOrderTreble)
-        : (isBass ? flatOrderBass : flatOrderTreble);
+        ? (isBass ? sharpOrderBass : isAlto ? sharpOrderAlto : isTenor ? sharpOrderTenor : sharpOrderTreble)
+        : (isBass ? flatOrderBass : isAlto ? flatOrderAlto : isTenor ? flatOrderTenor : flatOrderTreble);
 
     for (var i = 0; i < count; i++) {
       final pitch = order[i];
@@ -626,6 +727,7 @@ class PdfScoreRenderer {
         bottomLineY: staffBottom,
         lineSpacing: _ls,
         clefSign: clefSign,
+        clefLine: clefLine,
       );
       _text(g, font, 7, isSharp ? '#' : 'b', x, y + 2);
       x += 6;
@@ -664,11 +766,41 @@ class PdfScoreRenderer {
 
   double _strWidth(String s, double size) => s.length * size * 0.52;
 
+  int _visualSlotCount(List<dynamic> symbols) {
+    var count = 0;
+    for (final symbol in symbols) {
+      if (symbol is Note && symbol.isChordTone) {
+        continue;
+      }
+      count++;
+    }
+    return math.max(count, 1);
+  }
+
+  int _visualSlotForIndex(List<dynamic> symbols, int index) {
+    var slot = -1;
+    for (var i = 0; i <= index; i++) {
+      final symbol = symbols[i];
+      if (symbol is Note && symbol.isChordTone) {
+        continue;
+      }
+      slot++;
+    }
+    return math.max(slot, 0);
+  }
+
   static String _clefSign(List<Measure> measures) {
     for (final m in measures) {
       if (m.clef != null) return m.clef!.sign;
     }
     return 'G';
+  }
+
+  static int _clefLine(List<Measure> measures) {
+    for (final m in measures) {
+      if (m.clef != null) return m.clef!.line;
+    }
+    return 2;
   }
 }
 

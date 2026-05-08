@@ -234,6 +234,46 @@ void main() {
       expect(events[0].baseDurationMs, 500);
     });
 
+    test('dotted symbols use augmented playback durations', () {
+      final score = _score([
+        _part([
+          _measure([
+            const Note(step: 'C', octave: 4, duration: 3, type: 'quarter', dots: 1),
+            const Rest(duration: 6, type: 'half', dots: 1),
+          ]),
+        ]),
+      ]);
+      final events = converter.buildEvents(score);
+
+      expect(events, hasLength(2));
+      expect(events[0].baseDurationMs, 750);
+      expect(events[1].baseDurationMs, 1500);
+    });
+
+    test('chord tones are flagged without changing duration', () {
+      final score = _score([
+        _part([
+          _measure([
+            const Note(step: 'C', octave: 4, duration: 2, type: 'quarter'),
+            const Note(
+              step: 'E',
+              octave: 4,
+              duration: 2,
+              type: 'quarter',
+              isChordTone: true,
+            ),
+          ]),
+        ]),
+      ]);
+      final events = converter.buildEvents(score);
+
+      expect(events, hasLength(2));
+      expect(events[0].isChordTone, isFalse);
+      expect(events[1].isChordTone, isTrue);
+      expect(events[0].baseDurationMs, 500);
+      expect(events[1].baseDurationMs, 500);
+    });
+
     test('events appear in measure then symbol order', () {
       final score = _score([
         _part([

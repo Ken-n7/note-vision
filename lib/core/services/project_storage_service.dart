@@ -19,6 +19,7 @@ class ProjectStorageService {
 
   /// Overridable for testing — when null the real documents directory is used.
   final Future<Directory> Function()? _projectsDirOverride;
+  Future<SharedPreferences>? _prefsFuture;
 
   ProjectStorageService({Future<Directory> Function()? projectsDirOverride})
       : _projectsDirOverride = projectsDirOverride;
@@ -80,8 +81,12 @@ class ProjectStorageService {
 
   // ── index helpers ───────────────────────────────────────────────────────
 
+  Future<SharedPreferences> _prefs() {
+    return _prefsFuture ??= SharedPreferences.getInstance();
+  }
+
   Future<List<Map<String, String>>> _readIndex() async {
-    final prefs = await SharedPreferences.getInstance();
+    final prefs = await _prefs();
     final raw = prefs.getString(_indexKey);
     if (raw == null) return [];
     return (jsonDecode(raw) as List<dynamic>)
@@ -89,18 +94,21 @@ class ProjectStorageService {
         .toList();
   }
 
+  Future<void> _writeIndex(List<Map<String, String>> index) async {
+    final prefs = await _prefs();
+    await prefs.setString(_indexKey, jsonEncode(index));
+  }
+
   Future<void> _upsertIndex(String id, String name) async {
     final index = await _readIndex();
     index.removeWhere((e) => e['id'] == id);
     index.add({'id': id, 'name': name});
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_indexKey, jsonEncode(index));
+    await _writeIndex(index);
   }
 
   Future<void> _removeFromIndex(String id) async {
     final index = await _readIndex();
     index.removeWhere((e) => e['id'] == id);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_indexKey, jsonEncode(index));
+    await _writeIndex(index);
   }
 }

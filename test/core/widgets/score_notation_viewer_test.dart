@@ -82,6 +82,74 @@ void main() {
   });
 
   group('ScoreNotationViewer', () {
+    test('sliceMeasuresWithInheritedMetadata carries signatures into later pages', () {
+      final measures = [
+        Measure(
+          number: 1,
+          clef: const Clef(sign: 'F', line: 4),
+          timeSignature: const TimeSignature(beats: 4, beatType: 4),
+          keySignature: const KeySignature(fifths: -1),
+          symbols: const [
+            Note(step: 'C', octave: 3, duration: 1, type: 'quarter'),
+          ],
+        ),
+        Measure(
+          number: 2,
+          symbols: const [
+            Note(step: 'D', octave: 3, duration: 1, type: 'quarter'),
+          ],
+        ),
+      ];
+
+      final sliced = sliceMeasuresWithInheritedMetadata(
+        measures: measures,
+        firstMeasureIndex: 1,
+        pageMeasureCount: 1,
+      );
+
+      expect(sliced, hasLength(1));
+      expect(sliced.single.clef?.sign, 'F');
+      expect(sliced.single.timeSignature?.beats, 4);
+      expect(sliced.single.timeSignature?.beatType, 4);
+      expect(sliced.single.keySignature?.fifths, -1);
+    });
+
+    test('sliceMeasuresWithInheritedMetadata preserves explicit later overrides', () {
+      final measures = [
+        Measure(
+          number: 1,
+          clef: const Clef(sign: 'G', line: 2),
+          timeSignature: const TimeSignature(beats: 4, beatType: 4),
+          keySignature: const KeySignature(fifths: 0),
+          symbols: const [
+            Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+          ],
+        ),
+        Measure(
+          number: 2,
+          clef: const Clef(sign: 'F', line: 4),
+          timeSignature: const TimeSignature(beats: 3, beatType: 4),
+          keySignature: const KeySignature(fifths: -2),
+          symbols: const [
+            Note(step: 'A', octave: 3, duration: 1, type: 'quarter'),
+          ],
+        ),
+      ];
+
+      final sliced = sliceMeasuresWithInheritedMetadata(
+        measures: measures,
+        firstMeasureIndex: 1,
+        pageMeasureCount: 1,
+      );
+
+      expect(sliced, hasLength(1));
+      expect(sliced.single.clef?.sign, 'F');
+      expect(sliced.single.clef?.line, 4);
+      expect(sliced.single.timeSignature?.beats, 3);
+      expect(sliced.single.timeSignature?.beatType, 4);
+      expect(sliced.single.keySignature?.fifths, -2);
+    });
+
     testWidgets('renders empty-state text for null score', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
@@ -507,6 +575,84 @@ void main() {
         expect(reorderEvent!.fromMeasureIndex, isNot(equals(reorderEvent!.toMeasureIndex)));
       }
       expect(tester.takeException(), isNull);
+    });
+
+    test('notation layout exposes explicit system ranges', () {
+      final measures = List.generate(
+        5,
+        (i) => Measure(number: i + 1, symbols: const []),
+      );
+
+      final layout = const NotationLayoutCalculator().calculate(
+        measures: measures,
+        measuresPerRow: 2,
+        minMeasureWidth: 140,
+        rowHeight: 140,
+        padding: EdgeInsets.all(16),
+      );
+
+      expect(layout.rowCount, 3);
+      expect(layout.systems.length, 3);
+      expect(layout.systems[0].startMeasureIndex, 0);
+      expect(layout.systems[0].endMeasureIndexExclusive, 2);
+      expect(layout.systems[1].startMeasureIndex, 2);
+      expect(layout.systems[1].endMeasureIndexExclusive, 4);
+      expect(layout.systems[2].startMeasureIndex, 4);
+      expect(layout.systems[2].endMeasureIndexExclusive, 5);
+    });
+
+    test('sliceScoreForLayout normalizes inherited metadata for each part on the page', () {
+      final score = Score(
+        id: 'multi-part-slice',
+        title: 'Slice',
+        composer: 'Tester',
+        parts: const [
+          Part(
+            id: 'P1',
+            name: 'Top',
+            measures: [
+              Measure(
+                number: 1,
+                clef: Clef(sign: 'G', line: 2),
+                timeSignature: TimeSignature(beats: 4, beatType: 4),
+                symbols: [],
+              ),
+              Measure(number: 2, symbols: []),
+            ],
+          ),
+          Part(
+            id: 'P2',
+            name: 'Bottom',
+            measures: [
+              Measure(
+                number: 1,
+                clef: Clef(sign: 'F', line: 4),
+                keySignature: KeySignature(fifths: -1),
+                symbols: [],
+              ),
+              Measure(number: 2, symbols: []),
+            ],
+          ),
+        ],
+      );
+
+      final slice = sliceScoreForLayout(
+        score: score,
+        firstMeasureIndex: 1,
+        pageMeasureCount: 1,
+      );
+
+      expect(slice.parts.length, 2);
+      expect(slice.parts[0].single.clef, const Clef(sign: 'G', line: 2));
+      expect(
+        slice.parts[0].single.timeSignature,
+        const TimeSignature(beats: 4, beatType: 4),
+      );
+      expect(slice.parts[1].single.clef, const Clef(sign: 'F', line: 4));
+      expect(
+        slice.parts[1].single.keySignature,
+        const KeySignature(fifths: -1),
+      );
     });
   });
 }

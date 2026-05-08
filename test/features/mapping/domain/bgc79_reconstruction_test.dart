@@ -209,7 +209,7 @@ void main() {
       final note = result.score.parts.single.measures.single.notes.single;
 
       expect(note.type, 'whole');
-      expect(note.duration, 4);
+      expect(note.duration, 8);
     });
 
     test('stemless noteheadBlack as last symbol with 2 beats remaining → half', () {

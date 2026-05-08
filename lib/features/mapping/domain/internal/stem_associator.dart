@@ -29,8 +29,11 @@ class StemAssociator {
       final usedStemIds = <String>{};
       final usedFlagIds = <String>{};
 
+      final stemsById = <String, StaffOwnedSymbol>{};
+      final chordMembersByStemId = <String, List<StaffOwnedSymbol>>{};
+
       for (final notehead in noteheads) {
-        final stem = _pickClosestStem(notehead.symbol, stems, usedStemIds);
+        final stem = _pickClosestStem(notehead.symbol, stems, const <String>{});
 
         if (stem == null) {
           result[notehead.symbol.id] = const StemLink();
@@ -43,16 +46,27 @@ class StemAssociator {
         }
 
         usedStemIds.add(stem.symbol.id);
-        final flag = _pickClosestFlag(stem.symbol, flags, usedFlagIds);
-        if (flag != null) usedFlagIds.add(flag.symbol.id);
+        stemsById[stem.symbol.id] = stem;
+        chordMembersByStemId.putIfAbsent(stem.symbol.id, () => <StaffOwnedSymbol>[]).add(notehead);
+      }
 
+      for (final entry in chordMembersByStemId.entries) {
+        final stem = stemsById[entry.key]!;
+        final members = entry.value..sort(_compareChordMembers);
+        final flag = _pickClosestFlag(stem.symbol, flags, usedFlagIds);
+        if (flag != null) {
+          usedFlagIds.add(flag.symbol.id);
+        }
         final hasBeam = _hasNearbyBeam(stem.symbol, beams);
 
-        result[notehead.symbol.id] = StemLink(
-          stem: stem.symbol,
-          flag: flag?.symbol,
-          hasBeam: hasBeam,
-        );
+        for (var i = 0; i < members.length; i++) {
+          result[members[i].symbol.id] = StemLink(
+            stem: stem.symbol,
+            flag: flag?.symbol,
+            hasBeam: hasBeam,
+            isChordTone: i > 0,
+          );
+        }
       }
 
       _warnUnclaimed(stems, usedStemIds, 'Stem', warnings);
@@ -119,6 +133,12 @@ class StemAssociator {
     }
 
     return best;
+  }
+
+  int _compareChordMembers(StaffOwnedSymbol a, StaffOwnedSymbol b) {
+    final xCompare = a.symbolCenterX.compareTo(b.symbolCenterX);
+    if (xCompare != 0) return xCompare;
+    return b.symbol.y.compareTo(a.symbol.y);
   }
 
   /// Returns true when any beam symbol's X range overlaps the stem's X range,

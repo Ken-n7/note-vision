@@ -11,10 +11,15 @@ class SymbolClassifier {
       type == 'rest8th' ||
       type == 'rest16th';
 
+  static bool isAugmentationDot(String type) => type == 'augmentationDot';
+
+  static bool isRepeatDot(String type) => type == 'repeatDot';
+
   static bool isSupportedFlag(String type) =>
       type == 'flag8thUp' || type == 'flag8thDown';
 
   static bool isNotehead(String type) =>
+      type == 'noteheadDoubleWhole' ||
       type == 'noteheadWhole' ||
       type == 'noteheadHalf' ||
       type == 'noteheadBlack';
@@ -63,11 +68,22 @@ class SymbolClassifier {
       }[type];
 
   static int durationFor(String type) => switch (type) {
-        'whole' => 4,
-        'half' => 2,
-        'quarter' => 1,
+        'breve' => 16,
+        'whole' => 8,
+        'half' => 4,
+        'quarter' => 2,
         'eighth' => 1,
         'sixteenth' => 1,
         _ => 1,
       };
-}
+
+  static double beatValueFor(String type) => switch (type) {
+        'breve' => 8,
+        'whole' => 4,
+        'half' => 2,
+        'quarter' => 1,
+        'eighth' => 0.5,
+        'sixteenth' => 0.25,
+        _ => 1,
+      };
+} 

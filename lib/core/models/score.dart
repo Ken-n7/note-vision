@@ -1,8 +1,14 @@
+import 'dart:math' as math;
+
+import 'barline_type.dart';
+import 'clef.dart';
 import 'measure.dart';
 import 'part.dart';
 import 'score_symbol.dart';
 
 class Score {
+  static const Object _keep = Object();
+
   final String id;
   final String title;
   final String composer;
@@ -16,20 +22,20 @@ class Score {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'composer': composer,
-        'parts': parts.map((p) => p.toJson()).toList(),
-      };
+    'id': id,
+    'title': title,
+    'composer': composer,
+    'parts': parts.map((p) => p.toJson()).toList(),
+  };
 
   factory Score.fromJson(Map<String, dynamic> json) => Score(
-        id: json['id'] as String,
-        title: json['title'] as String,
-        composer: (json['composer'] as String?) ?? '',
-        parts: (json['parts'] as List<dynamic>)
-            .map((p) => Part.fromJson(p as Map<String, dynamic>))
-            .toList(),
-      );
+    id: json['id'] as String,
+    title: json['title'] as String,
+    composer: (json['composer'] as String?) ?? '',
+    parts: (json['parts'] as List<dynamic>)
+        .map((p) => Part.fromJson(p as Map<String, dynamic>))
+        .toList(),
+  );
 
   int get partCount => parts.length;
 
@@ -83,6 +89,54 @@ class Score {
     return _replaceMeasureSymbols(partIndex, measureIndex, symbols);
   }
 
+  Score setMeasureClef(int partIndex, int measureIndex, Clef? clef) {
+    final measure = _measureAt(partIndex, measureIndex);
+    if (measure == null) return this;
+    if (measure.clef == clef) return this;
+
+    return _replaceMeasure(
+      partIndex,
+      measureIndex,
+      _copyMeasure(measure, clef: clef),
+    );
+  }
+
+  /// Appends the measures of [other] to this score, matching parts by index.
+  /// Parts in [other] beyond this score's part count are ignored. Parts in
+  /// this score without a counterpart in [other] are left unchanged.
+  /// The newly appended measures are renumbered to continue from the last
+  /// measure of each existing part.
+  Score appendScore(Score other) {
+    if (other.parts.isEmpty) return this;
+    final count = math.min(parts.length, other.parts.length);
+    final updatedParts = <Part>[];
+    for (int i = 0; i < parts.length; i++) {
+      final cp = parts[i];
+      if (i >= count) {
+        updatedParts.add(cp);
+        continue;
+      }
+      final sp = other.parts[i];
+      final existingCount = cp.measures.length;
+      updatedParts.add(
+        Part(
+          id: cp.id,
+          name: cp.name,
+          measures: [
+            ...cp.measures,
+            for (int j = 0; j < sp.measures.length; j++)
+              _copyMeasure(
+                sp.measures[j],
+                number: existingCount + j + 1,
+                startsNewPage: j == 0, // each scanned page starts a new page
+              ),
+          ],
+        ),
+      );
+    }
+    return Score(id: id, title: title, composer: composer, parts: updatedParts);
+  }
+
   /// Inserts a new empty measure immediately after [measureIndex] in every
   /// part, then renumbers all measures in each part by their list position
   /// (1-indexed). Clef/key/time are left null on the new measure — the active
@@ -101,19 +155,11 @@ class Score {
         Measure(number: insertAt + 1, symbols: const []),
       );
 
-      // Renumber every measure by its new list position.
-      final renumbered = [
-        for (int i = 0; i < measures.length; i++)
-          Measure(
-            number: i + 1,
-            clef: measures[i].clef,
-            timeSignature: measures[i].timeSignature,
-            keySignature: measures[i].keySignature,
-            symbols: measures[i].symbols,
-          ),
-      ];
-
-      updatedParts[pi] = Part(id: part.id, name: part.name, measures: renumbered);
+      updatedParts[pi] = Part(
+        id: part.id,
+        name: part.name,
+        measures: _renumberMeasures(measures),
+      );
     }
 
     return Score(id: id, title: title, composer: composer, parts: updatedParts);
@@ -128,20 +174,14 @@ class Score {
     final updatedParts = List<Part>.from(parts);
     for (int pi = 0; pi < updatedParts.length; pi++) {
       final part = updatedParts[pi];
-      final measures = List<Measure>.from(part.measures)..removeAt(measureIndex);
+      final measures = List<Measure>.from(part.measures)
+        ..removeAt(measureIndex);
 
-      final renumbered = [
-        for (int i = 0; i < measures.length; i++)
-          Measure(
-            number: i + 1,
-            clef: measures[i].clef,
-            timeSignature: measures[i].timeSignature,
-            keySignature: measures[i].keySignature,
-            symbols: measures[i].symbols,
-          ),
-      ];
-
-      updatedParts[pi] = Part(id: part.id, name: part.name, measures: renumbered);
+      updatedParts[pi] = Part(
+        id: part.id,
+        name: part.name,
+        measures: _renumberMeasures(measures),
+      );
     }
 
     return Score(id: id, title: title, composer: composer, parts: updatedParts);
@@ -177,18 +217,25 @@ class Score {
     int measureIndex,
     List<ScoreSymbol> symbols,
   ) {
+    final measure = _measureAt(partIndex, measureIndex);
+    if (measure == null) return this;
+
+    return _replaceMeasure(
+      partIndex,
+      measureIndex,
+      _copyMeasure(measure, symbols: symbols),
+    );
+  }
+
+  Score _replaceMeasure(
+    int partIndex,
+    int measureIndex,
+    Measure updatedMeasure,
+  ) {
     final updatedParts = List<Part>.from(parts);
     final part = updatedParts[partIndex];
     final updatedMeasures = List<Measure>.from(part.measures);
-    final measure = updatedMeasures[measureIndex];
-
-    updatedMeasures[measureIndex] = Measure(
-      number: measure.number,
-      clef: measure.clef,
-      timeSignature: measure.timeSignature,
-      keySignature: measure.keySignature,
-      symbols: symbols,
-    );
+    updatedMeasures[measureIndex] = updatedMeasure;
 
     updatedParts[partIndex] = Part(
       id: part.id,
@@ -196,11 +243,38 @@ class Score {
       measures: updatedMeasures,
     );
 
-    return Score(
-      id: id,
-      title: title,
-      composer: composer,
-      parts: updatedParts,
+    return Score(id: id, title: title, composer: composer, parts: updatedParts);
+  }
+
+  List<Measure> _renumberMeasures(List<Measure> measures) {
+    return [
+      for (int i = 0; i < measures.length; i++)
+        _copyMeasure(measures[i], number: i + 1),
+    ];
+  }
+
+  Measure _copyMeasure(
+    Measure measure, {
+    int? number,
+    Object? clef = _keep,
+    List<ScoreSymbol>? symbols,
+    bool? startsNewPage,
+    Object? leftBarlineType = _keep,
+    Object? rightBarlineType = _keep,
+  }) {
+    return Measure(
+      number: number ?? measure.number,
+      clef: identical(clef, _keep) ? measure.clef : clef as Clef?,
+      timeSignature: measure.timeSignature,
+      keySignature: measure.keySignature,
+      symbols: symbols ?? measure.symbols,
+      startsNewPage: startsNewPage ?? measure.startsNewPage,
+      leftBarlineType: identical(leftBarlineType, _keep)
+          ? measure.leftBarlineType
+          : leftBarlineType as BarlineType?,
+      rightBarlineType: identical(rightBarlineType, _keep)
+          ? measure.rightBarlineType
+          : rightBarlineType as BarlineType?,
     );
   }
 

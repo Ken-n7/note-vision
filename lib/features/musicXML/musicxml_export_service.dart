@@ -2,11 +2,13 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:note_vision/core/models/barline_type.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/utils/export_file_name.dart';
 import 'package:xml/xml.dart';
 
@@ -108,6 +110,13 @@ class MusicXmlExportService {
       'measure',
       attributes: {'number': measure.number.toString()},
       nest: () {
+        if (!isFirst && (measure.startsNewPage || measure.startsNewSystem)) {
+          b.element('print', attributes: {
+            if (measure.startsNewPage) 'new-page': 'yes',
+            if (measure.startsNewSystem) 'new-system': 'yes',
+          });
+        }
+
         final needsAttributes = isFirst ||
             measure.clef != null ||
             measure.timeSignature != null ||
@@ -140,19 +149,40 @@ class MusicXmlExportService {
           });
         }
 
-        for (final symbol in measure.symbols) {
+        if (measure.leftBarlineType != null) {
+          _buildBarline(
+            b,
+            location: 'left',
+            type: measure.leftBarlineType!,
+          );
+        }
+
+        final symbols = measure.symbols;
+        for (var i = 0; i < symbols.length; i++) {
+          final symbol = symbols[i];
           if (symbol is Note) {
-            _buildNote(b, symbol);
+            _buildNote(b, symbol, beamValue: _beamValue(symbols, i));
           } else if (symbol is Rest) {
             _buildRest(b, symbol);
           }
+        }
+
+        if (measure.rightBarlineType != null) {
+          _buildBarline(
+            b,
+            location: 'right',
+            type: measure.rightBarlineType!,
+          );
         }
       },
     );
   }
 
-  void _buildNote(XmlBuilder b, Note note) {
+  void _buildNote(XmlBuilder b, Note note, {String? beamValue}) {
     b.element('note', nest: () {
+      if (note.isChordTone) {
+        b.element('chord');
+      }
       b.element('pitch', nest: () {
         b.element('step', nest: note.step);
         if (note.alter != null && note.alter != 0) {
@@ -165,10 +195,29 @@ class MusicXmlExportService {
         b.element('voice', nest: note.voice.toString());
       }
       b.element('type', nest: note.type);
+      if (note.dots > 0) {
+        for (var i = 0; i < note.dots; i++) {
+          b.element('dot');
+        }
+      }
       if (note.staff != null) {
         b.element('staff', nest: note.staff.toString());
       }
+      if (beamValue != null) {
+        b.element('beam', attributes: {'number': '1'}, nest: beamValue);
+      }
     });
+  }
+
+  String? _beamValue(List<ScoreSymbol> symbols, int index) {
+    final note = symbols[index];
+    if (note is! Note || !note.beamed) return null;
+    final prevBeamed = index > 0 && symbols[index - 1] is Note && (symbols[index - 1] as Note).beamed;
+    final nextBeamed = index < symbols.length - 1 && symbols[index + 1] is Note && (symbols[index + 1] as Note).beamed;
+    if (!prevBeamed && nextBeamed) return 'begin';
+    if (prevBeamed && nextBeamed) return 'continue';
+    if (prevBeamed && !nextBeamed) return 'end';
+    return 'begin';
   }
 
   void _buildRest(XmlBuilder b, Rest rest) {
@@ -179,8 +228,30 @@ class MusicXmlExportService {
         b.element('voice', nest: rest.voice.toString());
       }
       b.element('type', nest: rest.type);
+      if (rest.dots > 0) {
+        for (var i = 0; i < rest.dots; i++) {
+          b.element('dot');
+        }
+      }
       if (rest.staff != null) {
         b.element('staff', nest: rest.staff.toString());
+      }
+    });
+  }
+
+  void _buildBarline(
+    XmlBuilder b, {
+    required String location,
+    required BarlineType type,
+  }) {
+    b.element('barline', attributes: {'location': location}, nest: () {
+      switch (type) {
+        case BarlineType.repeatStart:
+          b.element('bar-style', nest: 'heavy-light');
+          b.element('repeat', attributes: {'direction': 'forward'});
+        case BarlineType.repeatEnd:
+          b.element('bar-style', nest: 'light-heavy');
+          b.element('repeat', attributes: {'direction': 'backward'});
       }
     });
   }
@@ -194,4 +265,5 @@ class MusicXmlExportService {
       '<!DOCTYPE score-partwise PUBLIC\n'
       '  "-//Recordare//DTD MusicXML 3.1 Partwise//EN"\n'
       '  "http://www.musicxml.org/dtds/partwise.dtd">\n';
+
 }

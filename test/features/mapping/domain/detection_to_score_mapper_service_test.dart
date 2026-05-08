@@ -277,12 +277,12 @@ void main() {
         expect(
           measure.symbols.map((symbol) => symbol.toString()).toList(),
           [
-            'Rest(duration: 2, type: half, staff: 1)',
-            'Note(pitch: G4, duration: 4, type: whole, staff: 1)',
-            'Note(pitch: B4, duration: 2, type: half, staff: 1)',
-            'Note(pitch: E4, duration: 1, type: quarter, staff: 1)',
+            'Rest(duration: 4, type: half, staff: 1)',
+            'Note(pitch: G4, duration: 8, type: whole, staff: 1)',
+            'Note(pitch: B4, duration: 4, type: half, staff: 1)',
+            'Note(pitch: E4, duration: 2, type: quarter, staff: 1)',
             'Note(pitch: E5, duration: 1, type: eighth, staff: 1)',
-            'Rest(duration: 4, type: whole, staff: 1)',
+            'Rest(duration: 8, type: whole, staff: 1)',
           ],
         );
       },

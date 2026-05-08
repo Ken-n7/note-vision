@@ -1,8 +1,15 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:note_vision/core/models/key_signature.dart';
+import 'package:note_vision/core/models/measure.dart';
+import 'package:note_vision/core/models/note.dart';
+import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/project.dart';
+import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/services/project_storage_service.dart';
 import 'package:note_vision/features/collection/presentation/collection_screen.dart';
 import 'package:note_vision/features/collection/presentation/widgets/empty_collection.dart';
@@ -24,15 +31,37 @@ class FakeProjectStorageService extends ProjectStorageService {
 
 // ── Minimal valid scoreJson ───────────────────────────────────────────────────
 
-const _minimalScoreJson =
-    '{"id":"test","title":"Test","composer":"","parts":[{"id":"P1","name":"Part 1","measures":[{"number":1,"clef":null,"timeSignature":null,"keySignature":null,"symbols":[]}]}]}';
+final _simpleMelodyScoreJson = jsonEncode(
+  Score(
+    id: 'test',
+    title: 'Test',
+    composer: '',
+    parts: [
+      Part(
+        id: 'P1',
+        name: 'Part 1',
+        measures: const [
+          Measure(
+            number: 1,
+            timeSignature: TimeSignature(beats: 4, beatType: 4),
+            keySignature: KeySignature(fifths: 0),
+            symbols: [
+              Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+              Note(step: 'D', octave: 4, duration: 1, type: 'quarter'),
+            ],
+          ),
+        ],
+      ),
+    ],
+  ).toJson(),
+);
 
 Project _makeProject(String name, {String id = '1'}) => Project(
       id: id,
       name: name,
       createdAt: DateTime(2026, 1, 1),
       updatedAt: DateTime(2026, 3, 20),
-      scoreJson: _minimalScoreJson,
+      scoreJson: _simpleMelodyScoreJson,
     );
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -94,10 +123,11 @@ void main() {
 
       expect(find.text('Symphony No. 1'), findsOneWidget);
       expect(find.text('Moonlight Sonata'), findsOneWidget);
+      expect(find.text('Simple Melody'), findsNWidgets(2));
       expect(find.text('2 projects'), findsOneWidget);
     });
 
-    testWidgets('shows app bar content and bottom navigation labels', (
+    testWidgets('shows app bar content and FAB', (
       WidgetTester tester,
     ) async {
       final service = FakeProjectStorageService(Future.value([]));
@@ -111,7 +141,7 @@ void main() {
       expect(find.byType(AppBar), findsOneWidget);
       expect(find.text('Note Vision'), findsOneWidget);
       expect(find.text('MY COLLECTION'), findsOneWidget);
-      expect(find.text('Add Files'), findsOneWidget);
+      expect(find.byType(FloatingActionButton), findsAtLeastNWidgets(1));
     });
 
     testWidgets('opens editor route when project tile is tapped', (

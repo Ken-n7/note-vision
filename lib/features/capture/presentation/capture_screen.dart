@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
 
+import 'package:note_vision/core/services/scan_preferences_service.dart';
 import 'package:note_vision/core/utils/image_picker_helper.dart';
+import 'package:note_vision/core/widgets/tappable_button.dart';
 import 'package:note_vision/core/widgets/drawer.dart';
 import 'package:note_vision/features/scan/presentation/scan_screen.dart';
-import 'package:note_vision/features/capture/presentation/import_score_screen.dart';
 
 class CaptureScreen extends StatefulWidget {
   const CaptureScreen({super.key});
@@ -17,6 +18,7 @@ class CaptureScreen extends StatefulWidget {
 class _CaptureScreenState extends State<CaptureScreen>
     with SingleTickerProviderStateMixin {
   File? _selectedImage;
+  bool _skipPreview = false;
 
   late AnimationController _previewController;
   late Animation<double> _previewFade;
@@ -49,6 +51,10 @@ class _CaptureScreenState extends State<CaptureScreen>
     _previewScale = Tween<double>(begin: 0.96, end: 1.0).animate(
       CurvedAnimation(parent: _previewController, curve: Curves.easeOut),
     );
+
+    ScanPreferencesService.getSkipPreview().then((v) {
+      if (mounted) setState(() => _skipPreview = v);
+    });
   }
 
   @override
@@ -57,19 +63,37 @@ class _CaptureScreenState extends State<CaptureScreen>
     super.dispose();
   }
 
-  Future<void> _openCameraAndShowPreview() async {
-    final file = await ImagePickerHelper.pickFromCamera(context);
-    if (file == null || !mounted) return;
-    setState(() => _selectedImage = file);
-    _previewController.forward(from: 0);
+  Future<void> _continueWithFile(File file) async {
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
+    // ignore: use_build_context_synchronously
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (_, _, _) => ScanScreenProvider(imageBytes: bytes),
+        transitionsBuilder: (_, animation, _, child) =>
+            FadeTransition(opacity: animation, child: child),
+        transitionDuration: const Duration(milliseconds: 400),
+      ),
+    );
   }
 
-  Future<void> _pickFromGallery() async {
-    final file = await ImagePickerHelper.pickFromGallery(context);
-    if (file != null && mounted) {
+  Future<void> _handlePickedFile(File? file) async {
+    if (file == null || !mounted) return;
+    if (_skipPreview) {
+      await _continueWithFile(file);
+    } else {
       setState(() => _selectedImage = file);
       _previewController.forward(from: 0);
     }
+  }
+
+  Future<void> _openCameraAndShowPreview() async {
+    await _handlePickedFile(await ImagePickerHelper.pickFromCamera(context));
+  }
+
+  Future<void> _pickFromGallery() async {
+    await _handlePickedFile(await ImagePickerHelper.pickFromGallery(context));
   }
 
   void _cancelSelection() {
@@ -170,7 +194,7 @@ class _CaptureScreenState extends State<CaptureScreen>
     required VoidCallback onPressed,
   }) {
     return Expanded(
-      child: _TappableButton(
+      child: TappableButton(
         onPressed: onPressed,
         child: Container(
           height: 52,
@@ -205,7 +229,7 @@ class _CaptureScreenState extends State<CaptureScreen>
     required VoidCallback onPressed,
   }) {
     return Expanded(
-      child: _TappableButton(
+      child: TappableButton(
         onPressed: onPressed,
         child: Container(
           height: 52,
@@ -235,20 +259,8 @@ class _CaptureScreenState extends State<CaptureScreen>
   }
 
   Widget _buildContinueButton() {
-    return _TappableButton(
-      onPressed: () async {
-        final bytes = await _selectedImage!.readAsBytes();
-        if (!mounted) return;
-        Navigator.push(
-          context,
-          PageRouteBuilder(
-            pageBuilder: (_, _, _) => ScanScreenProvider(imageBytes: bytes),
-            transitionsBuilder: (_, animation, _, child) =>
-                FadeTransition(opacity: animation, child: child),
-            transitionDuration: const Duration(milliseconds: 400),
-          ),
-        );
-      },
+    return TappableButton(
+      onPressed: () => _continueWithFile(_selectedImage!),
       child: Container(
         width: double.infinity,
         height: 52,
@@ -306,7 +318,7 @@ class _CaptureScreenState extends State<CaptureScreen>
       children: [
         _buildContinueButton(),
         const SizedBox(height: 10),
-        _TappableButton(
+        TappableButton(
           onPressed: _cancelSelection,
           child: Container(
             width: double.infinity,
@@ -398,7 +410,6 @@ class _CaptureScreenState extends State<CaptureScreen>
           );
         },
       ),
-      bottomNavigationBar: _buildBottomNav(),
     );
   }
 
@@ -430,130 +441,4 @@ class _CaptureScreenState extends State<CaptureScreen>
     );
   }
 
-  Widget _buildBottomNav() {
-    return Container(
-      decoration: const BoxDecoration(
-        color: _surface,
-        border: Border(top: BorderSide(color: _border, width: 0.5)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: 60,
-          child: Row(
-            children: [
-              _BottomNavItem(
-                icon: Icons.camera_alt_outlined,
-                label: 'Scan',
-                isSelected: true,
-                onTap: null,
-              ),
-              _BottomNavItem(
-                icon: Icons.upload_file_outlined,
-                label: 'Import',
-                isSelected: false,
-                onTap: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const ImportScoreScreen(),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Bottom nav item ──────────────────────────────────────────────────────────
-
-class _BottomNavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  final VoidCallback? onTap;
-
-  const _BottomNavItem({
-    required this.icon,
-    required this.label,
-    required this.isSelected,
-    this.onTap,
-  });
-
-  static const _accent = Color(0xFFD4A96A);
-  static const _textSecondary = Color(0xFF8A8A8A);
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        behavior: HitTestBehavior.opaque,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 22,
-              color: isSelected ? _accent : _textSecondary,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                color: isSelected ? _accent : _textSecondary,
-                fontWeight:
-                    isSelected ? FontWeight.w600 : FontWeight.w400,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Tappable button wrapper ──────────────────────────────────────────────────
-
-class _TappableButton extends StatefulWidget {
-  final Widget child;
-  final VoidCallback? onPressed;
-
-  const _TappableButton({required this.child, required this.onPressed});
-
-  @override
-  State<_TappableButton> createState() => _TappableButtonState();
-}
-
-class _TappableButtonState extends State<_TappableButton> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: widget.onPressed == null ? null : (_) => setState(() => _pressed = true),
-      onTapCancel: widget.onPressed == null ? null : () => setState(() => _pressed = false),
-      onTap: widget.onPressed == null
-          ? null
-          : () {
-              setState(() => _pressed = false);
-              widget.onPressed!();
-            },
-      child: AnimatedScale(
-        scale: _pressed ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 100),
-        child: AnimatedOpacity(
-          opacity: _pressed ? 0.85 : 1.0,
-          duration: const Duration(milliseconds: 100),
-          child: widget.child,
-        ),
-      ),
-    );
-  }
 }

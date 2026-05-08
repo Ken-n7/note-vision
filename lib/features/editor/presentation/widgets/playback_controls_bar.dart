@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/services/playback_service.dart';
@@ -5,7 +7,7 @@ import '../../../../core/theme/app_theme.dart';
 
 /// Playback controls bar rendered at the bottom of the editor screen.
 ///
-/// Contains: play/pause toggle, stop button, tempo slider with BPM label.
+/// Contains: play/pause toggle, stop button, tempo stepper (+/- 5 BPM).
 /// Connects directly to [PlaybackService.instance] streams.
 class PlaybackControlsBar extends StatefulWidget {
   const PlaybackControlsBar({
@@ -15,6 +17,8 @@ class PlaybackControlsBar extends StatefulWidget {
     required this.onPause,
     required this.onStop,
     required this.onTempoChanged,
+    required this.totalMeasures,
+    required this.onSeek,
     this.isEmpty = false,
   });
 
@@ -23,6 +27,8 @@ class PlaybackControlsBar extends StatefulWidget {
   final VoidCallback onPause;
   final VoidCallback onStop;
   final ValueChanged<int> onTempoChanged;
+  final int totalMeasures;
+  final ValueChanged<int> onSeek;
 
   /// When true all controls are disabled and greyed out (empty score).
   final bool isEmpty;
@@ -34,6 +40,12 @@ class PlaybackControlsBar extends StatefulWidget {
 class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
   final _svc = PlaybackService.instance;
   late double _tempo;
+
+  void _adjustTempo(int delta) {
+    final next = (_tempo.round() + delta).clamp(40, 200).toDouble();
+    setState(() => _tempo = next);
+    widget.onTempoChanged(next.round());
+  }
 
   @override
   void initState() {
@@ -94,56 +106,48 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
               Container(width: 1, height: 24, color: AppColors.border),
               const SizedBox(width: 12),
 
-              // ── Tempo label ──────────────────────────────────────────
-              const Icon(Icons.speed_rounded, size: 14, color: AppColors.textSecondary),
-              const SizedBox(width: 6),
-
-              // ── Tempo slider ─────────────────────────────────────────
+              // ── Scrubber ──────────────────────────────────────────────
               Expanded(
-                child: SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    activeTrackColor: disabled
-                        ? AppColors.textSecondary.withValues(alpha: 0.2)
-                        : AppColors.accent,
-                    inactiveTrackColor: AppColors.border,
-                    thumbColor: disabled
-                        ? AppColors.textSecondary.withValues(alpha: 0.3)
-                        : AppColors.accent,
-                    overlayColor: AppColors.accent.withValues(alpha: 0.12),
-                    trackHeight: 2.5,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-                  ),
-                  child: Slider(
-                    value: _tempo.clamp(40, 200),
-                    min: 40,
-                    max: 200,
-                    divisions: 160,
-                    onChanged: disabled
-                        ? null
-                        : (v) {
-                            setState(() => _tempo = v);
-                            widget.onTempoChanged(v.round());
-                          },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: _Scrubber(
+                    totalMeasures: widget.totalMeasures,
+                    isPlaying: isPlaying,
+                    onSeek: widget.onSeek,
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
 
-              // ── BPM value ────────────────────────────────────────────
-              SizedBox(
-                width: 54,
-                child: Text(
-                  '${_tempo.round()} BPM',
-                  style: TextStyle(
-                    color: disabled
-                        ? AppColors.textSecondary.withValues(alpha: 0.4)
-                        : AppColors.textSecondary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
+              // ── Divider ───────────────────────────────────────────────
+              Container(width: 1, height: 24, color: AppColors.border),
+              const SizedBox(width: 8),
+
+              // ── Tempo stepper ─────────────────────────────────────────
+              const Icon(Icons.speed_rounded, size: 14, color: AppColors.textSecondary),
+              const SizedBox(width: 6),
+              _TempoButton(
+                icon: Icons.remove,
+                disabled: disabled || _tempo <= 40,
+                onPressed: () => _adjustTempo(-1),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '${_tempo.round()}',
+                style: TextStyle(
+                  color: disabled
+                      ? AppColors.textSecondary.withValues(alpha: 0.4)
+                      : AppColors.textPrimary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
+              ),
+              const SizedBox(width: 4),
+              _TempoButton(
+                icon: Icons.add,
+                disabled: disabled || _tempo >= 200,
+                onPressed: () => _adjustTempo(1),
               ),
 
               // ── Error indicator ──────────────────────────────────────
@@ -167,8 +171,201 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
 }
 
 // ---------------------------------------------------------------------------
-// Internal button widget
+// Internal widgets
 // ---------------------------------------------------------------------------
+
+class _Scrubber extends StatefulWidget {
+  const _Scrubber({
+    required this.totalMeasures,
+    required this.isPlaying,
+    required this.onSeek,
+  });
+
+  final int totalMeasures;
+  final bool isPlaying;
+  final ValueChanged<int> onSeek;
+
+  @override
+  State<_Scrubber> createState() => _ScrubberState();
+}
+
+class _ScrubberState extends State<_Scrubber> {
+  final _svc = PlaybackService.instance;
+  double? _dragFraction;
+
+  double _toFraction(PlaybackPosition pos) {
+    if (widget.totalMeasures <= 0) return 0;
+    if (pos == PlaybackPosition.none) return 0;
+    return (pos.measureIndex / widget.totalMeasures).clamp(0.0, 1.0);
+  }
+
+  void _onDragStart(DragStartDetails d, double width) {
+    if (!widget.isPlaying) return;
+    setState(() => _dragFraction = (d.localPosition.dx / width).clamp(0.0, 1.0));
+  }
+
+  void _onDragUpdate(DragUpdateDetails d, double width) {
+    if (!widget.isPlaying) return;
+    setState(() => _dragFraction = (d.localPosition.dx / width).clamp(0.0, 1.0));
+  }
+
+  void _onDragEnd(DragEndDetails _) {
+    if (_dragFraction == null) return;
+    final measure = (_dragFraction! * widget.totalMeasures)
+        .round()
+        .clamp(0, (widget.totalMeasures - 1).clamp(0, widget.totalMeasures));
+    setState(() => _dragFraction = null);
+    widget.onSeek(measure);
+  }
+
+  void _onTap(TapUpDetails d, double width) {
+    if (!widget.isPlaying) return;
+    final f = (d.localPosition.dx / width).clamp(0.0, 1.0);
+    final measure = (f * widget.totalMeasures)
+        .round()
+        .clamp(0, (widget.totalMeasures - 1).clamp(0, widget.totalMeasures));
+    widget.onSeek(measure);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<PlaybackPosition>(
+      stream: _svc.positionStream,
+      initialData: PlaybackPosition.none,
+      builder: (context, snap) {
+        final fraction = _dragFraction ?? _toFraction(snap.data ?? PlaybackPosition.none);
+        final active = widget.isPlaying;
+        final trackColor = AppColors.border;
+        final fillColor = active ? AppColors.accent : AppColors.textSecondary.withValues(alpha: 0.3);
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            return GestureDetector(
+              onHorizontalDragStart: (d) => _onDragStart(d, width),
+              onHorizontalDragUpdate: (d) => _onDragUpdate(d, width),
+              onHorizontalDragEnd: _onDragEnd,
+              onTapUp: (d) => _onTap(d, width),
+              child: SizedBox(
+                height: 20,
+                width: width,
+                child: Center(
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      // Track
+                      Positioned.fill(
+                        child: Center(
+                          child: Container(height: 2, color: trackColor),
+                        ),
+                      ),
+                      // Fill
+                      Positioned(
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: width * fraction,
+                        child: Center(
+                          child: Container(height: 2, color: fillColor),
+                        ),
+                      ),
+                      // Thumb
+                      Positioned(
+                        left: (width * fraction - 5).clamp(0, width - 10),
+                        top: 0,
+                        bottom: 0,
+                        child: Center(
+                          child: Container(
+                            width: 10,
+                            height: 10,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: fillColor,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _TempoButton extends StatefulWidget {
+  const _TempoButton({
+    required this.icon,
+    required this.onPressed,
+    required this.disabled,
+  });
+
+  final IconData icon;
+  final VoidCallback onPressed;
+  final bool disabled;
+
+  @override
+  State<_TempoButton> createState() => _TempoButtonState();
+}
+
+class _TempoButtonState extends State<_TempoButton> {
+  Timer? _holdTimer;
+  bool _pressed = false;
+
+  void _onPointerDown(PointerDownEvent _) {
+    if (widget.disabled) return;
+    setState(() => _pressed = true);
+    widget.onPressed();
+    // After 400 ms start repeating every 80 ms
+    _holdTimer = Timer(const Duration(milliseconds: 400), () {
+      _holdTimer = Timer.periodic(const Duration(milliseconds: 80), (_) {
+        if (!widget.disabled) widget.onPressed();
+      });
+    });
+  }
+
+  void _cancel() {
+    _holdTimer?.cancel();
+    _holdTimer = null;
+    if (mounted) setState(() => _pressed = false);
+  }
+
+  @override
+  void dispose() {
+    _holdTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.disabled
+        ? AppColors.textSecondary.withValues(alpha: 0.3)
+        : AppColors.textSecondary;
+
+    return Listener(
+      onPointerDown: _onPointerDown,
+      onPointerUp: (_) => _cancel(),
+      onPointerCancel: (_) => _cancel(),
+      child: SizedBox(
+        width: 28,
+        height: 28,
+        child: Material(
+          color: widget.disabled
+              ? AppColors.border.withValues(alpha: 0.3)
+              : _pressed
+                  ? AppColors.border
+                  : AppColors.surfaceAlt,
+          borderRadius: BorderRadius.circular(6),
+          child: Center(child: Icon(widget.icon, size: 14, color: color)),
+        ),
+      ),
+    );
+  }
+}
 
 class _ControlButton extends StatelessWidget {
   const _ControlButton({

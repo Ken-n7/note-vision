@@ -14,12 +14,27 @@ import '../domain/symbol_detector.dart';
 class TfliteSymbolDetector implements SymbolDetector {
   static const String _modelPath = 'assets/models/best_int8.tflite';
 
-  // Per-group confidence thresholds — real-world scans need looser thresholds
-  // for the symbol classes that are most commonly missed.
-  static const double _noteheadThreshold = 0.65;   // noteheadBlack / Half / Whole
-  static const double _structuralThreshold = 0.60;  // clef, timeSig, keySig, combStaff
-  static const double _decorativeThreshold = 0.55;  // accidentals, flags, beam, dot
-  static const double _defaultThreshold = 0.75;     // everything else
+  static const double _defaultThreshold = 0.75;
+  static const Map<MusicSymbol, double> _confidenceThresholds = {
+    MusicSymbol.accidentalFlat: 0.65,
+    MusicSymbol.accidentalSharp: 0.65,
+    MusicSymbol.accidentalNatural: 0.60,
+    MusicSymbol.accidentalDoubleFlat: 0.60,
+    MusicSymbol.accidentalDoubleSharp: 0.60,
+    MusicSymbol.augmentationDot: 0.55,
+    MusicSymbol.flag8thDown: 0.65,
+    MusicSymbol.flag8thUp: 0.65,
+    MusicSymbol.flag16thDown: 0.65,
+    MusicSymbol.flag16thUp: 0.65,
+    MusicSymbol.flag32ndDown: 0.65,
+    MusicSymbol.flag32ndUp: 0.65,
+    MusicSymbol.flag64thDown: 0.65,
+    MusicSymbol.flag64thUp: 0.65,
+    MusicSymbol.flag128thDown: 0.65,
+    MusicSymbol.flag128thUp: 0.65,
+    MusicSymbol.legerLine: 0.60,
+    MusicSymbol.repeatDot: 0.60,
+  };
 
   static const double _iouThreshold = 0.35;
   static const int _inputSize = 640;
@@ -192,21 +207,18 @@ class TfliteSymbolDetector implements SymbolDetector {
     return data;
   }
 
-  double _thresholdFor(MusicSymbol symbol) {
-    if (symbol.isNote) return _noteheadThreshold;
-    if (symbol == MusicSymbol.combStaff ||
-        symbol.isClef ||
-        symbol.isTimeSignature ||
-        symbol == MusicSymbol.keyFlat ||
-        symbol == MusicSymbol.keySharp ||
-        symbol == MusicSymbol.keyNatural) {
-      return _structuralThreshold;
+  static double confidenceThresholdFor(MusicSymbol? symbol) {
+    if (symbol == null) {
+      return _defaultThreshold;
     }
-    if (symbol.isAccidental ||
-        symbol.name.startsWith('flag') ||
-        symbol == MusicSymbol.beam ||
-        symbol == MusicSymbol.augmentationDot) {
-      return _decorativeThreshold;
+    return _confidenceThresholds[symbol] ?? _defaultThreshold;
+  }
+
+  static double confidenceThresholdForName(String symbolName) {
+    for (final symbol in MusicSymbol.values) {
+      if (symbol.name == symbolName) {
+        return confidenceThresholdFor(symbol);
+      }
     }
     return _defaultThreshold;
   }
@@ -241,7 +253,7 @@ class TfliteSymbolDetector implements SymbolDetector {
 
       final symbol = MusicSymbol.values[classIndex];
       final confidence = detection[4];
-      if (confidence < _thresholdFor(symbol)) continue;
+      if (confidence < confidenceThresholdFor(symbol)) continue;
 
       // Ultralytics YOLO TFLite NMS output: normalized 0–1 coords relative to
       // the 640×640 input. Multiply by _inputSize × scale to get original px.

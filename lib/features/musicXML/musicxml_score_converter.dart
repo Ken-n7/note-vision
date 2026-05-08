@@ -1,3 +1,4 @@
+import 'package:note_vision/core/models/barline_type.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/models/measure.dart';
@@ -38,9 +39,27 @@ class MusicXmlScoreConverter {
     return root.findElements('part').map((partElement) {
       final partId = partElement.getAttribute('id') ?? 'unknown-part';
       final partName = partNamesById[partId] ?? partId;
-      final measures = partElement.findElements('measure').map(_buildMeasure).toList();
-
+      final measures = _buildPartMeasures(partElement.findElements('measure'));
       return Part(id: partId, name: partName, measures: measures);
+    }).toList();
+  }
+
+  List<Measure> _buildPartMeasures(
+    Iterable<XmlElement> measureElements, {
+    int? explicitNumberOverride,
+  }) {
+    var divisionsPerQuarter = 2;
+    return measureElements.map((m) {
+      final attrs = _firstOrNull(m.findElements('attributes'));
+      final divEl = attrs == null ? null : _firstOrNull(attrs.findElements('divisions'));
+      if (divEl != null) {
+        divisionsPerQuarter = int.tryParse(divEl.innerText) ?? divisionsPerQuarter;
+      }
+      return _buildMeasure(
+        m,
+        divisionsPerQuarter: divisionsPerQuarter,
+        explicitNumber: explicitNumberOverride,
+      );
     }).toList();
   }
 
@@ -49,15 +68,24 @@ class MusicXmlScoreConverter {
     Map<String, String> partNamesById,
   ) {
     final measuresByPartId = <String, List<Measure>>{};
+    final divisionsPerQuarterByPartId = <String, int>{};
 
     for (final measureElement in root.findElements('measure')) {
       final measureNumber = int.tryParse(measureElement.getAttribute('number') ?? '') ?? 0;
 
       for (final partInMeasure in measureElement.findElements('part')) {
         final partId = partInMeasure.getAttribute('id') ?? 'unknown-part';
+        var divisionsPerQuarter = divisionsPerQuarterByPartId[partId] ?? 2;
+        final attrs = _firstOrNull(partInMeasure.findElements('attributes'));
+        final divEl = attrs == null ? null : _firstOrNull(attrs.findElements('divisions'));
+        if (divEl != null) {
+          divisionsPerQuarter = int.tryParse(divEl.innerText) ?? divisionsPerQuarter;
+          divisionsPerQuarterByPartId[partId] = divisionsPerQuarter;
+        }
         final rebuiltMeasure = _buildMeasure(
           partInMeasure,
           explicitNumber: measureNumber,
+          divisionsPerQuarter: divisionsPerQuarter,
         );
         measuresByPartId.putIfAbsent(partId, () => <Measure>[]).add(rebuiltMeasure);
       }
@@ -124,22 +152,32 @@ class MusicXmlScoreConverter {
     return partNamesById;
   }
 
-  Measure _buildMeasure(XmlElement measureElement, {int? explicitNumber}) {
+  Measure _buildMeasure(
+    XmlElement measureElement, {
+    int? explicitNumber,
+    int divisionsPerQuarter = 2,
+  }) {
     final number = explicitNumber ?? int.tryParse(measureElement.getAttribute('number') ?? '') ?? 0;
 
     final attributes = _firstOrNull(measureElement.findElements('attributes'));
     final clef = _buildClef(attributes);
     final timeSignature = _buildTimeSignature(attributes);
     final keySignature = _buildKeySignature(attributes);
+    final leftBarlineType = _buildBarlineType(measureElement, 'left');
+    final rightBarlineType = _buildBarlineType(measureElement, 'right');
 
     final symbols = <ScoreSymbol>[];
 
     for (final noteElement in measureElement.findElements('note')) {
-      final symbol = _buildSymbol(noteElement);
+      final symbol = _buildSymbol(noteElement, divisionsPerQuarter: divisionsPerQuarter);
       if (symbol != null) {
         symbols.add(symbol);
       }
     }
+
+    final printEl = _firstOrNull(measureElement.findElements('print'));
+    final startsNewPage = printEl?.getAttribute('new-page') == 'yes';
+    final startsNewSystem = printEl?.getAttribute('new-system') == 'yes';
 
     return Measure(
       number: number,
@@ -147,12 +185,18 @@ class MusicXmlScoreConverter {
       timeSignature: timeSignature,
       keySignature: keySignature,
       symbols: symbols,
+      startsNewPage: startsNewPage,
+      startsNewSystem: startsNewSystem,
+      leftBarlineType: leftBarlineType,
+      rightBarlineType: rightBarlineType,
     );
   }
 
-  ScoreSymbol? _buildSymbol(XmlElement noteElement) {
-    final duration = int.tryParse(_firstInnerText(noteElement, 'duration') ?? '');
+  ScoreSymbol? _buildSymbol(XmlElement noteElement, {int divisionsPerQuarter = 2}) {
+    final rawDuration = int.tryParse(_firstInnerText(noteElement, 'duration') ?? '');
+    final duration = rawDuration == null ? null : (rawDuration * 2 / divisionsPerQuarter).round();
     final type = _firstInnerText(noteElement, 'type')?.trim();
+    final dots = noteElement.findElements('dot').length;
 
     if (duration == null || type == null || type.isEmpty) {
       return null;
@@ -160,9 +204,16 @@ class MusicXmlScoreConverter {
 
     final voice = int.tryParse(_firstInnerText(noteElement, 'voice') ?? '');
     final staff = int.tryParse(_firstInnerText(noteElement, 'staff') ?? '');
+    final isChordTone = noteElement.findElements('chord').isNotEmpty;
 
     if (noteElement.findElements('rest').isNotEmpty) {
-      return Rest(duration: duration, type: type, voice: voice, staff: staff);
+      return Rest(
+        duration: duration,
+        type: type,
+        voice: voice,
+        staff: staff,
+        dots: dots,
+      );
     }
 
     final pitch = _firstOrNull(noteElement.findElements('pitch'));
@@ -186,6 +237,8 @@ class MusicXmlScoreConverter {
       type: type,
       voice: voice,
       staff: staff,
+      dots: dots,
+      isChordTone: isChordTone,
     );
   }
 
@@ -231,6 +284,26 @@ class MusicXmlScoreConverter {
     }
 
     return KeySignature(fifths: fifths);
+  }
+
+  BarlineType? _buildBarlineType(XmlElement measureElement, String location) {
+    for (final barline in measureElement.findElements('barline')) {
+      final barlineLocation = barline.getAttribute('location')?.trim();
+      if (barlineLocation != location) {
+        continue;
+      }
+
+      final repeat = _firstOrNull(barline.findElements('repeat'));
+      final direction = repeat?.getAttribute('direction')?.trim();
+      if (direction == 'forward') {
+        return BarlineType.repeatStart;
+      }
+      if (direction == 'backward') {
+        return BarlineType.repeatEnd;
+      }
+    }
+
+    return null;
   }
 
   XmlElement? _firstOrNull(Iterable<XmlElement> elements) {

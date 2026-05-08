@@ -19,19 +19,49 @@ class EditorState {
   final List<EditorSnapshot> redoStack;
   final bool hasUnsavedChanges;
 
-  EditorState({
-    required this.score,
-    this.selectedPartIndex,
-    this.selectedMeasureIndex,
-    this.selectedSymbolIndex,
-    this.selectedSymbol,
+  factory EditorState({
+    required Score score,
+    int? selectedPartIndex,
+    int? selectedMeasureIndex,
+    int? selectedSymbolIndex,
+    ScoreSymbol? selectedSymbol,
     List<EditorSnapshot>? undoStack,
     List<EditorSnapshot>? redoStack,
-    this.hasUnsavedChanges = false,
-  }) : undoStack = UnmodifiableListView(_trimStack(undoStack ?? const [])),
-       redoStack = UnmodifiableListView(_trimStack(redoStack ?? const [])) {
-    _validateSelectedSymbolType(selectedSymbol);
+    bool hasUnsavedChanges = false,
+  }) {
+    final normalizedSelection = _normalizeSelection(
+      score: score,
+      candidate: _Selection(
+        partIndex: selectedPartIndex,
+        measureIndex: selectedMeasureIndex,
+        symbolIndex: selectedSymbolIndex,
+        symbol: selectedSymbol,
+      ),
+    );
+
+    return EditorState._(
+      score: score,
+      selectedPartIndex: normalizedSelection.partIndex,
+      selectedMeasureIndex: normalizedSelection.measureIndex,
+      selectedSymbolIndex: normalizedSelection.symbolIndex,
+      selectedSymbol: normalizedSelection.symbol,
+      undoStack: undoStack,
+      redoStack: redoStack,
+      hasUnsavedChanges: hasUnsavedChanges,
+    );
   }
+
+  EditorState._({
+    required this.score,
+    required this.selectedPartIndex,
+    required this.selectedMeasureIndex,
+    required this.selectedSymbolIndex,
+    required this.selectedSymbol,
+    List<EditorSnapshot>? undoStack,
+    List<EditorSnapshot>? redoStack,
+    required this.hasUnsavedChanges,
+  }) : undoStack = UnmodifiableListView(_trimStack(undoStack ?? const [])),
+       redoStack = UnmodifiableListView(_trimStack(redoStack ?? const []));
 
   EditorState copyWith({
     Score? score,
@@ -78,6 +108,22 @@ class EditorState {
       redoStack: redoStack ?? this.redoStack,
       hasUnsavedChanges: hasUnsavedChanges ?? this.hasUnsavedChanges,
     );
+  }
+
+  bool get hasMeasureContext =>
+      selectedPartIndex != null && selectedMeasureIndex != null;
+
+  bool get hasSymbolSelection =>
+      hasMeasureContext &&
+      selectedSymbolIndex != null &&
+      selectedSymbol != null;
+
+  bool get hasEditableSymbolSelection =>
+      _isEditableSymbol(selectedSymbol) && hasSymbolSelection;
+
+  ScoreSymbol? get selectedEditableSymbol {
+    final symbol = selectedSymbol;
+    return _isEditableSymbol(symbol) ? symbol : null;
   }
 
   static List<EditorSnapshot> _trimStack(List<EditorSnapshot> stack) {
@@ -132,8 +178,6 @@ class EditorState {
       return _Selection.none();
     }
 
-    _validateSelectedSymbolType(candidate.symbol);
-
     final symbolIndex = candidate.symbolIndex!;
     final measure = part.measures[measureIndex];
     if (symbolIndex < 0 || symbolIndex >= measure.symbols.length) {
@@ -146,15 +190,6 @@ class EditorState {
     }
 
     return candidate;
-  }
-
-  static void _validateSelectedSymbolType(ScoreSymbol? symbol) {
-    if (symbol == null) return;
-    if (symbol is! Note && symbol is! Rest) {
-      throw ArgumentError(
-        'selectedSymbol must be either a Note or a Rest.',
-      );
-    }
   }
 
   @override
@@ -170,6 +205,9 @@ class EditorState {
         'hasUnsavedChanges: $hasUnsavedChanges'
         ')';
   }
+
+  static bool _isEditableSymbol(ScoreSymbol? symbol) =>
+      symbol is Note || symbol is Rest;
 }
 
 class _Selection {
