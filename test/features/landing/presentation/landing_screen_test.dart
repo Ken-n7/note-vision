@@ -9,30 +9,40 @@ void main() {
     return MaterialApp(home: child);
   }
 
-  testWidgets('LandingScreen displays title, logo, tagline, and actions', (
+  testWidgets('LandingScreen displays title, logo, and tagline', (
     WidgetTester tester,
   ) async {
-    await tester.pumpWidget(makeTestableWidget(const LandingScreen()));
-    await tester.pump();
-
-    expect(find.text('Note Vision'), findsOneWidget);
-    expect(find.byType(Image), findsOneWidget);
-    expect(find.text('Read music. Understand it.'), findsOneWidget);
-    expect(find.text('Get Started'), findsOneWidget);
-    expect(find.text("Dev's Workbench"), findsOneWidget);
-  });
-
-  testWidgets('Pressing Get Started navigates to CollectionScreen', (
-    WidgetTester tester,
-  ) async {
+    // first_launch_done not set → shows splash animation (2200ms hold)
     SharedPreferences.setMockInitialValues({'onboarding_complete': true});
 
     await tester.pumpWidget(makeTestableWidget(const LandingScreen()));
-    await tester.pump();
+    await tester.pump(); // SharedPreferences loads; 2200ms timer starts
 
-    await tester.tap(find.text('Get Started'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 450));
+    // FadeTransition keeps widgets in tree even at opacity 0
+    expect(find.text('Note Vision'), findsOneWidget);
+    expect(find.byType(Image), findsOneWidget);
+    expect(find.text('Read music. Understand it.'), findsOneWidget);
+    // No buttons — navigation is fully automatic
+    expect(find.text('Get Started'), findsNothing);
+
+    // Drain the 2200ms hold timer to avoid "pending timer" test assertion
+    await tester.pump(const Duration(milliseconds: 2300));
+    await tester.pump(); // isOnboardingComplete() completes
+    await tester.pump(const Duration(milliseconds: 450)); // fade transition
+  });
+
+  testWidgets('auto-navigates to CollectionScreen on subsequent launch', (
+    WidgetTester tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'first_launch_done': true,
+      'onboarding_complete': true,
+    });
+
+    await tester.pumpWidget(makeTestableWidget(const LandingScreen()));
+    await tester.pump(); // SharedPreferences.getInstance() completes
+    await tester.pump(); // isOnboardingComplete() completes
+    await tester.pump(const Duration(milliseconds: 450)); // fade transition
 
     expect(find.byType(CollectionScreen), findsOneWidget);
   });

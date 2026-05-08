@@ -127,7 +127,7 @@ void main() {
       expect(find.text('2 projects'), findsOneWidget);
     });
 
-    testWidgets('shows app bar content and bottom navigation labels', (
+    testWidgets('shows app bar content and FAB', (
       WidgetTester tester,
     ) async {
       final service = FakeProjectStorageService(Future.value([]));
@@ -141,7 +141,7 @@ void main() {
       expect(find.byType(AppBar), findsOneWidget);
       expect(find.text('Note Vision'), findsOneWidget);
       expect(find.text('MY COLLECTION'), findsOneWidget);
-      expect(find.text('Add Files'), findsOneWidget);
+      expect(find.byType(FloatingActionButton), findsAtLeastNWidgets(1));
     });
 
     testWidgets('opens editor route when project tile is tapped', (
