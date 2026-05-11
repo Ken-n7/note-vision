@@ -68,6 +68,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   NotationSymbolTarget? _dragTarget;
   PaletteSymbolType? _insertSymbolType;
 
+  OverlayEntry? _dragGhostEntry;
+  final ValueNotifier<Offset> _ghostPosition = ValueNotifier(Offset.zero);
+  PaletteSymbolType? _dragSymbolType;
+
   // Playback
   late final PlaybackService _playback;
   PlaybackPosition _playbackPosition = PlaybackPosition.none;
@@ -145,7 +149,30 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     _stateSub?.cancel();
     _bannerTimer?.cancel();
     _playback.stop();
+    _dragGhostEntry?.remove();
+    _ghostPosition.dispose();
     super.dispose();
+  }
+
+  PaletteSymbolType? _paletteTypeForSymbol(ScoreSymbol? symbol) {
+    if (symbol is Note) {
+      return switch (symbol.type.trim().toLowerCase()) {
+        'whole' => PaletteSymbolType.wholeNote,
+        'half' => PaletteSymbolType.halfNote,
+        'quarter' => PaletteSymbolType.quarterNote,
+        'eighth' => PaletteSymbolType.eighthNote,
+        _ => null,
+      };
+    }
+    if (symbol is Rest) {
+      return switch (symbol.type.trim().toLowerCase()) {
+        'whole' => PaletteSymbolType.wholeRest,
+        'half' => PaletteSymbolType.halfRest,
+        'quarter' || 'eighth' => PaletteSymbolType.quarterRest,
+        _ => null,
+      };
+    }
+    return null;
   }
 
   // ── Save logic ─────────────────────────────────────────────────────────────
@@ -695,6 +722,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 trashZoneKey: _trashZoneKey,
                 showTrashZone: isLandscape,
                 isPlaybackActive: isPlaybackActive,
+                suppressCanvasDragGhost: _dragSymbolType != null,
                 onToggleInsertMode: _toggleInsertMode,
                 onPaletteTypeTap: _onPaletteTypeTap,
                 onSymbolTap: (target) {
@@ -710,15 +738,35 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 },
                 onInsertTap: _onInsertTap,
                 onDragStarted: (target) {
+                  final symbol = _editorState.score.getSymbolAt(
+                    target.partIndex,
+                    target.measureIndex,
+                    target.symbolIndex,
+                  );
                   setState(() {
                     _isDraggingNote = true;
                     _dragTarget = target;
+                    _dragSymbolType = _paletteTypeForSymbol(symbol);
                   });
                 },
                 onDragGlobalUpdate: (global) {
                   setState(() => _dragGlobal = global);
+                  _ghostPosition.value = global;
+                  if (_dragGhostEntry == null &&
+                      _dragSymbolType != null &&
+                      mounted) {
+                    _dragGhostEntry = OverlayEntry(
+                      builder: (_) => _DragGhostOverlay(
+                        positionNotifier: _ghostPosition,
+                        type: _dragSymbolType!,
+                      ),
+                    );
+                    Overlay.of(context).insert(_dragGhostEntry!);
+                  }
                 },
                 onDragCompleted: (reorder, global) {
+                  _dragGhostEntry?.remove();
+                  _dragGhostEntry = null;
                   final trashBox =
                       _trashZoneKey.currentContext?.findRenderObject()
                           as RenderBox?;
@@ -751,13 +799,19 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                     _isDraggingNote = false;
                     _dragGlobal = Offset.zero;
                     _dragTarget = null;
+                    _dragSymbolType = null;
                   });
                 },
-                onDragCancelled: () => setState(() {
-                  _isDraggingNote = false;
-                  _dragGlobal = Offset.zero;
-                  _dragTarget = null;
-                }),
+                onDragCancelled: () {
+                  _dragGhostEntry?.remove();
+                  _dragGhostEntry = null;
+                  setState(() {
+                    _isDraggingNote = false;
+                    _dragGlobal = Offset.zero;
+                    _dragTarget = null;
+                    _dragSymbolType = null;
+                  });
+                },
                 onExternalDrop: _onPaletteDrop,
               );
 
@@ -1389,6 +1443,7 @@ class _NotationArea extends StatefulWidget {
     required this.trashZoneKey,
     this.showTrashZone = true,
     required this.isPlaybackActive,
+    this.suppressCanvasDragGhost = false,
     required this.onToggleInsertMode,
     required this.onPaletteTypeTap,
     required this.onSymbolTap,
@@ -1412,6 +1467,7 @@ class _NotationArea extends StatefulWidget {
   final GlobalKey trashZoneKey;
   final bool showTrashZone;
   final bool isPlaybackActive;
+  final bool suppressCanvasDragGhost;
   final VoidCallback onToggleInsertMode;
   final ValueChanged<PaletteSymbolType> onPaletteTypeTap;
   final ValueChanged<NotationSymbolTarget?> onSymbolTap;
@@ -1737,6 +1793,8 @@ class _NotationAreaState extends State<_NotationArea> {
                                       global,
                                     ),
                                 onDragCancelled: widget.onDragCancelled,
+                                suppressCanvasDragGhost:
+                                    widget.suppressCanvasDragGhost,
                               ),
                             ),
                           ),
@@ -3302,3 +3360,79 @@ class _DurTile extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Save error overlay
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Drag ghost overlay — floats above all UI during symbol reorder drag
+// ---------------------------------------------------------------------------
+
+class _DragGhostOverlay extends StatefulWidget {
+  const _DragGhostOverlay({
+    required this.positionNotifier,
+    required this.type,
+  });
+
+  final ValueNotifier<Offset> positionNotifier;
+  final PaletteSymbolType type;
+
+  @override
+  State<_DragGhostOverlay> createState() => _DragGhostOverlayState();
+}
+
+class _DragGhostOverlayState extends State<_DragGhostOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scale;
+  Offset _position = Offset.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _position = widget.positionNotifier.value;
+    widget.positionNotifier.addListener(_onPositionChanged);
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    _scale = Tween<double>(begin: 0.4, end: 1.5).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+    );
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    widget.positionNotifier.removeListener(_onPositionChanged);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onPositionChanged() {
+    setState(() => _position = widget.positionNotifier.value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const ghostSize = Size(34, 40);
+    return Positioned(
+      left: _position.dx - ghostSize.width / 2,
+      top: _position.dy - ghostSize.height * 1.9,
+      child: IgnorePointer(
+        child: AnimatedBuilder(
+          animation: _scale,
+          builder: (_, child) =>
+              Transform.scale(scale: _scale.value, child: child),
+          child: Material(
+            color: Colors.transparent,
+            child: CustomPaint(
+              size: ghostSize,
+              painter: PaletteSymbolPainter(
+                type: widget.type,
+                color: AppColors.accent,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../models/clef.dart';
 import '../models/key_signature.dart';
@@ -124,6 +125,7 @@ class ScoreNotationViewer extends StatefulWidget {
     this.canAcceptExternalDrop,
     this.onExternalDrop,
     this.externalPreviewResolver,
+    this.suppressCanvasDragGhost = false,
   });
 
   final Score? score;
@@ -159,6 +161,7 @@ class ScoreNotationViewer extends StatefulWidget {
   final bool Function(Object data)? canAcceptExternalDrop;
   final void Function(NotationInsertTarget target, Object data)? onExternalDrop;
   final NotationPreviewGlyph? Function(Object data)? externalPreviewResolver;
+  final bool suppressCanvasDragGhost;
 
   @override
   State<ScoreNotationViewer> createState() => _ScoreNotationViewerState();
@@ -287,6 +290,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
                 draggedSymbolIndex: _dragSession!.fromSymbolIndex,
                 targetSymbolIndex: _dragSession!.toSymbolIndex,
                 dragX: _dragSession!.dragPosition.dx,
+                showGhostAtDrag: !widget.suppressCanvasDragGhost,
               ),
         insertionTarget: _externalInsertTarget ?? _crossMeasureDragTarget,
         insertionPreviewGlyph: _externalPreviewGlyph,
@@ -310,6 +314,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     final pressed = _nearestTarget(position, targets);
     if (pressed == null) return;
 
+    HapticFeedback.mediumImpact();
     setState(() {
       _dragSession = _NotationDragSession(
         fromPartIndex: pressed.partIndex,

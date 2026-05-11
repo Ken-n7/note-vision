@@ -467,7 +467,7 @@ class ScoreNotationPainter extends CustomPainter {
     // Draw beam bars for groups of 2+.
     _drawBeamBars(canvas, beamGroups, notePositions, middleLineY);
 
-    if (!hasDragInMeasure || draggedSymbol == null) return;
+    if (!hasDragInMeasure || draggedSymbol == null || !drag.showGhostAtDrag) return;
 
     final dragY = _symbolCenterY(draggedSymbol, staffTop, staffBottom, clefSign, clefLine: clefLine) - 8;
     if (draggedSymbol is Note) {
@@ -1158,12 +1158,14 @@ class NotationDragFeedback {
     required this.draggedSymbolIndex,
     required this.targetSymbolIndex,
     required this.dragX,
+    this.showGhostAtDrag = true,
   });
 
   final int measureIndex;
   final int draggedSymbolIndex;
   final int targetSymbolIndex;
   final double dragX;
+  final bool showGhostAtDrag;
 
   @override
   bool operator ==(Object other) =>
@@ -1173,14 +1175,16 @@ class NotationDragFeedback {
           measureIndex == other.measureIndex &&
           draggedSymbolIndex == other.draggedSymbolIndex &&
           targetSymbolIndex == other.targetSymbolIndex &&
-          dragX == other.dragX;
+          dragX == other.dragX &&
+          showGhostAtDrag == other.showGhostAtDrag;
 
   @override
   int get hashCode =>
       measureIndex.hashCode ^
       draggedSymbolIndex.hashCode ^
       targetSymbolIndex.hashCode ^
-      dragX.hashCode;
+      dragX.hashCode ^
+      showGhostAtDrag.hashCode;
 }
 
 class NotationInsertTarget {

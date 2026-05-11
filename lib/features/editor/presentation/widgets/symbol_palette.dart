@@ -243,7 +243,7 @@ class _PaletteDraggableItem extends StatelessWidget {
     final core = _PaletteVisual(item: item, isSelected: isSelected);
     final dragFeedback = CustomPaint(
       size: const Size(34, 40),
-      painter: _PaletteSymbolPainter(
+      painter: PaletteSymbolPainter(
         type: item.type,
         color: _paletteSymbolSelected,
       ),
@@ -287,7 +287,7 @@ class _PaletteVisual extends StatelessWidget {
         children: [
           CustomPaint(
             size: const Size(28, 34),
-            painter: _PaletteSymbolPainter(
+            painter: PaletteSymbolPainter(
               type: item.type,
               color: isSelected ? _paletteSymbolSelected : _paletteSymbolColor,
             ),
@@ -309,8 +309,8 @@ class _PaletteVisual extends StatelessWidget {
   }
 }
 
-class _PaletteSymbolPainter extends CustomPainter {
-  const _PaletteSymbolPainter({required this.type, required this.color});
+class PaletteSymbolPainter extends CustomPainter {
+  const PaletteSymbolPainter({required this.type, required this.color});
 
   final PaletteSymbolType type;
   final Color color;
@@ -466,7 +466,7 @@ class _PaletteSymbolPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _PaletteSymbolPainter oldDelegate) =>
+  bool shouldRepaint(covariant PaletteSymbolPainter oldDelegate) =>
       oldDelegate.type != type || oldDelegate.color != color;
 }
 
