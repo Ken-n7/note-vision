@@ -1,10 +1,13 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:note_vision/core/models/clef.dart';
+import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/widgets/score_notation/staff_pitch_mapper.dart';
 import 'package:pdf/pdf.dart';
 
@@ -13,16 +16,39 @@ import 'package:pdf/pdf.dart';
 /// Uses the same pitch-to-position math as [ScoreNotationPainter] so that
 /// the PDF output matches the editor canvas layout.
 class PdfScoreRenderer {
-  const PdfScoreRenderer();
+  const PdfScoreRenderer({this.compress = true});
+
+  /// PDF stream compression. Tests can disable this to inspect generated
+  /// content streams without changing production output.
+  final bool compress;
 
   // ── Page & layout constants ──────────────────────────────────────────────
-  static const double _marginPt = 20 * PdfPageFormat.mm;
-  static const double _ls = 6.0; // staff line spacing in pt
-  static const double _staffH = _ls * 4; // top-to-bottom of 5-line staff
-  static const double _sysSp = 40.0; // gap between bottom of one system and top of next
-  static const double _prefixW = 52.0; // clef + key/time sig area
-  static const double _mw = 90.0; // min measure width
-  static const double _titleBlockH = 46.0; // reserved at top of first page
+  // These mirror EditorLayoutPolicy.standard so exported pages use the same
+  // measure grouping as the editor canvas.
+  static const double _editorPageW = 760.0;
+  static const double _editorPageH = 1120.0;
+  static const double _editorPadX = 16.0;
+  static const double _editorPadY = 28.0;
+  static const double _editorRowH = 140.0;
+  static const double _editorPrefixW = 86.0;
+  static const double _editorLineSpacing = 12.0;
+  static const double _editorStaffTopOffset = 28.0;
+  static const int _measuresPerSystem = 4;
+  static const int _baseRowsPerPage = 5;
+
+  static final double _scale = PdfPageFormat.a4.height / _editorPageH;
+  static final double _pageX0 =
+      (PdfPageFormat.a4.width - _editorPageW * _scale) / 2;
+  static final double _pageY0 =
+      (PdfPageFormat.a4.height - _editorPageH * _scale) / 2;
+  static final double _padX = _editorPadX * _scale;
+  static final double _padY = _editorPadY * _scale;
+  static final double _prefixW = _editorPrefixW * _scale;
+  static final double _mw =
+      ((_editorPageW - _editorPadX * 2 - _editorPrefixW) / _measuresPerSystem) *
+      _scale;
+  static final double _ls = _editorLineSpacing * _scale;
+  static final double _staffH = _ls * 4;
 
   static const PdfColor _ink = PdfColor.fromInt(0xFF111827);
 
@@ -30,14 +56,21 @@ class PdfScoreRenderer {
 
   /// Returns raw PDF bytes for [score].
   Future<Uint8List> render(Score score) async {
-    final doc = PdfDocument();
+    final doc = PdfDocument(compress: compress);
     final font = PdfFont.courier(doc);
     final fontBold = PdfFont.courierBold(doc);
 
     if (score.parts.isEmpty) {
       final page = PdfPage(doc, pageFormat: PdfPageFormat.a4);
       final g = page.getGraphics();
-      _text(g, fontBold, 14, 'Empty score', _marginPt, PdfPageFormat.a4.height - _marginPt - 14);
+      _text(
+        g,
+        fontBold,
+        14,
+        'Empty score',
+        _pageX0 + _padX,
+        PdfPageFormat.a4.height - _pageY0 - _padY - 14,
+      );
       return doc.save();
     }
 
@@ -52,50 +85,152 @@ class PdfScoreRenderer {
     return doc.save();
   }
 
+  List<PdfPageLayoutInfo> debugPageLayoutForTesting(Score score) {
+    return _paginate(score)
+        .map(
+          (page) => PdfPageLayoutInfo(
+            firstMeasureIndex: page.firstMeasureIndex,
+            measureCount: page.measureCount,
+            measuresPerSystem: page.measuresPerSystem,
+            rowsPerPage: page.rowsPerPage,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  List<List<Measure>> debugPageSliceForTesting(Score score, int pageIndex) {
+    final pages = _paginate(score);
+    if (pageIndex < 0 || pageIndex >= pages.length) {
+      return const <List<Measure>>[];
+    }
+    return _sliceScoreForPage(score, pages[pageIndex]);
+  }
+
   // ── Pagination ────────────────────────────────────────────────────────────
 
   List<_PageData> _paginate(Score score) {
-    final pw = PdfPageFormat.a4.width;
-    final ph = PdfPageFormat.a4.height;
-    final contentW = pw - _marginPt * 2;
     final partCount = score.parts.length;
-    final maxMeasures =
-        score.parts.fold(0, (m, p) => math.max(m, p.measures.length));
-    final mps = math.max(
-      1,
-      ((contentW - _prefixW) / _mw).floor(),
-    ); // measures per system
-    final totalSystems =
-        maxMeasures == 0 ? 0 : (maxMeasures / mps).ceil();
-    final systemH = partCount * (_staffH + _sysSp);
-
+    final rowsPerPage = _rowsPerPageForPartCount(partCount);
+    final referenceMeasures = score.parts.isEmpty
+        ? const <Measure>[]
+        : score.parts.first.measures;
+    final pageStarts = _pageStartIndices(
+      referenceMeasures,
+      rowsPerPage: rowsPerPage,
+    );
     final result = <_PageData>[];
-    var si = 0;
-    var firstPage = true;
 
-    while (si < totalSystems) {
-      final usable = ph - _marginPt * 2 - (firstPage ? _titleBlockH : 0.0);
-      final sysOnPage = math.max(1, (usable / systemH).floor());
-      final sysHere = math.min(sysOnPage, totalSystems - si);
-      result.add(_PageData(
-        firstSystemIndex: si,
-        systemCount: sysHere,
-        measuresPerSystem: mps,
-        isFirstPage: firstPage,
-      ));
-      si += sysHere;
-      firstPage = false;
+    for (var i = 0; i < pageStarts.length; i++) {
+      final firstMeasureIndex = pageStarts[i];
+      final nextMeasureIndex = i + 1 < pageStarts.length
+          ? pageStarts[i + 1]
+          : referenceMeasures.length;
+      result.add(
+        _PageData(
+          firstMeasureIndex: firstMeasureIndex,
+          measureCount: math.max(0, nextMeasureIndex - firstMeasureIndex),
+          measuresPerSystem: _measuresPerSystem,
+          rowsPerPage: rowsPerPage,
+        ),
+      );
     }
 
     if (result.isEmpty) {
-      result.add(_PageData(
-        firstSystemIndex: 0,
-        systemCount: 0,
-        measuresPerSystem: mps,
-        isFirstPage: true,
-      ));
+      result.add(
+        _PageData(
+          firstMeasureIndex: 0,
+          measureCount: 0,
+          measuresPerSystem: _measuresPerSystem,
+          rowsPerPage: rowsPerPage,
+        ),
+      );
     }
     return result;
+  }
+
+  static int _rowsPerPageForPartCount(int partCount) {
+    final normalizedPartCount = math.max(1, partCount);
+    final availableHeight = _editorPageH - (_editorPadY * 2);
+    final maxRowsThatFit =
+        (availableHeight / (normalizedPartCount * _editorRowH)).floor();
+    return math.max(1, math.min(_baseRowsPerPage, maxRowsThatFit));
+  }
+
+  static List<int> _pageStartIndices(
+    List<Measure> measures, {
+    required int rowsPerPage,
+  }) {
+    if (measures.isEmpty) return const [0];
+
+    final hasExplicitBreaks = measures.any((m) => m.startsNewPage);
+    if (!hasExplicitBreaks) {
+      final measuresPerPage = _measuresPerSystem * rowsPerPage;
+      final count = math.max(
+        1,
+        (measures.length + measuresPerPage - 1) ~/ measuresPerPage,
+      );
+      return List.generate(count, (i) => i * measuresPerPage);
+    }
+
+    final indices = <int>[0];
+    for (var i = 1; i < measures.length; i++) {
+      if (measures[i].startsNewPage) indices.add(i);
+    }
+    return indices;
+  }
+
+  List<List<Measure>> _sliceScoreForPage(Score score, _PageData page) {
+    return score.parts
+        .map(
+          (part) => _sliceMeasuresWithInheritedMetadata(
+            measures: part.measures,
+            firstMeasureIndex: page.firstMeasureIndex,
+            pageMeasureCount: page.measureCount,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  List<Measure> _sliceMeasuresWithInheritedMetadata({
+    required List<Measure> measures,
+    required int firstMeasureIndex,
+    required int pageMeasureCount,
+  }) {
+    final start = firstMeasureIndex.clamp(0, measures.length);
+    final end = (start + pageMeasureCount).clamp(start, measures.length);
+
+    Clef? activeClef;
+    TimeSignature? activeTimeSignature;
+    KeySignature? activeKeySignature;
+
+    for (var i = 0; i < start; i++) {
+      final measure = measures[i];
+      activeClef = measure.clef ?? activeClef;
+      activeTimeSignature = measure.timeSignature ?? activeTimeSignature;
+      activeKeySignature = measure.keySignature ?? activeKeySignature;
+    }
+
+    final slice = <Measure>[];
+    for (var i = start; i < end; i++) {
+      final measure = measures[i];
+      final normalized = Measure(
+        number: measure.number,
+        clef: measure.clef ?? activeClef,
+        timeSignature: measure.timeSignature ?? activeTimeSignature,
+        keySignature: measure.keySignature ?? activeKeySignature,
+        symbols: measure.symbols,
+        startsNewPage: measure.startsNewPage,
+        startsNewSystem: measure.startsNewSystem,
+        leftBarlineType: measure.leftBarlineType,
+        rightBarlineType: measure.rightBarlineType,
+      );
+      slice.add(normalized);
+      activeClef = normalized.clef;
+      activeTimeSignature = normalized.timeSignature;
+      activeKeySignature = normalized.keySignature;
+    }
+
+    return slice;
   }
 
   // ── Page painter ──────────────────────────────────────────────────────────
@@ -110,67 +245,44 @@ class PdfScoreRenderer {
   ) {
     final pageH = fmt.height;
     final partCount = score.parts.length;
+    final pageParts = _sliceScoreForPage(score, page);
+    final maxMeasures = pageParts.fold(0, (m, p) => math.max(m, p.length));
+    final systemCount = maxMeasures == 0
+        ? 0
+        : (maxMeasures / page.measuresPerSystem).ceil();
 
-    // PDF y=0 is at bottom, y=pageH is top.
-    var yTop = pageH - _marginPt; // current y from bottom, starts near top
-
-    if (page.isFirstPage) {
-      _drawTitleBlock(g, font, fontBold, score, fmt, yTop);
-      yTop -= _titleBlockH;
-    }
-
-    for (var s = 0; s < page.systemCount; s++) {
-      final si = page.firstSystemIndex + s;
-      final startM = si * page.measuresPerSystem;
+    for (var s = 0; s < systemCount; s++) {
+      final startM = s * page.measuresPerSystem;
 
       for (var pi = 0; pi < partCount; pi++) {
-        final part = score.parts[pi];
-        if (startM >= part.measures.length) continue;
+        final partMeasures = pageParts[pi];
+        if (startM >= partMeasures.length) continue;
 
-        final endM =
-            math.min(startM + page.measuresPerSystem, part.measures.length);
-        final rowMeasures = part.measures.sublist(startM, endM);
+        final endM = math.min(
+          startM + page.measuresPerSystem,
+          partMeasures.length,
+        );
+        final rowMeasures = partMeasures.sublist(startM, endM);
 
         // staffTop = top staff line in PDF coords (y from bottom).
-        // We descend: each part shifts down by _staffH + _sysSp.
-        final staffTop = yTop - pi * (_staffH + _sysSp) - _staffH;
+        final editorStaffTop =
+            _editorPadY +
+            s * partCount * _editorRowH +
+            pi * _editorRowH +
+            _editorStaffTopOffset;
+        final staffTop = pageH - _pageY0 - editorStaffTop * _scale;
 
         _drawStaffRow(
           g,
           font,
           fontBold,
-          fmt,
           rowMeasures: rowMeasures,
           staffTop: staffTop,
-          startMeasureGlobal: startM,
           clefSign: _clefSign(rowMeasures),
           clefLine: _clefLine(rowMeasures),
-          isFirstSystem: si == 0,
+          isFirstSystem: s == 0,
         );
       }
-
-      // Advance yTop past this system
-      yTop -= partCount * (_staffH + _sysSp);
-    }
-  }
-
-  // ── Title block ────────────────────────────────────────────────────────────
-
-  void _drawTitleBlock(
-    PdfGraphics g,
-    PdfFont font,
-    PdfFont fontBold,
-    Score score,
-    PdfPageFormat fmt,
-    double yTop,
-  ) {
-    final title = score.title.isEmpty ? 'Untitled Score' : score.title;
-    _text(g, fontBold, 16, title, _marginPt, yTop - 20);
-
-    if (score.composer.isNotEmpty) {
-      final compW = _strWidth(score.composer, 9);
-      _text(g, font, 9, score.composer,
-          fmt.width - _marginPt - compW, yTop - 36);
     }
   }
 
@@ -179,11 +291,9 @@ class PdfScoreRenderer {
   void _drawStaffRow(
     PdfGraphics g,
     PdfFont font,
-    PdfFont fontBold,
-    PdfPageFormat fmt, {
+    PdfFont fontBold, {
     required List<Measure> rowMeasures,
     required double staffTop,
-    required int startMeasureGlobal,
     required String clefSign,
     required int clefLine,
     required bool isFirstSystem,
@@ -191,13 +301,14 @@ class PdfScoreRenderer {
     // staffTop = y of top staff line (PDF: y from bottom)
     // staffBottom = y of bottom staff line
     final staffBottom = staffTop - _staffH;
-    final contentStartX = _marginPt + _prefixW;
+    final rowStartX = _pageX0 + _padX;
+    final contentStartX = rowStartX + _prefixW;
     final staffEndX = contentStartX + rowMeasures.length * _mw;
 
     // 5 staff lines
     for (var i = 0; i < 5; i++) {
       final lineY = staffTop - i * _ls;
-      _line(g, _marginPt, lineY, staffEndX, lineY, 0.5);
+      _line(g, rowStartX, lineY, staffEndX, lineY, 0.5);
     }
 
     // Opening barline
@@ -207,15 +318,21 @@ class PdfScoreRenderer {
 
     // Clef
     if (clefSign.toUpperCase() == 'F') {
-      _drawBassClef(g, _marginPt + 4, staffTop, staffBottom);
+      _drawBassClef(g, rowStartX + 8 * _scale, staffTop, staffBottom);
     } else if (clefSign.toUpperCase() == 'C') {
-      _drawCClef(g, _marginPt + 4, staffTop, staffBottom, clefLine: clefLine);
+      _drawCClef(
+        g,
+        rowStartX + 6 * _scale,
+        staffTop,
+        staffBottom,
+        clefLine: clefLine,
+      );
     } else {
-      _drawTrebleClef(g, _marginPt + 6, staffTop, staffBottom);
+      _drawTrebleClef(g, rowStartX + 10 * _scale, staffTop, staffBottom);
     }
 
-    // Key + time signature (first system only)
-    var sigX = _marginPt + 28.0;
+    // Key + time signature (first visible system on each editor/PDF page)
+    var sigX = rowStartX + 42.0 * _scale;
     if (isFirstSystem && rowMeasures.isNotEmpty) {
       final first = rowMeasures.first;
       if (first.keySignature != null) {
@@ -233,7 +350,7 @@ class PdfScoreRenderer {
         _drawTimeSig(
           g,
           fontBold,
-          sigX + 4,
+          sigX + 10 * _scale,
           staffTop,
           first.timeSignature!.beats,
           first.timeSignature!.beatType,
@@ -253,11 +370,18 @@ class PdfScoreRenderer {
       }
 
       // Measure number
-      _text(g, font, 6, '${measure.number}', measureStartX + 3,
-          staffTop + 6);
+      _text(
+        g,
+        font,
+        11 * _scale,
+        '${measure.number}',
+        measureStartX + 8 * _scale,
+        staffTop + 22 * _scale,
+      );
 
       _drawMeasureSymbols(
         g,
+        fontBold,
         measure,
         measureStartX: measureStartX,
         measureEndX: measureEndX,
@@ -273,6 +397,7 @@ class PdfScoreRenderer {
 
   void _drawMeasureSymbols(
     PdfGraphics g,
+    PdfFont font,
     Measure measure, {
     required double measureStartX,
     required double measureEndX,
@@ -283,9 +408,11 @@ class PdfScoreRenderer {
   }) {
     if (measure.symbols.isEmpty) return;
 
-    const innerPad = 10.0;
-    final drawableW =
-        math.max(12.0, (measureEndX - measureStartX) - innerPad * 2);
+    final innerPad = 16.0 * _scale;
+    final drawableW = math.max(
+      12.0,
+      (measureEndX - measureStartX) - innerPad * 2,
+    );
     final count = measure.symbols.length;
     final slotCount = _visualSlotCount(measure.symbols);
     final middleLineY = staffTop - _ls * 2; // 3rd staff line from top
@@ -293,20 +420,27 @@ class PdfScoreRenderer {
     // Pre-compute x/y positions for all symbols.
     final xs = List<double>.generate(
       count,
-      (i) => measureStartX + innerPad + drawableW * (_visualSlotForIndex(measure.symbols, i) + 1) / (slotCount + 1),
+      (i) =>
+          measureStartX +
+          innerPad +
+          drawableW *
+              (_visualSlotForIndex(measure.symbols, i) + 1) /
+              (slotCount + 1),
     );
     final ys = <double>[];
     for (var i = 0; i < count; i++) {
       final sym = measure.symbols[i];
       if (sym is Note) {
-        ys.add(StaffPitchMapper.yForPitch(
-          step: sym.step,
-          octave: sym.octave,
-          bottomLineY: staffBottom,
-          lineSpacing: _ls,
-          clefSign: clefSign,
-          clefLine: clefLine,
-        ));
+        ys.add(
+          StaffPitchMapper.yForPitch(
+            step: sym.step,
+            octave: sym.octave,
+            bottomLineY: staffBottom,
+            lineSpacing: _ls,
+            clefSign: clefSign,
+            clefLine: clefLine,
+          ),
+        );
       } else {
         ys.add(staffTop - _ls * 2);
       }
@@ -330,6 +464,7 @@ class PdfScoreRenderer {
       if (symbol is Note) {
         _drawNote(
           g,
+          font,
           symbol,
           x: x,
           y: y,
@@ -339,7 +474,13 @@ class PdfScoreRenderer {
           suppressFlag: beamedIndices.contains(i),
         ); // suppressFlag hides individual flag when note is part of a beam group
       } else if (symbol is Rest) {
-        _drawRest(g, symbol, x: x, staffTop: staffTop, staffBottom: staffBottom);
+        _drawRest(
+          g,
+          symbol,
+          x: x,
+          staffTop: staffTop,
+          staffBottom: staffBottom,
+        );
       }
     }
 
@@ -363,8 +504,12 @@ class PdfScoreRenderer {
       // Filled rectangle for the beam bar (3 pt thick).
       const beamThickness = 3.0;
       g.setColor(_ink);
-      g.drawRect(x1, math.min(y1, y2) - beamThickness / 2,
-          x2 - x1, beamThickness);
+      g.drawRect(
+        x1,
+        math.min(y1, y2) - beamThickness / 2,
+        x2 - x1,
+        beamThickness,
+      );
       g.fillPath();
     }
   }
@@ -376,7 +521,10 @@ class PdfScoreRenderer {
 
     for (var i = 0; i < symbols.length; i++) {
       final sym = symbols[i];
-      if (sym is Note && !sym.isChordTone && sym.type == 'eighth' && sym.beamed) {
+      if (sym is Note &&
+          !sym.isChordTone &&
+          _isEighth(sym.type) &&
+          sym.beamed) {
         current ??= [];
         current.add(i);
       } else {
@@ -394,6 +542,7 @@ class PdfScoreRenderer {
 
   void _drawNote(
     PdfGraphics g,
+    PdfFont font,
     Note note, {
     required double x,
     required double y,
@@ -406,16 +555,23 @@ class PdfScoreRenderer {
     final isBreve = type == 'breve';
     final isWhole = type == 'whole' || isBreve;
     final isHalf = type == 'half';
-    final isEighth = type == 'eighth';
+    final isEighth = _isEighth(type);
 
     g.setColor(_ink);
 
     // Ledger lines
     _ledgerLines(g, x: x, y: y, staffBottom: staffBottom, staffTop: staffTop);
 
+    final accidental = _accidentalLabel(note.alter);
+    if (accidental != null) {
+      _text(g, font, 16 * _scale, accidental, x - 18 * _scale, y - 6 * _scale);
+    }
+
     // Notehead — rotated oval approximated with an ellipse
-    const hw = 5.2;
-    const hh = 3.5;
+    final headW = (isWhole ? 14.0 : 12.5) * _scale;
+    final headH = (isWhole ? 9.8 : 8.8) * _scale;
+    final hw = headW / 2;
+    final hh = headH / 2;
     if (isWhole || isHalf) {
       g.drawEllipse(x - hw, y - hh, hw * 2, hh * 2);
       g.setLineWidth(0.9);
@@ -434,12 +590,26 @@ class PdfScoreRenderer {
     }
 
     if (isBreve) {
-      _line(g, x - hw * 1.6, y - 11, x - hw * 1.6, y + 11, 0.8);
-      _line(g, x + hw * 1.6, y - 11, x + hw * 1.6, y + 11, 0.8);
+      _line(
+        g,
+        x - hw * 1.8,
+        y - 10 * _scale,
+        x - hw * 1.8,
+        y + 10 * _scale,
+        1.2 * _scale,
+      );
+      _line(
+        g,
+        x + hw * 1.8,
+        y - 10 * _scale,
+        x + hw * 1.8,
+        y + 10 * _scale,
+        1.2 * _scale,
+      );
     }
 
     if (note.dots > 0) {
-      _drawAugmentationDots(g, x: x + 11, y: y, dots: note.dots);
+      _drawAugmentationDots(g, x: x + headW * 0.9, y: y, dots: note.dots);
     }
 
     if (isWhole) return;
@@ -450,9 +620,32 @@ class PdfScoreRenderer {
 
     // Stem
     final stemUp = y < middleLineY;
-    _drawStem(g, x: x, y: y, stemUp: stemUp,
-        isEighth: isEighth && !suppressFlag);
+    _drawStem(
+      g,
+      x: x,
+      y: y,
+      stemUp: stemUp,
+      isEighth: isEighth && !suppressFlag,
+    );
   }
+
+  static bool _isEighth(String type) {
+    final normalized = type.trim().toLowerCase();
+    return normalized == 'eighth' ||
+        normalized == 'flag8thup' ||
+        normalized == 'flag8thdown';
+  }
+
+  String? accidentalLabelForTesting(int? alter) => _accidentalLabel(alter);
+
+  static String? _accidentalLabel(int? alter) => switch (alter) {
+    1 => '#',
+    -1 => 'b',
+    0 => 'n',
+    2 => 'x',
+    -2 => 'bb',
+    _ => null,
+  };
 
   void _ledgerLines(
     PdfGraphics g, {
@@ -461,7 +654,7 @@ class PdfScoreRenderer {
     required double staffBottom,
     required double staffTop,
   }) {
-    const hw = 7.0;
+    final hw = 7.0 * _scale;
     g.setColor(_ink);
     g.setLineWidth(0.5);
 
@@ -488,8 +681,8 @@ class PdfScoreRenderer {
     required bool stemUp,
     required bool isEighth,
   }) {
-    final stemLen = _ls * 3.5;
-    final stemX = stemUp ? x + 5.0 : x - 5.0;
+    final stemLen = _ls * 3.4;
+    final stemX = stemUp ? x + 6.0 * _scale : x - 6.0 * _scale;
     final endY = stemUp ? y + stemLen : y - stemLen;
 
     g.setColor(_ink);
@@ -502,10 +695,24 @@ class PdfScoreRenderer {
     g.setColor(_ink);
     if (stemUp) {
       g.moveTo(stemX, endY);
-      g.curveTo(stemX + 7, endY - 1, stemX + 5, endY - 6, stemX + 1, endY - 9);
+      g.curveTo(
+        stemX + 10 * _scale,
+        endY - 1 * _scale,
+        stemX + 6 * _scale,
+        endY - 12 * _scale,
+        stemX + 1 * _scale,
+        endY - 6 * _scale,
+      );
     } else {
       g.moveTo(stemX, endY);
-      g.curveTo(stemX - 7, endY + 1, stemX - 5, endY + 6, stemX - 1, endY + 9);
+      g.curveTo(
+        stemX - 10 * _scale,
+        endY + 1 * _scale,
+        stemX - 6 * _scale,
+        endY + 12 * _scale,
+        stemX - 1 * _scale,
+        endY + 6 * _scale,
+      );
     }
     g.strokePath();
   }
@@ -525,33 +732,53 @@ class PdfScoreRenderer {
     if (type == 'whole') {
       // Rectangle hanging below line 4 (from top)
       final lineY = staffTop - _ls * 3;
-      g.drawRect(x - 6.5, lineY - 3.5, 13, 3.5);
+      g.drawRect(
+        x - 8 * _scale,
+        lineY - 4.3 * _scale,
+        16 * _scale,
+        4.8 * _scale,
+      );
       g.fillPath();
-      _drawAugmentationDots(g, x: x + 10, y: lineY - 1.5, dots: rest.dots);
+      _drawAugmentationDots(
+        g,
+        x: x + 12 * _scale,
+        y: lineY - 4.3 * _scale,
+        dots: rest.dots,
+      );
       return;
     }
 
     if (type == 'half') {
       // Rectangle sitting on line 3 (from top)
       final lineY = staffTop - _ls * 2;
-      g.drawRect(x - 6.5, lineY, 13, 3.5);
+      g.drawRect(x - 8 * _scale, lineY, 16 * _scale, 4.8 * _scale);
       g.fillPath();
-      _drawAugmentationDots(g, x: x + 10, y: lineY + 1.5, dots: rest.dots);
+      _drawAugmentationDots(
+        g,
+        x: x + 12 * _scale,
+        y: lineY + 3 * _scale,
+        dots: rest.dots,
+      );
       return;
     }
 
     // Quarter rest — zigzag
     final qy = staffTop - _ls * 1.4;
     g.setLineWidth(0.9);
-    g.moveTo(x - 2, qy);
-    g.lineTo(x + 2.5, qy + 2);
-    g.lineTo(x - 1.5, qy + 4.5);
-    g.lineTo(x + 2.5, qy + 7);
-    g.lineTo(x - 1, qy + 9);
-    g.lineTo(x + 2.5, qy + 12);
-    g.lineTo(x - 3, qy + 14);
+    g.moveTo(x - 3 * _scale, qy - 5 * _scale);
+    g.lineTo(x + 3 * _scale, qy - 1 * _scale);
+    g.lineTo(x - 2 * _scale, qy + 4 * _scale);
+    g.lineTo(x + 3 * _scale, qy + 9 * _scale);
+    g.lineTo(x - 1 * _scale, qy + 14 * _scale);
+    g.lineTo(x + 3 * _scale, qy + 19 * _scale);
+    g.lineTo(x - 4 * _scale, qy + 22 * _scale);
     g.strokePath();
-    _drawAugmentationDots(g, x: x + 8, y: qy + 7, dots: rest.dots);
+    _drawAugmentationDots(
+      g,
+      x: x + 10 * _scale,
+      y: qy + 8 * _scale,
+      dots: rest.dots,
+    );
   }
 
   void _drawAugmentationDots(
@@ -563,7 +790,12 @@ class PdfScoreRenderer {
     if (dots <= 0) return;
     g.setColor(_ink);
     for (var i = 0; i < dots; i++) {
-      g.drawEllipse(x + (i * 5.5), y - 1.2, 2.4, 2.4);
+      g.drawEllipse(
+        x + (i * 6 * _scale),
+        y - 2 * _scale,
+        4.2 * _scale,
+        4.2 * _scale,
+      );
       g.fillPath();
     }
   }
@@ -571,7 +803,11 @@ class PdfScoreRenderer {
   // ── Clef ──────────────────────────────────────────────────────────────────
 
   void _drawTrebleClef(
-      PdfGraphics g, double x, double staffTop, double staffBottom) {
+    PdfGraphics g,
+    double x,
+    double staffTop,
+    double staffBottom,
+  ) {
     final cx = x + 5;
     // The treble clef curl center is roughly on the G4 (2nd line from bottom)
     final g4y = staffBottom + _ls; // 2nd line from bottom
@@ -592,20 +828,36 @@ class PdfScoreRenderer {
 
     // Upper curl
     g.moveTo(cx, staffTop + _ls * 1.5);
-    g.curveTo(cx + 10, staffTop + _ls * 0.5, cx + 10, staffTop - _ls * 0.5,
-        cx, staffTop - _ls * 0.3);
+    g.curveTo(
+      cx + 10,
+      staffTop + _ls * 0.5,
+      cx + 10,
+      staffTop - _ls * 0.5,
+      cx,
+      staffTop - _ls * 0.3,
+    );
     g.curveTo(cx - 8, staffTop - _ls * 0.1, cx - 6, g4y + 2, cx, g4y + 5);
     g.strokePath();
 
     // Bottom tail
     g.moveTo(cx, staffBottom - _ls * 0.5);
     g.curveTo(
-        cx - 7, staffBottom - _ls, cx - 6, staffBottom - _ls * 0.3, cx, g4y - 5);
+      cx - 7,
+      staffBottom - _ls,
+      cx - 6,
+      staffBottom - _ls * 0.3,
+      cx,
+      g4y - 5,
+    );
     g.strokePath();
   }
 
   void _drawBassClef(
-      PdfGraphics g, double x, double staffTop, double staffBottom) {
+    PdfGraphics g,
+    double x,
+    double staffTop,
+    double staffBottom,
+  ) {
     final cx = x + 10;
     // Bass clef body centered on F3 (4th line from bottom = staffBottom + 3*ls)
     final f3y = staffBottom + _ls * 3;
@@ -615,7 +867,14 @@ class PdfScoreRenderer {
 
     g.moveTo(cx, f3y + _ls * 1.5);
     g.curveTo(cx + 12, f3y + _ls * 1.5, cx + 16, f3y + _ls * 0.5, cx + 9, f3y);
-    g.curveTo(cx + 4, f3y - _ls * 0.4, cx - 2, f3y - _ls * 0.8, cx - 3, f3y - _ls * 2);
+    g.curveTo(
+      cx + 4,
+      f3y - _ls * 0.4,
+      cx - 2,
+      f3y - _ls * 0.8,
+      cx - 3,
+      f3y - _ls * 2,
+    );
     g.strokePath();
 
     // Two dots to the right of the curl
@@ -688,36 +947,96 @@ class PdfScoreRenderer {
     final count = fifths.abs().clamp(0, 7);
 
     const sharpOrderTreble = [
-      ('F', 5), ('C', 5), ('G', 5), ('D', 5), ('A', 4), ('E', 5), ('B', 4),
+      ('F', 5),
+      ('C', 5),
+      ('G', 5),
+      ('D', 5),
+      ('A', 4),
+      ('E', 5),
+      ('B', 4),
     ];
     const flatOrderTreble = [
-      ('B', 4), ('E', 5), ('A', 4), ('D', 5), ('G', 4), ('C', 5), ('F', 4),
+      ('B', 4),
+      ('E', 5),
+      ('A', 4),
+      ('D', 5),
+      ('G', 4),
+      ('C', 5),
+      ('F', 4),
     ];
     const sharpOrderBass = [
-      ('F', 3), ('C', 3), ('G', 3), ('D', 3), ('A', 2), ('E', 3), ('B', 2),
+      ('F', 3),
+      ('C', 3),
+      ('G', 3),
+      ('D', 3),
+      ('A', 2),
+      ('E', 3),
+      ('B', 2),
     ];
     const flatOrderBass = [
-      ('B', 2), ('E', 3), ('A', 2), ('D', 3), ('G', 2), ('C', 3), ('F', 2),
+      ('B', 2),
+      ('E', 3),
+      ('A', 2),
+      ('D', 3),
+      ('G', 2),
+      ('C', 3),
+      ('F', 2),
     ];
     const sharpOrderAlto = [
-      ('F', 4), ('C', 4), ('G', 4), ('D', 4), ('A', 4), ('E', 4), ('B', 4),
+      ('F', 4),
+      ('C', 4),
+      ('G', 4),
+      ('D', 4),
+      ('A', 4),
+      ('E', 4),
+      ('B', 4),
     ];
     const flatOrderAlto = [
-      ('B', 3), ('E', 4), ('A', 3), ('D', 4), ('G', 3), ('C', 4), ('F', 3),
+      ('B', 3),
+      ('E', 4),
+      ('A', 3),
+      ('D', 4),
+      ('G', 3),
+      ('C', 4),
+      ('F', 3),
     ];
     const sharpOrderTenor = [
-      ('F', 3), ('C', 4), ('G', 3), ('D', 4), ('A', 3), ('E', 4), ('B', 3),
+      ('F', 3),
+      ('C', 4),
+      ('G', 3),
+      ('D', 4),
+      ('A', 3),
+      ('E', 4),
+      ('B', 3),
     ];
     const flatOrderTenor = [
-      ('B', 3), ('E', 4), ('A', 3), ('D', 4), ('G', 3), ('C', 4), ('F', 3),
+      ('B', 3),
+      ('E', 4),
+      ('A', 3),
+      ('D', 4),
+      ('G', 3),
+      ('C', 4),
+      ('F', 3),
     ];
 
     final isBass = clefSign.toUpperCase() == 'F';
     final isAlto = clefSign.toUpperCase() == 'C' && clefLine == 3;
     final isTenor = clefSign.toUpperCase() == 'C' && clefLine == 4;
     final order = isSharp
-        ? (isBass ? sharpOrderBass : isAlto ? sharpOrderAlto : isTenor ? sharpOrderTenor : sharpOrderTreble)
-        : (isBass ? flatOrderBass : isAlto ? flatOrderAlto : isTenor ? flatOrderTenor : flatOrderTreble);
+        ? (isBass
+              ? sharpOrderBass
+              : isAlto
+              ? sharpOrderAlto
+              : isTenor
+              ? sharpOrderTenor
+              : sharpOrderTreble)
+        : (isBass
+              ? flatOrderBass
+              : isAlto
+              ? flatOrderAlto
+              : isTenor
+              ? flatOrderTenor
+              : flatOrderTreble);
 
     for (var i = 0; i < count; i++) {
       final pitch = order[i];
@@ -729,8 +1048,8 @@ class PdfScoreRenderer {
         clefSign: clefSign,
         clefLine: clefLine,
       );
-      _text(g, font, 7, isSharp ? '#' : 'b', x, y + 2);
-      x += 6;
+      _text(g, font, 20 * _scale, isSharp ? '#' : 'b', x, y - 12 * _scale);
+      x += 10 * _scale;
     }
     return x;
   }
@@ -745,13 +1064,20 @@ class PdfScoreRenderer {
     int beats,
     int beatType,
   ) {
-    _text(g, font, 9, '$beats', x, staffTop - _ls * 1.2);
-    _text(g, font, 9, '$beatType', x, staffTop - _ls * 3.0);
+    _text(g, font, 22 * _scale, '$beats', x, staffTop - 18 * _scale);
+    _text(g, font, 22 * _scale, '$beatType', x, staffTop - 42 * _scale);
   }
 
   // ── Primitive helpers ──────────────────────────────────────────────────────
 
-  void _line(PdfGraphics g, double x1, double y1, double x2, double y2, double w) {
+  void _line(
+    PdfGraphics g,
+    double x1,
+    double y1,
+    double x2,
+    double y2,
+    double w,
+  ) {
     g.setColor(_ink);
     g.setLineWidth(w);
     g.moveTo(x1, y1);
@@ -759,12 +1085,17 @@ class PdfScoreRenderer {
     g.strokePath();
   }
 
-  void _text(PdfGraphics g, PdfFont font, double size, String text, double x, double y) {
+  void _text(
+    PdfGraphics g,
+    PdfFont font,
+    double size,
+    String text,
+    double x,
+    double y,
+  ) {
     g.setColor(_ink);
     g.drawString(font, size, text, x, y);
   }
-
-  double _strWidth(String s, double size) => s.length * size * 0.52;
 
   int _visualSlotCount(List<dynamic> symbols) {
     var count = 0;
@@ -808,14 +1139,28 @@ class PdfScoreRenderer {
 
 class _PageData {
   const _PageData({
-    required this.firstSystemIndex,
-    required this.systemCount,
+    required this.firstMeasureIndex,
+    required this.measureCount,
     required this.measuresPerSystem,
-    required this.isFirstPage,
+    required this.rowsPerPage,
   });
 
-  final int firstSystemIndex;
-  final int systemCount;
+  final int firstMeasureIndex;
+  final int measureCount;
   final int measuresPerSystem;
-  final bool isFirstPage;
+  final int rowsPerPage;
+}
+
+class PdfPageLayoutInfo {
+  const PdfPageLayoutInfo({
+    required this.firstMeasureIndex,
+    required this.measureCount,
+    required this.measuresPerSystem,
+    required this.rowsPerPage,
+  });
+
+  final int firstMeasureIndex;
+  final int measureCount;
+  final int measuresPerSystem;
+  final int rowsPerPage;
 }
