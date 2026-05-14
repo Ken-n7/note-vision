@@ -112,6 +112,25 @@ void main() {
       expect(pdf, contains('(x)'));
       expect(pdf, contains('(bb)'));
     });
+
+    test('maps pitches using PDF y-up coordinates', () {
+      const renderer = PdfScoreRenderer();
+      const staffBottom = 100.0;
+
+      final c4 = renderer.debugPitchYForTesting(
+        step: 'C',
+        octave: 4,
+        staffBottom: staffBottom,
+      );
+      final g4 = renderer.debugPitchYForTesting(
+        step: 'G',
+        octave: 4,
+        staffBottom: staffBottom,
+      );
+
+      expect(c4, lessThan(staffBottom));
+      expect(g4, greaterThan(staffBottom));
+    });
   });
 }
 
