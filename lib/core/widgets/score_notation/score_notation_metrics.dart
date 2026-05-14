@@ -1,4 +1,17 @@
 abstract final class ScoreNotationMetrics {
+  static const musicFontFamily = 'NotoMusic';
+  static const musicFontAsset = 'assets/fonts/NotoMusic-Regular.ttf';
+  static const textFontFamily = 'NotoSans';
+  static const textFontAsset = 'assets/fonts/NotoSans-Regular.ttf';
+  static const textBoldFontAsset = 'assets/fonts/NotoSans-Bold.ttf';
+
+  static const trebleClefGlyph = '\u{1D11E}';
+  static const sharpGlyph = '\u266F';
+  static const flatGlyph = '\u266D';
+  static const naturalGlyph = '\u266E';
+  static const doubleSharpGlyph = '\u{1D12A}';
+  static const doubleFlatGlyph = '\u{1D12B}';
+
   static const staffLineSpacing = 12.0;
   static const staffLineCount = 5;
   static const middleStaffLineIndex = 2.0;

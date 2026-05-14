@@ -1,0 +1,11 @@
+Noto Music and Noto Sans are licensed under the SIL Open Font License,
+Version 1.1.
+
+Copyright 2010, 2012-2020 Google Inc.
+Copyright 2015-2020 Google LLC.
+
+Source: https://github.com/notofonts
+
+This font may be bundled and embedded with software under the OFL-1.1 terms.
+The full license text is available from the SIL Open Font License:
+https://openfontlicense.org

@@ -1,6 +1,6 @@
 import 'dart:math' as math;
-import 'dart:typed_data';
 
+import 'package:flutter/services.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/models/measure.dart';
@@ -59,8 +59,18 @@ class PdfScoreRenderer {
   /// Returns raw PDF bytes for [score].
   Future<Uint8List> render(Score score) async {
     final doc = PdfDocument(compress: compress);
-    final font = PdfFont.courier(doc);
-    final fontBold = PdfFont.courierBold(doc);
+    final font = PdfTtfFont(
+      doc,
+      await rootBundle.load(ScoreNotationMetrics.textFontAsset),
+    );
+    final fontBold = PdfTtfFont(
+      doc,
+      await rootBundle.load(ScoreNotationMetrics.textBoldFontAsset),
+    );
+    final musicFont = PdfTtfFont(
+      doc,
+      await rootBundle.load(ScoreNotationMetrics.musicFontAsset),
+    );
 
     if (score.parts.isEmpty) {
       final page = PdfPage(doc, pageFormat: PdfPageFormat.a4);
@@ -81,7 +91,15 @@ class PdfScoreRenderer {
     for (final pageData in pages) {
       final page = PdfPage(doc, pageFormat: PdfPageFormat.a4);
       final g = page.getGraphics();
-      _paintPage(g, pageData, score, font, fontBold, PdfPageFormat.a4);
+      _paintPage(
+        g,
+        pageData,
+        score,
+        font,
+        fontBold,
+        musicFont,
+        PdfPageFormat.a4,
+      );
     }
 
     return doc.save();
@@ -259,6 +277,7 @@ class PdfScoreRenderer {
     Score score,
     PdfFont font,
     PdfFont fontBold,
+    PdfFont musicFont,
     PdfPageFormat fmt,
   ) {
     final pageH = fmt.height;
@@ -294,6 +313,7 @@ class PdfScoreRenderer {
           g,
           font,
           fontBold,
+          musicFont,
           rowMeasures: rowMeasures,
           staffTop: staffTop,
           clefSign: _clefSign(rowMeasures),
@@ -309,7 +329,8 @@ class PdfScoreRenderer {
   void _drawStaffRow(
     PdfGraphics g,
     PdfFont font,
-    PdfFont fontBold, {
+    PdfFont fontBold,
+    PdfFont musicFont, {
     required List<Measure> rowMeasures,
     required double staffTop,
     required String clefSign,
@@ -367,7 +388,7 @@ class PdfScoreRenderer {
         clefLine: clefLine,
       );
     } else {
-      _drawTrebleClef(g, rowStartX + 10 * _scale, staffTop, staffBottom);
+      _drawTrebleClef(g, musicFont, rowStartX + 10 * _scale, staffTop);
     }
 
     // Key + time signature (first visible system on each editor/PDF page)
@@ -377,7 +398,7 @@ class PdfScoreRenderer {
       if (first.keySignature != null) {
         sigX = _drawKeySignature(
           g,
-          font,
+          musicFont,
           sigX,
           first.keySignature!.fifths,
           staffBottom: staffBottom,
@@ -427,7 +448,7 @@ class PdfScoreRenderer {
 
       _drawMeasureSymbols(
         g,
-        fontBold,
+        musicFont,
         measure,
         measureStartX: measureStartX,
         measureEndX: measureEndX,
@@ -443,7 +464,7 @@ class PdfScoreRenderer {
 
   void _drawMeasureSymbols(
     PdfGraphics g,
-    PdfFont font,
+    PdfFont musicFont,
     Measure measure, {
     required double measureStartX,
     required double measureEndX,
@@ -510,7 +531,7 @@ class PdfScoreRenderer {
       if (symbol is Note) {
         _drawNote(
           g,
-          font,
+          musicFont,
           symbol,
           x: x,
           y: y,
@@ -699,11 +720,11 @@ class PdfScoreRenderer {
   String? accidentalLabelForTesting(int? alter) => _accidentalLabel(alter);
 
   static String? _accidentalLabel(int? alter) => switch (alter) {
-    1 => '#',
-    -1 => 'b',
-    0 => 'n',
-    2 => 'x',
-    -2 => 'bb',
+    1 => ScoreNotationMetrics.sharpGlyph,
+    -1 => ScoreNotationMetrics.flatGlyph,
+    0 => ScoreNotationMetrics.naturalGlyph,
+    2 => ScoreNotationMetrics.doubleSharpGlyph,
+    -2 => ScoreNotationMetrics.doubleFlatGlyph,
     _ => null,
   };
 
@@ -970,73 +991,18 @@ class PdfScoreRenderer {
 
   void _drawTrebleClef(
     PdfGraphics g,
+    PdfFont musicFont,
     double x,
     double staffTop,
-    double staffBottom,
   ) {
-    final cx = x + 5 * _scale;
-    // The treble clef curl center is roughly on the G4 (2nd line from bottom)
-    final g4y = staffBottom + _ls; // 2nd line from bottom
-
-    g.setColor(_ink);
-    g.setLineWidth(ScoreNotationMetrics.staffLineStrokeWidth * _scale);
-
-    // Main vertical stroke
-    g.moveTo(cx, staffTop + _ls * 1.5);
-    g.lineTo(cx, staffBottom - _ls * 0.5);
-    g.strokePath();
-
-    // Treble curl loop (around G4 line)
-    g.moveTo(cx, g4y + 5 * _scale);
-    g.curveTo(
-      cx + 9 * _scale,
-      g4y + 5 * _scale,
-      cx + 9 * _scale,
-      g4y - 5 * _scale,
-      cx,
-      g4y - 5 * _scale,
+    _text(
+      g,
+      musicFont,
+      ScoreNotationMetrics.trebleClefFontSize * _scale,
+      ScoreNotationMetrics.trebleClefGlyph,
+      x,
+      staffTop - 16 * _scale,
     );
-    g.curveTo(
-      cx - 7 * _scale,
-      g4y - 5 * _scale,
-      cx - 7 * _scale,
-      g4y + 4 * _scale,
-      cx - 2 * _scale,
-      g4y + 6 * _scale,
-    );
-    g.strokePath();
-
-    // Upper curl
-    g.moveTo(cx, staffTop + _ls * 1.5);
-    g.curveTo(
-      cx + 10 * _scale,
-      staffTop + _ls * 0.5,
-      cx + 10 * _scale,
-      staffTop - _ls * 0.5,
-      cx,
-      staffTop - _ls * 0.3,
-    );
-    g.curveTo(
-      cx - 8 * _scale,
-      staffTop - _ls * 0.1,
-      cx - 6 * _scale,
-      g4y + 2 * _scale,
-      cx,
-      g4y + 5 * _scale,
-    );
-    g.strokePath();
-
-    // Bottom tail
-    g.moveTo(cx, staffBottom - _ls * 0.5);
-    g.curveTo(
-      cx - 7 * _scale,
-      staffBottom - _ls,
-      cx - 6 * _scale,
-      staffBottom - _ls * 0.3,
-      cx,
-      g4y - 5 * _scale,
-    );
-    g.strokePath();
   }
 
   void _drawBassClef(
@@ -1258,7 +1224,9 @@ class PdfScoreRenderer {
         g,
         font,
         ScoreNotationMetrics.keySignatureFontSize * _scale,
-        isSharp ? '#' : 'b',
+        isSharp
+            ? ScoreNotationMetrics.sharpGlyph
+            : ScoreNotationMetrics.flatGlyph,
         x,
         y - ScoreNotationMetrics.keySignatureYOffset * _scale,
       );

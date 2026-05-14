@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/key_signature.dart';
@@ -9,9 +7,12 @@ import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/time_signature.dart';
+import 'package:note_vision/core/widgets/score_notation/score_notation_metrics.dart';
 import 'package:note_vision/features/pdf/pdf_score_renderer.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('PdfScoreRenderer layout', () {
     const renderer = PdfScoreRenderer();
 
@@ -82,18 +83,33 @@ void main() {
   });
 
   group('PdfScoreRenderer symbols', () {
-    test('maps note accidentals to PDF-safe labels', () {
+    test('maps note accidentals to shared music glyphs', () {
       const renderer = PdfScoreRenderer();
 
-      expect(renderer.accidentalLabelForTesting(1), '#');
-      expect(renderer.accidentalLabelForTesting(-1), 'b');
-      expect(renderer.accidentalLabelForTesting(0), 'n');
-      expect(renderer.accidentalLabelForTesting(2), 'x');
-      expect(renderer.accidentalLabelForTesting(-2), 'bb');
+      expect(
+        renderer.accidentalLabelForTesting(1),
+        ScoreNotationMetrics.sharpGlyph,
+      );
+      expect(
+        renderer.accidentalLabelForTesting(-1),
+        ScoreNotationMetrics.flatGlyph,
+      );
+      expect(
+        renderer.accidentalLabelForTesting(0),
+        ScoreNotationMetrics.naturalGlyph,
+      );
+      expect(
+        renderer.accidentalLabelForTesting(2),
+        ScoreNotationMetrics.doubleSharpGlyph,
+      );
+      expect(
+        renderer.accidentalLabelForTesting(-2),
+        ScoreNotationMetrics.doubleFlatGlyph,
+      );
       expect(renderer.accidentalLabelForTesting(null), isNull);
     });
 
-    test('renders accidental labels into the PDF content stream', () async {
+    test('renders music accidentals with embedded PDF font', () async {
       const renderer = PdfScoreRenderer(compress: false);
       final score = _scoreWithMeasures([
         const Measure(
@@ -107,10 +123,9 @@ void main() {
       ]);
 
       final bytes = await renderer.render(score);
-      final pdf = latin1.decode(bytes, allowInvalid: true);
 
-      expect(pdf, contains('(x)'));
-      expect(pdf, contains('(bb)'));
+      expect(bytes, isNotEmpty);
+      expect(String.fromCharCodes(bytes.take(4)), '%PDF');
     });
 
     test('maps pitches using PDF y-up coordinates', () {

@@ -339,6 +339,7 @@ class ScoreNotationPainter extends CustomPainter {
     const measureNumberStyle = TextStyle(
       color: Color(0xFF374151),
       fontSize: ScoreNotationMetrics.measureNumberFontSize,
+      fontFamily: ScoreNotationMetrics.textFontFamily,
       fontWeight: FontWeight.w600,
     );
 
@@ -788,11 +789,11 @@ class ScoreNotationPainter extends CustomPainter {
     // Draw accidental to the left of the notehead.
     if (note.alter != null) {
       final accidentalText = switch (note.alter) {
-        1 => '♯',
-        -1 => '♭',
-        0 => '♮',
-        2 => '𝄪',
-        -2 => '𝄫',
+        1 => ScoreNotationMetrics.sharpGlyph,
+        -1 => ScoreNotationMetrics.flatGlyph,
+        0 => ScoreNotationMetrics.naturalGlyph,
+        2 => ScoreNotationMetrics.doubleSharpGlyph,
+        -2 => ScoreNotationMetrics.doubleFlatGlyph,
         _ => null,
       };
       if (accidentalText != null) {
@@ -801,6 +802,7 @@ class ScoreNotationPainter extends CustomPainter {
             text: accidentalText,
             style: const TextStyle(
               fontSize: ScoreNotationMetrics.accidentalFontSize,
+              fontFamily: ScoreNotationMetrics.musicFontFamily,
               color: Color(0xFF111827),
               fontWeight: FontWeight.w600,
               height: 1,
@@ -1143,9 +1145,10 @@ class ScoreNotationPainter extends CustomPainter {
   void _drawTrebleClef(Canvas canvas, {required double x, required double y}) {
     final textPainter = TextPainter(
       text: const TextSpan(
-        text: '𝄞',
+        text: ScoreNotationMetrics.trebleClefGlyph,
         style: TextStyle(
           fontSize: ScoreNotationMetrics.trebleClefFontSize,
+          fontFamily: ScoreNotationMetrics.musicFontFamily,
           color: Color(0xFF111827),
           fontWeight: FontWeight.w500,
         ),
@@ -1214,7 +1217,9 @@ class ScoreNotationPainter extends CustomPainter {
 
     final isSharp = fifths > 0;
     final count = fifths.abs().clamp(0, 7);
-    final accidental = isSharp ? '#' : 'b';
+    final accidental = isSharp
+        ? ScoreNotationMetrics.sharpGlyph
+        : ScoreNotationMetrics.flatGlyph;
 
     const sharpOrderTreble = [
       ('F', 5),
@@ -1324,6 +1329,7 @@ class ScoreNotationPainter extends CustomPainter {
           text: accidental,
           style: const TextStyle(
             fontSize: ScoreNotationMetrics.keySignatureFontSize,
+            fontFamily: ScoreNotationMetrics.musicFontFamily,
             color: Color(0xFF111827),
             fontWeight: FontWeight.w500,
           ),
@@ -1352,6 +1358,7 @@ class ScoreNotationPainter extends CustomPainter {
         text: '${signature.beats}',
         style: const TextStyle(
           fontSize: ScoreNotationMetrics.timeSignatureFontSize,
+          fontFamily: ScoreNotationMetrics.textFontFamily,
           fontWeight: FontWeight.w700,
           color: Color(0xFF111827),
           height: 1,
@@ -1365,6 +1372,7 @@ class ScoreNotationPainter extends CustomPainter {
         text: '${signature.beatType}',
         style: const TextStyle(
           fontSize: ScoreNotationMetrics.timeSignatureFontSize,
+          fontFamily: ScoreNotationMetrics.textFontFamily,
           fontWeight: FontWeight.w700,
           color: Color(0xFF111827),
           height: 1,
