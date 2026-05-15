@@ -278,7 +278,11 @@ class ScoreNotationPainter extends CustomPainter {
           clefLine: row.clefLine,
         );
       default:
-        _drawTrebleClef(canvas, x: row.rowStartX + 10, y: row.staffTop - 14);
+        _drawTrebleClef(
+          canvas,
+          x: row.rowStartX + ScoreNotationMetrics.trebleClefXOffset,
+          y: row.staffTop + ScoreNotationMetrics.trebleClefYOffset,
+        );
     }
 
     _drawRowSignatures(canvas, row);

@@ -69,6 +69,9 @@ abstract final class ScoreNotationMetrics {
   static const cClefCenterStrokeWidth = 1.2;
   static const bassClefStrokeWidth = 1.6;
   static const bassClefDotRadius = 2.5;
+  static const trebleClefXOffset = 10.0;
+  static const trebleClefYOffset = -2.0;
+  static const trebleClefPdfBaselineYOffset = -28.0;
   static const trebleClefFontSize = 42.0;
 
   static const keySignatureFontSize = 20.0;

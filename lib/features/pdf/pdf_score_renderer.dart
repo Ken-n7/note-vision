@@ -388,7 +388,12 @@ class PdfScoreRenderer {
         clefLine: clefLine,
       );
     } else {
-      _drawTrebleClef(g, musicFont, rowStartX + 10 * _scale, staffTop);
+      _drawTrebleClef(
+        g,
+        musicFont,
+        rowStartX + ScoreNotationMetrics.trebleClefXOffset * _scale,
+        staffTop,
+      );
     }
 
     // Key + time signature (first visible system on each editor/PDF page)
@@ -1001,7 +1006,7 @@ class PdfScoreRenderer {
       ScoreNotationMetrics.trebleClefFontSize * _scale,
       ScoreNotationMetrics.trebleClefGlyph,
       x,
-      staffTop - 16 * _scale,
+      staffTop + ScoreNotationMetrics.trebleClefPdfBaselineYOffset * _scale,
     );
   }
 
