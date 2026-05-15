@@ -71,7 +71,7 @@ abstract final class ScoreNotationMetrics {
   static const bassClefDotRadius = 2.5;
   static const trebleClefXOffset = 10.0;
   static const trebleClefGLineIndexFromTop = 3.0;
-  static const trebleClefGlyphAnchorFromTop = 26.0;
+  static const trebleClefEditorGlyphAnchorFromTop = 38.0;
   static const trebleClefPdfBaselineFromGLine = -4.0;
   static const trebleClefFontSize = 42.0;
 
@@ -95,7 +95,7 @@ abstract final class ScoreNotationMetrics {
   }) {
     final scale = lineSpacing / staffLineSpacing;
     final gLineY = staffTop + lineSpacing * trebleClefGLineIndexFromTop;
-    return gLineY - trebleClefGlyphAnchorFromTop * scale;
+    return gLineY - trebleClefEditorGlyphAnchorFromTop * scale;
   }
 
   static double trebleClefPdfBaselineForStaff({
