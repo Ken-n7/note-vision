@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 abstract final class ScoreNotationMetrics {
   static const musicFontFamily = 'NotoMusic';
   static const musicFontAsset = 'assets/fonts/NotoMusic-Regular.ttf';
@@ -74,6 +76,12 @@ abstract final class ScoreNotationMetrics {
   static const trebleClefEditorGlyphAnchorFromTop = 50.0;
   static const trebleClefPdfBaselineFromGLine = -4.0;
   static const trebleClefFontSize = 42.0;
+
+  static const playbackPlayheadColor = Color(0xFFD4A96A);
+  static const playbackPlayheadStrokeWidth = 2.4;
+  static const playbackPlayheadOpacity = 0.9;
+  static const playbackPlayheadStaffPadding = 12.0;
+  static const playbackSymbolHighlightColor = Color(0xFFD4A96A);
 
   static const keySignatureFontSize = 20.0;
   static const keySignatureSpacing = 10.0;

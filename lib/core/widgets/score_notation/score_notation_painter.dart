@@ -26,6 +26,11 @@ class ScoreNotationPainter extends CustomPainter {
     this.playbackPartIndex,
     this.playbackMeasureIndex,
     this.playbackSymbolIndex,
+    this.playbackNextPartIndex,
+    this.playbackNextMeasureIndex,
+    this.playbackNextSymbolIndex,
+    this.playbackProgress = 0,
+    this.showPlaybackSymbolHighlight = true,
     this.dragFeedback,
     this.insertionTarget,
     this.insertionPreviewGlyph,
@@ -47,6 +52,11 @@ class ScoreNotationPainter extends CustomPainter {
   final int? playbackPartIndex;
   final int? playbackMeasureIndex;
   final int? playbackSymbolIndex;
+  final int? playbackNextPartIndex;
+  final int? playbackNextMeasureIndex;
+  final int? playbackNextSymbolIndex;
+  final double playbackProgress;
+  final bool showPlaybackSymbolHighlight;
 
   final NotationDragFeedback? dragFeedback;
   final NotationInsertTarget? insertionTarget;
@@ -62,6 +72,7 @@ class ScoreNotationPainter extends CustomPainter {
       _drawRow(canvas, row);
     }
     if (parts.length > 1) _drawSystemConnectors(canvas, metrics);
+    _drawPlaybackPlayhead(canvas, metrics);
   }
 
   List<_RowMetrics> _buildRowMetrics() {
@@ -508,7 +519,9 @@ class ScoreNotationPainter extends CustomPainter {
             playbackPartIndex == partIndex &&
             playbackMeasureIndex == absoluteMeasureIndex &&
             playbackSymbolIndex == i;
-        if (isPlaying) _drawPlaybackHighlight(canvas, Offset(x, y));
+        if (isPlaying && showPlaybackSymbolHighlight) {
+          _drawPlaybackHighlight(canvas, Offset(x, y));
+        }
         if (isSelected) _drawSelectionHighlight(canvas, Offset(x, y));
         _drawNote(
           canvas,
@@ -534,7 +547,9 @@ class ScoreNotationPainter extends CustomPainter {
             playbackPartIndex == partIndex &&
             playbackMeasureIndex == absoluteMeasureIndex &&
             playbackSymbolIndex == i;
-        if (isPlaying) _drawPlaybackHighlight(canvas, Offset(x, y));
+        if (isPlaying && showPlaybackSymbolHighlight) {
+          _drawPlaybackHighlight(canvas, Offset(x, y));
+        }
         if (isSelected) _drawSelectionHighlight(canvas, Offset(x, y));
         _drawRest(canvas, symbol, x: x, staffTop: staffTop);
       }
@@ -648,22 +663,115 @@ class ScoreNotationPainter extends CustomPainter {
   void _drawPlaybackHighlight(Canvas canvas, Offset center) {
     // Outer glow ring
     final ringPaint = Paint()
-      ..color = const Color(0xFFD4A96A).withValues(alpha: 0.18)
+      ..color = ScoreNotationMetrics.playbackSymbolHighlightColor.withValues(
+        alpha: 0.18,
+      )
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, 20, ringPaint);
 
     // Inner solid fill
     final fillPaint = Paint()
-      ..color = const Color(0xFFD4A96A).withValues(alpha: 0.45)
+      ..color = ScoreNotationMetrics.playbackSymbolHighlightColor.withValues(
+        alpha: 0.45,
+      )
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, 13, fillPaint);
 
     // Accent border
     final borderPaint = Paint()
-      ..color = const Color(0xFFD4A96A).withValues(alpha: 0.8)
+      ..color = ScoreNotationMetrics.playbackSymbolHighlightColor.withValues(
+        alpha: 0.8,
+      )
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
     canvas.drawCircle(center, 13, borderPaint);
+  }
+
+  void _drawPlaybackPlayhead(Canvas canvas, List<_RowMetrics> rows) {
+    final partIndex = playbackPartIndex;
+    final measureIndex = playbackMeasureIndex;
+    final symbolIndex = playbackSymbolIndex;
+    if (partIndex == null || measureIndex == null || symbolIndex == null) {
+      return;
+    }
+
+    final current = _findSymbolLayout(
+      rows: rows,
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      symbolIndex: symbolIndex,
+    );
+    if (current == null) return;
+
+    final nextPartIndex = playbackNextPartIndex;
+    final nextMeasureIndex = playbackNextMeasureIndex;
+    final nextSymbolIndex = playbackNextSymbolIndex;
+    final next =
+        nextPartIndex == null ||
+            nextMeasureIndex == null ||
+            nextSymbolIndex == null
+        ? null
+        : _findSymbolLayout(
+            rows: rows,
+            partIndex: nextPartIndex,
+            measureIndex: nextMeasureIndex,
+            symbolIndex: nextSymbolIndex,
+          );
+
+    final sameStaffRow =
+        next != null &&
+        next.row.rowIndex == current.row.rowIndex &&
+        next.row.partIndex == current.row.partIndex &&
+        next.x > current.x;
+    final endX = sameStaffRow ? next.x : current.measureEndX;
+    final t = playbackProgress.clamp(0.0, 1.0);
+    final x = current.x + (endX - current.x) * t;
+    final verticalPadding = ScoreNotationMetrics.playbackPlayheadStaffPadding;
+
+    final paint = Paint()
+      ..color = ScoreNotationMetrics.playbackPlayheadColor.withValues(
+        alpha: ScoreNotationMetrics.playbackPlayheadOpacity,
+      )
+      ..strokeWidth = ScoreNotationMetrics.playbackPlayheadStrokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawLine(
+      Offset(x, current.row.staffTop - verticalPadding),
+      Offset(x, current.row.staffBottom + verticalPadding),
+      paint,
+    );
+  }
+
+  _PlaybackSymbolLayout? _findSymbolLayout({
+    required List<_RowMetrics> rows,
+    required int partIndex,
+    required int measureIndex,
+    required int symbolIndex,
+  }) {
+    for (final row in rows) {
+      if (row.partIndex != partIndex) continue;
+      final measureInRow = measureIndex - row.globalStartMeasureIndex;
+      if (measureInRow < 0 || measureInRow >= row.measures.length) continue;
+
+      final measure = row.measures[measureInRow];
+      if (symbolIndex < 0 || symbolIndex >= measure.symbols.length) {
+        return null;
+      }
+
+      final measureStartX = row.contentStartX + measureInRow * minMeasureWidth;
+      final measureEndX = measureStartX + minMeasureWidth;
+      const innerPadding = ScoreNotationMetrics.measureInnerPadding;
+      final drawableWidth = math.max(
+        12.0,
+        (measureEndX - measureStartX) - (innerPadding * 2),
+      );
+      final slotCount = _visualSlotCount(measure.symbols);
+      final visualSlot = _visualSlotForIndex(measure.symbols, symbolIndex);
+      final progress = (visualSlot + 1) / (slotCount + 1);
+      final x = measureStartX + innerPadding + drawableWidth * progress;
+      return _PlaybackSymbolLayout(row: row, x: x, measureEndX: measureEndX);
+    }
+    return null;
   }
 
   void _drawInsertionPreview(
@@ -1414,6 +1522,12 @@ class ScoreNotationPainter extends CustomPainter {
         oldDelegate.playbackPartIndex != playbackPartIndex ||
         oldDelegate.playbackMeasureIndex != playbackMeasureIndex ||
         oldDelegate.playbackSymbolIndex != playbackSymbolIndex ||
+        oldDelegate.playbackNextPartIndex != playbackNextPartIndex ||
+        oldDelegate.playbackNextMeasureIndex != playbackNextMeasureIndex ||
+        oldDelegate.playbackNextSymbolIndex != playbackNextSymbolIndex ||
+        oldDelegate.playbackProgress != playbackProgress ||
+        oldDelegate.showPlaybackSymbolHighlight !=
+            showPlaybackSymbolHighlight ||
         oldDelegate.dragFeedback != dragFeedback ||
         oldDelegate.insertionTarget != insertionTarget ||
         oldDelegate.insertionPreviewGlyph != insertionPreviewGlyph;
@@ -1518,6 +1632,18 @@ class NotationInsertTarget {
       indicatorX.hashCode ^
       step.hashCode ^
       octave.hashCode;
+}
+
+class _PlaybackSymbolLayout {
+  const _PlaybackSymbolLayout({
+    required this.row,
+    required this.x,
+    required this.measureEndX,
+  });
+
+  final _RowMetrics row;
+  final double x;
+  final double measureEndX;
 }
 
 class _RowMetrics {

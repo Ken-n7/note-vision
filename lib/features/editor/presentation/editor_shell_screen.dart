@@ -10,6 +10,7 @@ import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/utils/image_picker_helper.dart';
 import 'package:note_vision/features/scan/presentation/scan_screen.dart';
+import 'package:note_vision/core/services/playback_display_preferences_service.dart';
 import 'package:note_vision/core/services/playback_service.dart';
 import 'package:note_vision/core/services/project_storage_service.dart';
 import 'package:note_vision/core/services/score_classifier.dart';
@@ -76,6 +77,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   late final PlaybackService _playback;
   PlaybackPosition _playbackPosition = PlaybackPosition.none;
   PlaybackStatus _playbackStatus = PlaybackStatus.stopped;
+  bool _showPlaybackSymbolHighlight =
+      PlaybackDisplayPreferencesService.showSymbolGlowNotifier.value;
   StreamSubscription<PlaybackPosition>? _positionSub;
   StreamSubscription<PlaybackState>? _stateSub;
 
@@ -124,7 +127,26 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       widget.args.initialState.copyWith(score: widget.args.score),
     );
     _initPlayback();
+    PlaybackDisplayPreferencesService.showSymbolGlowNotifier.addListener(
+      _onPlaybackDisplayPreferencesChanged,
+    );
+    _loadPlaybackDisplayPreferences();
     _loadScoreEditCount();
+  }
+
+  Future<void> _loadPlaybackDisplayPreferences() async {
+    final showSymbolGlow =
+        await PlaybackDisplayPreferencesService.getShowSymbolGlow();
+    if (!mounted) return;
+    setState(() => _showPlaybackSymbolHighlight = showSymbolGlow);
+  }
+
+  void _onPlaybackDisplayPreferencesChanged() {
+    if (!mounted) return;
+    setState(() {
+      _showPlaybackSymbolHighlight =
+          PlaybackDisplayPreferencesService.showSymbolGlowNotifier.value;
+    });
   }
 
   Future<void> _initPlayback() async {
@@ -147,6 +169,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   void dispose() {
     _positionSub?.cancel();
     _stateSub?.cancel();
+    PlaybackDisplayPreferencesService.showSymbolGlowNotifier.removeListener(
+      _onPlaybackDisplayPreferencesChanged,
+    );
     _bannerTimer?.cancel();
     _playback.stop();
     _dragGhostEntry?.remove();
@@ -684,7 +709,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
             .measures[selectedMeasureIndex]
             .symbols
             .isEmpty;
-    final currentMeasureClef = _editorState.score.parts.isNotEmpty &&
+    final currentMeasureClef =
+        _editorState.score.parts.isNotEmpty &&
             selectedPartIndex < _editorState.score.parts.length &&
             _editorState.score.parts[selectedPartIndex].measures.isNotEmpty
         ? _editorState.score.parts[selectedPartIndex].measures.first.clef
@@ -717,6 +743,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 insertMode: _insertMode,
                 insertSymbolType: _insertSymbolType,
                 playbackPosition: _playbackPosition,
+                showPlaybackSymbolHighlight: _showPlaybackSymbolHighlight,
                 isDraggingNote: _isDraggingNote,
                 dragGlobal: _dragGlobal,
                 trashZoneKey: _trashZoneKey,
@@ -727,7 +754,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 onPaletteTypeTap: _onPaletteTypeTap,
                 onSymbolTap: (target) {
                   if (target == null) {
-                    _updateState((s) => s.clearSymbolSelectionPreservingMeasureContext());
+                    _updateState(
+                      (s) => s.clearSymbolSelectionPreservingMeasureContext(),
+                    );
                   } else {
                     _onNotationSymbolTap(
                       target.partIndex,
@@ -906,8 +935,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   ),
                   scoreIsEmpty: scoreIsEmpty,
                   onExportPdf: () => _runExport(
-                    export: () =>
-                        const PdfExportService().exportToDevice(_editorState.score),
+                    export: () => const PdfExportService().exportToDevice(
+                      _editorState.score,
+                    ),
                     successMessage: 'PDF saved',
                   ),
                   onScanPage: isPlaybackActive ? null : _onScanPage,
@@ -919,8 +949,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   totalMeasures: _editorState.score.parts.isEmpty
                       ? 0
                       : _editorState.score.parts
-                          .map((p) => p.measures.length)
-                          .reduce((a, b) => a > b ? a : b),
+                            .map((p) => p.measures.length)
+                            .reduce((a, b) => a > b ? a : b),
                   onPlay: () => _playback.play(
                     _editorState.score,
                     fromMeasureIndex: _editorState.selectedMeasureIndex ?? 0,
@@ -981,7 +1011,12 @@ class _EditorWorkspace extends StatelessWidget {
                           children: [
                             Expanded(
                               child: Padding(
-                                padding: const EdgeInsets.fromLTRB(12, 0, 6, 12),
+                                padding: const EdgeInsets.fromLTRB(
+                                  12,
+                                  0,
+                                  6,
+                                  12,
+                                ),
                                 child: notationArea,
                               ),
                             ),
@@ -991,7 +1026,12 @@ class _EditorWorkspace extends StatelessWidget {
                                 320.0,
                               ),
                               child: Padding(
-                                padding: const EdgeInsets.fromLTRB(6, 0, 12, 12),
+                                padding: const EdgeInsets.fromLTRB(
+                                  6,
+                                  0,
+                                  12,
+                                  12,
+                                ),
                                 child: inspectorPanel,
                               ),
                             ),
@@ -1438,6 +1478,7 @@ class _NotationArea extends StatefulWidget {
     required this.insertMode,
     required this.insertSymbolType,
     required this.playbackPosition,
+    required this.showPlaybackSymbolHighlight,
     required this.isDraggingNote,
     required this.dragGlobal,
     required this.trashZoneKey,
@@ -1462,6 +1503,7 @@ class _NotationArea extends StatefulWidget {
   final bool insertMode;
   final PaletteSymbolType? insertSymbolType;
   final PlaybackPosition playbackPosition;
+  final bool showPlaybackSymbolHighlight;
   final bool isDraggingNote;
   final Offset dragGlobal;
   final GlobalKey trashZoneKey;
@@ -1483,8 +1525,10 @@ class _NotationArea extends StatefulWidget {
   State<_NotationArea> createState() => _NotationAreaState();
 }
 
-class _NotationAreaState extends State<_NotationArea> {
+class _NotationAreaState extends State<_NotationArea>
+    with SingleTickerProviderStateMixin {
   final _transformController = TransformationController();
+  late final AnimationController _playheadController;
   Size? _viewportSize;
   Size? _contentSize;
   bool _fittedOnce = false;
@@ -1492,13 +1536,16 @@ class _NotationAreaState extends State<_NotationArea> {
   @override
   void initState() {
     super.initState();
+    _playheadController = AnimationController(vsync: this);
     _transformController.addListener(_onTransformChanged);
+    _syncPlayheadAnimation();
   }
 
   @override
   void dispose() {
     _transformController.removeListener(_onTransformChanged);
     _transformController.dispose();
+    _playheadController.dispose();
     super.dispose();
   }
 
@@ -1514,6 +1561,32 @@ class _NotationAreaState extends State<_NotationArea> {
         !widget.isPlaybackActive) {
       _fittedOnce = false;
     }
+    if (oldWidget.playbackPosition != widget.playbackPosition ||
+        oldWidget.isPlaybackActive != widget.isPlaybackActive) {
+      _syncPlayheadAnimation();
+    }
+  }
+
+  void _syncPlayheadAnimation() {
+    if (widget.playbackPosition.isNone) {
+      _playheadController.stop();
+      _playheadController.value = 0;
+      return;
+    }
+    if (!widget.isPlaybackActive) {
+      _playheadController.stop();
+      return;
+    }
+    final durationMs = widget.playbackPosition.durationMs;
+    if (durationMs <= 0) {
+      _playheadController.stop();
+      _playheadController.value = 0;
+      return;
+    }
+    _playheadController.duration = Duration(
+      milliseconds: durationMs.clamp(10, 60000),
+    );
+    _playheadController.forward(from: 0);
   }
 
   // Converts an absolute measure index to page-relative; returns null when
@@ -1611,6 +1684,121 @@ class _NotationAreaState extends State<_NotationArea> {
     );
   }
 
+  ScoreNotationViewer _buildScoreNotationViewer() {
+    return ScoreNotationViewer(
+      score: widget.editorState.score,
+      selectedPartIndex: widget.editorState.selectedPartIndex ?? 0,
+      measuresPerRow: widget.layoutPolicy.measuresPerRow,
+      minMeasureWidth: widget.layoutPolicy.minMeasureWidth,
+      rowHeight: widget.layoutPolicy.rowHeight,
+      padding: EdgeInsets.symmetric(
+        horizontal: widget.layoutPolicy.horizontalPadding,
+        vertical: widget.layoutPolicy.verticalPadding,
+      ),
+      backgroundColor: Colors.white,
+      firstMeasureIndex: widget.pageFirstMeasure,
+      pageMeasureCount: widget.pageMeasureCount,
+      selectedMeasureIndex: _rel(widget.editorState.selectedMeasureIndex),
+      selectedSymbolIndex: widget.editorState.selectedSymbolIndex,
+      playbackPartIndex: widget.playbackPosition.isNone
+          ? null
+          : widget.playbackPosition.partIndex,
+      playbackMeasureIndex: widget.playbackPosition.isNone
+          ? null
+          : _rel(widget.playbackPosition.measureIndex),
+      playbackSymbolIndex: widget.playbackPosition.isNone
+          ? null
+          : widget.playbackPosition.symbolIndex,
+      playbackNextPartIndex: widget.playbackPosition.hasNext
+          ? widget.playbackPosition.nextPartIndex
+          : null,
+      playbackNextMeasureIndex: widget.playbackPosition.hasNext
+          ? _rel(widget.playbackPosition.nextMeasureIndex)
+          : null,
+      playbackNextSymbolIndex: widget.playbackPosition.hasNext
+          ? widget.playbackPosition.nextSymbolIndex
+          : null,
+      playbackProgress: _playheadController.value,
+      showPlaybackSymbolHighlight: widget.showPlaybackSymbolHighlight,
+      insertMode: widget.insertMode,
+      canAcceptExternalDrop: widget.isPlaybackActive
+          ? (_) => false
+          : (data) => data is PaletteDragData,
+      externalPreviewResolver: _previewGlyphForDragData,
+      onExternalDrop: widget.isPlaybackActive
+          ? null
+          : (target, data) => widget.onExternalDrop(
+              NotationInsertTarget(
+                partIndex: target.partIndex,
+                measureIndex: target.measureIndex + widget.pageFirstMeasure,
+                insertIndex: target.insertIndex,
+                indicatorX: target.indicatorX,
+                step: target.step,
+                octave: target.octave,
+              ),
+              data,
+            ),
+      onSymbolTap: (widget.insertMode || widget.isPlaybackActive)
+          ? null
+          : (target) => widget.onSymbolTap(
+              target == null
+                  ? null
+                  : NotationSymbolTarget(
+                      partIndex: target.partIndex,
+                      measureIndex:
+                          target.measureIndex + widget.pageFirstMeasure,
+                      symbolIndex: target.symbolIndex,
+                      center: target.center,
+                      hitRect: target.hitRect,
+                    ),
+            ),
+      onInsertTap: (widget.insertMode && !widget.isPlaybackActive)
+          ? (target) => widget.onInsertTap(
+              target == null
+                  ? null
+                  : NotationInsertTarget(
+                      partIndex: target.partIndex,
+                      measureIndex:
+                          target.measureIndex + widget.pageFirstMeasure,
+                      insertIndex: target.insertIndex,
+                      indicatorX: target.indicatorX,
+                      step: target.step,
+                      octave: target.octave,
+                    ),
+            )
+          : null,
+      onDragStarted: (widget.insertMode || widget.isPlaybackActive)
+          ? null
+          : (target) => widget.onDragStarted(
+              NotationSymbolTarget(
+                partIndex: target.partIndex,
+                measureIndex: target.measureIndex + widget.pageFirstMeasure,
+                symbolIndex: target.symbolIndex,
+                center: target.center,
+                hitRect: target.hitRect,
+              ),
+            ),
+      onDragGlobalUpdate: widget.onDragGlobalUpdate,
+      onDragCompleted: (reorder, global) => widget.onDragCompleted(
+        reorder == null
+            ? null
+            : NotationSymbolReorder(
+                fromPartIndex: reorder.fromPartIndex,
+                fromMeasureIndex:
+                    reorder.fromMeasureIndex + widget.pageFirstMeasure,
+                fromSymbolIndex: reorder.fromSymbolIndex,
+                toPartIndex: reorder.toPartIndex,
+                toMeasureIndex:
+                    reorder.toMeasureIndex + widget.pageFirstMeasure,
+                toSymbolIndex: reorder.toSymbolIndex,
+              ),
+        global,
+      ),
+      onDragCancelled: widget.onDragCancelled,
+      suppressCanvasDragGhost: widget.suppressCanvasDragGhost,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -1665,136 +1853,10 @@ class _NotationAreaState extends State<_NotationArea> {
                                   ),
                                 ],
                               ),
-                              child: ScoreNotationViewer(
-                                score: widget.editorState.score,
-                                selectedPartIndex:
-                                    widget.editorState.selectedPartIndex ?? 0,
-                                measuresPerRow:
-                                    widget.layoutPolicy.measuresPerRow,
-                                minMeasureWidth: widget.layoutPolicy.minMeasureWidth,
-                                rowHeight: widget.layoutPolicy.rowHeight,
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: widget.layoutPolicy.horizontalPadding,
-                                  vertical: widget.layoutPolicy.verticalPadding,
-                                ),
-                                backgroundColor: Colors.white,
-                                firstMeasureIndex: widget.pageFirstMeasure,
-                                pageMeasureCount: widget.pageMeasureCount,
-                                selectedMeasureIndex: _rel(
-                                  widget.editorState.selectedMeasureIndex,
-                                ),
-                                selectedSymbolIndex:
-                                    widget.editorState.selectedSymbolIndex,
-                                playbackPartIndex:
-                                    widget.playbackPosition.isNone
-                                    ? null
-                                    : widget.playbackPosition.partIndex,
-                                playbackMeasureIndex:
-                                    widget.playbackPosition.isNone
-                                    ? null
-                                    : _rel(
-                                        widget.playbackPosition.measureIndex,
-                                      ),
-                                playbackSymbolIndex:
-                                    widget.playbackPosition.isNone
-                                    ? null
-                                    : widget.playbackPosition.symbolIndex,
-                                insertMode: widget.insertMode,
-                                canAcceptExternalDrop: widget.isPlaybackActive
-                                    ? (_) => false
-                                    : (data) => data is PaletteDragData,
-                                externalPreviewResolver:
-                                    _previewGlyphForDragData,
-                                onExternalDrop: widget.isPlaybackActive
-                                    ? null
-                                    : (target, data) => widget.onExternalDrop(
-                                        NotationInsertTarget(
-                                          partIndex: target.partIndex,
-                                          measureIndex:
-                                              target.measureIndex +
-                                              widget.pageFirstMeasure,
-                                          insertIndex: target.insertIndex,
-                                          indicatorX: target.indicatorX,
-                                          step: target.step,
-                                          octave: target.octave,
-                                        ),
-                                        data,
-                                      ),
-                                onSymbolTap:
-                                    (widget.insertMode ||
-                                        widget.isPlaybackActive)
-                                    ? null
-                                    : (target) => widget.onSymbolTap(
-                                        target == null
-                                            ? null
-                                            : NotationSymbolTarget(
-                                                partIndex: target.partIndex,
-                                                measureIndex:
-                                                    target.measureIndex +
-                                                    widget.pageFirstMeasure,
-                                                symbolIndex: target.symbolIndex,
-                                                center: target.center,
-                                                hitRect: target.hitRect,
-                                              ),
-                                      ),
-                                onInsertTap:
-                                    (widget.insertMode &&
-                                        !widget.isPlaybackActive)
-                                    ? (target) => widget.onInsertTap(
-                                        target == null
-                                            ? null
-                                            : NotationInsertTarget(
-                                                partIndex: target.partIndex,
-                                                measureIndex:
-                                                    target.measureIndex +
-                                                    widget.pageFirstMeasure,
-                                                insertIndex: target.insertIndex,
-                                                indicatorX: target.indicatorX,
-                                                step: target.step,
-                                                octave: target.octave,
-                                              ),
-                                      )
-                                    : null,
-                                onDragStarted:
-                                    (widget.insertMode ||
-                                        widget.isPlaybackActive)
-                                    ? null
-                                    : (target) => widget.onDragStarted(
-                                        NotationSymbolTarget(
-                                          partIndex: target.partIndex,
-                                          measureIndex:
-                                              target.measureIndex +
-                                              widget.pageFirstMeasure,
-                                          symbolIndex: target.symbolIndex,
-                                          center: target.center,
-                                          hitRect: target.hitRect,
-                                        ),
-                                      ),
-                                onDragGlobalUpdate: widget.onDragGlobalUpdate,
-                                onDragCompleted: (reorder, global) =>
-                                    widget.onDragCompleted(
-                                      reorder == null
-                                          ? null
-                                          : NotationSymbolReorder(
-                                              fromPartIndex:
-                                                  reorder.fromPartIndex,
-                                              fromMeasureIndex:
-                                                  reorder.fromMeasureIndex +
-                                                  widget.pageFirstMeasure,
-                                              fromSymbolIndex:
-                                                  reorder.fromSymbolIndex,
-                                              toPartIndex: reorder.toPartIndex,
-                                              toMeasureIndex:
-                                                  reorder.toMeasureIndex +
-                                                  widget.pageFirstMeasure,
-                                              toSymbolIndex:
-                                                  reorder.toSymbolIndex,
-                                            ),
-                                      global,
-                                    ),
-                                onDragCancelled: widget.onDragCancelled,
-                                suppressCanvasDragGhost:
-                                    widget.suppressCanvasDragGhost,
+                              child: AnimatedBuilder(
+                                animation: _playheadController,
+                                builder: (context, _) =>
+                                    _buildScoreNotationViewer(),
                               ),
                             ),
                           ),
@@ -3366,10 +3428,7 @@ class _DurTile extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _DragGhostOverlay extends StatefulWidget {
-  const _DragGhostOverlay({
-    required this.positionNotifier,
-    required this.type,
-  });
+  const _DragGhostOverlay({required this.positionNotifier, required this.type});
 
   final ValueNotifier<Offset> positionNotifier;
   final PaletteSymbolType type;
@@ -3393,9 +3452,10 @@ class _DragGhostOverlayState extends State<_DragGhostOverlay>
       duration: const Duration(milliseconds: 200),
       vsync: this,
     );
-    _scale = Tween<double>(begin: 0.4, end: 1.5).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
-    );
+    _scale = Tween<double>(
+      begin: 0.4,
+      end: 1.5,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
     _controller.forward();
   }
 

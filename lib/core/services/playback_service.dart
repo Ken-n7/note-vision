@@ -38,25 +38,53 @@ class PlaybackPosition {
     required this.partIndex,
     required this.measureIndex,
     required this.symbolIndex,
+    this.durationMs = 0,
+    this.nextPartIndex,
+    this.nextMeasureIndex,
+    this.nextSymbolIndex,
   });
 
-  static const none = PlaybackPosition(partIndex: -1, measureIndex: -1, symbolIndex: -1);
+  static const none = PlaybackPosition(
+    partIndex: -1,
+    measureIndex: -1,
+    symbolIndex: -1,
+  );
 
   final int partIndex;
   final int measureIndex;
   final int symbolIndex;
+  final int durationMs;
+  final int? nextPartIndex;
+  final int? nextMeasureIndex;
+  final int? nextSymbolIndex;
 
   bool get isNone => partIndex < 0;
+  bool get hasNext =>
+      nextPartIndex != null &&
+      nextMeasureIndex != null &&
+      nextSymbolIndex != null;
 
   @override
   bool operator ==(Object other) =>
       other is PlaybackPosition &&
       other.partIndex == partIndex &&
       other.measureIndex == measureIndex &&
-      other.symbolIndex == symbolIndex;
+      other.symbolIndex == symbolIndex &&
+      other.durationMs == durationMs &&
+      other.nextPartIndex == nextPartIndex &&
+      other.nextMeasureIndex == nextMeasureIndex &&
+      other.nextSymbolIndex == nextSymbolIndex;
 
   @override
-  int get hashCode => Object.hash(partIndex, measureIndex, symbolIndex);
+  int get hashCode => Object.hash(
+    partIndex,
+    measureIndex,
+    symbolIndex,
+    durationMs,
+    nextPartIndex,
+    nextMeasureIndex,
+    nextSymbolIndex,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -179,7 +207,8 @@ class PlaybackService {
       _sfId = null;
       _emitState(
         PlaybackStatus.error,
-        error: 'Could not load soundfont. '
+        error:
+            'Could not load soundfont. '
             'Add assets/soundfonts/piano.sf2 (any standard GM SF2 file) '
             'then run: flutter pub get\n\nDetail: $e',
       );
@@ -258,13 +287,21 @@ class PlaybackService {
     while (_shouldPlay && _currentEventIndex < _events.length) {
       final event = _events[_currentEventIndex];
       final groupEnd = _eventGroupEnd(_currentEventIndex);
+      final nextEvent = groupEnd < _events.length ? _events[groupEnd] : null;
+      final ms = _converter.scaledDuration(event.baseDurationMs, _tempo);
 
       // Emit current score position for the viewer highlight.
-      _positionController.add(PlaybackPosition(
-        partIndex: event.partIndex,
-        measureIndex: event.measureIndex,
-        symbolIndex: event.symbolIndex,
-      ));
+      _positionController.add(
+        PlaybackPosition(
+          partIndex: event.partIndex,
+          measureIndex: event.measureIndex,
+          symbolIndex: event.symbolIndex,
+          durationMs: ms,
+          nextPartIndex: nextEvent?.partIndex,
+          nextMeasureIndex: nextEvent?.measureIndex,
+          nextSymbolIndex: nextEvent?.symbolIndex,
+        ),
+      );
 
       _activeMidiNotes.clear();
 
@@ -284,7 +321,6 @@ class PlaybackService {
       }
 
       // Wait for duration, scaled to current tempo.
-      final ms = _converter.scaledDuration(event.baseDurationMs, _tempo);
       final completed = await _waitMs(ms);
 
       // Stop sounding notes before advancing.
@@ -343,11 +379,7 @@ class PlaybackService {
     final keys = List<int>.from(_activeMidiNotes);
     _activeMidiNotes.clear();
     for (final key in keys) {
-      await _midi.stopNote(
-        sfId: _sfId!,
-        channel: _midiChannel,
-        key: key,
-      );
+      await _midi.stopNote(sfId: _sfId!, channel: _midiChannel, key: key);
     }
   }
 
