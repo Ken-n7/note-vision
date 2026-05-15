@@ -1006,7 +1006,10 @@ class PdfScoreRenderer {
       ScoreNotationMetrics.trebleClefFontSize * _scale,
       ScoreNotationMetrics.trebleClefGlyph,
       x,
-      staffTop + ScoreNotationMetrics.trebleClefPdfBaselineYOffset * _scale,
+      ScoreNotationMetrics.trebleClefPdfBaselineForStaff(
+        staffTop: staffTop,
+        lineSpacing: _ls,
+      ),
     );
   }
 

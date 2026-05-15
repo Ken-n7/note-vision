@@ -281,7 +281,10 @@ class ScoreNotationPainter extends CustomPainter {
         _drawTrebleClef(
           canvas,
           x: row.rowStartX + ScoreNotationMetrics.trebleClefXOffset,
-          y: row.staffTop + ScoreNotationMetrics.trebleClefYOffset,
+          y: ScoreNotationMetrics.trebleClefTopForStaff(
+            staffTop: row.staffTop,
+            lineSpacing: staffLineSpacing,
+          ),
         );
     }
 
