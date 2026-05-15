@@ -695,7 +695,7 @@ class ScoreNotationPainter extends CustomPainter {
       return;
     }
 
-    final current = _findSymbolLayout(
+    final current = _findPlaybackLane(
       rows: rows,
       partIndex: partIndex,
       measureIndex: measureIndex,
@@ -703,29 +703,8 @@ class ScoreNotationPainter extends CustomPainter {
     );
     if (current == null) return;
 
-    final nextPartIndex = playbackNextPartIndex;
-    final nextMeasureIndex = playbackNextMeasureIndex;
-    final nextSymbolIndex = playbackNextSymbolIndex;
-    final next =
-        nextPartIndex == null ||
-            nextMeasureIndex == null ||
-            nextSymbolIndex == null
-        ? null
-        : _findSymbolLayout(
-            rows: rows,
-            partIndex: nextPartIndex,
-            measureIndex: nextMeasureIndex,
-            symbolIndex: nextSymbolIndex,
-          );
-
-    final sameStaffRow =
-        next != null &&
-        next.row.rowIndex == current.row.rowIndex &&
-        next.row.partIndex == current.row.partIndex &&
-        next.x > current.x;
-    final endX = sameStaffRow ? next.x : current.measureEndX;
     final t = playbackProgress.clamp(0.0, 1.0);
-    final x = current.x + (endX - current.x) * t;
+    final x = current.startX + (current.endX - current.startX) * t;
     final verticalPadding = ScoreNotationMetrics.playbackPlayheadStaffPadding;
 
     final paint = Paint()
@@ -742,7 +721,7 @@ class ScoreNotationPainter extends CustomPainter {
     );
   }
 
-  _PlaybackSymbolLayout? _findSymbolLayout({
+  _PlaybackSymbolLayout? _findPlaybackLane({
     required List<_RowMetrics> rows,
     required int partIndex,
     required int measureIndex,
@@ -765,13 +744,38 @@ class ScoreNotationPainter extends CustomPainter {
         12.0,
         (measureEndX - measureStartX) - (innerPadding * 2),
       );
-      final slotCount = _visualSlotCount(measure.symbols);
-      final visualSlot = _visualSlotForIndex(measure.symbols, symbolIndex);
-      final progress = (visualSlot + 1) / (slotCount + 1);
-      final x = measureStartX + innerPadding + drawableWidth * progress;
-      return _PlaybackSymbolLayout(row: row, x: x, measureEndX: measureEndX);
+      final laneStartX = measureStartX + innerPadding;
+      final totalUnits = math.max(_measureDurationUnits(measure.symbols), 1);
+      final elapsedUnits = _durationUnitsBefore(measure.symbols, symbolIndex);
+      final symbolUnits = math.max(
+        _symbolDurationUnits(measure.symbols[symbolIndex]),
+        1,
+      );
+      final startX = laneStartX + drawableWidth * elapsedUnits / totalUnits;
+      final endUnits = math.min(elapsedUnits + symbolUnits, totalUnits);
+      final endX = laneStartX + drawableWidth * endUnits / totalUnits;
+
+      return _PlaybackSymbolLayout(row: row, startX: startX, endX: endX);
     }
     return null;
+  }
+
+  static int _measureDurationUnits(List<ScoreSymbol> symbols) {
+    return symbols.fold(0, (sum, symbol) => sum + _symbolDurationUnits(symbol));
+  }
+
+  static int _durationUnitsBefore(List<ScoreSymbol> symbols, int index) {
+    var total = 0;
+    for (var i = 0; i < index && i < symbols.length; i++) {
+      total += _symbolDurationUnits(symbols[i]);
+    }
+    return total;
+  }
+
+  static int _symbolDurationUnits(ScoreSymbol symbol) {
+    if (symbol is Note) return symbol.isChordTone ? 0 : symbol.duration;
+    if (symbol is Rest) return symbol.duration;
+    return 0;
   }
 
   void _drawInsertionPreview(
@@ -1637,13 +1641,13 @@ class NotationInsertTarget {
 class _PlaybackSymbolLayout {
   const _PlaybackSymbolLayout({
     required this.row,
-    required this.x,
-    required this.measureEndX,
+    required this.startX,
+    required this.endX,
   });
 
   final _RowMetrics row;
-  final double x;
-  final double measureEndX;
+  final double startX;
+  final double endX;
 }
 
 class _RowMetrics {
