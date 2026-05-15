@@ -6,29 +6,29 @@ void main() {
   group('PlaybackDisplayPreferencesService', () {
     setUp(() {
       SharedPreferences.setMockInitialValues({});
-      PlaybackDisplayPreferencesService.showSymbolGlowNotifier.value = true;
+      PlaybackDisplayPreferencesService.showSymbolGlowNotifier.value = false;
     });
 
-    test('show symbol glow defaults to true', () async {
+    test('show symbol glow defaults to false', () async {
       final value = await PlaybackDisplayPreferencesService.getShowSymbolGlow();
 
-      expect(value, isTrue);
+      expect(value, isFalse);
       expect(
         PlaybackDisplayPreferencesService.showSymbolGlowNotifier.value,
-        isTrue,
+        isFalse,
       );
     });
 
     test('setShowSymbolGlow persists and notifies value', () async {
-      await PlaybackDisplayPreferencesService.setShowSymbolGlow(false);
+      await PlaybackDisplayPreferencesService.setShowSymbolGlow(true);
 
       expect(
         PlaybackDisplayPreferencesService.showSymbolGlowNotifier.value,
-        isFalse,
+        isTrue,
       );
       expect(
         await PlaybackDisplayPreferencesService.getShowSymbolGlow(),
-        isFalse,
+        isTrue,
       );
     });
   });

@@ -5,12 +5,12 @@ class PlaybackDisplayPreferencesService {
   static const String _keyShowSymbolGlow = 'playback_show_symbol_glow';
 
   static final ValueNotifier<bool> showSymbolGlowNotifier = ValueNotifier<bool>(
-    true,
+    false,
   );
 
   static Future<bool> getShowSymbolGlow() async {
     final prefs = await SharedPreferences.getInstance();
-    final value = prefs.getBool(_keyShowSymbolGlow) ?? true;
+    final value = prefs.getBool(_keyShowSymbolGlow) ?? false;
     showSymbolGlowNotifier.value = value;
     return value;
   }
