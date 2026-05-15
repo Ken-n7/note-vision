@@ -71,7 +71,7 @@ abstract final class ScoreNotationMetrics {
   static const bassClefDotRadius = 2.5;
   static const trebleClefXOffset = 10.0;
   static const trebleClefGLineIndexFromTop = 3.0;
-  static const trebleClefEditorGlyphAnchorFromTop = 38.0;
+  static const trebleClefEditorGlyphAnchorFromTop = 50.0;
   static const trebleClefPdfBaselineFromGLine = -4.0;
   static const trebleClefFontSize = 42.0;
 
