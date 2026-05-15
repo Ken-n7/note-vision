@@ -60,6 +60,154 @@ class EditorShellScreen extends StatefulWidget {
   State<EditorShellScreen> createState() => _EditorShellScreenState();
 }
 
+class _PlaybackTimeline {
+  const _PlaybackTimeline._(this.spans);
+
+  factory _PlaybackTimeline.fromScore(Score score) {
+    final events = const PlaybackConverter().buildEvents(score);
+    final spans = <_PlaybackTimelineSpan>[];
+    _PlaybackTimelineSpan? openSpan;
+    var baseMs = 0.0;
+    var index = 0;
+
+    while (index < events.length) {
+      final event = events[index];
+      var groupEnd = index + 1;
+      while (groupEnd < events.length && events[groupEnd].isChordTone) {
+        groupEnd++;
+      }
+
+      if (!event.isChordTone) {
+        if (openSpan == null ||
+            openSpan.partIndex != event.partIndex ||
+            openSpan.measureIndex != event.measureIndex) {
+          if (openSpan != null) {
+            spans.add(openSpan.copyWith(endBaseMs: baseMs));
+          }
+          openSpan = _PlaybackTimelineSpan(
+            partIndex: event.partIndex,
+            measureIndex: event.measureIndex,
+            startBaseMs: baseMs,
+            endBaseMs: baseMs,
+          );
+        }
+        baseMs += event.baseDurationMs;
+      }
+
+      index = groupEnd;
+    }
+
+    if (openSpan != null) {
+      spans.add(openSpan.copyWith(endBaseMs: baseMs));
+    }
+
+    return _PlaybackTimeline._(spans);
+  }
+
+  final List<_PlaybackTimelineSpan> spans;
+
+  bool get isEmpty => spans.isEmpty;
+
+  double baseStartForMeasure(int fromMeasureIndex) {
+    if (spans.isEmpty) return 0;
+    for (final span in spans) {
+      if (span.measureIndex >= fromMeasureIndex) return span.startBaseMs;
+    }
+    return spans.first.startBaseMs;
+  }
+
+  _PlaybackTimelinePosition? positionAt(double baseMs) {
+    if (spans.isEmpty) return null;
+    if (baseMs <= spans.first.startBaseMs) {
+      final first = spans.first;
+      return _PlaybackTimelinePosition(
+        partIndex: first.partIndex,
+        measureIndex: first.measureIndex,
+        progress: 0,
+      );
+    }
+
+    for (var i = 0; i < spans.length; i++) {
+      final span = spans[i];
+      if (baseMs < span.endBaseMs || i == spans.length - 1) {
+        final progress = span.durationBaseMs <= 0
+            ? 1.0
+            : ((baseMs - span.startBaseMs) / span.durationBaseMs).clamp(
+                0.0,
+                1.0,
+              );
+        return _PlaybackTimelinePosition(
+          partIndex: span.partIndex,
+          measureIndex: span.measureIndex,
+          progress: progress,
+        );
+      }
+    }
+
+    final last = spans.last;
+    return _PlaybackTimelinePosition(
+      partIndex: last.partIndex,
+      measureIndex: last.measureIndex,
+      progress: 1,
+    );
+  }
+}
+
+class _PlaybackTimelineSpan {
+  const _PlaybackTimelineSpan({
+    required this.partIndex,
+    required this.measureIndex,
+    required this.startBaseMs,
+    required this.endBaseMs,
+  });
+
+  final int partIndex;
+  final int measureIndex;
+  final double startBaseMs;
+  final double endBaseMs;
+
+  double get durationBaseMs => endBaseMs - startBaseMs;
+
+  _PlaybackTimelineSpan copyWith({required double endBaseMs}) {
+    return _PlaybackTimelineSpan(
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      startBaseMs: startBaseMs,
+      endBaseMs: endBaseMs,
+    );
+  }
+}
+
+class _PlaybackTimelinePosition {
+  const _PlaybackTimelinePosition({
+    required this.partIndex,
+    required this.measureIndex,
+    required this.progress,
+  });
+
+  final int partIndex;
+  final int measureIndex;
+  final double progress;
+}
+
+class _PlaybackVisualClock {
+  const _PlaybackVisualClock({
+    required this.basePositionAtStartMs,
+    required this.startedAt,
+    required this.tempo,
+  });
+
+  final double basePositionAtStartMs;
+  final DateTime startedAt;
+  final int tempo;
+
+  double positionAt(DateTime now) {
+    final elapsedMs = now.difference(startedAt).inMilliseconds;
+    return basePositionAtStartMs +
+        elapsedMs * tempo / PlaybackConverter.defaultTempo;
+  }
+}
+
 class _EditorShellScreenState extends State<EditorShellScreen> {
   late EditorState _editorState;
   bool _insertMode = false;
@@ -77,6 +225,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   late final PlaybackService _playback;
   PlaybackPosition _playbackPosition = PlaybackPosition.none;
   PlaybackStatus _playbackStatus = PlaybackStatus.stopped;
+  _PlaybackTimeline? _playbackTimeline;
+  _PlaybackVisualClock? _playbackVisualClock;
+  double? _pausedPlaybackBasePositionMs;
   bool _showPlaybackSymbolHighlight =
       PlaybackDisplayPreferencesService.showSymbolGlowNotifier.value;
   StreamSubscription<PlaybackPosition>? _positionSub;
@@ -160,7 +311,16 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       });
     });
     _stateSub = _playback.stateStream.listen((state) {
-      if (mounted) setState(() => _playbackStatus = state.status);
+      if (!mounted) return;
+      setState(() {
+        _playbackStatus = state.status;
+        if (state.status == PlaybackStatus.stopped ||
+            state.status == PlaybackStatus.error) {
+          _playbackTimeline = null;
+          _playbackVisualClock = null;
+          _pausedPlaybackBasePositionMs = null;
+        }
+      });
     });
     await _playback.init();
   }
@@ -523,6 +683,105 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     );
   }
 
+  double? _currentPlaybackBasePositionMs() {
+    final clock = _playbackVisualClock;
+    if (clock != null) return clock.positionAt(DateTime.now());
+    return _pausedPlaybackBasePositionMs;
+  }
+
+  void _clearVisualPlayback() {
+    setState(() {
+      _playbackTimeline = null;
+      _playbackVisualClock = null;
+      _pausedPlaybackBasePositionMs = null;
+    });
+  }
+
+  Future<void> _playFromMeasure(int fromMeasureIndex) async {
+    await _playback.play(
+      _editorState.score,
+      fromMeasureIndex: fromMeasureIndex,
+    );
+    if (!mounted) return;
+
+    if (_playback.status == PlaybackStatus.playing) {
+      _startVisualPlayback(fromMeasureIndex);
+    } else {
+      _clearVisualPlayback();
+    }
+  }
+
+  void _startVisualPlayback(int fromMeasureIndex) {
+    final timeline = _PlaybackTimeline.fromScore(_editorState.score);
+    if (timeline.isEmpty) {
+      _clearVisualPlayback();
+      return;
+    }
+
+    setState(() {
+      _playbackTimeline = timeline;
+      _playbackVisualClock = _PlaybackVisualClock(
+        basePositionAtStartMs: timeline.baseStartForMeasure(fromMeasureIndex),
+        startedAt: DateTime.now(),
+        tempo: _playback.tempo,
+      );
+      _pausedPlaybackBasePositionMs = null;
+    });
+  }
+
+  void _pauseVisualPlayback() {
+    final position = _currentPlaybackBasePositionMs();
+    setState(() {
+      _pausedPlaybackBasePositionMs = position;
+      _playbackVisualClock = null;
+    });
+  }
+
+  void _resumeVisualPlayback() {
+    var timeline = _playbackTimeline;
+    if (timeline == null || timeline.isEmpty) {
+      timeline = _PlaybackTimeline.fromScore(_editorState.score);
+    }
+    if (timeline.isEmpty) return;
+
+    final position =
+        _pausedPlaybackBasePositionMs ??
+        _currentPlaybackBasePositionMs() ??
+        timeline.baseStartForMeasure(
+          _playbackPosition.isNone
+              ? (_editorState.selectedMeasureIndex ?? 0)
+              : _playbackPosition.measureIndex,
+        );
+
+    setState(() {
+      _playbackTimeline = timeline;
+      _playbackVisualClock = _PlaybackVisualClock(
+        basePositionAtStartMs: position,
+        startedAt: DateTime.now(),
+        tempo: _playback.tempo,
+      );
+      _pausedPlaybackBasePositionMs = null;
+    });
+  }
+
+  void _stopVisualPlayback() {
+    _clearVisualPlayback();
+  }
+
+  void _setPlaybackTempo(int bpm) {
+    final position = _currentPlaybackBasePositionMs();
+    _playback.setTempo(bpm);
+    if (_playbackVisualClock == null || position == null) return;
+
+    setState(() {
+      _playbackVisualClock = _PlaybackVisualClock(
+        basePositionAtStartMs: position,
+        startedAt: DateTime.now(),
+        tempo: _playback.tempo,
+      );
+    });
+  }
+
   void _jumpToLastPage() {
     _setCurrentPageIndex(_pageMetrics.totalPages - 1);
   }
@@ -743,6 +1002,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 insertMode: _insertMode,
                 insertSymbolType: _insertSymbolType,
                 playbackPosition: _playbackPosition,
+                playbackTimeline: _playbackTimeline,
+                playbackVisualClock: _playbackVisualClock,
                 showPlaybackSymbolHighlight: _showPlaybackSymbolHighlight,
                 isDraggingNote: _isDraggingNote,
                 dragGlobal: _dragGlobal,
@@ -951,18 +1212,23 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       : _editorState.score.parts
                             .map((p) => p.measures.length)
                             .reduce((a, b) => a > b ? a : b),
-                  onPlay: () => _playback.play(
-                    _editorState.score,
-                    fromMeasureIndex: _editorState.selectedMeasureIndex ?? 0,
+                  onPlay: () => unawaited(
+                    _playFromMeasure(_editorState.selectedMeasureIndex ?? 0),
                   ),
-                  onResume: _playback.resume,
-                  onPause: _playback.pause,
-                  onStop: _playback.stop,
-                  onTempoChanged: _playback.setTempo,
-                  onSeek: (measure) => _playback.play(
-                    _editorState.score,
-                    fromMeasureIndex: measure,
-                  ),
+                  onResume: () {
+                    _resumeVisualPlayback();
+                    _playback.resume();
+                  },
+                  onPause: () {
+                    _pauseVisualPlayback();
+                    _playback.pause();
+                  },
+                  onStop: () {
+                    _stopVisualPlayback();
+                    _playback.stop();
+                  },
+                  onTempoChanged: _setPlaybackTempo,
+                  onSeek: (measure) => unawaited(_playFromMeasure(measure)),
                 ),
               );
             },
@@ -1478,6 +1744,8 @@ class _NotationArea extends StatefulWidget {
     required this.insertMode,
     required this.insertSymbolType,
     required this.playbackPosition,
+    required this.playbackTimeline,
+    required this.playbackVisualClock,
     required this.showPlaybackSymbolHighlight,
     required this.isDraggingNote,
     required this.dragGlobal,
@@ -1503,6 +1771,8 @@ class _NotationArea extends StatefulWidget {
   final bool insertMode;
   final PaletteSymbolType? insertSymbolType;
   final PlaybackPosition playbackPosition;
+  final _PlaybackTimeline? playbackTimeline;
+  final _PlaybackVisualClock? playbackVisualClock;
   final bool showPlaybackSymbolHighlight;
   final bool isDraggingNote;
   final Offset dragGlobal;
@@ -1529,9 +1799,6 @@ class _NotationAreaState extends State<_NotationArea>
     with SingleTickerProviderStateMixin {
   final _transformController = TransformationController();
   late final AnimationController _playheadController;
-  Tween<double> _playheadProgressTween = ConstantTween<double>(0);
-  int? _playheadPartIndex;
-  int? _playheadMeasureIndex;
   Size? _viewportSize;
   Size? _contentSize;
   bool _fittedOnce = false;
@@ -1539,9 +1806,12 @@ class _NotationAreaState extends State<_NotationArea>
   @override
   void initState() {
     super.initState();
-    _playheadController = AnimationController(vsync: this);
+    _playheadController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    );
     _transformController.addListener(_onTransformChanged);
-    _syncPlayheadAnimation();
+    _syncPlayheadTicker();
   }
 
   @override
@@ -1564,61 +1834,35 @@ class _NotationAreaState extends State<_NotationArea>
         !widget.isPlaybackActive) {
       _fittedOnce = false;
     }
-    if (oldWidget.playbackPosition != widget.playbackPosition ||
-        oldWidget.isPlaybackActive != widget.isPlaybackActive) {
-      _syncPlayheadAnimation();
+    if (oldWidget.isPlaybackActive != widget.isPlaybackActive ||
+        oldWidget.playbackTimeline != widget.playbackTimeline ||
+        oldWidget.playbackVisualClock != widget.playbackVisualClock) {
+      _syncPlayheadTicker();
     }
   }
 
-  void _syncPlayheadAnimation() {
-    if (widget.playbackPosition.isNone) {
+  void _syncPlayheadTicker() {
+    final shouldTick =
+        widget.isPlaybackActive &&
+        widget.playbackTimeline != null &&
+        widget.playbackVisualClock != null;
+    if (shouldTick) {
+      if (!_playheadController.isAnimating) {
+        _playheadController.repeat();
+      }
+    } else {
       _playheadController.stop();
       _playheadController.value = 0;
-      _playheadProgressTween = ConstantTween<double>(0);
-      _playheadPartIndex = null;
-      _playheadMeasureIndex = null;
-      return;
     }
-    if (!widget.isPlaybackActive) {
-      _playheadController.stop();
-      return;
-    }
-    final durationMs = widget.playbackPosition.durationMs;
-    final measureDurationMs = widget.playbackPosition.measureDurationMs;
-    if (durationMs <= 0 || measureDurationMs <= 0) {
-      _playheadController.stop();
-      _playheadController.value = 0;
-      return;
-    }
-    final position = widget.playbackPosition;
-    final segmentStart = (position.measureElapsedMs / measureDurationMs).clamp(
-      0.0,
-      1.0,
-    );
-    final segmentEnd =
-        ((position.measureElapsedMs + durationMs) / measureDurationMs).clamp(
-          0.0,
-          1.0,
-        );
-    final sameMeasure =
-        _playheadPartIndex == position.partIndex &&
-        _playheadMeasureIndex == position.measureIndex;
-    final begin = sameMeasure
-        ? _currentPlayheadMeasureProgress()
-        : segmentStart;
-    _playheadProgressTween = Tween<double>(begin: begin, end: segmentEnd);
-    _playheadPartIndex = position.partIndex;
-    _playheadMeasureIndex = position.measureIndex;
-    _playheadController.duration = Duration(
-      milliseconds: durationMs.clamp(10, 60000),
-    );
-    _playheadController.forward(from: 0);
   }
 
-  double _currentPlayheadMeasureProgress() {
-    return _playheadProgressTween
-        .transform(_playheadController.value)
-        .clamp(0.0, 1.0);
+  _PlaybackTimelinePosition? _currentTimelinePosition() {
+    final timeline = widget.playbackTimeline;
+    final clock = widget.playbackVisualClock;
+    if (!widget.isPlaybackActive || timeline == null || clock == null) {
+      return null;
+    }
+    return timeline.positionAt(clock.positionAt(DateTime.now()));
   }
 
   // Converts an absolute measure index to page-relative; returns null when
@@ -1717,6 +1961,11 @@ class _NotationAreaState extends State<_NotationArea>
   }
 
   ScoreNotationViewer _buildScoreNotationViewer() {
+    final timelinePosition = _currentTimelinePosition();
+    final playheadPartIndex = timelinePosition?.partIndex;
+    final playheadMeasureIndex = _rel(timelinePosition?.measureIndex);
+    final playheadProgress = timelinePosition?.progress ?? 0.0;
+
     return ScoreNotationViewer(
       score: widget.editorState.score,
       selectedPartIndex: widget.editorState.selectedPartIndex ?? 0,
@@ -1750,7 +1999,9 @@ class _NotationAreaState extends State<_NotationArea>
       playbackNextSymbolIndex: widget.playbackPosition.hasNext
           ? widget.playbackPosition.nextSymbolIndex
           : null,
-      playbackProgress: _currentPlayheadMeasureProgress(),
+      playheadPartIndex: playheadPartIndex,
+      playheadMeasureIndex: playheadMeasureIndex,
+      playbackProgress: playheadProgress,
       showPlaybackSymbolHighlight: widget.showPlaybackSymbolHighlight,
       insertMode: widget.insertMode,
       canAcceptExternalDrop: widget.isPlaybackActive

@@ -29,6 +29,8 @@ class ScoreNotationPainter extends CustomPainter {
     this.playbackNextPartIndex,
     this.playbackNextMeasureIndex,
     this.playbackNextSymbolIndex,
+    this.playheadPartIndex,
+    this.playheadMeasureIndex,
     this.playbackProgress = 0,
     this.showPlaybackSymbolHighlight = true,
     this.dragFeedback,
@@ -55,6 +57,8 @@ class ScoreNotationPainter extends CustomPainter {
   final int? playbackNextPartIndex;
   final int? playbackNextMeasureIndex;
   final int? playbackNextSymbolIndex;
+  final int? playheadPartIndex;
+  final int? playheadMeasureIndex;
   final double playbackProgress;
   final bool showPlaybackSymbolHighlight;
 
@@ -688,12 +692,9 @@ class ScoreNotationPainter extends CustomPainter {
   }
 
   void _drawPlaybackPlayhead(Canvas canvas, List<_RowMetrics> rows) {
-    final partIndex = playbackPartIndex;
-    final measureIndex = playbackMeasureIndex;
-    final symbolIndex = playbackSymbolIndex;
-    if (partIndex == null || measureIndex == null || symbolIndex == null) {
-      return;
-    }
+    final partIndex = playheadPartIndex ?? playbackPartIndex;
+    final measureIndex = playheadMeasureIndex ?? playbackMeasureIndex;
+    if (partIndex == null || measureIndex == null) return;
 
     final current = _findPlaybackMeasureLane(
       rows: rows,
@@ -1498,6 +1499,8 @@ class ScoreNotationPainter extends CustomPainter {
         oldDelegate.playbackNextPartIndex != playbackNextPartIndex ||
         oldDelegate.playbackNextMeasureIndex != playbackNextMeasureIndex ||
         oldDelegate.playbackNextSymbolIndex != playbackNextSymbolIndex ||
+        oldDelegate.playheadPartIndex != playheadPartIndex ||
+        oldDelegate.playheadMeasureIndex != playheadMeasureIndex ||
         oldDelegate.playbackProgress != playbackProgress ||
         oldDelegate.showPlaybackSymbolHighlight !=
             showPlaybackSymbolHighlight ||
