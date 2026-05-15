@@ -39,6 +39,8 @@ class PlaybackPosition {
     required this.measureIndex,
     required this.symbolIndex,
     this.durationMs = 0,
+    this.measureElapsedMs = 0,
+    this.measureDurationMs = 0,
     this.nextPartIndex,
     this.nextMeasureIndex,
     this.nextSymbolIndex,
@@ -54,6 +56,8 @@ class PlaybackPosition {
   final int measureIndex;
   final int symbolIndex;
   final int durationMs;
+  final int measureElapsedMs;
+  final int measureDurationMs;
   final int? nextPartIndex;
   final int? nextMeasureIndex;
   final int? nextSymbolIndex;
@@ -71,6 +75,8 @@ class PlaybackPosition {
       other.measureIndex == measureIndex &&
       other.symbolIndex == symbolIndex &&
       other.durationMs == durationMs &&
+      other.measureElapsedMs == measureElapsedMs &&
+      other.measureDurationMs == measureDurationMs &&
       other.nextPartIndex == nextPartIndex &&
       other.nextMeasureIndex == nextMeasureIndex &&
       other.nextSymbolIndex == nextSymbolIndex;
@@ -81,6 +87,8 @@ class PlaybackPosition {
     measureIndex,
     symbolIndex,
     durationMs,
+    measureElapsedMs,
+    measureDurationMs,
     nextPartIndex,
     nextMeasureIndex,
     nextSymbolIndex,
@@ -289,6 +297,14 @@ class PlaybackService {
       final groupEnd = _eventGroupEnd(_currentEventIndex);
       final nextEvent = groupEnd < _events.length ? _events[groupEnd] : null;
       final ms = _converter.scaledDuration(event.baseDurationMs, _tempo);
+      final measureElapsedMs = _converter.scaledDuration(
+        _measureElapsedBaseDuration(_currentEventIndex),
+        _tempo,
+      );
+      final measureDurationMs = _converter.scaledDuration(
+        _measureBaseDuration(_currentEventIndex),
+        _tempo,
+      );
 
       // Emit current score position for the viewer highlight.
       _positionController.add(
@@ -297,6 +313,8 @@ class PlaybackService {
           measureIndex: event.measureIndex,
           symbolIndex: event.symbolIndex,
           durationMs: ms,
+          measureElapsedMs: measureElapsedMs,
+          measureDurationMs: measureDurationMs,
           nextPartIndex: nextEvent?.partIndex,
           nextMeasureIndex: nextEvent?.measureIndex,
           nextSymbolIndex: nextEvent?.symbolIndex,
@@ -372,6 +390,33 @@ class PlaybackService {
       index++;
     }
     return index;
+  }
+
+  int _measureElapsedBaseDuration(int eventIndex) {
+    final current = _events[eventIndex];
+    var elapsed = 0;
+    for (var i = 0; i < eventIndex; i++) {
+      final event = _events[i];
+      if (event.partIndex != current.partIndex ||
+          event.measureIndex != current.measureIndex) {
+        continue;
+      }
+      if (!event.isChordTone) elapsed += event.baseDurationMs;
+    }
+    return elapsed;
+  }
+
+  int _measureBaseDuration(int eventIndex) {
+    final current = _events[eventIndex];
+    var duration = 0;
+    for (final event in _events) {
+      if (event.partIndex != current.partIndex ||
+          event.measureIndex != current.measureIndex) {
+        continue;
+      }
+      if (!event.isChordTone) duration += event.baseDurationMs;
+    }
+    return duration > 0 ? duration : current.baseDurationMs;
   }
 
   Future<void> _stopActiveNotes() async {

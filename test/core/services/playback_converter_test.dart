@@ -563,6 +563,8 @@ void main() {
         measureIndex: 2,
         symbolIndex: 3,
         durationMs: 500,
+        measureElapsedMs: 1000,
+        measureDurationMs: 2000,
         nextPartIndex: 0,
         nextMeasureIndex: 2,
         nextSymbolIndex: 4,
@@ -570,6 +572,8 @@ void main() {
 
       expect(position.hasNext, isTrue);
       expect(position.durationMs, 500);
+      expect(position.measureElapsedMs, 1000);
+      expect(position.measureDurationMs, 2000);
     });
   });
 }

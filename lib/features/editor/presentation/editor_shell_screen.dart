@@ -1529,6 +1529,9 @@ class _NotationAreaState extends State<_NotationArea>
     with SingleTickerProviderStateMixin {
   final _transformController = TransformationController();
   late final AnimationController _playheadController;
+  Tween<double> _playheadProgressTween = ConstantTween<double>(0);
+  int? _playheadPartIndex;
+  int? _playheadMeasureIndex;
   Size? _viewportSize;
   Size? _contentSize;
   bool _fittedOnce = false;
@@ -1571,6 +1574,9 @@ class _NotationAreaState extends State<_NotationArea>
     if (widget.playbackPosition.isNone) {
       _playheadController.stop();
       _playheadController.value = 0;
+      _playheadProgressTween = ConstantTween<double>(0);
+      _playheadPartIndex = null;
+      _playheadMeasureIndex = null;
       return;
     }
     if (!widget.isPlaybackActive) {
@@ -1578,15 +1584,41 @@ class _NotationAreaState extends State<_NotationArea>
       return;
     }
     final durationMs = widget.playbackPosition.durationMs;
-    if (durationMs <= 0) {
+    final measureDurationMs = widget.playbackPosition.measureDurationMs;
+    if (durationMs <= 0 || measureDurationMs <= 0) {
       _playheadController.stop();
       _playheadController.value = 0;
       return;
     }
+    final position = widget.playbackPosition;
+    final segmentStart = (position.measureElapsedMs / measureDurationMs).clamp(
+      0.0,
+      1.0,
+    );
+    final segmentEnd =
+        ((position.measureElapsedMs + durationMs) / measureDurationMs).clamp(
+          0.0,
+          1.0,
+        );
+    final sameMeasure =
+        _playheadPartIndex == position.partIndex &&
+        _playheadMeasureIndex == position.measureIndex;
+    final begin = sameMeasure
+        ? _currentPlayheadMeasureProgress()
+        : segmentStart;
+    _playheadProgressTween = Tween<double>(begin: begin, end: segmentEnd);
+    _playheadPartIndex = position.partIndex;
+    _playheadMeasureIndex = position.measureIndex;
     _playheadController.duration = Duration(
       milliseconds: durationMs.clamp(10, 60000),
     );
     _playheadController.forward(from: 0);
+  }
+
+  double _currentPlayheadMeasureProgress() {
+    return _playheadProgressTween
+        .transform(_playheadController.value)
+        .clamp(0.0, 1.0);
   }
 
   // Converts an absolute measure index to page-relative; returns null when
@@ -1718,7 +1750,7 @@ class _NotationAreaState extends State<_NotationArea>
       playbackNextSymbolIndex: widget.playbackPosition.hasNext
           ? widget.playbackPosition.nextSymbolIndex
           : null,
-      playbackProgress: _playheadController.value,
+      playbackProgress: _currentPlayheadMeasureProgress(),
       showPlaybackSymbolHighlight: widget.showPlaybackSymbolHighlight,
       insertMode: widget.insertMode,
       canAcceptExternalDrop: widget.isPlaybackActive

@@ -695,11 +695,10 @@ class ScoreNotationPainter extends CustomPainter {
       return;
     }
 
-    final current = _findPlaybackLane(
+    final current = _findPlaybackMeasureLane(
       rows: rows,
       partIndex: partIndex,
       measureIndex: measureIndex,
-      symbolIndex: symbolIndex,
     );
     if (current == null) return;
 
@@ -721,21 +720,15 @@ class ScoreNotationPainter extends CustomPainter {
     );
   }
 
-  _PlaybackSymbolLayout? _findPlaybackLane({
+  _PlaybackMeasureLayout? _findPlaybackMeasureLane({
     required List<_RowMetrics> rows,
     required int partIndex,
     required int measureIndex,
-    required int symbolIndex,
   }) {
     for (final row in rows) {
       if (row.partIndex != partIndex) continue;
       final measureInRow = measureIndex - row.globalStartMeasureIndex;
       if (measureInRow < 0 || measureInRow >= row.measures.length) continue;
-
-      final measure = row.measures[measureInRow];
-      if (symbolIndex < 0 || symbolIndex >= measure.symbols.length) {
-        return null;
-      }
 
       final measureStartX = row.contentStartX + measureInRow * minMeasureWidth;
       final measureEndX = measureStartX + minMeasureWidth;
@@ -745,37 +738,13 @@ class ScoreNotationPainter extends CustomPainter {
         (measureEndX - measureStartX) - (innerPadding * 2),
       );
       final laneStartX = measureStartX + innerPadding;
-      final totalUnits = math.max(_measureDurationUnits(measure.symbols), 1);
-      final elapsedUnits = _durationUnitsBefore(measure.symbols, symbolIndex);
-      final symbolUnits = math.max(
-        _symbolDurationUnits(measure.symbols[symbolIndex]),
-        1,
+      return _PlaybackMeasureLayout(
+        row: row,
+        startX: laneStartX,
+        endX: laneStartX + drawableWidth,
       );
-      final startX = laneStartX + drawableWidth * elapsedUnits / totalUnits;
-      final endUnits = math.min(elapsedUnits + symbolUnits, totalUnits);
-      final endX = laneStartX + drawableWidth * endUnits / totalUnits;
-
-      return _PlaybackSymbolLayout(row: row, startX: startX, endX: endX);
     }
     return null;
-  }
-
-  static int _measureDurationUnits(List<ScoreSymbol> symbols) {
-    return symbols.fold(0, (sum, symbol) => sum + _symbolDurationUnits(symbol));
-  }
-
-  static int _durationUnitsBefore(List<ScoreSymbol> symbols, int index) {
-    var total = 0;
-    for (var i = 0; i < index && i < symbols.length; i++) {
-      total += _symbolDurationUnits(symbols[i]);
-    }
-    return total;
-  }
-
-  static int _symbolDurationUnits(ScoreSymbol symbol) {
-    if (symbol is Note) return symbol.isChordTone ? 0 : symbol.duration;
-    if (symbol is Rest) return symbol.duration;
-    return 0;
   }
 
   void _drawInsertionPreview(
@@ -1638,8 +1607,8 @@ class NotationInsertTarget {
       octave.hashCode;
 }
 
-class _PlaybackSymbolLayout {
-  const _PlaybackSymbolLayout({
+class _PlaybackMeasureLayout {
+  const _PlaybackMeasureLayout({
     required this.row,
     required this.startX,
     required this.endX,
