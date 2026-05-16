@@ -125,6 +125,7 @@ class ScoreNotationViewer extends StatefulWidget {
     this.showPlaybackSymbolHighlight = true,
     this.insertMode = false,
     this.onSymbolTap,
+    this.onMeasureTap,
     this.onInsertTap,
     this.onDragStarted,
     this.onDragGlobalUpdate,
@@ -167,6 +168,7 @@ class ScoreNotationViewer extends StatefulWidget {
 
   final bool insertMode;
   final ValueChanged<NotationSymbolTarget?>? onSymbolTap;
+  final ValueChanged<NotationMeasureTarget?>? onMeasureTap;
   final ValueChanged<NotationInsertTarget?>? onInsertTap;
 
   final void Function(NotationSymbolTarget symbol)? onDragStarted;
@@ -263,7 +265,10 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
           });
         }
       },
-      onTapUp: (widget.onSymbolTap == null && widget.onInsertTap == null)
+      onTapUp:
+          (widget.onSymbolTap == null &&
+              widget.onMeasureTap == null &&
+              widget.onInsertTap == null)
           ? null
           : (position) {
               if (widget.insertMode) {
@@ -273,6 +278,14 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
                   position: position,
                 );
                 widget.onInsertTap?.call(target);
+              } else if (widget.onMeasureTap != null) {
+                widget.onMeasureTap?.call(
+                  _resolveMeasureTarget(
+                    allParts: allParts,
+                    layout: layout,
+                    position: position,
+                  ),
+                );
               } else {
                 final targets = ScoreNotationPainter.buildSymbolTargets(
                   parts: allParts,
@@ -654,6 +667,23 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     }
     return null;
   }
+
+  NotationMeasureTarget? _resolveMeasureTarget({
+    required List<List<Measure>> allParts,
+    required NotationLayout layout,
+    required Offset position,
+  }) {
+    final insertTarget = _resolveInsertTarget(
+      allParts: allParts,
+      layout: layout,
+      position: position,
+    );
+    if (insertTarget == null) return null;
+    return NotationMeasureTarget(
+      partIndex: insertTarget.partIndex,
+      measureIndex: insertTarget.measureIndex,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -755,6 +785,16 @@ class NotationSymbolReorder {
   final int toPartIndex;
   final int toMeasureIndex;
   final int toSymbolIndex;
+}
+
+class NotationMeasureTarget {
+  const NotationMeasureTarget({
+    required this.partIndex,
+    required this.measureIndex,
+  });
+
+  final int partIndex;
+  final int measureIndex;
 }
 
 class _NotationDragSession {

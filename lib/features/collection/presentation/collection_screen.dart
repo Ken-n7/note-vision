@@ -8,6 +8,8 @@ import 'package:note_vision/core/models/project.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/services/project_storage_service.dart';
+import 'package:note_vision/core/services/nvscore_export_service.dart';
+import 'package:note_vision/core/services/nvscore_import_service.dart';
 import 'package:note_vision/core/services/score_classifier.dart';
 import 'package:note_vision/core/services/user_profile_service.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
@@ -20,6 +22,8 @@ import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 
 import 'widgets/empty_collection.dart';
+
+enum _CollectionFilter { recent, myScores, submissions, feedback }
 
 class CollectionScreen extends StatefulWidget {
   final ProjectStorageService? storageService;
@@ -36,6 +40,8 @@ class _CollectionScreenState extends State<CollectionScreen>
   bool _isLoading = true;
   bool _fabOpen = false;
   UserProfile? _userProfile;
+  String? _role;
+  _CollectionFilter _filter = _CollectionFilter.recent;
 
   late final ProjectStorageService _storage;
   late AnimationController _fadeController;
@@ -44,10 +50,12 @@ class _CollectionScreenState extends State<CollectionScreen>
   @override
   void initState() {
     super.initState();
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+      ),
+    );
 
     _storage = widget.storageService ?? ProjectStorageService();
 
@@ -69,7 +77,27 @@ class _CollectionScreenState extends State<CollectionScreen>
 
   Future<void> _loadProfile() async {
     final profile = await UserProfileService.loadProfile();
-    if (mounted) setState(() => _userProfile = profile);
+    final role = await UserProfileService.loadRole();
+    if (mounted) {
+      final availableFilters = role == 'teacher'
+          ? const [
+              _CollectionFilter.recent,
+              _CollectionFilter.myScores,
+              _CollectionFilter.submissions,
+            ]
+          : const [
+              _CollectionFilter.recent,
+              _CollectionFilter.myScores,
+              _CollectionFilter.feedback,
+            ];
+      setState(() {
+        _userProfile = profile;
+        _role = role;
+        if (!availableFilters.contains(_filter)) {
+          _filter = _CollectionFilter.recent;
+        }
+      });
+    }
   }
 
   Future<void> _loadProjects() async {
@@ -88,7 +116,67 @@ class _CollectionScreenState extends State<CollectionScreen>
     }
   }
 
-  Future<void> _openProject(Project project) async {
+  bool get _isTeacher => _role == 'teacher';
+
+  bool _isSubmission(Project project) =>
+      project.submittedBy?.trim().isNotEmpty ?? false;
+
+  bool _hasTeacherComments(Project project) =>
+      project.teacherComments?.isNotEmpty ?? false;
+
+  List<Project> get _teacherScores =>
+      _projects.where((project) => !_isSubmission(project)).toList();
+
+  List<Project> get _studentSubmissions =>
+      _projects.where(_isSubmission).toList();
+
+  List<Project> get _studentScores =>
+      _projects.where((project) => !_hasTeacherComments(project)).toList();
+
+  List<Project> get _studentFeedback =>
+      _projects.where(_hasTeacherComments).toList();
+
+  List<Project> get _filteredStudentProjects => switch (_filter) {
+    _CollectionFilter.feedback => _studentFeedback,
+    _CollectionFilter.myScores => _studentScores,
+    _ => _projects,
+  };
+
+  List<Project> get _exportableProjects {
+    if (_isTeacher) {
+      return switch (_filter) {
+        _CollectionFilter.myScores => _teacherScores,
+        _CollectionFilter.submissions => _studentSubmissions,
+        _ => _projects,
+      };
+    }
+    return _filteredStudentProjects;
+  }
+
+  String get _filterLabel => switch (_filter) {
+    _CollectionFilter.recent => 'Recent',
+    _CollectionFilter.myScores => 'My Scores',
+    _CollectionFilter.submissions => 'Submissions',
+    _CollectionFilter.feedback => 'Feedback',
+  };
+
+  List<_CollectionFilter> get _availableFilters => _isTeacher
+      ? const [
+          _CollectionFilter.recent,
+          _CollectionFilter.myScores,
+          _CollectionFilter.submissions,
+        ]
+      : const [
+          _CollectionFilter.recent,
+          _CollectionFilter.myScores,
+          _CollectionFilter.feedback,
+        ];
+
+  Future<void> _openProject(
+    Project project, {
+    bool reviewMode = false,
+    bool canEditTeacherComments = true,
+  }) async {
     final Score score;
     try {
       score = project.decodeScore();
@@ -110,9 +198,103 @@ class _CollectionScreenState extends State<CollectionScreen>
         score: score,
         initialState: EditorState(score: score),
         existingProject: project,
+        reviewMode: reviewMode,
+        canEditTeacherComments: canEditTeacherComments,
       ),
     );
     if (mounted) _loadProjects();
+  }
+
+  Future<Project> _copyForStudentImport(Project project) async {
+    final currentUserId = await UserProfileService.loadOrCreateUserId();
+    final submittedById = project.submittedById?.trim();
+    if (submittedById != null &&
+        submittedById.isNotEmpty &&
+        submittedById != currentUserId) {
+      throw const FormatException(
+        'This score was submitted by another student.',
+      );
+    }
+
+    final now = DateTime.now();
+    final feedbackName = _hasTeacherComments(project)
+        ? '${project.name} Feedback'
+        : project.name;
+    return Project(
+      id: '${now.microsecondsSinceEpoch}_${project.id}',
+      name: feedbackName,
+      createdAt: now,
+      updatedAt: now,
+      scoreJson: project.scoreJson,
+      submittedBy: project.submittedBy,
+      submittedById: project.submittedById,
+      teacherComments: project.teacherComments,
+    );
+  }
+
+  Future<void> _importNvscoreProject() async {
+    setState(() => _fabOpen = false);
+
+    try {
+      final imported = await NvscoreImportService(
+        storageService: _storage,
+      ).importProject(beforeSave: _isTeacher ? null : _copyForStudentImport);
+      if (!mounted || imported == null) return;
+
+      await _loadProjects();
+      if (!mounted) return;
+      final destination = !_isTeacher && _hasTeacherComments(imported)
+          ? 'Teacher Feedback'
+          : _isSubmission(imported)
+          ? 'Student Submissions'
+          : 'My Scores';
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Imported to $destination.')));
+    } catch (e) {
+      debugPrint('CollectionScreen: failed to import .nvscore: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not import that score file.')),
+      );
+    }
+  }
+
+  Future<void> _exportAllNvscoreProjects() async {
+    setState(() => _fabOpen = false);
+    final projects = _exportableProjects;
+    if (projects.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _isTeacher
+                ? 'There are no $_filterLabel projects to export.'
+                : 'There are no $_filterLabel scores to export.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final path = await const NvscoreExportService().exportAllProjects(
+        projects,
+        fileName: NvscoreExportService.collectionZipFileName(
+          role: _isTeacher ? 'teacher' : 'student',
+          filter: _filterLabel,
+        ),
+      );
+      if (!mounted || path == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Scores exported as a ZIP file.')),
+      );
+    } catch (e) {
+      debugPrint('CollectionScreen: failed to export all scores: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not export scores.')));
+    }
   }
 
   Future<void> _confirmDelete(Project project) async {
@@ -233,20 +415,40 @@ class _CollectionScreenState extends State<CollectionScreen>
 
   String _formatDate(DateTime dt) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 
+  String _labelForFilter(_CollectionFilter filter) => switch (filter) {
+    _CollectionFilter.recent => 'Recent',
+    _CollectionFilter.myScores => 'My Scores',
+    _CollectionFilter.submissions => 'Student Submissions',
+    _CollectionFilter.feedback => 'Teacher Feedback',
+  };
+
   Widget _buildBody() {
     if (_isLoading) {
       return const Center(
-        child: CircularProgressIndicator(color: AppColors.accent, strokeWidth: 2),
+        child: CircularProgressIndicator(
+          color: AppColors.accent,
+          strokeWidth: 2,
+        ),
       );
     }
 
-    if (_projects.isEmpty) {
+    if (_projects.isEmpty && !_isTeacher) {
       return FadeTransition(
         opacity: _fadeIn,
         child: EmptyCollection(onAddPressed: _goToCapture),
@@ -257,8 +459,15 @@ class _CollectionScreenState extends State<CollectionScreen>
       opacity: _fadeIn,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final horizontalPadding =
-              ResponsiveLayout.horizontalPadding(constraints.maxWidth);
+          final horizontalPadding = ResponsiveLayout.horizontalPadding(
+            constraints.maxWidth,
+          );
+
+          if (_isTeacher) {
+            return _buildTeacherBody(horizontalPadding);
+          }
+
+          final displayedProjects = _filteredStudentProjects;
 
           return CustomScrollView(
             slivers: [
@@ -274,76 +483,45 @@ class _CollectionScreenState extends State<CollectionScreen>
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '${_projects.length} ${_projects.length == 1 ? 'project' : 'projects'}',
+                        '${displayedProjects.length} ${displayedProjects.length == 1 ? 'project' : 'projects'}',
                         style: const TextStyle(
                           fontSize: 13,
                           color: AppColors.textSecondary,
                           letterSpacing: 0.3,
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.border),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(
-                              Icons.sort,
-                              size: 13,
-                              color: AppColors.textSecondary,
-                            ),
-                            SizedBox(width: 4),
-                            Text(
-                              'Recent',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
+                      _CollectionFilterButton(
+                        label: _filterLabel,
+                        filters: _availableFilters,
+                        activeFilter: _filter,
+                        labelFor: _labelForFilter,
+                        onSelected: (filter) => setState(() {
+                          _filter = filter;
+                        }),
                       ),
                     ],
                   ),
                 ),
               ),
-              SliverPadding(
-                padding: EdgeInsets.only(
-                  left: horizontalPadding,
-                  right: horizontalPadding,
-                  bottom: 24,
-                ),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final project = _projects[index];
-                      return Column(
-                        children: [
-                          _ProjectTile(
-                            project: project,
-                            formattedDate: _formatDate(project.updatedAt),
-                            onTap: () => _openProject(project),
-                            onLongPress: () => _confirmDelete(project),
-                          ),
-                          if (index < _projects.length - 1)
-                            const Divider(
-                              height: 1,
-                              color: AppColors.border,
-                              indent: 76,
-                            ),
-                        ],
-                      );
-                    },
-                    childCount: _projects.length,
+              if (displayedProjects.isEmpty)
+                _SectionPlaceholderSliver(
+                  horizontalPadding: horizontalPadding,
+                  text: _filter == _CollectionFilter.feedback
+                      ? 'Imported teacher feedback appears here.'
+                      : 'No scores match this filter.',
+                )
+              else
+                _ProjectListSliver(
+                  horizontalPadding: horizontalPadding,
+                  projects: displayedProjects,
+                  formatDate: _formatDate,
+                  onOpen: (project) => _openProject(
+                    project,
+                    reviewMode: _hasTeacherComments(project),
+                    canEditTeacherComments: false,
                   ),
+                  onDelete: _confirmDelete,
                 ),
-              ),
             ],
           );
         },
@@ -351,8 +529,130 @@ class _CollectionScreenState extends State<CollectionScreen>
     );
   }
 
+  Widget _buildTeacherBody(double horizontalPadding) {
+    final myScores = _teacherScores;
+    final submissions = _studentSubmissions;
+    final showMyScores =
+        _filter == _CollectionFilter.recent ||
+        _filter == _CollectionFilter.myScores;
+    final showSubmissions =
+        _filter == _CollectionFilter.recent ||
+        _filter == _CollectionFilter.submissions;
+    final groupedSubmissions = <String, List<Project>>{};
+    for (final project in submissions) {
+      final studentName = project.submittedBy!.trim();
+      groupedSubmissions.putIfAbsent(studentName, () => []).add(project);
+    }
+
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              horizontalPadding,
+              20,
+              horizontalPadding,
+              12,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${myScores.length} ${myScores.length == 1 ? 'score' : 'scores'} · '
+                    '${submissions.length} ${submissions.length == 1 ? 'submission' : 'submissions'}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+                _CollectionFilterButton(
+                  label: _filterLabel,
+                  filters: _availableFilters,
+                  activeFilter: _filter,
+                  labelFor: _labelForFilter,
+                  onSelected: (filter) => setState(() {
+                    _filter = filter;
+                  }),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (showMyScores) ...[
+          _SectionHeaderSliver(
+            horizontalPadding: horizontalPadding,
+            title: 'My Scores',
+            count: myScores.length,
+          ),
+          if (myScores.isEmpty)
+            _SectionPlaceholderSliver(
+              horizontalPadding: horizontalPadding,
+              text: 'Create or import a score to start your collection.',
+            )
+          else
+            _ProjectListSliver(
+              horizontalPadding: horizontalPadding,
+              projects: myScores,
+              formatDate: _formatDate,
+              onOpen: (project) => _openProject(project),
+              onDelete: _confirmDelete,
+            ),
+        ],
+        if (showSubmissions) ...[
+          _SectionHeaderSliver(
+            horizontalPadding: horizontalPadding,
+            title: 'Student Submissions',
+            count: submissions.length,
+          ),
+          if (submissions.isEmpty)
+            _SectionPlaceholderSliver(
+              horizontalPadding: horizontalPadding,
+              text: 'Imported student files appear here automatically.',
+            )
+          else
+            for (final entry in groupedSubmissions.entries) ...[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    horizontalPadding + 16,
+                    8,
+                    horizontalPadding + 16,
+                    4,
+                  ),
+                  child: Text(
+                    entry.key,
+                    style: const TextStyle(
+                      color: AppColors.accent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ),
+              _ProjectListSliver(
+                horizontalPadding: horizontalPadding,
+                projects: entry.value,
+                formatDate: _formatDate,
+                onOpen: (project) => _openProject(
+                  project,
+                  reviewMode: true,
+                  canEditTeacherComments: true,
+                ),
+                onDelete: _confirmDelete,
+              ),
+            ],
+        ],
+        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+      ],
+    );
+  }
+
   PreferredSizeWidget _buildAppBarBottom(
-      bool isLandscape, double horizontalPadding) {
+    bool isLandscape,
+    double horizontalPadding,
+  ) {
     return PreferredSize(
       preferredSize: Size.fromHeight(isLandscape ? 42 : 48),
       child: Padding(
@@ -379,14 +679,18 @@ class _CollectionScreenState extends State<CollectionScreen>
   Widget build(BuildContext context) {
     final orientation = MediaQuery.of(context).orientation;
     final isLandscape = orientation == Orientation.landscape;
-    final horizontalPadding =
-        ResponsiveLayout.horizontalPadding(MediaQuery.of(context).size.width);
+    final horizontalPadding = ResponsiveLayout.horizontalPadding(
+      MediaQuery.of(context).size.width,
+    );
 
     return Scaffold(
       key: const ValueKey('collectionAppBar'),
       backgroundColor: AppColors.background,
       onEndDrawerChanged: (isOpen) {
-        if (!isOpen) _loadProfile();
+        if (!isOpen) {
+          _loadProfile();
+          _loadProjects();
+        }
       },
       endDrawer: const CollectionDrawer(),
       appBar: AppBar(
@@ -423,8 +727,11 @@ class _CollectionScreenState extends State<CollectionScreen>
                         borderColor: AppColors.accent.withValues(alpha: 0.5),
                         borderWidth: 1.5,
                       )
-                    : const Icon(Icons.person_rounded,
-                        color: AppColors.textPrimary, size: 24),
+                    : const Icon(
+                        Icons.person_rounded,
+                        color: AppColors.textPrimary,
+                        size: 24,
+                      ),
               ),
             ),
           ),
@@ -446,6 +753,23 @@ class _CollectionScreenState extends State<CollectionScreen>
         isOpen: _fabOpen,
         onToggle: () => setState(() => _fabOpen = !_fabOpen),
         items: [
+          if (_isTeacher)
+            _SpeedDialItem(
+              icon: Icons.file_open_rounded,
+              label: 'Import Score',
+              onTap: _importNvscoreProject,
+            ),
+          if (!_isTeacher)
+            _SpeedDialItem(
+              icon: Icons.rate_review_rounded,
+              label: 'Import Feedback',
+              onTap: _importNvscoreProject,
+            ),
+          _SpeedDialItem(
+            icon: Icons.archive_rounded,
+            label: 'Export All',
+            onTap: _exportAllNvscoreProjects,
+          ),
           _SpeedDialItem(
             icon: Icons.note_add_rounded,
             label: 'New Score',
@@ -462,6 +786,225 @@ class _CollectionScreenState extends State<CollectionScreen>
             onTap: _goToCapture,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CollectionFilterButton extends StatelessWidget {
+  const _CollectionFilterButton({
+    required this.label,
+    required this.filters,
+    required this.activeFilter,
+    required this.labelFor,
+    required this.onSelected,
+  });
+
+  final String label;
+  final List<_CollectionFilter> filters;
+  final _CollectionFilter activeFilter;
+  final String Function(_CollectionFilter filter) labelFor;
+  final ValueChanged<_CollectionFilter> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<_CollectionFilter>(
+      onSelected: onSelected,
+      tooltip: 'Filter',
+      color: AppColors.surface,
+      itemBuilder: (_) => filters
+          .map(
+            (filter) => PopupMenuItem(
+              value: filter,
+              child: Row(
+                children: [
+                  Icon(
+                    filter == activeFilter
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    size: 15,
+                    color: filter == activeFilter
+                        ? AppColors.accent
+                        : AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: 9),
+                  Text(
+                    labelFor(filter),
+                    style: TextStyle(
+                      color: filter == activeFilter
+                          ? AppColors.accent
+                          : AppColors.textPrimary,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+          .toList(),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.filter_list_rounded,
+              size: 13,
+              color: AppColors.textSecondary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionHeaderSliver extends StatelessWidget {
+  const _SectionHeaderSliver({
+    required this.horizontalPadding,
+    required this.title,
+    required this.count,
+  });
+
+  final double horizontalPadding;
+  final String title;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          horizontalPadding + 16,
+          18,
+          horizontalPadding + 16,
+          8,
+        ),
+        child: Row(
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: AppColors.accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                '$count',
+                style: const TextStyle(
+                  color: AppColors.accent,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionPlaceholderSliver extends StatelessWidget {
+  const _SectionPlaceholderSliver({
+    required this.horizontalPadding,
+    required this.text,
+  });
+
+  final double horizontalPadding;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          horizontalPadding + 16,
+          8,
+          horizontalPadding + 16,
+          8,
+        ),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ProjectListSliver extends StatelessWidget {
+  const _ProjectListSliver({
+    required this.horizontalPadding,
+    required this.projects,
+    required this.formatDate,
+    required this.onOpen,
+    required this.onDelete,
+  });
+
+  final double horizontalPadding;
+  final List<Project> projects;
+  final String Function(DateTime) formatDate;
+  final ValueChanged<Project> onOpen;
+  final ValueChanged<Project> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverPadding(
+      padding: EdgeInsets.only(
+        left: horizontalPadding,
+        right: horizontalPadding,
+        bottom: 8,
+      ),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate((context, index) {
+          final project = projects[index];
+          return Column(
+            children: [
+              _ProjectTile(
+                project: project,
+                formattedDate: formatDate(project.updatedAt),
+                onTap: () => onOpen(project),
+                onLongPress: () => onDelete(project),
+              ),
+              if (index < projects.length - 1)
+                const Divider(height: 1, color: AppColors.border, indent: 76),
+            ],
+          );
+        }, childCount: projects.length),
       ),
     );
   }
@@ -522,7 +1065,11 @@ class _SpeedDialFab extends StatelessWidget {
           child: AnimatedRotation(
             turns: isOpen ? 0.125 : 0,
             duration: const Duration(milliseconds: 200),
-            child: const Icon(Icons.add_rounded, color: AppColors.background, size: 28),
+            child: const Icon(
+              Icons.add_rounded,
+              color: AppColors.background,
+              size: 28,
+            ),
           ),
         ),
       ],
@@ -547,7 +1094,11 @@ class _MiniFabRow extends StatelessWidget {
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: AppColors.border),
             boxShadow: const [
-              BoxShadow(color: Color(0x40000000), blurRadius: 8, offset: Offset(0, 2)),
+              BoxShadow(
+                color: Color(0x40000000),
+                blurRadius: 8,
+                offset: Offset(0, 2),
+              ),
             ],
           ),
           child: Text(
@@ -670,8 +1221,13 @@ class _DialogTextField extends StatelessWidget {
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
-        hintStyle: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.5)),
+        labelStyle: const TextStyle(
+          color: AppColors.textSecondary,
+          fontSize: 13,
+        ),
+        hintStyle: TextStyle(
+          color: AppColors.textSecondary.withValues(alpha: 0.5),
+        ),
         enabledBorder: const UnderlineInputBorder(
           borderSide: BorderSide(color: AppColors.border),
         ),
@@ -786,9 +1342,7 @@ class _ScoreLabelBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.accent.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: AppColors.accent.withValues(alpha: 0.22),
-        ),
+        border: Border.all(color: AppColors.accent.withValues(alpha: 0.22)),
       ),
       child: Text(
         label,

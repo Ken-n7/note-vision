@@ -13,7 +13,9 @@ import 'package:note_vision/features/scan/presentation/scan_screen.dart';
 import 'package:note_vision/core/services/playback_display_preferences_service.dart';
 import 'package:note_vision/core/services/playback_service.dart';
 import 'package:note_vision/core/services/project_storage_service.dart';
+import 'package:note_vision/core/services/nvscore_export_service.dart';
 import 'package:note_vision/core/services/score_classifier.dart';
+import 'package:note_vision/core/services/user_profile_service.dart';
 import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
 import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
@@ -33,6 +35,8 @@ class EditorShellArgs {
     required this.score,
     required this.initialState,
     this.existingProject,
+    this.reviewMode = false,
+    this.canEditTeacherComments = true,
   });
 
   final Score score;
@@ -40,6 +44,9 @@ class EditorShellArgs {
 
   /// Non-null when the editor was opened from the project list screen.
   final Project? existingProject;
+
+  final bool reviewMode;
+  final bool canEditTeacherComments;
 }
 
 class EditorShellScreen extends StatefulWidget {
@@ -59,8 +66,6 @@ class EditorShellScreen extends StatefulWidget {
   @override
   State<EditorShellScreen> createState() => _EditorShellScreenState();
 }
-
-
 
 class _EditorShellScreenState extends State<EditorShellScreen> {
   late EditorState _editorState;
@@ -94,6 +99,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   Project? _currentProject;
   int _scoreEditCount = 0;
   bool _isSaving = false;
+  bool _isSubmitting = false;
+  String? _role;
   _EditorBannerData? _banner;
   Timer? _bannerTimer;
 
@@ -101,6 +108,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
   EditorLayoutPolicy get _layoutPolicy =>
       EditorLayoutPolicy.forPartCount(_editorState.score.parts.length);
+
+  bool get _isReviewMode => widget.args.reviewMode;
+  bool get _isStudent => _role == 'student';
+  bool get _canEditTeacherComments => widget.args.canEditTeacherComments;
 
   EditorPageMetrics get _pageMetrics {
     final score = _editorState.score;
@@ -140,6 +151,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     );
     _loadPlaybackDisplayPreferences();
     _loadScoreEditCount();
+    _loadRole();
+  }
+
+  Future<void> _loadRole() async {
+    final role = await UserProfileService.loadRole();
+    if (mounted) setState(() => _role = role);
   }
 
   Future<void> _loadPlaybackDisplayPreferences() async {
@@ -266,7 +283,53 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     }
   }
 
+  Future<void> _onSubmit() async {
+    if (_isSubmitting || _playbackStatus == PlaybackStatus.playing) return;
+    setState(() => _isSubmitting = true);
+
+    try {
+      final profile = await UserProfileService.loadProfile();
+      final submittedBy = profile?.name.trim();
+      if (submittedBy == null || submittedBy.isEmpty) {
+        _showEditorBanner(
+          const _EditorBannerData.error('Submit failed: profile name missing.'),
+        );
+        return;
+      }
+      final submittedById = await UserProfileService.loadOrCreateUserId();
+
+      final project =
+          (_currentProject ??
+                  Project.create(
+                    name: _editorState.score.title.trim().isEmpty
+                        ? 'Untitled'
+                        : _editorState.score.title.trim(),
+                    score: _editorState.score,
+                  ))
+              .copyWithUpdated(
+                score: _editorState.score,
+                submittedBy: submittedBy,
+                submittedById: submittedById,
+              );
+
+      await _runExport(
+        export: () => const NvscoreExportService().exportProject(
+          project,
+          fileName: NvscoreExportService.submissionFileName(
+            project: project,
+            studentName: submittedBy,
+            studentId: submittedById,
+          ),
+        ),
+        successMessage: 'Submission exported',
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
   Future<void> _onSave() async {
+    if (_isReviewMode) return;
     if (_isSaving) return;
     setState(() => _isSaving = true);
     try {
@@ -358,6 +421,91 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
   void _showSavedBanner(String name) {
     _showEditorBanner(_EditorBannerData.success('Saved as $name'));
+  }
+
+  String? _commentForSelectedMeasure() {
+    final measureNumber = _selectedMeasureNumber();
+    if (measureNumber == null) return null;
+    return _currentProject?.teacherComments?[measureNumber];
+  }
+
+  int? _selectedMeasureNumber() {
+    final selectedPartIndex = _editorState.selectedPartIndex ?? 0;
+    final selectedMeasureIndex = _editorState.selectedMeasureIndex;
+    if (selectedMeasureIndex == null ||
+        _editorState.score.parts.isEmpty ||
+        selectedPartIndex >= _editorState.score.parts.length) {
+      return null;
+    }
+    final measures = _editorState.score.parts[selectedPartIndex].measures;
+    if (selectedMeasureIndex < 0 || selectedMeasureIndex >= measures.length) {
+      return null;
+    }
+    return measures[selectedMeasureIndex].number;
+  }
+
+  void _selectMeasureForReview(NotationMeasureTarget? target) {
+    if (target == null) return;
+    setState(() {
+      _editorState = _editorState.copyWith(
+        selectedPartIndex: target.partIndex,
+        selectedMeasureIndex: target.measureIndex,
+        selectedSymbolIndex: null,
+        selectedSymbol: null,
+      );
+      _syncPageToEditorState(_editorState);
+    });
+  }
+
+  Future<void> _showMeasureCommentDialog() async {
+    if (!_canEditTeacherComments) return;
+    final measureNumber = _selectedMeasureNumber();
+    final currentProject = _currentProject;
+    if (measureNumber == null || currentProject == null) return;
+
+    final currentComment = currentProject.teacherComments?[measureNumber] ?? '';
+    final result = await showDialog<String?>(
+      context: context,
+      builder: (_) => _MeasureCommentDialog(
+        measureNumber: measureNumber,
+        initialComment: currentComment,
+      ),
+    );
+
+    if (result == null || !mounted) return;
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted) return;
+
+    final comments = Map<int, String>.from(
+      currentProject.teacherComments ?? const <int, String>{},
+    );
+    if (result.isEmpty) {
+      comments.remove(measureNumber);
+    } else {
+      comments[measureNumber] = result;
+    }
+
+    final updatedProject = currentProject.copyWithUpdated(
+      score: _editorState.score,
+      teacherComments: comments,
+    );
+    if (!await _trySaveProject(updatedProject)) return;
+    if (!mounted) return;
+    setState(() => _currentProject = updatedProject);
+    _showEditorBanner(const _EditorBannerData.success('Comment saved'));
+  }
+
+  Future<void> _exportCurrentNvscoreProject() async {
+    final project = _currentProject;
+    if (project == null) return;
+
+    await _runExport(
+      export: () => const NvscoreExportService().exportProject(
+        project,
+        fileName: NvscoreExportService.feedbackFileName(project),
+      ),
+      successMessage: 'Reviewed score exported',
+    );
   }
 
   void _showEditorBanner(_EditorBannerData banner) {
@@ -613,6 +761,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   }
 
   void _updateState(EditorState Function(EditorState state) updater) {
+    if (_isReviewMode) return;
     setState(() {
       final prev = _editorState;
       final nextState = updater(_editorState);
@@ -743,6 +892,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   @override
   Widget build(BuildContext context) {
     final isPlaybackActive = _playbackStatus == PlaybackStatus.playing;
+    final isReadOnly = _isReviewMode;
     final selected = _editorState.selectedSymbol;
     final hasSelection = _editorState.hasSelection;
     final hasMeasureContext =
@@ -779,7 +929,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         : null;
 
     return PopScope(
-      canPop: !_editorState.hasUnsavedChanges,
+      canPop: isReadOnly || !_editorState.hasUnsavedChanges,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _handlePopAttempt();
       },
@@ -807,9 +957,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 trashZoneKey: _trashZoneKey,
                 showTrashZone: isLandscape,
                 isPlaybackActive: isPlaybackActive,
+                isReadOnly: isReadOnly,
                 suppressCanvasDragGhost: _dragSymbolType != null,
                 onToggleInsertMode: _toggleInsertMode,
                 onPaletteTypeTap: _onPaletteTypeTap,
+                onMeasureTap: _selectMeasureForReview,
                 onSymbolTap: (target) {
                   if (target == null) {
                     _updateState(
@@ -902,60 +1054,94 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 onExternalDrop: _onPaletteDrop,
               );
 
-              final inspectorPanel = _InspectorPanel(
-                isLandscape: isLandscape,
-                isPlaybackActive: isPlaybackActive,
-                selected: selected,
-                hasSelection: hasSelection,
-                hasMeasureContext: hasMeasureContext,
-                selectedMeasureNumber: selectedMeasureNumber,
-                currentPageIndex: _currentPageIndex,
-                totalPages: _pageMetrics.totalPages,
-                onPrevPage: _currentPageIndex > 0
-                    ? () => setState(
-                        () => _setCurrentPageIndex(_currentPageIndex - 1),
-                      )
-                    : null,
-                onNextPage: _currentPageIndex < _pageMetrics.totalPages - 1
-                    ? () => setState(
-                        () => _setCurrentPageIndex(_currentPageIndex + 1),
-                      )
-                    : null,
-                onPageTap: (i) => setState(() => _setCurrentPageIndex(i)),
-                onMoveUp: () => _updateState((s) => s.moveSelectedSymbolUp()),
-                onMoveDown: () =>
-                    _updateState((s) => s.moveSelectedSymbolDown()),
-                onWhole: () =>
-                    _updateState((s) => s.setSelectedDuration(wholeDuration)),
-                onHalf: () =>
-                    _updateState((s) => s.setSelectedDuration(halfDuration)),
-                onQuarter: () =>
-                    _updateState((s) => s.setSelectedDuration(quarterDuration)),
-                onEighth: () =>
-                    _updateState((s) => s.setSelectedDuration(eighthDuration)),
-                onSetAccidental: (alter) =>
-                    _updateState((s) => s.setSelectedNoteAccidental(alter)),
-                currentMeasureClef: currentMeasureClef,
-                onSetClef: (clef) {
-                  if (clef != null) _updateState((s) => s.setPartClef(clef));
-                },
-                onMoveToPrev: () => _updateState(
-                  (s) => s.moveSelectedSymbolToMeasureOffset(-1),
-                ),
-                onMoveToNext: () =>
-                    _updateState((s) => s.moveSelectedSymbolToMeasureOffset(1)),
-                onAddMeasure: () {
-                  _updateState((s) => s.appendMeasureAtEnd());
-                  setState(_jumpToLastPage);
-                },
-                onAddPage: () {
-                  _updateState((s) => s.addPageAtEnd());
-                  setState(_jumpToLastPage);
-                },
-                canDeleteMeasure: canDeleteMeasure,
-                onDeleteMeasure: () =>
-                    _updateState((s) => s.deleteSelectedMeasureIfEmpty()),
-              );
+              final onPrevPage = _currentPageIndex > 0
+                  ? () => setState(
+                      () => _setCurrentPageIndex(_currentPageIndex - 1),
+                    )
+                  : null;
+              final onNextPage = _currentPageIndex < _pageMetrics.totalPages - 1
+                  ? () => setState(
+                      () => _setCurrentPageIndex(_currentPageIndex + 1),
+                    )
+                  : null;
+              final inspectorPanel = isReadOnly
+                  ? _ReviewPanel(
+                      isLandscape: isLandscape,
+                      isPlaybackActive: isPlaybackActive,
+                      selectedMeasureNumber: selectedMeasureNumber,
+                      currentComment: _commentForSelectedMeasure(),
+                      currentPageIndex: _currentPageIndex,
+                      totalPages: _pageMetrics.totalPages,
+                      canEditComment: _canEditTeacherComments,
+                      onPrevPage: onPrevPage,
+                      onNextPage: onNextPage,
+                      onPageTap: (i) => setState(() => _setCurrentPageIndex(i)),
+                      onEditComment:
+                          !_canEditTeacherComments ||
+                              selectedMeasureNumber == null ||
+                              isPlaybackActive
+                          ? null
+                          : _showMeasureCommentDialog,
+                      onExportProject:
+                          _canEditTeacherComments && _currentProject != null
+                          ? _exportCurrentNvscoreProject
+                          : null,
+                    )
+                  : _InspectorPanel(
+                      isLandscape: isLandscape,
+                      isPlaybackActive: isPlaybackActive,
+                      selected: selected,
+                      hasSelection: hasSelection,
+                      hasMeasureContext: hasMeasureContext,
+                      selectedMeasureNumber: selectedMeasureNumber,
+                      currentPageIndex: _currentPageIndex,
+                      totalPages: _pageMetrics.totalPages,
+                      onPrevPage: onPrevPage,
+                      onNextPage: onNextPage,
+                      onPageTap: (i) => setState(() => _setCurrentPageIndex(i)),
+                      onMoveUp: () =>
+                          _updateState((s) => s.moveSelectedSymbolUp()),
+                      onMoveDown: () =>
+                          _updateState((s) => s.moveSelectedSymbolDown()),
+                      onWhole: () => _updateState(
+                        (s) => s.setSelectedDuration(wholeDuration),
+                      ),
+                      onHalf: () => _updateState(
+                        (s) => s.setSelectedDuration(halfDuration),
+                      ),
+                      onQuarter: () => _updateState(
+                        (s) => s.setSelectedDuration(quarterDuration),
+                      ),
+                      onEighth: () => _updateState(
+                        (s) => s.setSelectedDuration(eighthDuration),
+                      ),
+                      onSetAccidental: (alter) => _updateState(
+                        (s) => s.setSelectedNoteAccidental(alter),
+                      ),
+                      currentMeasureClef: currentMeasureClef,
+                      onSetClef: (clef) {
+                        if (clef != null) {
+                          _updateState((s) => s.setPartClef(clef));
+                        }
+                      },
+                      onMoveToPrev: () => _updateState(
+                        (s) => s.moveSelectedSymbolToMeasureOffset(-1),
+                      ),
+                      onMoveToNext: () => _updateState(
+                        (s) => s.moveSelectedSymbolToMeasureOffset(1),
+                      ),
+                      onAddMeasure: () {
+                        _updateState((s) => s.appendMeasureAtEnd());
+                        setState(_jumpToLastPage);
+                      },
+                      onAddPage: () {
+                        _updateState((s) => s.addPageAtEnd());
+                        setState(_jumpToLastPage);
+                      },
+                      canDeleteMeasure: canDeleteMeasure,
+                      onDeleteMeasure: () =>
+                          _updateState((s) => s.deleteSelectedMeasureIfEmpty()),
+                    );
 
               final scoreIsEmpty =
                   _editorState.score.parts.isEmpty ||
@@ -978,13 +1164,27 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   hasUnsavedChanges: _editorState.hasUnsavedChanges,
                   editCount: _scoreEditCount,
                   scoreLabel: ScoreClassifier.classify(_editorState.score),
-                  canUndo: _editorState.canUndo && !isPlaybackActive,
-                  canRedo: _editorState.canRedo && !isPlaybackActive,
+                  isReviewMode: isReadOnly,
+                  reviewModeLabel: _canEditTeacherComments
+                      ? 'Review Mode'
+                      : 'Feedback Mode',
+                  canUndo:
+                      _editorState.canUndo && !isPlaybackActive && !isReadOnly,
+                  canRedo:
+                      _editorState.canRedo && !isPlaybackActive && !isReadOnly,
                   onBack: () => Navigator.of(context).maybePop(),
                   onUndo: () => _updateState((s) => s.applyUndo()),
                   onRedo: () => _updateState((s) => s.applyRedo()),
-                  onSave: _onSave,
-                  onMetadataTap: _showMetadataSheet,
+                  onSave: isReadOnly ? null : _onSave,
+                  showSubmitButton: _isStudent && !isReadOnly,
+                  onSubmit:
+                      _isStudent &&
+                          !isReadOnly &&
+                          !isPlaybackActive &&
+                          !_isSubmitting
+                      ? _onSubmit
+                      : null,
+                  onMetadataTap: isReadOnly ? null : _showMetadataSheet,
                   onExportXml: () => _runExport(
                     export: () => const MusicXmlExportService().exportToDevice(
                       _editorState.score,
@@ -998,7 +1198,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                     ),
                     successMessage: 'PDF saved',
                   ),
-                  onScanPage: isPlaybackActive ? null : _onScanPage,
+                  onScanPage: isPlaybackActive || isReadOnly
+                      ? null
+                      : _onScanPage,
                 ),
                 notationArea: notationArea,
                 inspectorPanel: inspectorPanel,
@@ -1308,6 +1510,8 @@ class _EditorHeader extends StatelessWidget {
     required this.hasUnsavedChanges,
     required this.editCount,
     required this.scoreLabel,
+    required this.isReviewMode,
+    required this.reviewModeLabel,
     required this.canUndo,
     required this.canRedo,
     required this.onBack,
@@ -1318,6 +1522,8 @@ class _EditorHeader extends StatelessWidget {
     required this.onExportPdf,
     required this.scoreIsEmpty,
     required this.onMetadataTap,
+    this.showSubmitButton = false,
+    this.onSubmit,
     this.onScanPage,
   });
 
@@ -1325,16 +1531,20 @@ class _EditorHeader extends StatelessWidget {
   final bool hasUnsavedChanges;
   final int editCount;
   final ScoreLabel scoreLabel;
+  final bool isReviewMode;
+  final String reviewModeLabel;
   final bool canUndo;
   final bool canRedo;
   final VoidCallback onBack;
   final VoidCallback onUndo;
   final VoidCallback onRedo;
-  final VoidCallback onSave;
+  final VoidCallback? onSave;
   final VoidCallback onExportXml;
   final VoidCallback onExportPdf;
   final bool scoreIsEmpty;
-  final VoidCallback onMetadataTap;
+  final VoidCallback? onMetadataTap;
+  final bool showSubmitButton;
+  final VoidCallback? onSubmit;
   final VoidCallback? onScanPage;
 
   static final ButtonStyle _compactIconButtonStyle = IconButton.styleFrom(
@@ -1418,7 +1628,7 @@ class _EditorHeader extends StatelessWidget {
                       children: [
                         Flexible(
                           child: Text(
-                            'Score Editor · ${scoreLabel.displayName}',
+                            '${isReviewMode ? reviewModeLabel : 'Score Editor'} · ${scoreLabel.displayName}',
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: AppColors.textSecondary,
@@ -1465,16 +1675,27 @@ class _EditorHeader extends StatelessWidget {
             style: _compactIconButtonStyle,
           ),
           const SizedBox(width: 4),
-          FilledButton.icon(
-            onPressed: onSave,
-            icon: const Icon(Icons.save_rounded, size: 15),
-            label: const Text('Save', style: TextStyle(fontSize: 13)),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(60, 34),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+          if (showSubmitButton)
+            IconButton(
+              onPressed: onSubmit,
+              icon: const Icon(Icons.upload_rounded, size: 18),
+              color: onSubmit == null
+                  ? AppColors.textSecondary.withValues(alpha: 0.35)
+                  : AppColors.accent,
+              tooltip: 'Submit',
+              style: _compactIconButtonStyle,
             ),
-          ),
+          if (onSave != null)
+            FilledButton.icon(
+              onPressed: onSave,
+              icon: const Icon(Icons.save_rounded, size: 15),
+              label: const Text('Save', style: TextStyle(fontSize: 13)),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(60, 34),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+              ),
+            ),
           const SizedBox(width: 2),
           PopupMenuButton<_HeaderMenuAction>(
             onSelected: (action) {
@@ -1548,9 +1769,11 @@ class _NotationArea extends StatefulWidget {
     required this.trashZoneKey,
     this.showTrashZone = true,
     required this.isPlaybackActive,
+    required this.isReadOnly,
     this.suppressCanvasDragGhost = false,
     required this.onToggleInsertMode,
     required this.onPaletteTypeTap,
+    required this.onMeasureTap,
     required this.onSymbolTap,
     required this.onInsertTap,
     required this.onDragStarted,
@@ -1576,9 +1799,11 @@ class _NotationArea extends StatefulWidget {
   final GlobalKey trashZoneKey;
   final bool showTrashZone;
   final bool isPlaybackActive;
+  final bool isReadOnly;
   final bool suppressCanvasDragGhost;
   final VoidCallback onToggleInsertMode;
   final ValueChanged<PaletteSymbolType> onPaletteTypeTap;
+  final ValueChanged<NotationMeasureTarget?> onMeasureTap;
   final ValueChanged<NotationSymbolTarget?> onSymbolTap;
   final ValueChanged<NotationInsertTarget?> onInsertTap;
   final void Function(NotationSymbolTarget symbol) onDragStarted;
@@ -1741,12 +1966,12 @@ class _NotationAreaState extends State<_NotationArea>
     final pos = widget.playbackPosition;
     final playheadPartIndex = pos.isNone ? null : pos.partIndex;
     final playheadMeasureIndex = pos.isNone ? null : _rel(pos.measureIndex);
+    final canEdit = !widget.isPlaybackActive && !widget.isReadOnly;
 
     // AnimationController runs 0→1 over the current note's scaled duration.
     // The painter uses T + the symbol index to interpolate X directly from
     // slot geometry — no accumulated base-ms needed.
-    final playbackT =
-        widget.isPlaybackActive ? _playheadController.value : 0.0;
+    final playbackT = widget.isPlaybackActive ? _playheadController.value : 0.0;
 
     return ScoreNotationViewer(
       score: widget.editorState.score,
@@ -1787,11 +2012,9 @@ class _NotationAreaState extends State<_NotationArea>
       playbackProgress: playbackT,
       showPlaybackSymbolHighlight: widget.showPlaybackSymbolHighlight,
       insertMode: widget.insertMode,
-      canAcceptExternalDrop: widget.isPlaybackActive
-          ? (_) => false
-          : (data) => data is PaletteDragData,
+      canAcceptExternalDrop: canEdit ? (data) => data is PaletteDragData : null,
       externalPreviewResolver: _previewGlyphForDragData,
-      onExternalDrop: widget.isPlaybackActive
+      onExternalDrop: !canEdit
           ? null
           : (target, data) => widget.onExternalDrop(
               NotationInsertTarget(
@@ -1804,7 +2027,10 @@ class _NotationAreaState extends State<_NotationArea>
               ),
               data,
             ),
-      onSymbolTap: (widget.insertMode || widget.isPlaybackActive)
+      onMeasureTap: widget.isReadOnly && !widget.isPlaybackActive
+          ? widget.onMeasureTap
+          : null,
+      onSymbolTap: (widget.insertMode || !canEdit)
           ? null
           : (target) => widget.onSymbolTap(
               target == null
@@ -1818,7 +2044,7 @@ class _NotationAreaState extends State<_NotationArea>
                       hitRect: target.hitRect,
                     ),
             ),
-      onInsertTap: (widget.insertMode && !widget.isPlaybackActive)
+      onInsertTap: (widget.insertMode && canEdit)
           ? (target) => widget.onInsertTap(
               target == null
                   ? null
@@ -1833,7 +2059,7 @@ class _NotationAreaState extends State<_NotationArea>
                     ),
             )
           : null,
-      onDragStarted: (widget.insertMode || widget.isPlaybackActive)
+      onDragStarted: (widget.insertMode || !canEdit)
           ? null
           : (target) => widget.onDragStarted(
               NotationSymbolTarget(
@@ -1844,23 +2070,25 @@ class _NotationAreaState extends State<_NotationArea>
                 hitRect: target.hitRect,
               ),
             ),
-      onDragGlobalUpdate: widget.onDragGlobalUpdate,
-      onDragCompleted: (reorder, global) => widget.onDragCompleted(
-        reorder == null
-            ? null
-            : NotationSymbolReorder(
-                fromPartIndex: reorder.fromPartIndex,
-                fromMeasureIndex:
-                    reorder.fromMeasureIndex + widget.pageFirstMeasure,
-                fromSymbolIndex: reorder.fromSymbolIndex,
-                toPartIndex: reorder.toPartIndex,
-                toMeasureIndex:
-                    reorder.toMeasureIndex + widget.pageFirstMeasure,
-                toSymbolIndex: reorder.toSymbolIndex,
-              ),
-        global,
-      ),
-      onDragCancelled: widget.onDragCancelled,
+      onDragGlobalUpdate: canEdit ? widget.onDragGlobalUpdate : null,
+      onDragCompleted: canEdit
+          ? (reorder, global) => widget.onDragCompleted(
+              reorder == null
+                  ? null
+                  : NotationSymbolReorder(
+                      fromPartIndex: reorder.fromPartIndex,
+                      fromMeasureIndex:
+                          reorder.fromMeasureIndex + widget.pageFirstMeasure,
+                      fromSymbolIndex: reorder.fromSymbolIndex,
+                      toPartIndex: reorder.toPartIndex,
+                      toMeasureIndex:
+                          reorder.toMeasureIndex + widget.pageFirstMeasure,
+                      toSymbolIndex: reorder.toSymbolIndex,
+                    ),
+              global,
+            )
+          : null,
+      onDragCancelled: canEdit ? widget.onDragCancelled : null,
       suppressCanvasDragGhost: widget.suppressCanvasDragGhost,
     );
   }
@@ -2008,6 +2236,7 @@ class _NotationAreaState extends State<_NotationArea>
                 child: _FloatingControls(
                   zoomPercent: _zoomPercent,
                   insertMode: widget.insertMode && !widget.isPlaybackActive,
+                  showInsertToggle: !widget.isReadOnly,
                   onZoomIn: _zoomIn,
                   onZoomOut: _zoomOut,
                   onFitToScreen: _fitToScreen,
@@ -2019,15 +2248,16 @@ class _NotationAreaState extends State<_NotationArea>
             ],
           ),
         ),
-        IgnorePointer(
-          ignoring: widget.isPlaybackActive,
-          child: SymbolPalette(
-            selectedType: widget.insertMode && !widget.isPlaybackActive
-                ? widget.insertSymbolType
-                : null,
-            onTypeTap: widget.onPaletteTypeTap,
+        if (!widget.isReadOnly)
+          IgnorePointer(
+            ignoring: widget.isPlaybackActive,
+            child: SymbolPalette(
+              selectedType: widget.insertMode && !widget.isPlaybackActive
+                  ? widget.insertSymbolType
+                  : null,
+              onTypeTap: widget.onPaletteTypeTap,
+            ),
           ),
-        ),
       ],
     );
   }
@@ -2060,6 +2290,7 @@ class _FloatingControls extends StatelessWidget {
   const _FloatingControls({
     required this.zoomPercent,
     required this.insertMode,
+    required this.showInsertToggle,
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onFitToScreen,
@@ -2068,6 +2299,7 @@ class _FloatingControls extends StatelessWidget {
 
   final int zoomPercent;
   final bool insertMode;
+  final bool showInsertToggle;
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
   final VoidCallback onFitToScreen;
@@ -2079,46 +2311,48 @@ class _FloatingControls extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        GestureDetector(
-          onTap: onToggleInsertMode,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: insertMode
-                  ? AppColors.accent.withValues(alpha: 0.2)
-                  : AppColors.surface.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: insertMode ? AppColors.accent : AppColors.border,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  insertMode ? Icons.edit_rounded : Icons.touch_app_rounded,
-                  size: 13,
-                  color: insertMode
-                      ? AppColors.accent
-                      : AppColors.textSecondary,
+        if (showInsertToggle) ...[
+          GestureDetector(
+            onTap: onToggleInsertMode,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: insertMode
+                    ? AppColors.accent.withValues(alpha: 0.2)
+                    : AppColors.surface.withValues(alpha: 0.9),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: insertMode ? AppColors.accent : AppColors.border,
                 ),
-                const SizedBox(width: 5),
-                Text(
-                  insertMode ? 'Insert' : 'Select',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    insertMode ? Icons.edit_rounded : Icons.touch_app_rounded,
+                    size: 13,
                     color: insertMode
                         ? AppColors.accent
                         : AppColors.textSecondary,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 5),
+                  Text(
+                    insertMode ? 'Insert' : 'Select',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: insertMode
+                          ? AppColors.accent
+                          : AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 6),
+          const SizedBox(height: 6),
+        ],
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           decoration: BoxDecoration(
@@ -2182,6 +2416,310 @@ class _ZoomBtn extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Inspector panel (routes to landscape or portrait variant)
 // ---------------------------------------------------------------------------
+
+class _ReviewPanel extends StatelessWidget {
+  const _ReviewPanel({
+    required this.isLandscape,
+    required this.isPlaybackActive,
+    required this.selectedMeasureNumber,
+    required this.currentComment,
+    required this.currentPageIndex,
+    required this.totalPages,
+    required this.canEditComment,
+    required this.onPrevPage,
+    required this.onNextPage,
+    required this.onPageTap,
+    required this.onEditComment,
+    required this.onExportProject,
+  });
+
+  final bool isLandscape;
+  final bool isPlaybackActive;
+  final int? selectedMeasureNumber;
+  final String? currentComment;
+  final int currentPageIndex;
+  final int totalPages;
+  final bool canEditComment;
+  final VoidCallback? onPrevPage;
+  final VoidCallback? onNextPage;
+  final ValueChanged<int> onPageTap;
+  final VoidCallback? onEditComment;
+  final VoidCallback? onExportProject;
+
+  @override
+  Widget build(BuildContext context) {
+    final comment = currentComment?.trim();
+    final hasComment = comment != null && comment.isNotEmpty;
+    final measureLabel = selectedMeasureNumber == null
+        ? 'No measure selected'
+        : 'Measure $selectedMeasureNumber';
+    final pageNav = _PageNav(
+      currentPageIndex: currentPageIndex,
+      totalPages: totalPages,
+      onPrev: onPrevPage,
+      onNext: onNextPage,
+      onPageTap: onPageTap,
+    );
+
+    if (!isLandscape) {
+      return Stack(
+        children: [
+          Positioned(
+            top: 8,
+            left: 8,
+            right: 8,
+            child: _ReviewMeasureBar(
+              measureLabel: measureLabel,
+              pageNav: pageNav,
+              compact: true,
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              height: _kInspectorBarHeight,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: const BoxDecoration(
+                color: AppColors.surface,
+                border: Border(top: BorderSide(color: AppColors.border)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      hasComment ? comment : 'No comment',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  if (canEditComment)
+                    IconButton(
+                      onPressed: onEditComment,
+                      icon: Icon(
+                        hasComment
+                            ? Icons.mode_comment_rounded
+                            : Icons.add_comment_rounded,
+                        size: 20,
+                      ),
+                      color: onEditComment == null
+                          ? AppColors.textSecondary.withValues(alpha: 0.35)
+                          : AppColors.accent,
+                      tooltip: isPlaybackActive
+                          ? 'Playback active'
+                          : hasComment
+                          ? 'Edit Comment'
+                          : 'Add Comment',
+                    ),
+                  if (onExportProject != null)
+                    IconButton(
+                      onPressed: onExportProject,
+                      icon: const Icon(Icons.ios_share_rounded, size: 20),
+                      color: AppColors.accent,
+                      tooltip: 'Export Reviewed Score',
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _ReviewMeasureBar(measureLabel: measureLabel, pageNav: pageNav),
+          const SizedBox(height: 16),
+          const Text(
+            'COMMENT',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 10,
+              letterSpacing: 1.0,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Text(
+                hasComment ? comment : 'No comment',
+                style: TextStyle(
+                  color: hasComment
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary,
+                  fontSize: 13,
+                  height: 1.45,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (canEditComment)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onEditComment,
+                icon: Icon(
+                  hasComment
+                      ? Icons.mode_comment_rounded
+                      : Icons.add_comment_rounded,
+                  size: 17,
+                ),
+                label: Text(
+                  isPlaybackActive
+                      ? 'Playback Active'
+                      : hasComment
+                      ? 'Edit Comment'
+                      : 'Add Comment',
+                ),
+              ),
+            ),
+          if (onExportProject != null) ...[
+            if (canEditComment) const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onExportProject,
+                icon: const Icon(Icons.ios_share_rounded, size: 17),
+                label: const Text('Export Reviewed Score'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewMeasureBar extends StatelessWidget {
+  const _ReviewMeasureBar({
+    required this.measureLabel,
+    required this.pageNav,
+    this.compact = false,
+  });
+
+  final String measureLabel;
+  final Widget pageNav;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 10 : 0,
+        vertical: compact ? 6 : 0,
+      ),
+      decoration: compact
+          ? BoxDecoration(
+              color: AppColors.surfaceAlt,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border),
+            )
+          : null,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              measureLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          pageNav,
+        ],
+      ),
+    );
+  }
+}
+
+class _MeasureCommentDialog extends StatefulWidget {
+  const _MeasureCommentDialog({
+    required this.measureNumber,
+    required this.initialComment,
+  });
+
+  final int measureNumber;
+  final String initialComment;
+
+  @override
+  State<_MeasureCommentDialog> createState() => _MeasureCommentDialogState();
+}
+
+class _MeasureCommentDialogState extends State<_MeasureCommentDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialComment);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.surface,
+      title: Text(
+        'Measure ${widget.measureNumber} Comment',
+        style: const TextStyle(color: AppColors.textPrimary),
+      ),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        minLines: 3,
+        maxLines: 6,
+        style: const TextStyle(color: AppColors.textPrimary),
+        decoration: const InputDecoration(
+          hintText: 'Teacher comment',
+          hintStyle: TextStyle(color: AppColors.textSecondary),
+          enabledBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: AppColors.border),
+          ),
+          focusedBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: AppColors.accent),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(null),
+          child: const Text(
+            'Cancel',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
+          child: const Text('Save', style: TextStyle(color: AppColors.accent)),
+        ),
+      ],
+    );
+  }
+}
 
 class _InspectorPanel extends StatefulWidget {
   const _InspectorPanel({

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/services/user_profile_service.dart';
 import 'package:note_vision/core/widgets/user_avatar.dart';
@@ -8,8 +9,8 @@ import 'package:note_vision/features/profile/presentation/profile_stats_screen.d
 class CollectionDrawer extends StatelessWidget {
   const CollectionDrawer({super.key});
 
-  static const _bg            = Color(0xFF0D0D0D);
-  static const _border        = Color(0xFF2C2C2C);
+  static const _bg = Color(0xFF0D0D0D);
+  static const _border = Color(0xFF2C2C2C);
   static const _textSecondary = Color(0xFF8A8A8A);
 
   @override
@@ -61,6 +62,8 @@ class CollectionDrawer extends StatelessWidget {
                 },
               ),
 
+              if (kDebugMode) const _TemporaryRoleSwitch(),
+
               const SizedBox(height: 4),
 
               Container(
@@ -111,6 +114,159 @@ class CollectionDrawer extends StatelessWidget {
   }
 }
 
+// Temporary debug-only testing helper.
+// Remove before presentation if presenting a debug build.
+class _TemporaryRoleSwitch extends StatefulWidget {
+  const _TemporaryRoleSwitch();
+
+  @override
+  State<_TemporaryRoleSwitch> createState() => _TemporaryRoleSwitchState();
+}
+
+class _TemporaryRoleSwitchState extends State<_TemporaryRoleSwitch> {
+  static const _surface = Color(0xFF1A1A1A);
+  static const _border = Color(0xFF2C2C2C);
+  static const _textPrimary = Color(0xFFFFFFFF);
+  static const _textSecondary = Color(0xFF8A8A8A);
+
+  String _role = 'student';
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRole();
+  }
+
+  Future<void> _loadRole() async {
+    final role = await UserProfileService.loadRole();
+    if (!mounted) return;
+    setState(() {
+      if (role == 'teacher' || role == 'student') _role = role!;
+    });
+  }
+
+  Future<void> _setRole(String role) async {
+    if (_isSaving || role == _role) return;
+    setState(() => _isSaving = true);
+    await UserProfileService.saveRole(role);
+    if (!mounted) return;
+    setState(() {
+      _role = role;
+      _isSaving = false;
+    });
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 6, 12, 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'TEMP TESTING',
+            style: TextStyle(
+              color: _textSecondary,
+              fontSize: 9,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.6,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Developer Role Switch',
+            style: TextStyle(
+              color: _textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _RoleDebugButton(
+                  label: 'Student',
+                  selected: _role == 'student',
+                  enabled: !_isSaving,
+                  onTap: () => _setRole('student'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _RoleDebugButton(
+                  label: 'Teacher',
+                  selected: _role == 'teacher',
+                  enabled: !_isSaving,
+                  onTap: () => _setRole('teacher'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Remove before presentation unless using a release build.',
+            style: TextStyle(color: _textSecondary, fontSize: 10, height: 1.3),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoleDebugButton extends StatelessWidget {
+  const _RoleDebugButton({
+    required this.label,
+    required this.selected,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  static const _surfaceAlt = Color(0xFF161616);
+  static const _border = Color(0xFF2C2C2C);
+  static const _accent = Color(0xFFD4A96A);
+  static const _textSecondary = Color(0xFF8A8A8A);
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? _accent.withValues(alpha: 0.16) : _surfaceAlt,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: selected ? _accent : _border),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? _accent : _textSecondary,
+              fontSize: 12,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ─── Profile header ───────────────────────────────────────────────────────────
 
 class _ProfileHeader extends StatefulWidget {
@@ -121,7 +277,7 @@ class _ProfileHeader extends StatefulWidget {
 }
 
 class _ProfileHeaderState extends State<_ProfileHeader> {
-  static const _textPrimary   = Color(0xFFFFFFFF);
+  static const _textPrimary = Color(0xFFFFFFFF);
   static const _textSecondary = Color(0xFF8A8A8A);
 
   UserProfile? _profile;
@@ -144,9 +300,9 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
 
   @override
   Widget build(BuildContext context) {
-    final name    = _profile?.name ?? '';
+    final name = _profile?.name ?? '';
     final initial = _profile?.initial ?? '?';
-    final photo   = _profile?.photoPath;
+    final photo = _profile?.photoPath;
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
@@ -236,9 +392,9 @@ class _DrawerItem extends StatefulWidget {
 class _DrawerItemState extends State<_DrawerItem> {
   bool _hovered = false;
 
-  static const _surface       = Color(0xFF1A1A1A);
-  static const _accent        = Color(0xFFD4A96A);
-  static const _textPrimary   = Color(0xFFFFFFFF);
+  static const _surface = Color(0xFF1A1A1A);
+  static const _accent = Color(0xFFD4A96A);
+  static const _textPrimary = Color(0xFFFFFFFF);
   static const _textSecondary = Color(0xFF8A8A8A);
 
   @override
