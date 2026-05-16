@@ -120,6 +120,7 @@ class ScoreNotationViewer extends StatefulWidget {
     this.playbackNextSymbolIndex,
     this.playheadPartIndex,
     this.playheadMeasureIndex,
+    this.playheadSymbolIndex,
     this.playbackProgress = 0,
     this.showPlaybackSymbolHighlight = true,
     this.insertMode = false,
@@ -160,6 +161,7 @@ class ScoreNotationViewer extends StatefulWidget {
   final int? playbackNextSymbolIndex;
   final int? playheadPartIndex;
   final int? playheadMeasureIndex;
+  final int? playheadSymbolIndex;
   final double playbackProgress;
   final bool showPlaybackSymbolHighlight;
 
@@ -324,6 +326,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
         playbackNextSymbolIndex: widget.playbackNextSymbolIndex,
         playheadPartIndex: widget.playheadPartIndex,
         playheadMeasureIndex: widget.playheadMeasureIndex,
+        playheadSymbolIndex: widget.playheadSymbolIndex,
         playbackProgress: widget.playbackProgress,
         showPlaybackSymbolHighlight: widget.showPlaybackSymbolHighlight,
         dragFeedback:

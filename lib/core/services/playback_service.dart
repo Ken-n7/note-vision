@@ -323,17 +323,21 @@ class PlaybackService {
 
       _activeMidiNotes.clear();
 
-      // Play all notes in the current rhythmic group (skip rests).
+      // Fire all notes in the current rhythmic group without awaiting.
+      // Awaiting playNote() blocks for ~10–20 ms per call (MIDI platform
+      // overhead), which would delay _waitMs() and make the visual clock
+      // run ahead of the audio by that amount on every note boundary.
+      // Fire-and-forget keeps the wall-clock timer aligned with the audio.
       if (_sfId != null) {
         for (var i = _currentEventIndex; i < groupEnd; i++) {
           final groupedEvent = _events[i];
           if (groupedEvent.isRest) continue;
-          await _midi.playNote(
+          unawaited(_midi.playNote(
             sfId: _sfId!,
             channel: _midiChannel,
             key: groupedEvent.midiNote,
             velocity: _velocity,
-          );
+          ));
           _activeMidiNotes.add(groupedEvent.midiNote);
         }
       }
@@ -341,8 +345,10 @@ class PlaybackService {
       // Wait for duration, scaled to current tempo.
       final completed = await _waitMs(ms);
 
-      // Stop sounding notes before advancing.
-      await _stopActiveNotes();
+      // Stop notes without awaiting — same reason as playNote above.
+      // _stopActiveNotes() copies _activeMidiNotes before clearing it so the
+      // next group can safely populate the list while stops are in flight.
+      unawaited(_stopActiveNotes());
 
       if (!completed) break; // paused or stopped mid-note
       _currentEventIndex = groupEnd;

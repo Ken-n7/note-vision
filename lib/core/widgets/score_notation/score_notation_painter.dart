@@ -31,6 +31,7 @@ class ScoreNotationPainter extends CustomPainter {
     this.playbackNextSymbolIndex,
     this.playheadPartIndex,
     this.playheadMeasureIndex,
+    this.playheadSymbolIndex,
     this.playbackProgress = 0,
     this.showPlaybackSymbolHighlight = true,
     this.dragFeedback,
@@ -59,6 +60,9 @@ class ScoreNotationPainter extends CustomPainter {
   final int? playbackNextSymbolIndex;
   final int? playheadPartIndex;
   final int? playheadMeasureIndex;
+  /// Index of the symbol within its measure that the playhead is on.
+  final int? playheadSymbolIndex;
+  /// 0→1 fractional progress within the current note (from AnimationController).
   final double playbackProgress;
   final bool showPlaybackSymbolHighlight;
 
@@ -694,19 +698,75 @@ class ScoreNotationPainter extends CustomPainter {
   void _drawPlaybackPlayhead(Canvas canvas, List<_RowMetrics> rows) {
     final partIndex = playheadPartIndex ?? playbackPartIndex;
     final measureIndex = playheadMeasureIndex ?? playbackMeasureIndex;
+    final symIndex = playheadSymbolIndex ?? playbackSymbolIndex;
     if (partIndex == null || measureIndex == null) return;
 
-    final current = _findPlaybackMeasureLane(
-      rows: rows,
-      partIndex: partIndex,
-      measureIndex: measureIndex,
-    );
-    if (current == null) return;
+    // Find the row that contains this measure.
+    final partRows = rows
+        .where((r) => r.partIndex == partIndex)
+        .toList()
+      ..sort((a, b) => a.globalStartMeasureIndex.compareTo(b.globalStartMeasureIndex));
+    if (partRows.isEmpty) return;
 
+    _RowMetrics? currentRow;
+    for (final row in partRows) {
+      final rel = measureIndex - row.globalStartMeasureIndex;
+      if (rel >= 0 && rel < row.measures.length) {
+        currentRow = row;
+        break;
+      }
+    }
+    if (currentRow == null) return;
+
+    // Locate the measure and compute its slot geometry.
+    final measureRelIdx = measureIndex - currentRow.globalStartMeasureIndex;
+    if (measureRelIdx < 0 || measureRelIdx >= currentRow.measures.length) return;
+    final measure = currentRow.measures[measureRelIdx];
+
+    const ip = ScoreNotationMetrics.measureInnerPadding;
+    final measureStartX = currentRow.contentStartX + measureRelIdx * minMeasureWidth;
+    final dw = math.max(12.0, minMeasureWidth - ip * 2);
+    final laneStartX = measureStartX + ip;
+
+    final symbols = measure.symbols;
+    final slotCount = _visualSlotCount(symbols);
+    if (slotCount == 0) return;
+
+    // Count how many non-chord-tone symbols appear before symIndex to get the slot.
+    final effectiveSymIndex = symIndex ?? 0;
+    var slot = 0;
+    for (var i = 0; i < effectiveSymIndex && i < symbols.length; i++) {
+      final sym = symbols[i];
+      if (sym is Note && sym.isChordTone) continue;
+      slot++;
+    }
+    slot = slot.clamp(0, slotCount - 1);
+
+    final currentX = laneStartX + dw * (slot + 1) / (slotCount + 1);
+
+    // Next X: the next symbol in this measure, or the first symbol of the next
+    // measure in the same row, or the right barline if at the end of the row.
+    double nextX;
+    if (slot + 1 < slotCount) {
+      nextX = laneStartX + dw * (slot + 2) / (slotCount + 1);
+    } else if (measureRelIdx + 1 < currentRow.measures.length) {
+      final nextMeasure = currentRow.measures[measureRelIdx + 1];
+      final nextMeasureStartX =
+          currentRow.contentStartX + (measureRelIdx + 1) * minMeasureWidth;
+      final nextLaneStartX = nextMeasureStartX + ip;
+      final nextSlotCount = _visualSlotCount(nextMeasure.symbols);
+      nextX = nextSlotCount > 0
+          ? nextLaneStartX + dw * 1 / (nextSlotCount + 1)
+          : nextMeasureStartX + minMeasureWidth;
+    } else {
+      nextX = currentRow.contentStartX + currentRow.measures.length * minMeasureWidth;
+    }
+
+    // Lerp using T (0→1 from AnimationController).
     final t = playbackProgress.clamp(0.0, 1.0);
-    final x = current.startX + (current.endX - current.startX) * t;
-    final verticalPadding = ScoreNotationMetrics.playbackPlayheadStaffPadding;
+    final x = currentX + t * (nextX - currentX);
 
+    final verticalPadding = ScoreNotationMetrics.playbackPlayheadStaffPadding;
     final paint = Paint()
       ..color = ScoreNotationMetrics.playbackPlayheadColor.withValues(
         alpha: ScoreNotationMetrics.playbackPlayheadOpacity,
@@ -715,37 +775,10 @@ class ScoreNotationPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     canvas.drawLine(
-      Offset(x, current.row.staffTop - verticalPadding),
-      Offset(x, current.row.staffBottom + verticalPadding),
+      Offset(x, currentRow.staffTop - verticalPadding),
+      Offset(x, currentRow.staffBottom + verticalPadding),
       paint,
     );
-  }
-
-  _PlaybackMeasureLayout? _findPlaybackMeasureLane({
-    required List<_RowMetrics> rows,
-    required int partIndex,
-    required int measureIndex,
-  }) {
-    for (final row in rows) {
-      if (row.partIndex != partIndex) continue;
-      final measureInRow = measureIndex - row.globalStartMeasureIndex;
-      if (measureInRow < 0 || measureInRow >= row.measures.length) continue;
-
-      final measureStartX = row.contentStartX + measureInRow * minMeasureWidth;
-      final measureEndX = measureStartX + minMeasureWidth;
-      const innerPadding = ScoreNotationMetrics.measureInnerPadding;
-      final drawableWidth = math.max(
-        12.0,
-        (measureEndX - measureStartX) - (innerPadding * 2),
-      );
-      final laneStartX = measureStartX + innerPadding;
-      return _PlaybackMeasureLayout(
-        row: row,
-        startX: laneStartX,
-        endX: laneStartX + drawableWidth,
-      );
-    }
-    return null;
   }
 
   void _drawInsertionPreview(
@@ -1501,6 +1534,7 @@ class ScoreNotationPainter extends CustomPainter {
         oldDelegate.playbackNextSymbolIndex != playbackNextSymbolIndex ||
         oldDelegate.playheadPartIndex != playheadPartIndex ||
         oldDelegate.playheadMeasureIndex != playheadMeasureIndex ||
+        oldDelegate.playheadSymbolIndex != playheadSymbolIndex ||
         oldDelegate.playbackProgress != playbackProgress ||
         oldDelegate.showPlaybackSymbolHighlight !=
             showPlaybackSymbolHighlight ||
@@ -1608,18 +1642,6 @@ class NotationInsertTarget {
       indicatorX.hashCode ^
       step.hashCode ^
       octave.hashCode;
-}
-
-class _PlaybackMeasureLayout {
-  const _PlaybackMeasureLayout({
-    required this.row,
-    required this.startX,
-    required this.endX,
-  });
-
-  final _RowMetrics row;
-  final double startX;
-  final double endX;
 }
 
 class _RowMetrics {
