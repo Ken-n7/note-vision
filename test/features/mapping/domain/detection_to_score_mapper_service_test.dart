@@ -549,6 +549,35 @@ void main() {
       expect(note.type, 'eighth');
     });
 
+    test('drops noteheads that are far outside the staff bounds (false positives)', () {
+      // singleStaff lineYs = [100..140], staffHeight = 40, margin = 80.
+      // Valid centerY range: 20..220.
+      // Note at y=0 (centerY=4) and y=280 (centerY=284) are well outside → dropped.
+      // Only the note within the staff (y=136, centerY=140) should survive.
+      const detection = DetectionResult(
+        imageId: 'out-of-range',
+        staffs: [singleStaff],
+        symbols: [
+          DetectedSymbol(id: 'clef-1', type: 'gClef', x: 10, y: 92, width: 18, height: 44),
+          // Far above staff (false positive — text artifact or noise at top of image).
+          DetectedSymbol(id: 'head-far-above', type: 'noteheadBlack', x: 52, y: 0, width: 10, height: 8),
+          DetectedSymbol(id: 'stem-far-above', type: 'stem', x: 60, y: 0, width: 2, height: 20),
+          // Within the staff — should be kept.
+          DetectedSymbol(id: 'head-normal', type: 'noteheadBlack', x: 100, y: 136, width: 10, height: 8),
+          DetectedSymbol(id: 'stem-normal', type: 'stem', x: 108, y: 108, width: 2, height: 28),
+          // Far below staff (false positive).
+          DetectedSymbol(id: 'head-far-below', type: 'noteheadBlack', x: 150, y: 280, width: 10, height: 8),
+          DetectedSymbol(id: 'stem-far-below', type: 'stem', x: 158, y: 280, width: 2, height: 20),
+        ],
+      );
+
+      final result = mapper.map(detection);
+      final symbols = result.score.parts.single.measures.single.symbols;
+
+      expect(symbols, hasLength(1), reason: 'Only the in-range note should survive');
+      expect((symbols.single as Note).type, 'quarter');
+    });
+
     test('keeps symbols ordered from left to right within each measure', () {
       const detection = DetectionResult(
         imageId: 'order-check',

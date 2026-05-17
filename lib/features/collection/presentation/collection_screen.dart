@@ -1041,22 +1041,33 @@ class _SpeedDialFab extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        // Mini FABs fan upward — top item shown first
-        for (final item in items)
-          AnimatedSlide(
-            offset: isOpen ? Offset.zero : const Offset(0, 0.4),
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
-            child: AnimatedOpacity(
-              opacity: isOpen ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 180),
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _MiniFabRow(item: item),
-              ),
-            ),
-          ),
-        // Main FAB
+        AnimatedSize(
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          alignment: Alignment.bottomRight,
+          child: isOpen
+              ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    for (final item in items)
+                      AnimatedSlide(
+                        offset: Offset.zero,
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeOut,
+                        child: AnimatedOpacity(
+                          opacity: 1,
+                          duration: const Duration(milliseconds: 180),
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: _MiniFabRow(item: item),
+                          ),
+                        ),
+                      ),
+                  ],
+                )
+              : const SizedBox.shrink(),
+        ),
         FloatingActionButton(
           heroTag: 'main_fab',
           onPressed: onToggle,

@@ -57,12 +57,12 @@ final _simpleMelodyScoreJson = jsonEncode(
 );
 
 Project _makeProject(String name, {String id = '1'}) => Project(
-      id: id,
-      name: name,
-      createdAt: DateTime(2026, 1, 1),
-      updatedAt: DateTime(2026, 3, 20),
-      scoreJson: _simpleMelodyScoreJson,
-    );
+  id: id,
+  name: name,
+  createdAt: DateTime(2026, 1, 1),
+  updatedAt: DateTime(2026, 3, 20),
+  scoreJson: _simpleMelodyScoreJson,
+);
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -127,9 +127,7 @@ void main() {
       expect(find.text('2 projects'), findsOneWidget);
     });
 
-    testWidgets('shows app bar content and FAB', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('shows app bar content and FAB', (WidgetTester tester) async {
       final service = FakeProjectStorageService(Future.value([]));
 
       await tester.pumpWidget(
@@ -144,6 +142,32 @@ void main() {
       expect(find.byType(FloatingActionButton), findsAtLeastNWidgets(1));
     });
 
+    testWidgets('keeps speed dial actions out of the closed layout', (
+      WidgetTester tester,
+    ) async {
+      final service = FakeProjectStorageService(Future.value([]));
+
+      await tester.pumpWidget(
+        makeTestableWidget(CollectionScreen(storageService: service)),
+      );
+
+      await pumpLoadedState(tester);
+
+      expect(find.byType(FloatingActionButton), findsOneWidget);
+      expect(find.text('New Score'), findsNothing);
+      expect(find.text('Import MusicXML'), findsNothing);
+      expect(find.text('Scan Image'), findsNothing);
+
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 220));
+
+      expect(find.text('New Score'), findsOneWidget);
+      expect(find.text('Import MusicXML'), findsOneWidget);
+      expect(find.text('Scan Image'), findsOneWidget);
+      expect(find.byType(FloatingActionButton), findsNWidgets(4));
+    });
+
     testWidgets('opens editor route when project tile is tapped', (
       WidgetTester tester,
     ) async {
@@ -156,7 +180,8 @@ void main() {
           onGenerateRoute: (settings) {
             if (settings.name == EditorShellScreen.routeName) {
               return MaterialPageRoute<void>(
-                builder: (_) => const Scaffold(body: Text('Editor Route Opened')),
+                builder: (_) =>
+                    const Scaffold(body: Text('Editor Route Opened')),
               );
             }
             return MaterialPageRoute<void>(
