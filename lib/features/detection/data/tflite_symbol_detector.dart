@@ -66,20 +66,18 @@ class TfliteSymbolDetector implements SymbolDetector {
 
     final img.Image fullImage = img.decodeImage(input.bytes)!;
 
-    // The model was trained on full music sheet pages stretched to 640×640
-    // (no letterboxing, no tiling). Always use the same preprocessing here.
-    final tile = img.copyResize(
-      fullImage,
-      width: _inputSize,
-      height: _inputSize,
-      interpolation: img.Interpolation.linear,
-    );
+    // Letterbox the image to 640×640: scale uniformly so the long edge fits,
+    // then pad the short edge with gray (114) — matching standard Ultralytics
+    // YOLOv8 training preprocessing. This avoids the aspect-ratio distortion
+    // that stretch-to-square causes for small symbols like noteheads and flags.
+    final lb = _letterbox(fullImage);
 
-    final raw = _runInference(tile);
+    final raw = _runInference(lb.image);
     final allDetections = _parseOutput(
       raw,
-      scaleX: fullImage.width / _inputSize,
-      scaleY: fullImage.height / _inputSize,
+      scale: lb.scale,
+      padLeft: lb.padLeft,
+      padTop: lb.padTop,
     );
 
     // Partition detections by role before NMS to avoid cross-class suppression.
@@ -422,13 +420,59 @@ class TfliteSymbolDetector implements SymbolDetector {
     }).toList();
   }
 
+  /// Scales [src] to fit within [_inputSize]×[_inputSize] preserving aspect
+  /// ratio, then pads the shorter dimension with gray (114) on both sides —
+  /// the standard Ultralytics YOLOv8 letterbox used during training.
+  ({img.Image image, double scale, int padLeft, int padTop}) _letterbox(
+    img.Image src,
+  ) {
+    final scale = src.width >= src.height
+        ? _inputSize / src.width
+        : _inputSize / src.height;
+
+    final scaledW = (src.width * scale).round();
+    final scaledH = (src.height * scale).round();
+    final padLeft = (_inputSize - scaledW) ~/ 2;
+    final padTop = (_inputSize - scaledH) ~/ 2;
+
+    final resized = img.copyResize(
+      src,
+      width: scaledW,
+      height: scaledH,
+      interpolation: img.Interpolation.linear,
+    );
+
+    final canvas = img.Image(
+      width: _inputSize,
+      height: _inputSize,
+      numChannels: 3,
+    );
+
+    // Fill with gray (114, 114, 114) — standard YOLO padding value.
+    for (int y = 0; y < _inputSize; y++) {
+      for (int x = 0; x < _inputSize; x++) {
+        canvas.setPixelRgb(x, y, 114, 114, 114);
+      }
+    }
+
+    // Stamp the resized image into the centre of the canvas.
+    for (int y = 0; y < scaledH; y++) {
+      for (int x = 0; x < scaledW; x++) {
+        canvas.setPixel(x + padLeft, y + padTop, resized.getPixel(x, y));
+      }
+    }
+
+    return (image: canvas, scale: scale, padLeft: padLeft, padTop: padTop);
+  }
+
   /// Converts raw model output rows into [DetectedSymbol]s in original-image
-  /// pixel space. [scaleX]/[scaleY] map from 640×640 tile space back to the
-  /// original image dimensions (origW/640 and origH/640 respectively).
+  /// pixel space. Undoes the letterbox transform using [scale], [padLeft],
+  /// and [padTop] so all coordinates are in the pre-letterbox image space.
   List<DetectedSymbol> _parseOutput(
     List<List<double>> rawOutput, {
-    required double scaleX,
-    required double scaleY,
+    required double scale,
+    required int padLeft,
+    required int padTop,
   }) {
     final detections = <DetectedSymbol>[];
     int counter = 0;
@@ -442,11 +486,12 @@ class TfliteSymbolDetector implements SymbolDetector {
       if (confidence < confidenceThresholdFor(symbol)) continue;
 
       // Ultralytics YOLO TFLite NMS output: normalized 0–1 coords relative to
-      // the 640×640 input. Multiply by _inputSize × scale to get original px.
-      final x1 = detection[0] * _inputSize * scaleX;
-      final y1 = detection[1] * _inputSize * scaleY;
-      final x2 = detection[2] * _inputSize * scaleX;
-      final y2 = detection[3] * _inputSize * scaleY;
+      // the 640×640 letterboxed input. Undo padding then undo the uniform scale
+      // to recover coordinates in the original full-resolution image space.
+      final x1 = (detection[0] * _inputSize - padLeft) / scale;
+      final y1 = (detection[1] * _inputSize - padTop) / scale;
+      final x2 = (detection[2] * _inputSize - padLeft) / scale;
+      final y2 = (detection[3] * _inputSize - padTop) / scale;
 
       if (x2 <= x1 || y2 <= y1) continue;
 
