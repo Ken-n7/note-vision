@@ -92,16 +92,22 @@ class TfliteSymbolDetector implements SymbolDetector {
         .toList();
 
     final mergedStaves = _mergeStaves(_nms(staffDetections), staves);
-    final symbols = _filterOutsideStaves(_nms(musicalDetections), mergedStaves);
+    final nmsMusical = _nms(musicalDetections);
+    final afterClefStaves = _addClefStaves(nmsMusical, mergedStaves);
+    final allStaves = _addClusterStaves(nmsMusical, afterClefStaves);
+    final symbols = _filterOutsideStaves(nmsMusical, allStaves);
 
     debugPrint(
       '[TfliteSymbolDetector] ${fullImage.width}×${fullImage.height} → '
       '$_inputSize×$_inputSize | '
-      '${staffDetections.length} staff → ${mergedStaves.length} stave(s) | '
+      '${staffDetections.length} staff → ${allStaves.length} stave(s) '
+      '(${mergedStaves.length} detected, '
+      '${afterClefStaves.length - mergedStaves.length} clef-synthesized, '
+      '${allStaves.length - afterClefStaves.length} cluster-synthesized) | '
       '${symbols.length} musical symbol(s)',
     );
 
-    return DetectionResult(symbols: symbols, staffs: mergedStaves);
+    return DetectionResult(symbols: symbols, staffs: allStaves);
   }
 
   /// Builds the final staff list by preferring model-detected [staff]
@@ -216,6 +222,191 @@ class TfliteSymbolDetector implements SymbolDetector {
       }
     }
     return _defaultThreshold;
+  }
+
+  static const _clefSymbols = {
+    MusicSymbol.clefG,
+    MusicSymbol.clefF,
+  };
+
+  /// Tier-3 staff recovery: any detected clef whose center Y falls outside
+  /// every already-known staff is unambiguous evidence of a missed staff.
+  /// The clef bounding box reliably spans the full staff height, so we derive
+  /// the five line positions directly from it — no minimum symbol count and
+  /// no spacing-grid check required.
+  List<DetectedStaff> _addClefStaves(
+    List<DetectedSymbol> symbols,
+    List<DetectedStaff> detectedStaves,
+  ) {
+    final clefs = symbols
+        .where((s) => _clefSymbols.contains(s.musicSymbol))
+        .toList();
+
+    if (clefs.isEmpty) return detectedStaves;
+
+    final synthesized = <DetectedStaff>[];
+    int synthIndex = detectedStaves.length;
+
+    for (final clef in clefs) {
+      final box = clef.boundingBox;
+      if (box == null) continue;
+
+      final clefCenterY = box.center.dy;
+
+      final covered = detectedStaves.any(
+        (s) => clefCenterY >= s.topY && clefCenterY <= s.bottomY,
+      );
+      if (covered) continue;
+
+      // The clef bbox spans from the bottom staff line to the top staff line
+      // (roughly). Divide height by 4 to get inter-line spacing.
+      final lineSpacing = (box.height / 4).clamp(8.0, double.infinity);
+      final topY = box.top;
+      final lineYs = List.generate(5, (i) => topY + i * lineSpacing);
+
+      synthesized.add(DetectedStaff(
+        id: 'clef-staff-$synthIndex',
+        topY: topY - lineSpacing,
+        bottomY: lineYs.last + lineSpacing,
+        lineYs: lineYs,
+      ));
+      synthIndex++;
+    }
+
+    if (synthesized.isNotEmpty) {
+      debugPrint(
+        '[TfliteSymbolDetector] +${synthesized.length} clef-synthesized staff(ves).',
+      );
+    }
+
+    return ([...detectedStaves, ...synthesized]
+      ..sort((a, b) => a.topY.compareTo(b.topY)));
+  }
+
+  static const _noteheadSymbols = {
+    MusicSymbol.noteheadBlackInSpace,
+    MusicSymbol.noteheadBlackOnLine,
+    MusicSymbol.noteheadHalfInSpace,
+    MusicSymbol.noteheadHalfOnLine,
+    MusicSymbol.noteheadWholeInSpace,
+    MusicSymbol.noteheadWholeOnLine,
+    MusicSymbol.noteheadDoubleWholeInSpace,
+    MusicSymbol.noteheadDoubleWholeOnLine,
+  };
+
+  /// Third-tier staff recovery: cluster noteheads by vertical proximity, then
+  /// synthesize a [DetectedStaff] for any cluster that (a) isn't already
+  /// covered by a detected staff and (b) sits at a multiple of the expected
+  /// inter-staff spacing from a neighbouring detected staff.
+  ///
+  /// The spacing check confirms that the cluster is at a plausible staff
+  /// position rather than stray symbols between staves. When only one staff
+  /// has been detected the spacing is estimated from that staff's height;
+  /// when none exist this method is a no-op (the mapper's [SyntheticStaffBuilder]
+  /// handles the fully-blind case).
+  List<DetectedStaff> _addClusterStaves(
+    List<DetectedSymbol> symbols,
+    List<DetectedStaff> detectedStaves,
+  ) {
+    if (detectedStaves.isEmpty) return detectedStaves;
+
+    // Collect notehead center-Y values — the most stable geometry signal.
+    final centerYs = symbols
+        .where((s) => _noteheadSymbols.contains(s.musicSymbol))
+        .map((s) {
+          final box = s.boundingBox;
+          return box != null ? box.center.dy : s.y + ((s.height ?? 0) / 2);
+        })
+        .toList()
+      ..sort();
+
+    if (centerYs.isEmpty) return detectedStaves;
+
+    final sortedStaves = [...detectedStaves]
+      ..sort((a, b) => a.topY.compareTo(b.topY));
+
+    // Compute expected inter-staff spacing from detected staves.
+    // With ≥2 staves use the median center-to-center gap; with exactly 1
+    // stave use 1.5× its height as a rough estimate.
+    final double expectedSpacing;
+    if (sortedStaves.length >= 2) {
+      final gaps = <double>[];
+      for (int i = 1; i < sortedStaves.length; i++) {
+        final cA = (sortedStaves[i - 1].topY + sortedStaves[i - 1].bottomY) / 2;
+        final cB = (sortedStaves[i].topY + sortedStaves[i].bottomY) / 2;
+        gaps.add(cB - cA);
+      }
+      gaps.sort();
+      expectedSpacing = gaps[gaps.length ~/ 2];
+    } else {
+      final h = sortedStaves[0].bottomY - sortedStaves[0].topY;
+      expectedSpacing = h * 1.5;
+    }
+
+    // Cluster noteheads by Y-gap. Use 60 % of expectedSpacing as the gap
+    // threshold so noteheads from adjacent staves never merge into one cluster.
+    final gapThreshold = (expectedSpacing * 0.6).clamp(40.0, 120.0);
+    final clusters = <List<double>>[];
+    var current = [centerYs.first];
+    for (int i = 1; i < centerYs.length; i++) {
+      if (centerYs[i] - current.last > gapThreshold) {
+        clusters.add(current);
+        current = [centerYs[i]];
+      } else {
+        current.add(centerYs[i]);
+      }
+    }
+    clusters.add(current);
+
+    final synthesized = <DetectedStaff>[];
+    int synthIndex = detectedStaves.length;
+    const spacingTolerance = 0.30; // allow ±30 % of expectedSpacing
+
+    for (final cluster in clusters) {
+      if (cluster.length < 3) continue;
+
+      final clusterMedianY = cluster[cluster.length ~/ 2];
+
+      // Skip if the cluster is already inside a detected staff.
+      final covered = sortedStaves.any(
+        (s) => clusterMedianY >= s.topY && clusterMedianY <= s.bottomY,
+      );
+      if (covered) continue;
+
+      // Confirm the cluster sits at a whole-number multiple of expectedSpacing
+      // from any detected staff. This rejects isolated stray symbols.
+      final aligned = sortedStaves.any((s) {
+        final staffCenter = (s.topY + s.bottomY) / 2;
+        final distance = (clusterMedianY - staffCenter).abs();
+        final n = (distance / expectedSpacing).round();
+        if (n == 0) return false;
+        return (distance - expectedSpacing * n).abs() <= expectedSpacing * spacingTolerance;
+      });
+      if (!aligned) continue;
+
+      // Build staff geometry from the cluster's notehead spread.
+      final spread = cluster.last - cluster.first;
+      final lineSpacing = (spread > 0 ? spread / 4 : 20.0).clamp(8.0, double.infinity);
+      final lineYs = List.generate(5, (i) => clusterMedianY + (i - 2) * lineSpacing);
+
+      synthesized.add(DetectedStaff(
+        id: 'cluster-staff-$synthIndex',
+        topY: lineYs.first - lineSpacing,
+        bottomY: lineYs.last + lineSpacing,
+        lineYs: lineYs,
+      ));
+      synthIndex++;
+    }
+
+    if (synthesized.isNotEmpty) {
+      debugPrint(
+        '[TfliteSymbolDetector] +${synthesized.length} cluster-synthesized staff(ves) '
+        '(expectedSpacing=${expectedSpacing.toStringAsFixed(1)}px).',
+      );
+    }
+
+    return ([...detectedStaves, ...synthesized]
+      ..sort((a, b) => a.topY.compareTo(b.topY)));
   }
 
   List<DetectedSymbol> _filterOutsideStaves(
