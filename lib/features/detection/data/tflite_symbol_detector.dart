@@ -227,11 +227,24 @@ class TfliteSymbolDetector implements SymbolDetector {
     MusicSymbol.clefF,
   };
 
+  // Standard music engraving proportions (in inter-line spaces):
+  //
+  // G clef — tall glyph, extends ~2 spaces above line 5 (top staff line)
+  // and ~1 space below line 1 (bottom staff line). Total bbox height ≈ 7
+  // inter-line spaces. The top staff line is ~2 spaces below the clef top.
+  static const _gClefHeightInSpaces = 7.0;
+  static const _gClefSpacesAboveTopLine = 2.0;
+
+  // F clef — compact glyph, roughly 3 inter-line spaces tall. The curl sits
+  // near line 4 (second from top), which is ~0.5 spaces below the clef top.
+  static const _fClefHeightInSpaces = 3.0;
+  static const _fClefSpacesAboveLine4 = 0.5; // line 4 = index 1 from top
+
   /// Tier-3 staff recovery: any detected clef whose center Y falls outside
   /// every already-known staff is unambiguous evidence of a missed staff.
-  /// The clef bounding box reliably spans the full staff height, so we derive
-  /// the five line positions directly from it — no minimum symbol count and
-  /// no spacing-grid check required.
+  /// Staff geometry is derived from the clef bbox using known engraving
+  /// proportions per clef type — one clef is sufficient, no spacing check
+  /// required.
   List<DetectedStaff> _addClefStaves(
     List<DetectedSymbol> symbols,
     List<DetectedStaff> detectedStaves,
@@ -256,16 +269,29 @@ class TfliteSymbolDetector implements SymbolDetector {
       );
       if (covered) continue;
 
-      // The clef bbox spans from the bottom staff line to the top staff line
-      // (roughly). Divide height by 4 to get inter-line spacing.
-      final lineSpacing = (box.height / 4).clamp(8.0, double.infinity);
-      final topY = box.top;
-      final lineYs = List.generate(5, (i) => topY + i * lineSpacing);
+      final List<double> lineYs;
+
+      if (clef.musicSymbol == MusicSymbol.clefG) {
+        // lineSpacing derived from the known 7-space total height of the G clef.
+        final lineSpacing =
+            (box.height / _gClefHeightInSpaces).clamp(8.0, double.infinity);
+        // Top staff line (line 5) sits ~2 spaces below the top of the bbox.
+        final topLineY = box.top + _gClefSpacesAboveTopLine * lineSpacing;
+        lineYs = List.generate(5, (i) => topLineY + i * lineSpacing);
+      } else {
+        // clefF: lineSpacing from the 3-space total height.
+        final lineSpacing =
+            (box.height / _fClefHeightInSpaces).clamp(8.0, double.infinity);
+        // Line 4 (index 1 from top) sits ~0.5 spaces below the bbox top.
+        final line4Y = box.top + _fClefSpacesAboveLine4 * lineSpacing;
+        final topLineY = line4Y - lineSpacing; // line 5 = one space above line 4
+        lineYs = List.generate(5, (i) => topLineY + i * lineSpacing);
+      }
 
       synthesized.add(DetectedStaff(
         id: 'clef-staff-$synthIndex',
-        topY: topY - lineSpacing,
-        bottomY: lineYs.last + lineSpacing,
+        topY: lineYs.first - (lineYs[1] - lineYs[0]),
+        bottomY: lineYs.last + (lineYs[1] - lineYs[0]),
         lineYs: lineYs,
       ));
       synthIndex++;
@@ -292,6 +318,11 @@ class TfliteSymbolDetector implements SymbolDetector {
     MusicSymbol.noteheadDoubleWholeOnLine,
   };
 
+  // Standard music engraving proportion: notehead height / inter-line spacing.
+  // Used by both clef and cluster synthesis to derive proportionally correct
+  // staff geometry rather than relying on symbol spread.
+  static const _noteheadHeightRatio = 0.65;
+
   /// Third-tier staff recovery: cluster noteheads by vertical proximity, then
   /// synthesize a [DetectedStaff] for any cluster that (a) isn't already
   /// covered by a detected staff and (b) sits at a multiple of the expected
@@ -307,6 +338,24 @@ class TfliteSymbolDetector implements SymbolDetector {
     List<DetectedStaff> detectedStaves,
   ) {
     if (detectedStaves.isEmpty) return detectedStaves;
+
+    // Derive line spacing from median notehead height across the whole image.
+    // This is more reliable than per-cluster spread because a melody may only
+    // span 2–3 lines, making spread / 4 a systematic underestimate.
+    final noteheadHeights = symbols
+        .where((s) => _noteheadSymbols.contains(s.musicSymbol))
+        .map((s) => s.boundingBox?.height ?? 0.0)
+        .where((h) => h > 0)
+        .toList()
+      ..sort();
+
+    final double lineSpacing;
+    if (noteheadHeights.isNotEmpty) {
+      final medianHeight = noteheadHeights[noteheadHeights.length ~/ 2];
+      lineSpacing = (medianHeight / _noteheadHeightRatio).clamp(8.0, double.infinity);
+    } else {
+      lineSpacing = 20.0;
+    }
 
     // Collect notehead center-Y values — the most stable geometry signal.
     final centerYs = symbols
@@ -382,9 +431,7 @@ class TfliteSymbolDetector implements SymbolDetector {
       });
       if (!aligned) continue;
 
-      // Build staff geometry from the cluster's notehead spread.
-      final spread = cluster.last - cluster.first;
-      final lineSpacing = (spread > 0 ? spread / 4 : 20.0).clamp(8.0, double.infinity);
+      // Anchor 5 lines around the cluster median Y (treated as middle staff line).
       final lineYs = List.generate(5, (i) => clusterMedianY + (i - 2) * lineSpacing);
 
       synthesized.add(DetectedStaff(
