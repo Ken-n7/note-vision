@@ -16,20 +16,20 @@ void main() {
     test('can be created from a music symbol bounding box', () {
       final symbol = DetectedSymbol.fromMusicSymbol(
         id: 'symbol-1',
-        symbol: MusicSymbol.noteheadBlack,
+        symbol: MusicSymbol.noteheadBlackOnLine,
         boundingBox: const Rect.fromLTWH(10, 20, 30, 40),
         confidence: 0.91,
         metadata: const {'pitchHint': 'C4'},
       );
 
       expect(symbol.id, 'symbol-1');
-      expect(symbol.type, 'noteheadBlack');
+      expect(symbol.type, 'noteheadBlackOnLine');
       expect(symbol.x, 10);
       expect(symbol.y, 20);
       expect(symbol.width, 30);
       expect(symbol.height, 40);
       expect(symbol.confidence, 0.91);
-      expect(symbol.musicSymbol, MusicSymbol.noteheadBlack);
+      expect(symbol.musicSymbol, MusicSymbol.noteheadBlackOnLine);
       expect(symbol.boundingBox, const Rect.fromLTWH(10, 20, 30, 40));
       expect(symbol.toJson()['metadata'], const {'pitchHint': 'C4'});
     });
