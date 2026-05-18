@@ -33,11 +33,11 @@ void main() {
       staffs: const [staff],
       barlines: const [DetectedBarline(x: 100, staffId: 'staff-1')],
       symbols: [
-        sym(id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44),
-        sym(id: 'note-1', type: 'noteheadBlack', x: 50, y: 126),
+        sym(id: 'clef', type: 'clefG', x: 10, y: 92, width: 18, height: 44),
+        sym(id: 'note-1', type: 'noteheadBlackOnLine', x: 50, y: 126),
         sym(id: 'stem-1', type: 'stem', x: 58, y: 90, width: 2, height: 42),
         ...extraSymbols,
-        sym(id: 'note-2', type: 'noteheadBlack', x: 130, y: 116),
+        sym(id: 'note-2', type: 'noteheadBlackOnLine', x: 130, y: 116),
         sym(id: 'stem-2', type: 'stem', x: 138, y: 80, width: 2, height: 42),
       ],
     );

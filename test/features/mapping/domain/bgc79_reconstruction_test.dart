@@ -42,10 +42,10 @@ void main() {
         staffs: const [staff],
         barlines: const [],
         symbols: [
-          sym(id: 'clef', type: 'gClef', x: 5, y: 92, width: 20, height: 48),
+          sym(id: 'clef', type: 'clefG', x: 5, y: 92, width: 20, height: 48),
           // 8 noteheads — no stems, so barline fallback groups by beat count
           for (int i = 0; i < 8; i++)
-            sym(id: 'n$i', type: 'noteheadBlack', x: 50.0 + i * 12, y: 130),
+            sym(id: 'n$i', type: 'noteheadBlackOnLine', x: 50.0 + i * 12, y: 130),
         ],
       );
 
@@ -63,10 +63,10 @@ void main() {
         staffs: const [staff],
         barlines: const [],
         symbols: [
-          sym(id: 'clef', type: 'gClef', x: 5, y: 92, width: 20, height: 48),
+          sym(id: 'clef', type: 'clefG', x: 5, y: 92, width: 20, height: 48),
           sym(id: 'ts', type: 'timeSigCutCommon', x: 28, y: 108, width: 12, height: 24),
           for (int i = 0; i < 6; i++)
-            sym(id: 'n$i', type: 'noteheadBlack', x: 55.0 + i * 12, y: 130),
+            sym(id: 'n$i', type: 'noteheadBlackOnLine', x: 55.0 + i * 12, y: 130),
         ],
       );
 
@@ -85,9 +85,9 @@ void main() {
         staffs: const [staff],
         barlines: const [],
         symbols: [
-          sym(id: 'clef', type: 'gClef', x: 5, y: 92, width: 20, height: 48),
+          sym(id: 'clef', type: 'clefG', x: 5, y: 92, width: 20, height: 48),
           for (int i = 0; i < 4; i++)
-            sym(id: 'n$i', type: 'noteheadWhole', x: 50.0 + i * 12, y: 126, width: 12, height: 8),
+            sym(id: 'n$i', type: 'noteheadWholeOnLine', x: 50.0 + i * 12, y: 126, width: 12, height: 8),
         ],
       );
 
@@ -124,14 +124,14 @@ void main() {
         ],
         symbols: [
           // Measure 1 — has all signature symbols
-          sym(id: 'clef', type: 'gClef', x: 5, y: 92, width: 20, height: 48),
+          sym(id: 'clef', type: 'clefG', x: 5, y: 92, width: 20, height: 48),
           sym(id: 'ts-top', type: 'timeSig4', x: 30, y: 106, width: 10, height: 12),
           sym(id: 'ts-bot', type: 'timeSig4', x: 30, y: 120, width: 10, height: 12),
-          sym(id: 'n1', type: 'noteheadWhole', x: 55, y: 126, width: 12, height: 8),
+          sym(id: 'n1', type: 'noteheadWholeOnLine', x: 55, y: 126, width: 12, height: 8),
           // Measure 2 — no signature symbols
-          sym(id: 'n2', type: 'noteheadWhole', x: 100, y: 126, width: 12, height: 8),
+          sym(id: 'n2', type: 'noteheadWholeOnLine', x: 100, y: 126, width: 12, height: 8),
           // Measure 3 — no signature symbols
-          sym(id: 'n3', type: 'noteheadWhole', x: 145, y: 126, width: 12, height: 8),
+          sym(id: 'n3', type: 'noteheadWholeOnLine', x: 145, y: 126, width: 12, height: 8),
         ],
       );
     });
@@ -166,11 +166,11 @@ void main() {
           DetectedBarline(x: 130, staffId: 'staff-1'),
         ],
         symbols: [
-          sym(id: 'clef', type: 'gClef', x: 5, y: 92, width: 20, height: 48),
+          sym(id: 'clef', type: 'clefG', x: 5, y: 92, width: 20, height: 48),
           sym(id: 'ks', type: 'accidentalSharp', x: 28, y: 112, width: 8, height: 16),
-          sym(id: 'n1', type: 'noteheadWhole', x: 55, y: 126, width: 12, height: 8),
-          sym(id: 'n2', type: 'noteheadWhole', x: 100, y: 126, width: 12, height: 8),
-          sym(id: 'n3', type: 'noteheadWhole', x: 145, y: 126, width: 12, height: 8),
+          sym(id: 'n1', type: 'noteheadWholeOnLine', x: 55, y: 126, width: 12, height: 8),
+          sym(id: 'n2', type: 'noteheadWholeOnLine', x: 100, y: 126, width: 12, height: 8),
+          sym(id: 'n3', type: 'noteheadWholeOnLine', x: 145, y: 126, width: 12, height: 8),
         ],
       );
 
@@ -200,8 +200,8 @@ void main() {
         staffs: const [staff],
         barlines: const [],
         symbols: [
-          sym(id: 'clef', type: 'gClef', x: 5, y: 92, width: 20, height: 48),
-          sym(id: 'n1', type: 'noteheadBlack', x: 50, y: 130),
+          sym(id: 'clef', type: 'clefG', x: 5, y: 92, width: 20, height: 48),
+          sym(id: 'n1', type: 'noteheadBlackOnLine', x: 50, y: 130),
         ],
       );
 
@@ -220,12 +220,12 @@ void main() {
         staffs: const [staff],
         barlines: const [],
         symbols: [
-          sym(id: 'clef', type: 'gClef', x: 5, y: 92, width: 20, height: 48),
-          sym(id: 'n1', type: 'noteheadBlack', x: 50, y: 130),
+          sym(id: 'clef', type: 'clefG', x: 5, y: 92, width: 20, height: 48),
+          sym(id: 'n1', type: 'noteheadBlackOnLine', x: 50, y: 130),
           stemFor('s1', 50),
-          sym(id: 'n2', type: 'noteheadBlack', x: 75, y: 130),
+          sym(id: 'n2', type: 'noteheadBlackOnLine', x: 75, y: 130),
           stemFor('s2', 75),
-          sym(id: 'n3', type: 'noteheadBlack', x: 100, y: 130), // stemless
+          sym(id: 'n3', type: 'noteheadBlackOnLine', x: 100, y: 130), // stemless
         ],
       );
 
@@ -246,14 +246,14 @@ void main() {
         staffs: const [staff],
         barlines: const [],
         symbols: [
-          sym(id: 'clef', type: 'gClef', x: 5, y: 92, width: 20, height: 48),
-          sym(id: 'n1', type: 'noteheadBlack', x: 50, y: 130),
+          sym(id: 'clef', type: 'clefG', x: 5, y: 92, width: 20, height: 48),
+          sym(id: 'n1', type: 'noteheadBlackOnLine', x: 50, y: 130),
           stemFor('s1', 50),
-          sym(id: 'n2', type: 'noteheadBlack', x: 70, y: 130),
+          sym(id: 'n2', type: 'noteheadBlackOnLine', x: 70, y: 130),
           stemFor('s2', 70),
-          sym(id: 'n3', type: 'noteheadBlack', x: 90, y: 130),
+          sym(id: 'n3', type: 'noteheadBlackOnLine', x: 90, y: 130),
           stemFor('s3', 90),
-          sym(id: 'n4', type: 'noteheadBlack', x: 115, y: 130), // stemless
+          sym(id: 'n4', type: 'noteheadBlackOnLine', x: 115, y: 130), // stemless
         ],
       );
 

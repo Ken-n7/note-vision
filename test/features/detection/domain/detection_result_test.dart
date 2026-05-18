@@ -122,7 +122,7 @@ void main() {
         symbols: const [
           DetectedSymbol(
             id: 'note-1',
-            type: 'noteheadHalf',
+            type: 'noteheadHalfOnLine',
             x: 48.0,
             y: 18.0,
             width: 10.0,

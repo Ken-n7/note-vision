@@ -21,7 +21,7 @@
   "symbols": [
     {
       "id": "clef-1",
-      "type": "gClef",
+      "type": "clefG",
       "x": 10,
       "y": 92,
       "width": 18,
@@ -29,7 +29,7 @@
     },
     {
       "id": "head-1",
-      "type": "noteheadBlack",
+      "type": "noteheadBlackOnLine",
       "x": 42,
       "y": 136,
       "width": 10,
@@ -53,7 +53,7 @@
     },
     {
       "id": "head-2",
-      "type": "noteheadBlack",
+      "type": "noteheadBlackOnLine",
       "x": 158,
       "y": 126,
       "width": 10,

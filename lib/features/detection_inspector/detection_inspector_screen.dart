@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:note_vision/features/editor/model/editor_state.dart';
+import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 
 import 'controller/detection_inspector_controller.dart';
 import 'widgets/di_action_bar.dart';
@@ -52,6 +54,19 @@ class _DetectionInspectorScreenState extends State<DetectionInspectorScreen> {
   void _onReset() {
     setState(() => _showRawJson = false);
     _ctrl.reset();
+  }
+
+  void _openInEditor() {
+    final score = _ctrl.mappingResult?.score;
+    if (score == null) return;
+    Navigator.pushNamed(
+      context,
+      EditorShellScreen.routeName,
+      arguments: EditorShellArgs(
+        score: score,
+        initialState: EditorState(score: score),
+      ),
+    );
   }
 
   @override
@@ -132,7 +147,7 @@ class _DetectionInspectorScreenState extends State<DetectionInspectorScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // ── Action bar ───────────────────────────────────────────────
-          DiActionBar(controller: _ctrl),
+          DiActionBar(controller: _ctrl, onOpenInEditor: _openInEditor),
 
           const SizedBox(height: 20),
 

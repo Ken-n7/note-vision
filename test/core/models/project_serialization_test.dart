@@ -595,5 +595,222 @@ void main() {
     test('deleteProject on nonexistent id does not throw', () async {
       expect(() => service.deleteProject('ghost'), returnsNormally);
     });
+
+    test('works correctly with no role (falls back to base directory)', () async {
+      final noRoleService = ProjectStorageService(
+        projectsDirOverride: () async => tempDir,
+        roleProvider: () async => null,
+      );
+      final project = Project.create(name: 'NoRole', score: _buildFullScore());
+      await noRoleService.saveProject(project);
+
+      final file = File('${tempDir.path}/${project.id}.json');
+      expect(await file.exists(), isTrue);
+
+      final loaded = await noRoleService.loadProject(project.id);
+      expect(loaded?.name, 'NoRole');
+    });
+
+    test('works correctly with unrecognised role (falls back to base directory)',
+        () async {
+      final unknownRoleService = ProjectStorageService(
+        projectsDirOverride: () async => tempDir,
+        roleProvider: () async => 'admin',
+      );
+      final project = Project.create(name: 'Admin', score: _buildFullScore());
+      await unknownRoleService.saveProject(project);
+
+      final file = File('${tempDir.path}/${project.id}.json');
+      expect(await file.exists(), isTrue);
+    });
+
+    test('loadAllProjects skips missing files and leaves no crash', () async {
+      final score = _buildFullScore();
+      // Use fixed IDs so the two projects are never the same even if created
+      // within the same millisecond.
+      final p1 = Project(
+        id: 'missing-001',
+        name: 'P1',
+        createdAt: DateTime(2026),
+        updatedAt: DateTime(2026),
+        scoreJson: jsonEncode(score.toJson()),
+      );
+      final p2 = Project(
+        id: 'present-002',
+        name: 'P2',
+        createdAt: DateTime(2026),
+        updatedAt: DateTime(2026),
+        scoreJson: jsonEncode(score.toJson()),
+      );
+      await service.saveProject(p1);
+      await service.saveProject(p2);
+
+      // Delete the file for p1 without going through the service (simulates
+      // external deletion or corruption).
+      final file = File('${tempDir.path}/${p1.id}.json');
+      await file.delete();
+
+      final all = await service.loadAllProjects();
+      expect(all.length, 1);
+      expect(all.single.id, p2.id);
+    });
+  });
+
+  // ── Edge cases ────────────────────────────────────────────────────────────
+
+  group('Measure startsNewPage / startsNewSystem', () {
+    test('round-trips startsNewPage = true', () {
+      const m = Measure(number: 1, symbols: [], startsNewPage: true);
+      final decoded = Measure.fromJson(m.toJson());
+      expect(decoded.startsNewPage, isTrue);
+      expect(decoded.startsNewSystem, isFalse);
+    });
+
+    test('round-trips startsNewSystem = true', () {
+      const m = Measure(number: 1, symbols: [], startsNewSystem: true);
+      final decoded = Measure.fromJson(m.toJson());
+      expect(decoded.startsNewSystem, isTrue);
+      expect(decoded.startsNewPage, isFalse);
+    });
+
+    test('false values are omitted from JSON and default correctly on decode',
+        () {
+      const m = Measure(number: 1, symbols: []);
+      final json = m.toJson();
+      expect(json.containsKey('startsNewPage'), isFalse);
+      expect(json.containsKey('startsNewSystem'), isFalse);
+      expect(Measure.fromJson(json).startsNewPage, isFalse);
+      expect(Measure.fromJson(json).startsNewSystem, isFalse);
+    });
+
+    test('both flags survive Score toJson / fromJson round-trip', () {
+      final score = Score(
+        id: 's',
+        title: '',
+        composer: '',
+        parts: [
+          Part(
+            id: 'p',
+            name: 'Treble',
+            measures: [
+              const Measure(
+                number: 1,
+                symbols: [],
+                startsNewPage: true,
+                startsNewSystem: true,
+              ),
+            ],
+          ),
+        ],
+      );
+      final decoded = Score.fromJson(score.toJson());
+      final m = decoded.parts[0].measures[0];
+      expect(m.startsNewPage, isTrue);
+      expect(m.startsNewSystem, isTrue);
+    });
+  });
+
+  group('Note beamed flag', () {
+    test('round-trips beamed = true', () {
+      const note = Note(
+        step: 'C',
+        octave: 4,
+        duration: 1,
+        type: 'eighth',
+        beamed: true,
+      );
+      final decoded = Note.fromJson(note.toJson());
+      expect(decoded.beamed, isTrue);
+    });
+
+    test('beamed = false is omitted from JSON and defaults correctly', () {
+      const note = Note(step: 'C', octave: 4, duration: 2, type: 'quarter');
+      final json = note.toJson();
+      expect(json.containsKey('beamed'), isFalse);
+      expect(Note.fromJson(json).beamed, isFalse);
+    });
+
+    test('beamed survives Project decodeScore round-trip', () {
+      final score = Score(
+        id: 's',
+        title: '',
+        composer: '',
+        parts: [
+          Part(
+            id: 'p',
+            name: 'Treble',
+            measures: [
+              const Measure(
+                number: 1,
+                symbols: [
+                  Note(
+                    step: 'E',
+                    octave: 4,
+                    duration: 1,
+                    type: 'eighth',
+                    beamed: true,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+      final project = Project.create(name: 'Beamed', score: score);
+      final decoded = project.decodeScore();
+      final note = decoded.parts[0].measures[0].symbols[0] as Note;
+      expect(note.beamed, isTrue);
+    });
+  });
+
+  group('teacherComments edge cases', () {
+    test('null teacherComments round-trips as null', () {
+      final project = Project.create(name: 'No Comments', score: _buildFullScore());
+      expect(project.teacherComments, isNull);
+      final decoded = Project.fromJson(project.toJson());
+      expect(decoded.teacherComments, isNull);
+    });
+
+    test('empty teacherComments map is omitted from JSON and comes back null', () {
+      final project = Project(
+        id: '1',
+        name: 'Empty Comments',
+        createdAt: DateTime(2026),
+        updatedAt: DateTime(2026),
+        scoreJson: jsonEncode(_buildFullScore().toJson()),
+        teacherComments: {},
+      );
+      final json = project.toJson();
+      expect(json.containsKey('teacherComments'), isFalse);
+      expect(Project.fromJson(json).teacherComments, isNull);
+    });
+
+    test('copyWithUpdated replaces teacherComments', () {
+      final original = Project.create(
+        name: 'Score',
+        score: _buildFullScore(),
+        teacherComments: {1: 'Good.'},
+      );
+      final updated = original.copyWithUpdated(
+        teacherComments: {1: 'Good.', 2: 'Watch the tempo.'},
+      );
+      expect(updated.teacherComments, {1: 'Good.', 2: 'Watch the tempo.'});
+      expect(original.teacherComments, {1: 'Good.'});
+    });
+  });
+
+  group('BarlineType', () {
+    test('unknown jsonValue throws FormatException', () {
+      expect(
+        () => BarlineType.fromJsonValue('doubleBar'),
+        throwsFormatException,
+      );
+    });
+
+    test('all known values round-trip', () {
+      for (final type in BarlineType.values) {
+        expect(BarlineType.fromJsonValue(type.jsonValue), type);
+      }
+    });
   });
 }
