@@ -12,7 +12,7 @@ import '../domain/music_symbol.dart';
 import '../domain/symbol_detector.dart';
 
 class TfliteSymbolDetector implements SymbolDetector {
-  static const String _modelPath = 'assets/models/best_int8.tflite';
+  static const String _modelPath = 'assets/models/deepscores_int8.tflite';
 
   static const double _defaultThreshold = 0.75;
   static const Map<MusicSymbol, double> _confidenceThresholds = {
@@ -32,7 +32,7 @@ class TfliteSymbolDetector implements SymbolDetector {
     MusicSymbol.flag64thUp: 0.65,
     MusicSymbol.flag128thDown: 0.65,
     MusicSymbol.flag128thUp: 0.65,
-    MusicSymbol.legerLine: 0.60,
+    MusicSymbol.ledgerLine: 0.60,
     MusicSymbol.repeatDot: 0.60,
   };
 
@@ -83,45 +83,40 @@ class TfliteSymbolDetector implements SymbolDetector {
     );
 
     // Partition detections by role before NMS to avoid cross-class suppression.
-    // combStaff → staff geometry; staffLine → structural (discarded);
-    // everything else → musical symbols shown in the editor.
-    final combStaffDetections = allDetections
-        .where((s) => s.musicSymbol == MusicSymbol.combStaff)
+    // staff → staff geometry bboxes; everything else → musical symbols.
+    final staffDetections = allDetections
+        .where((s) => s.musicSymbol == MusicSymbol.staff)
         .toList();
     final musicalDetections = allDetections
-        .where(
-          (s) =>
-              s.musicSymbol != MusicSymbol.combStaff &&
-              s.musicSymbol != MusicSymbol.staffLine,
-        )
+        .where((s) => s.musicSymbol != MusicSymbol.staff)
         .toList();
 
-    final mergedStaves = _mergeStaves(_nms(combStaffDetections), staves);
+    final mergedStaves = _mergeStaves(_nms(staffDetections), staves);
     final symbols = _filterOutsideStaves(_nms(musicalDetections), mergedStaves);
 
     debugPrint(
       '[TfliteSymbolDetector] ${fullImage.width}×${fullImage.height} → '
       '$_inputSize×$_inputSize | '
-      '${combStaffDetections.length} combStaff → ${mergedStaves.length} stave(s) | '
+      '${staffDetections.length} staff → ${mergedStaves.length} stave(s) | '
       '${symbols.length} musical symbol(s)',
     );
 
     return DetectionResult(symbols: symbols, staffs: mergedStaves);
   }
 
-  /// Builds the final staff list by preferring model-detected [combStaff]
+  /// Builds the final staff list by preferring model-detected [staff]
   /// bboxes and supplementing with [projectorStaves] from
   /// [HorizontalProjectionStaffDetector] wherever the model missed a staff.
   List<DetectedStaff> _mergeStaves(
-    List<DetectedSymbol> combStaffSymbols,
+    List<DetectedSymbol> staffSymbols,
     List<DetectedStaff> projectorStaves,
   ) {
-    // Convert each combStaff bbox into a DetectedStaff. Assume the bbox spans
+    // Convert each staff bbox into a DetectedStaff. Assume the bbox spans
     // exactly from the top staff line to the bottom staff line, giving 4 equal
     // gaps between 5 lines.
     final modelStaves = <DetectedStaff>[];
-    for (int i = 0; i < combStaffSymbols.length; i++) {
-      final box = combStaffSymbols[i].boundingBox;
+    for (int i = 0; i < staffSymbols.length; i++) {
+      final box = staffSymbols[i].boundingBox;
       if (box == null) continue;
       final spacing = box.height / 4;
       modelStaves.add(

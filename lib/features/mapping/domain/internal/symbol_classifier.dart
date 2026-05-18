@@ -2,7 +2,7 @@ class SymbolClassifier {
   const SymbolClassifier._();
 
   static bool isSupportedClef(String type) =>
-      type == 'gClef' || type == 'clefG' || type == 'fClef';
+      type == 'clefG' || type == 'clefF';
 
   static bool isSupportedRest(String type) =>
       type == 'restQuarter' ||
@@ -19,24 +19,33 @@ class SymbolClassifier {
       type == 'flag8thUp' || type == 'flag8thDown';
 
   static bool isNotehead(String type) =>
-      type == 'noteheadDoubleWhole' ||
-      type == 'noteheadWhole' ||
-      type == 'noteheadHalf' ||
-      type == 'noteheadBlack';
+      type == 'noteheadBlackInSpace' ||
+      type == 'noteheadBlackOnLine' ||
+      type == 'noteheadHalfInSpace' ||
+      type == 'noteheadHalfOnLine' ||
+      type == 'noteheadWholeInSpace' ||
+      type == 'noteheadWholeOnLine' ||
+      type == 'noteheadDoubleWholeInSpace' ||
+      type == 'noteheadDoubleWholeOnLine';
+
+  /// Returns true for whole and double-whole noteheads — symbols that never
+  /// have a stem, so a missing-stem warning is suppressed for them.
+  static bool isWholeNotehead(String type) =>
+      type == 'noteheadWholeInSpace' ||
+      type == 'noteheadWholeOnLine' ||
+      type == 'noteheadDoubleWholeInSpace' ||
+      type == 'noteheadDoubleWholeOnLine';
 
   static bool isTimeSignatureSymbol(String type) =>
       type == 'timeSigCommon' ||
       type == 'timeSigCutCommon' ||
-      timeSigDigit(type) != null ||
-      type == 'combTimeSignature';
+      timeSigDigit(type) != null;
 
   static bool isKeySignatureAccidental(String type) =>
       type == 'accidentalFlat' ||
       type == 'accidentalSharp' ||
       type == 'accidentalNatural';
 
-  /// Matches any accidental that can appear on an individual note (including
-  /// double variants). These may also appear in the key-signature zone.
   static bool isAnyAccidental(String type) =>
       type == 'accidentalFlat' ||
       type == 'accidentalSharp' ||
@@ -44,8 +53,6 @@ class SymbolClassifier {
       type == 'accidentalDoubleFlat' ||
       type == 'accidentalDoubleSharp';
 
-  /// Maps an accidental type to its MusicXML `alter` value, or null if
-  /// the type is not a recognised accidental.
   static int? alterFor(String type) => switch (type) {
         'accidentalSharp' => 1,
         'accidentalFlat' => -1,
@@ -86,4 +93,4 @@ class SymbolClassifier {
         'sixteenth' => 0.25,
         _ => 1,
       };
-} 
+}
