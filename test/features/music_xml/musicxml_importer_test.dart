@@ -112,6 +112,18 @@ void main() {
       expect(result.parseResult.success, isTrue);
     });
 
+    test('reads a valid .musicxml file via custom picker', () async {
+      final path = await _writeTempFile('score.musicxml', _validXml);
+      stubPicker(first: _fakeResult(path));
+
+      final result = await importer.pickAndRead();
+
+      expect(result, isNotNull);
+      expect(result!.fileName, 'score.musicxml');
+      expect(result.xmlContent, contains('<score-partwise'));
+      expect(result.parseResult.success, isTrue);
+    });
+
     test('reads a valid .mxl compressed file', () async {
       final mxlBytes = _buildMxlBytes(_validXml);
       final dir = Directory.systemTemp.createTempSync('mxl_test_');

@@ -24,7 +24,8 @@ class ScanActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
     final stackButtons = isLandscape && onImport != null;
 
     return Container(
@@ -44,7 +45,7 @@ class ScanActions extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
-                SizedBox(width: double.infinity, child: _buildContinueButton(flex: 1)),
+                SizedBox(width: double.infinity, child: _buildContinueButton()),
               ],
             )
           : Row(
@@ -55,7 +56,10 @@ class ScanActions extends StatelessWidget {
                   Expanded(child: _buildImportButton()),
                   const SizedBox(width: 12),
                 ],
-                _buildContinueButton(flex: onImport == null ? 2 : 1),
+                Expanded(
+                  flex: onImport == null ? 2 : 1,
+                  child: _buildContinueButton(),
+                ),
               ],
             ),
     );
@@ -127,46 +131,43 @@ class ScanActions extends StatelessWidget {
     );
   }
 
-  Widget _buildContinueButton({required int flex}) {
-    return Expanded(
-      flex: flex,
-      child: TappableButton(
-        onPressed: canContinue ? onContinue : null,
-        child: Container(
-          height: 52,
-          decoration: BoxDecoration(
-            color: canContinue ? _textPrimary : _border,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: _accent.withValues(alpha: 0.18),
-                blurRadius: 20,
-                offset: const Offset(0, 6),
+  Widget _buildContinueButton() {
+    return TappableButton(
+      onPressed: canContinue ? onContinue : null,
+      child: Container(
+        height: 52,
+        decoration: BoxDecoration(
+          color: canContinue ? _textPrimary : _border,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: _accent.withValues(alpha: 0.18),
+              blurRadius: 20,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Continue',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: canContinue ? _bg : _textMuted,
+                  letterSpacing: 0.3,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.arrow_forward,
+                size: 18,
+                color: canContinue ? _bg : _textMuted,
               ),
             ],
-          ),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Continue',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: canContinue ? _bg : _textMuted,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.arrow_forward,
-                  size: 18,
-                  color: canContinue ? _bg : _textMuted,
-                ),
-              ],
-            ),
           ),
         ),
       ),

@@ -25,20 +25,22 @@ class _CaptureScreenState extends State<CaptureScreen>
   late Animation<double> _previewScale;
 
   // ── Design tokens ──────────────────────────────────────────────────────────
-  static const _bg         = Color(0xFF0D0D0D);
-  static const _surface    = Color(0xFF1A1A1A);
-  static const _border     = Color(0xFF2C2C2C);
-  static const _accent     = Color(0xFFD4A96A);
-  static const _textPrimary   = Color(0xFFFFFFFF);
+  static const _bg = Color(0xFF0D0D0D);
+  static const _surface = Color(0xFF1A1A1A);
+  static const _border = Color(0xFF2C2C2C);
+  static const _accent = Color(0xFFD4A96A);
+  static const _textPrimary = Color(0xFFFFFFFF);
   static const _textSecondary = Color(0xFF8A8A8A);
 
   @override
   void initState() {
     super.initState();
-    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-    ));
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+      ),
+    );
 
     _previewController = AnimationController(
       vsync: this,
@@ -119,7 +121,10 @@ class _CaptureScreenState extends State<CaptureScreen>
                 scale: _previewScale,
                 child: FadeTransition(
                   opacity: _previewFade,
-                  child: Image.file(_selectedImage!, fit: BoxFit.cover),
+                  child: ColoredBox(
+                    color: _bg,
+                    child: Image.file(_selectedImage!, fit: BoxFit.contain),
+                  ),
                 ),
               )
             : _buildEmptyPreview(),
@@ -158,7 +163,7 @@ class _CaptureScreenState extends State<CaptureScreen>
           'Scan or upload a music sheet below',
           style: TextStyle(
             fontSize: 12,
-            color: _textSecondary.withValues(alpha:0.5),
+            color: _textSecondary.withValues(alpha: 0.5),
           ),
         ),
       ],
@@ -177,11 +182,7 @@ class _CaptureScreenState extends State<CaptureScreen>
         Expanded(
           child: Text(
             'Ensure the sheet is well-lit and fully visible for best accuracy.',
-            style: TextStyle(
-              fontSize: 12,
-              color: _textSecondary,
-              height: 1.5,
-            ),
+            style: TextStyle(fontSize: 12, color: _textSecondary, height: 1.5),
           ),
         ),
       ],
@@ -353,7 +354,11 @@ class _CaptureScreenState extends State<CaptureScreen>
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 20, color: _textPrimary),
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            size: 20,
+            color: _textPrimary,
+          ),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         title: const Text(
@@ -429,16 +434,11 @@ class _CaptureScreenState extends State<CaptureScreen>
         const SizedBox(height: 6),
         const Text(
           'Scan printed music sheets and convert them into digital notation.',
-          style: TextStyle(
-            fontSize: 14,
-            color: _textSecondary,
-            height: 1.5,
-          ),
+          style: TextStyle(fontSize: 14, color: _textSecondary, height: 1.5),
         ),
         const SizedBox(height: 16),
         _buildHint(),
       ],
     );
   }
-
 }
