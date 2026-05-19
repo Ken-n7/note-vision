@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../core/config/app_features.dart';
 import '../../../core/services/user_profile_service.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/name_validator.dart';
@@ -117,10 +118,16 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       await UserProfileService.saveProfile(
         name: name,
         photoPath: savedPhotoPath,
-        completeOnboarding: false,
+        completeOnboarding: !AppFeatures.classroomWorkflow,
       );
 
       if (!mounted) return;
+      if (!AppFeatures.classroomWorkflow) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const CollectionScreen()),
+        );
+        return;
+      }
       setState(() => _showRoleStep = true);
     } catch (e) {
       debugPrint('Onboarding save error: $e');
@@ -183,7 +190,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     const SizedBox(height: 64),
                     _buildHeader(),
                     const SizedBox(height: 56),
-                    if (_showRoleStep)
+                    if (AppFeatures.classroomWorkflow && _showRoleStep)
                       _buildRoleStep()
                     else ...[
                       _buildAvatarSection(),
@@ -217,7 +224,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         ),
         const SizedBox(height: 20),
         Text(
-          _showRoleStep ? 'Choose your role.' : 'Welcome.',
+          AppFeatures.classroomWorkflow && _showRoleStep
+              ? 'Choose your role.'
+              : 'Welcome.',
           style: TextStyle(
             color: Color(0xFFF5F5F5),
             fontSize: 40,
@@ -228,7 +237,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         ),
         const SizedBox(height: 10),
         Text(
-          _showRoleStep
+          AppFeatures.classroomWorkflow && _showRoleStep
               ? 'This stays with this installation.\nOnly reinstalling the app resets it.'
               : "Let's set up your profile.\nThis takes less than a minute.",
           style: TextStyle(

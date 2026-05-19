@@ -34,8 +34,9 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('Digital Writing item does not appear in the drawer',
-      (tester) async {
+  testWidgets('Digital Writing item does not appear in the drawer', (
+    tester,
+  ) async {
     await tester.pumpWidget(_makeApp());
     await _openDrawer(tester);
 
@@ -56,8 +57,23 @@ void main() {
     expect(find.text('About'), findsOneWidget);
   });
 
-  testWidgets('tapping Instruction navigates to InstructionsScreen',
-      (tester) async {
+  testWidgets('classroom role switch is hidden for presentation branch', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({'dev_mode_enabled': true});
+
+    await tester.pumpWidget(_makeApp());
+    await _openDrawer(tester);
+
+    expect(find.text('TEMP TESTING'), findsNothing);
+    expect(find.text('Developer Role Switch'), findsNothing);
+    expect(find.text('Teacher'), findsNothing);
+    expect(find.text('Student'), findsNothing);
+  });
+
+  testWidgets('tapping Instruction navigates to InstructionsScreen', (
+    tester,
+  ) async {
     await tester.pumpWidget(_makeApp());
     await _openDrawer(tester);
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:note_vision/core/config/app_features.dart';
 import 'package:note_vision/core/services/debug_mode_service.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/utils/app_reset.dart';
@@ -21,7 +22,10 @@ class _AboutScreenState extends State<AboutScreen> {
   static const _techStack = [
     _Tech(label: 'Flutter', detail: 'Cross-platform UI framework'),
     _Tech(label: 'TFLite', detail: 'On-device ML inference'),
-    _Tech(label: 'MIDI / FluidSynth', detail: 'Score playback via SF2 soundfonts'),
+    _Tech(
+      label: 'MIDI / FluidSynth',
+      detail: 'Score playback via SF2 soundfonts',
+    ),
     _Tech(label: 'MusicXML', detail: 'Standard score interchange format'),
     _Tech(label: 'pdf', detail: 'PDF export'),
   ];
@@ -32,9 +36,11 @@ class _AboutScreenState extends State<AboutScreen> {
   @override
   void initState() {
     super.initState();
-    DebugModeService.isEnabled().then((v) {
-      if (mounted) setState(() => _debugMode = v);
-    });
+    if (AppFeatures.classroomWorkflow) {
+      DebugModeService.isEnabled().then((v) {
+        if (mounted) setState(() => _debugMode = v);
+      });
+    }
   }
 
   Future<void> _onDebugToggle(bool value) async {
@@ -54,18 +60,28 @@ class _AboutScreenState extends State<AboutScreen> {
         ),
         content: const Text(
           'All app data will be cleared and the app will restart from the beginning.',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.5),
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 14,
+            height: 1.5,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: Text(
               action,
-              style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w700),
+              style: const TextStyle(
+                color: AppColors.accent,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -115,15 +131,17 @@ class _AboutScreenState extends State<AboutScreen> {
             title: 'Tech Stack',
             child: _TechList(items: _techStack),
           ),
-          const SizedBox(height: 16),
-          _Section(
-            title: 'Developer',
-            child: _DebugModeToggle(
-              enabled: _debugMode,
-              resetting: _resetting,
-              onChanged: _onDebugToggle,
+          if (AppFeatures.classroomWorkflow) ...[
+            const SizedBox(height: 16),
+            _Section(
+              title: 'Developer',
+              child: _DebugModeToggle(
+                enabled: _debugMode,
+                resetting: _resetting,
+                onChanged: _onDebugToggle,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -340,7 +358,12 @@ class _ContributorList extends StatelessWidget {
         children: [
           for (var i = 0; i < names.length; i++) ...[
             if (i > 0)
-              const Divider(height: 1, color: AppColors.border, indent: 16, endIndent: 16),
+              const Divider(
+                height: 1,
+                color: AppColors.border,
+                indent: 16,
+                endIndent: 16,
+              ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: Row(
@@ -394,7 +417,12 @@ class _TechList extends StatelessWidget {
         children: [
           for (var i = 0; i < items.length; i++) ...[
             if (i > 0)
-              const Divider(height: 1, color: AppColors.border, indent: 16, endIndent: 16),
+              const Divider(
+                height: 1,
+                color: AppColors.border,
+                indent: 16,
+                endIndent: 16,
+              ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(

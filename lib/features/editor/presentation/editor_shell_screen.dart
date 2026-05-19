@@ -2,6 +2,7 @@ import 'dart:async' show StreamSubscription, Timer, unawaited;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:note_vision/core/config/app_features.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/project.dart';
@@ -109,9 +110,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   EditorLayoutPolicy get _layoutPolicy =>
       EditorLayoutPolicy.forPartCount(_editorState.score.parts.length);
 
-  bool get _isReviewMode => widget.args.reviewMode;
-  bool get _isStudent => _role == 'student';
-  bool get _canEditTeacherComments => widget.args.canEditTeacherComments;
+  bool get _isReviewMode =>
+      AppFeatures.classroomWorkflow && widget.args.reviewMode;
+  bool get _isStudent => AppFeatures.classroomWorkflow && _role == 'student';
+  bool get _canEditTeacherComments =>
+      AppFeatures.classroomWorkflow && widget.args.canEditTeacherComments;
 
   EditorPageMetrics get _pageMetrics {
     final score = _editorState.score;
@@ -155,6 +158,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   }
 
   Future<void> _loadRole() async {
+    if (!AppFeatures.classroomWorkflow) return;
     final role = await UserProfileService.loadRole();
     if (mounted) setState(() => _role = role);
   }
@@ -2835,7 +2839,8 @@ class _InspectorPanelState extends State<_InspectorPanel> {
         : widget.selected is Rest
         ? (widget.selected as Rest).dots
         : 0;
-    final canDot = currentType != null &&
+    final canDot =
+        currentType != null &&
         currentType != 'eighth' &&
         currentType != 'sixteenth';
     final isDotted = currentDots > 0;

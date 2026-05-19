@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:note_vision/core/config/app_features.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/models/measure.dart';
@@ -77,9 +78,13 @@ class _CollectionScreenState extends State<CollectionScreen>
 
   Future<void> _loadProfile() async {
     final profile = await UserProfileService.loadProfile();
-    final role = await UserProfileService.loadRole();
+    final role = AppFeatures.classroomWorkflow
+        ? await UserProfileService.loadRole()
+        : null;
     if (mounted) {
-      final availableFilters = role == 'teacher'
+      final availableFilters = !AppFeatures.classroomWorkflow
+          ? const [_CollectionFilter.recent]
+          : role == 'teacher'
           ? const [
               _CollectionFilter.recent,
               _CollectionFilter.myScores,
@@ -116,13 +121,15 @@ class _CollectionScreenState extends State<CollectionScreen>
     }
   }
 
-  bool get _isTeacher => _role == 'teacher';
+  bool get _isTeacher => AppFeatures.classroomWorkflow && _role == 'teacher';
 
   bool _isSubmission(Project project) =>
-      project.submittedBy?.trim().isNotEmpty ?? false;
+      AppFeatures.classroomWorkflow &&
+      (project.submittedBy?.trim().isNotEmpty ?? false);
 
   bool _hasTeacherComments(Project project) =>
-      project.teacherComments?.isNotEmpty ?? false;
+      AppFeatures.classroomWorkflow &&
+      (project.teacherComments?.isNotEmpty ?? false);
 
   List<Project> get _teacherScores =>
       _projects.where((project) => !_isSubmission(project)).toList();
@@ -136,13 +143,17 @@ class _CollectionScreenState extends State<CollectionScreen>
   List<Project> get _studentFeedback =>
       _projects.where(_hasTeacherComments).toList();
 
-  List<Project> get _filteredStudentProjects => switch (_filter) {
-    _CollectionFilter.feedback => _studentFeedback,
-    _CollectionFilter.myScores => _studentScores,
-    _ => _projects,
-  };
+  List<Project> get _filteredStudentProjects {
+    if (!AppFeatures.classroomWorkflow) return _projects;
+    return switch (_filter) {
+      _CollectionFilter.feedback => _studentFeedback,
+      _CollectionFilter.myScores => _studentScores,
+      _ => _projects,
+    };
+  }
 
   List<Project> get _exportableProjects {
+    if (!AppFeatures.classroomWorkflow) return _projects;
     if (_isTeacher) {
       return switch (_filter) {
         _CollectionFilter.myScores => _teacherScores,
@@ -160,17 +171,22 @@ class _CollectionScreenState extends State<CollectionScreen>
     _CollectionFilter.feedback => 'Feedback',
   };
 
-  List<_CollectionFilter> get _availableFilters => _isTeacher
-      ? const [
-          _CollectionFilter.recent,
-          _CollectionFilter.myScores,
-          _CollectionFilter.submissions,
-        ]
-      : const [
-          _CollectionFilter.recent,
-          _CollectionFilter.myScores,
-          _CollectionFilter.feedback,
-        ];
+  List<_CollectionFilter> get _availableFilters {
+    if (!AppFeatures.classroomWorkflow) {
+      return const [_CollectionFilter.recent];
+    }
+    return _isTeacher
+        ? const [
+            _CollectionFilter.recent,
+            _CollectionFilter.myScores,
+            _CollectionFilter.submissions,
+          ]
+        : const [
+            _CollectionFilter.recent,
+            _CollectionFilter.myScores,
+            _CollectionFilter.feedback,
+          ];
+  }
 
   Future<void> _openProject(
     Project project, {
@@ -490,15 +506,16 @@ class _CollectionScreenState extends State<CollectionScreen>
                           letterSpacing: 0.3,
                         ),
                       ),
-                      _CollectionFilterButton(
-                        label: _filterLabel,
-                        filters: _availableFilters,
-                        activeFilter: _filter,
-                        labelFor: _labelForFilter,
-                        onSelected: (filter) => setState(() {
-                          _filter = filter;
-                        }),
-                      ),
+                      if (_availableFilters.length > 1)
+                        _CollectionFilterButton(
+                          label: _filterLabel,
+                          filters: _availableFilters,
+                          activeFilter: _filter,
+                          labelFor: _labelForFilter,
+                          onSelected: (filter) => setState(() {
+                            _filter = filter;
+                          }),
+                        ),
                     ],
                   ),
                 ),
@@ -517,7 +534,9 @@ class _CollectionScreenState extends State<CollectionScreen>
                   formatDate: _formatDate,
                   onOpen: (project) => _openProject(
                     project,
-                    reviewMode: _hasTeacherComments(project),
+                    reviewMode:
+                        AppFeatures.classroomWorkflow &&
+                        _hasTeacherComments(project),
                     canEditTeacherComments: false,
                   ),
                   onDelete: _confirmDelete,
@@ -753,23 +772,24 @@ class _CollectionScreenState extends State<CollectionScreen>
         isOpen: _fabOpen,
         onToggle: () => setState(() => _fabOpen = !_fabOpen),
         items: [
-          if (_isTeacher)
+          if (AppFeatures.classroomWorkflow && _isTeacher)
             _SpeedDialItem(
               icon: Icons.file_open_rounded,
               label: 'Import Score',
               onTap: _importNvscoreProject,
             ),
-          if (!_isTeacher)
+          if (AppFeatures.classroomWorkflow && !_isTeacher)
             _SpeedDialItem(
               icon: Icons.rate_review_rounded,
               label: 'Import Feedback',
               onTap: _importNvscoreProject,
             ),
-          _SpeedDialItem(
-            icon: Icons.archive_rounded,
-            label: 'Export All',
-            onTap: _exportAllNvscoreProjects,
-          ),
+          if (AppFeatures.classroomWorkflow)
+            _SpeedDialItem(
+              icon: Icons.archive_rounded,
+              label: 'Export All',
+              onTap: _exportAllNvscoreProjects,
+            ),
           _SpeedDialItem(
             icon: Icons.note_add_rounded,
             label: 'New Score',

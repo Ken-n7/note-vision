@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:note_vision/core/config/app_features.dart';
 import 'package:note_vision/core/services/debug_mode_service.dart';
 import 'package:note_vision/core/services/user_profile_service.dart';
 import 'package:note_vision/core/widgets/user_avatar.dart';
@@ -62,13 +63,16 @@ class CollectionDrawer extends StatelessWidget {
                 },
               ),
 
-              FutureBuilder<bool>(
-                future: DebugModeService.isEnabled(),
-                builder: (context, snapshot) {
-                  if (snapshot.data == true) return const _TemporaryRoleSwitch();
-                  return const SizedBox.shrink();
-                },
-              ),
+              if (AppFeatures.classroomWorkflow)
+                FutureBuilder<bool>(
+                  future: DebugModeService.isEnabled(),
+                  builder: (context, snapshot) {
+                    if (snapshot.data == true) {
+                      return const _TemporaryRoleSwitch();
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
 
               const SizedBox(height: 4),
 

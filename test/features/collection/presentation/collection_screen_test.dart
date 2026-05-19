@@ -165,6 +165,9 @@ void main() {
       expect(find.text('New Score'), findsOneWidget);
       expect(find.text('Import MusicXML'), findsOneWidget);
       expect(find.text('Scan Image'), findsOneWidget);
+      expect(find.text('Import Feedback'), findsNothing);
+      expect(find.text('Import Score'), findsNothing);
+      expect(find.text('Export All'), findsNothing);
       expect(find.byType(FloatingActionButton), findsNWidgets(4));
     });
 

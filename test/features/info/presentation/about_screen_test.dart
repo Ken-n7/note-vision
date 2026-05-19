@@ -39,13 +39,19 @@ void main() {
     expect(find.text('MusicXML'), findsOneWidget);
   });
 
+  testWidgets('hides developer classroom controls', (tester) async {
+    await tester.pumpWidget(wrap(const AboutScreen()));
+
+    expect(find.text('DEVELOPER'), findsNothing);
+    expect(find.text('Debug Mode'), findsNothing);
+    expect(find.textContaining('role switcher'), findsNothing);
+  });
+
   testWidgets('back button pops the screen', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: const Scaffold(body: Text('Home')),
-        routes: {
-          AboutScreen.routeName: (_) => const AboutScreen(),
-        },
+        routes: {AboutScreen.routeName: (_) => const AboutScreen()},
       ),
     );
 

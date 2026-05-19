@@ -5,11 +5,12 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/app_features.dart';
 import '../models/project.dart';
 import 'user_profile_service.dart';
 
-/// Persists [Project] objects as individual JSON files under the current
-/// role's local project directory. When no role is available, it falls back to
+/// Persists [Project] objects as individual JSON files. Classroom builds can
+/// scope storage by the current role; presentation builds fall back to
 /// `{appDocumentsDir}/projects/{id}.json`.
 ///
 /// A lightweight role-scoped master index stored in [SharedPreferences] maps
@@ -47,6 +48,7 @@ class ProjectStorageService {
   }
 
   Future<String?> _roleScope() async {
+    if (!AppFeatures.classroomWorkflow && _roleProvider == null) return null;
     final role = await (_roleProvider ?? UserProfileService.loadRole)();
     return role == 'teacher' || role == 'student' ? role : null;
   }
