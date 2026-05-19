@@ -163,6 +163,62 @@ extension EditorActions on EditorState {
     return this;
   }
 
+  EditorState toggleSelectedDot() {
+    if (!hasSelection) return this;
+    final symbol = selectedSymbol;
+
+    final type = symbol is Note
+        ? symbol.type.trim().toLowerCase()
+        : symbol is Rest
+        ? symbol.type.trim().toLowerCase()
+        : null;
+    if (type == null) return this;
+
+    // Dotted eighth = 1.5 divisions — not representable with 2 divs/quarter.
+    const baseDivisions = {'whole': 8, 'half': 4, 'quarter': 2};
+    final base = baseDivisions[type];
+    if (base == null) return this;
+
+    final currentDots = symbol is Note ? symbol.dots : (symbol as Rest).dots;
+    final newDots = currentDots > 0 ? 0 : 1;
+    final newDuration = newDots == 1 ? base + base ~/ 2 : base;
+
+    if (!_canReplaceSelectedSymbolWithDuration(newDuration)) return this;
+
+    if (symbol is Note) {
+      return _replaceSelectedSymbol(
+        Note(
+          step: symbol.step,
+          octave: symbol.octave,
+          alter: symbol.alter,
+          duration: newDuration,
+          type: symbol.type,
+          voice: symbol.voice,
+          staff: symbol.staff,
+          beamed: symbol.beamed,
+          dots: newDots,
+          isChordTone: symbol.isChordTone,
+        ),
+        intent: EditorEditIntent.replaceSelection,
+      );
+    }
+
+    if (symbol is Rest) {
+      return _replaceSelectedSymbol(
+        Rest(
+          duration: newDuration,
+          type: symbol.type,
+          voice: symbol.voice,
+          staff: symbol.staff,
+          dots: newDots,
+        ),
+        intent: EditorEditIntent.replaceSelection,
+      );
+    }
+
+    return this;
+  }
+
   EditorState insertNoteAfterSelection() {
     if (selectedPartIndex == null || selectedMeasureIndex == null) return this;
 

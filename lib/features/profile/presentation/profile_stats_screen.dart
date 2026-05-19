@@ -151,7 +151,7 @@ class _ProfileSection extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontFamily: 'MaturaMTScriptCapitals',
+                    fontFamily: 'PlayfairDisplay',
                     fontSize: 20,
                     color: AppColors.textPrimary,
                     letterSpacing: 0.5,

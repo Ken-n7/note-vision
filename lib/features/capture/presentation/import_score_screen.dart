@@ -51,7 +51,7 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
         title: const Text(
           'Note Vision',
           style: TextStyle(
-            fontFamily: 'MaturaMTScriptCapitals',
+            fontFamily: 'PlayfairDisplay',
             fontSize: 22,
             color: _textPrimary,
             letterSpacing: 0.5,

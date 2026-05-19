@@ -355,7 +355,7 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                fontFamily: 'MaturaMTScriptCapitals',
+                fontFamily: 'PlayfairDisplay',
                 fontSize: 20,
                 color: _textPrimary,
                 letterSpacing: 0.5,

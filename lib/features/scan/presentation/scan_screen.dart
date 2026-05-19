@@ -65,7 +65,7 @@ class _ScanScreenState extends State<ScanScreen> {
         title: const Text(
           'Note Vision',
           style: TextStyle(
-            fontFamily: 'MaturaMTScriptCapitals',
+            fontFamily: 'PlayfairDisplay',
             fontSize: 22,
             color: AppColors.textPrimary,
             letterSpacing: 0.5,

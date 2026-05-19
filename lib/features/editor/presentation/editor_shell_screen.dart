@@ -1141,6 +1141,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       canDeleteMeasure: canDeleteMeasure,
                       onDeleteMeasure: () =>
                           _updateState((s) => s.deleteSelectedMeasureIfEmpty()),
+                      onDeleteSymbol: () =>
+                          _updateState((s) => s.deleteSelectedSymbol()),
+                      onToggleDot: () =>
+                          _updateState((s) => s.toggleSelectedDot()),
                     );
 
               final scoreIsEmpty =
@@ -2749,6 +2753,8 @@ class _InspectorPanel extends StatefulWidget {
     required this.onAddPage,
     required this.canDeleteMeasure,
     required this.onDeleteMeasure,
+    required this.onDeleteSymbol,
+    required this.onToggleDot,
   });
 
   final bool isLandscape;
@@ -2777,6 +2783,8 @@ class _InspectorPanel extends StatefulWidget {
   final VoidCallback onAddPage;
   final bool canDeleteMeasure;
   final VoidCallback onDeleteMeasure;
+  final VoidCallback onDeleteSymbol;
+  final VoidCallback onToggleDot;
 
   @override
   State<_InspectorPanel> createState() => _InspectorPanelState();
@@ -2787,9 +2795,9 @@ class _InspectorPanelState extends State<_InspectorPanel> {
 
   static const _groupIcons = [
     Icons.unfold_more_rounded,
-    Icons.piano_rounded,
+    Icons.tag_rounded,
     Icons.music_note_rounded,
-    Icons.access_time_rounded,
+    Icons.hourglass_empty_rounded,
     Icons.grid_on_rounded,
   ];
 
@@ -2817,6 +2825,21 @@ class _InspectorPanelState extends State<_InspectorPanel> {
     final currentClef = widget.currentMeasureClef;
     final hasMeasureContext = widget.hasMeasureContext;
 
+    final currentType = widget.selected is Note
+        ? (widget.selected as Note).type.trim().toLowerCase()
+        : widget.selected is Rest
+        ? (widget.selected as Rest).type.trim().toLowerCase()
+        : null;
+    final currentDots = widget.selected is Note
+        ? (widget.selected as Note).dots
+        : widget.selected is Rest
+        ? (widget.selected as Rest).dots
+        : 0;
+    final canDot = currentType != null &&
+        currentType != 'eighth' &&
+        currentType != 'sixteenth';
+    final isDotted = currentDots > 0;
+
     return [
       _ActionGroup(
         label: 'PITCH',
@@ -2833,6 +2856,14 @@ class _InspectorPanelState extends State<_InspectorPanel> {
             label: 'Down',
             onPressed: _wrapAction(
               widget.hasSelection ? widget.onMoveDown : null,
+            ),
+          ),
+          _ActionTile(
+            icon: Icons.delete_rounded,
+            label: 'Delete',
+            danger: true,
+            onPressed: _wrapAction(
+              widget.hasSelection ? widget.onDeleteSymbol : null,
             ),
           ),
         ],
@@ -2925,16 +2956,19 @@ class _InspectorPanelState extends State<_InspectorPanel> {
           _DurTile(
             label: 'W',
             sublabel: 'Whole',
+            isActive: currentType == 'whole',
             onPressed: _wrapAction(widget.hasSelection ? widget.onWhole : null),
           ),
           _DurTile(
             label: 'H',
             sublabel: 'Half',
+            isActive: currentType == 'half',
             onPressed: _wrapAction(widget.hasSelection ? widget.onHalf : null),
           ),
           _DurTile(
             label: '♩',
             sublabel: 'Qtr',
+            isActive: currentType == 'quarter',
             onPressed: _wrapAction(
               widget.hasSelection ? widget.onQuarter : null,
             ),
@@ -2942,8 +2976,17 @@ class _InspectorPanelState extends State<_InspectorPanel> {
           _DurTile(
             label: '♪',
             sublabel: '8th',
+            isActive: currentType == 'eighth',
             onPressed: _wrapAction(
               widget.hasSelection ? widget.onEighth : null,
+            ),
+          ),
+          _DurTile(
+            label: '.',
+            sublabel: 'Dot',
+            isActive: isDotted,
+            onPressed: _wrapAction(
+              canDot && widget.hasSelection ? widget.onToggleDot : null,
             ),
           ),
         ],
@@ -3177,13 +3220,13 @@ class _BottomInspectorBar extends StatelessWidget {
                     Icon(icons[i], size: 20, color: iconColor),
                     const SizedBox(height: 2),
                     Text(
-                      groups[i].label.length > 3
-                          ? groups[i].label.substring(0, 3)
-                          : groups[i].label,
+                      groups[i].label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 9,
+                        fontSize: 8,
                         fontWeight: FontWeight.w600,
-                        letterSpacing: 0.3,
+                        letterSpacing: 0.2,
                         color: iconColor,
                       ),
                     ),
@@ -3960,12 +4003,16 @@ class _DurTile extends StatelessWidget {
   const _DurTile({
     required this.label,
     required this.sublabel,
+    required this.isActive,
     required this.onPressed,
   });
 
   final String label;
   final String sublabel;
+  final bool isActive;
   final VoidCallback? onPressed;
+
+  static const _accent = Color(0xFFD4A96A);
 
   @override
   Widget build(BuildContext context) {
@@ -3981,10 +4028,16 @@ class _DurTile extends StatelessWidget {
           width: 44,
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
           decoration: BoxDecoration(
-            color: enabled ? AppColors.surfaceAlt : AppColors.background,
+            color: isActive
+                ? _accent.withValues(alpha: 0.15)
+                : enabled
+                ? AppColors.surfaceAlt
+                : AppColors.background,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: enabled
+              color: isActive
+                  ? _accent.withValues(alpha: 0.6)
+                  : enabled
                   ? AppColors.border
                   : AppColors.border.withValues(alpha: 0.4),
             ),
@@ -3996,7 +4049,9 @@ class _DurTile extends StatelessWidget {
                 label,
                 style: TextStyle(
                   fontSize: 15,
-                  color: enabled
+                  color: isActive
+                      ? _accent
+                      : enabled
                       ? AppColors.textPrimary
                       : AppColors.textSecondary.withValues(alpha: 0.35),
                   fontWeight: FontWeight.w700,
@@ -4008,7 +4063,9 @@ class _DurTile extends StatelessWidget {
                 sublabel,
                 style: TextStyle(
                   fontSize: 9,
-                  color: enabled
+                  color: isActive
+                      ? _accent.withValues(alpha: 0.8)
+                      : enabled
                       ? AppColors.textSecondary.withValues(alpha: 0.7)
                       : AppColors.textSecondary.withValues(alpha: 0.3),
                   fontWeight: FontWeight.w500,

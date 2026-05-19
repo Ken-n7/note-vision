@@ -705,7 +705,7 @@ class _CollectionScreenState extends State<CollectionScreen>
         title: Text(
           'Note Vision',
           style: TextStyle(
-            fontFamily: 'MaturaMTScriptCapitals',
+            fontFamily: 'PlayfairDisplay',
             fontSize: isLandscape ? 20 : 22,
             color: AppColors.textPrimary,
             letterSpacing: 0.5,

@@ -359,7 +359,7 @@ class _CaptureScreenState extends State<CaptureScreen>
         title: const Text(
           'Note Vision',
           style: TextStyle(
-            fontFamily: 'MaturaMTScriptCapitals',
+            fontFamily: 'PlayfairDisplay',
             fontSize: 22,
             color: _textPrimary,
             letterSpacing: 0.5,

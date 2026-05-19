@@ -66,9 +66,9 @@ flutter:
     - assets/samples/
 
   fonts:
-    - family: MaturaMTScriptCapitals
+    - family: PlayfairDisplay
       fonts:
-        - asset: assets/fonts/maturasc.ttf
+        - asset: assets/fonts/PlayfairDisplay-Bold.ttf
     - family: NotoMusic
       fonts:
         - asset: assets/fonts/NotoMusic-Regular.ttf
