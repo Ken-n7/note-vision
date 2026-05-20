@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/config/app_features.dart';
 import 'package:note_vision/core/services/debug_mode_service.dart';
@@ -16,8 +18,14 @@ class CollectionDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final drawerWidth = math.min(
+      screenWidth,
+      math.min(320.0, math.max(240.0, screenWidth * 0.82)),
+    );
+
     return SizedBox(
-      width: 260,
+      width: drawerWidth,
       child: Drawer(
         backgroundColor: _bg,
         shape: const RoundedRectangleBorder(
@@ -27,96 +35,97 @@ class CollectionDrawer extends StatelessWidget {
           ),
         ),
         child: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const _ProfileHeader(),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(bottom: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _ProfileHeader(),
 
-              Container(
-                height: 0.5,
-                margin: const EdgeInsets.symmetric(horizontal: 24),
-                color: _border,
-              ),
+                Container(
+                  height: 0.5,
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
+                  color: _border,
+                ),
 
-              const SizedBox(height: 12),
+                const SizedBox(height: 12),
 
-              // ── ACCOUNT section ───────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
-                child: Text(
-                  'ACCOUNT',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: _textSecondary.withValues(alpha: 0.6),
-                    letterSpacing: 2.0,
+                // ── ACCOUNT section ───────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
+                  child: Text(
+                    'ACCOUNT',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: _textSecondary.withValues(alpha: 0.6),
+                      letterSpacing: 2.0,
+                    ),
                   ),
                 ),
-              ),
 
-              _DrawerItem(
-                icon: Icons.person_outline_rounded,
-                title: 'My Profile',
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.pushNamed(context, ProfileStatsScreen.routeName);
-                },
-              ),
-
-              if (AppFeatures.classroomWorkflow)
-                FutureBuilder<bool>(
-                  future: DebugModeService.isEnabled(),
-                  builder: (context, snapshot) {
-                    if (snapshot.data == true) {
-                      return const _TemporaryRoleSwitch();
-                    }
-                    return const SizedBox.shrink();
+                _DrawerItem(
+                  icon: Icons.person_outline_rounded,
+                  title: 'My Profile',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.pushNamed(context, ProfileStatsScreen.routeName);
                   },
                 ),
 
-              const SizedBox(height: 4),
+                if (AppFeatures.classroomWorkflow)
+                  FutureBuilder<bool>(
+                    future: DebugModeService.isEnabled(),
+                    builder: (context, snapshot) {
+                      if (snapshot.data == true) {
+                        return const _TemporaryRoleSwitch();
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
 
-              Container(
-                height: 0.5,
-                margin: const EdgeInsets.symmetric(horizontal: 24),
-                color: _border,
-              ),
+                const SizedBox(height: 4),
 
-              const SizedBox(height: 4),
+                Container(
+                  height: 0.5,
+                  margin: const EdgeInsets.symmetric(horizontal: 24),
+                  color: _border,
+                ),
 
-              // ── NAVIGATE section ──────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
-                child: Text(
-                  'NAVIGATE',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: _textSecondary.withValues(alpha: 0.6),
-                    letterSpacing: 2.0,
+                const SizedBox(height: 4),
+
+                // ── NAVIGATE section ──────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
+                  child: Text(
+                    'NAVIGATE',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: _textSecondary.withValues(alpha: 0.6),
+                      letterSpacing: 2.0,
+                    ),
                   ),
                 ),
-              ),
 
-              _DrawerItem(
-                icon: Icons.school_outlined,
-                title: 'Instructions',
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.pushNamed(context, InstructionsScreen.routeName);
-                },
-              ),
-              _DrawerItem(
-                icon: Icons.info_outline,
-                title: 'About',
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.pushNamed(context, AboutScreen.routeName);
-                },
-              ),
-
-              const Spacer(),
-            ],
+                _DrawerItem(
+                  icon: Icons.school_outlined,
+                  title: 'Instructions',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.pushNamed(context, InstructionsScreen.routeName);
+                  },
+                ),
+                _DrawerItem(
+                  icon: Icons.info_outline,
+                  title: 'About',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.pushNamed(context, AboutScreen.routeName);
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),

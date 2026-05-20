@@ -318,35 +318,7 @@ Suggested fix:
 - Route metadata edits through the same history mechanism as score edits.
 - Await `_onSave()` or explicitly use `unawaited` and show clear save state.
 
-### 18. No-Detection Feedback Is Too Easy To Miss
-
-Severity: Medium
-
-Evidence:
-- `lib/features/scan/presentation/scan_screen.dart:132` shows a snackbar for no detections.
-- `lib/features/scan/presentation/widgets/scan_actions.dart:134` silently disables Continue.
-
-Impact:
-- Users may not understand why they cannot continue after the snackbar disappears.
-
-Suggested fix:
-- Add a persistent inline empty/error panel near the scan preview.
-- Include concrete next actions: retake, improve lighting, crop page, import file.
-
-### 19. Collection Controls Hide Important Actions
-
-Severity: Medium
-
-Evidence:
-- Project deletion is hidden behind long-press.
-
-Impact:
-- Users may not discover deletion.
-
-Suggested fix:
-- Add visible project overflow actions for rename/delete/export.
-
-### 20. Profile And Edit-Profile Layouts Are Fragile
+### 18. Profile And Edit-Profile Layouts Are Fragile
 
 Severity: Medium
 
@@ -363,21 +335,7 @@ Suggested fix:
 - Use responsive wrapping or breakpoints for profile header and stats.
 - Make bottom sheet content scrollable and let validation text wrap.
 
-### 21. Drawer Is Fixed Width And Non-Scrollable
-
-Severity: Medium
-
-Evidence:
-- Drawer uses a fixed 260px width and non-scrollable layout.
-- Header plus sections can overflow on short landscape devices or large text.
-
-Impact:
-- Navigation can become inaccessible on small heights or accessibility text sizes.
-
-Suggested fix:
-- Use a scrollable drawer body with responsive width constraints.
-
-### 22. Inspector Screens Need Layout And Visual-System Cleanup
+### 19. Inspector Screens Need Layout And Visual-System Cleanup
 
 Severity: Medium
 
@@ -392,7 +350,7 @@ Suggested fix:
 - Either mark both as dev tools with a distinct visual system or align both to the app theme.
 - Add horizontal scrolling and copy actions for raw text panels.
 
-### 23. Editor Header And Playback Controls Are Dense Fixed Rows
+### 20. Editor Header And Playback Controls Are Dense Fixed Rows
 
 Severity: Medium
 
@@ -407,7 +365,7 @@ Suggested fix:
 - Use responsive command grouping, overflow menus, and minimum tap target constraints.
 - Add tests for text scaling and narrow viewport layouts.
 
-### 24. Horizontal Staff Projection Assumes Staff Lines Cover 25 Percent Of Image Width
+### 21. Horizontal Staff Projection Assumes Staff Lines Cover 25 Percent Of Image Width
 
 Severity: Medium
 
@@ -423,7 +381,7 @@ Suggested fix:
 - Consider adaptive thresholds or connected components before grouping lines.
 - Add tests for large margins and partial-width staff lines.
 
-### 25. Invalid Or Unsupported Images Can Crash Decode Paths
+### 22. Invalid Or Unsupported Images Can Crash Decode Paths
 
 Severity: Medium
 
@@ -439,7 +397,7 @@ Suggested fix:
 
 ## Low Findings And Improvements
 
-### 26. Android Release Builds Can Fall Back To Debug Signing
+### 23. Android Release Builds Can Fall Back To Debug Signing
 
 Severity: Low/Medium
 
@@ -452,7 +410,7 @@ Impact:
 Suggested fix:
 - Fail release builds when release signing is missing, or require an explicit local override for debug signing.
 
-### 27. macOS Sandbox Lacks User-Selected File Read/Write Entitlement
+### 24. macOS Sandbox Lacks User-Selected File Read/Write Entitlement
 
 Severity: Low/Medium
 
@@ -466,7 +424,7 @@ Impact:
 Suggested fix:
 - Add `com.apple.security.files.user-selected.read-write` where needed.
 
-### 28. CI And Release Flutter Versions Drift
+### 25. CI And Release Flutter Versions Drift
 
 Severity: Low
 
@@ -483,7 +441,7 @@ Suggested fix:
 - Pin CI to the same Flutter version as release.
 - Add at least `flutter build apk --debug` or a release build smoke check.
 
-### 29. Dependencies Need A Planned Upgrade Pass
+### 26. Dependencies Need A Planned Upgrade Pass
 
 Severity: Low
 
@@ -497,7 +455,7 @@ Suggested fix:
 - Schedule a dependency upgrade branch.
 - Upgrade major packages with focused regression tests for import/export, sharing, and picker flows.
 
-### 30. Informational Pages Have Fixed Rows That Can Overflow
+### 27. Informational Pages Have Fixed Rows That Can Overflow
 
 Severity: Low
 
@@ -548,6 +506,4 @@ Suggested fix:
 ### Phase 4: UX And Accessibility
 
 - Replace custom `GestureDetector` buttons with Material controls.
-- Add persistent scan failure/empty states.
-- Make hidden actions visible.
-- Add responsive behavior for drawer, profile, editor header, playback controls, and inspectors.
+- Add responsive behavior for profile, editor header, playback controls, and inspectors.
