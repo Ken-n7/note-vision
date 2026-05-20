@@ -344,7 +344,6 @@ class PdfScoreRenderer {
           staffTop: staffTop,
           clefSign: _clefSign(rowMeasures),
           clefLine: _clefLine(rowMeasures),
-          isFirstSystem: s == 0,
         );
       }
     }
@@ -404,7 +403,6 @@ class PdfScoreRenderer {
     required double staffTop,
     required String clefSign,
     required int clefLine,
-    required bool isFirstSystem,
   }) {
     // staffTop = y of top staff line (PDF: y from bottom)
     // staffBottom = y of bottom staff line
@@ -465,9 +463,9 @@ class PdfScoreRenderer {
       );
     }
 
-    // Key + time signature (first visible system on each editor/PDF page)
+    // Key + time signature at the start of every visible system.
     var sigX = rowStartX + ScoreNotationMetrics.rowSignatureStartX * _scale;
-    if (isFirstSystem && rowMeasures.isNotEmpty) {
+    if (rowMeasures.isNotEmpty) {
       final first = rowMeasures.first;
       if (first.keySignature != null) {
         sigX = _drawKeySignature(
@@ -925,6 +923,46 @@ class PdfScoreRenderer {
         g,
         x: x + ScoreNotationMetrics.restDotXOffset * _scale,
         y: centerY,
+        dots: rest.dots,
+      );
+      return;
+    }
+
+    if (_isEighth(type)) {
+      final y = staffTop - _ls * ScoreNotationMetrics.quarterRestLineIndex;
+      final start = _pdfOffset(x, y, 4, -8);
+      final stemEnd = _pdfOffset(x, y, -3, 16);
+      final flagEnd = _pdfOffset(x, y, 3, 4);
+
+      g.setColor(_ink);
+      g.setLineWidth(ScoreNotationMetrics.flagStrokeWidth * _scale);
+      g.moveTo(start.x, start.y);
+      g.lineTo(stemEnd.x, stemEnd.y);
+      g.strokePath();
+
+      g.setLineWidth(ScoreNotationMetrics.flagStrokeWidth * _scale);
+      g.moveTo(start.x, start.y);
+      _quadraticCurveTo(
+        g,
+        fromX: start.x,
+        fromY: start.y,
+        controlX: x + 13 * _scale,
+        controlY: y + 1 * _scale,
+        endX: flagEnd.x,
+        endY: flagEnd.y,
+      );
+      g.strokePath();
+      g.drawEllipse(
+        x - 1.5 * _scale,
+        y + 13 * _scale,
+        3.6 * _scale,
+        3.6 * _scale,
+      );
+      g.fillPath();
+      _drawAugmentationDots(
+        g,
+        x: x + ScoreNotationMetrics.quarterRestDotXOffset * _scale,
+        y: y - ScoreNotationMetrics.quarterRestDotYOffset * _scale,
         dots: rest.dots,
       );
       return;

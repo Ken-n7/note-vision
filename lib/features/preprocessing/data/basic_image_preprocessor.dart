@@ -13,7 +13,13 @@ class BasicImagePreprocessor implements ImagePreprocessor {
 
 PreprocessedResult _processImage(Uint8List bytes) {
   // Step 1 — Decode + EXIF orientation correction
-  final img.Image image = img.decodeImage(bytes)!;
+  final img.Image? decoded = img.decodeImage(bytes);
+  if (decoded == null) {
+    throw Exception(
+      'Could not decode image. The file may be corrupted or in an unsupported format.',
+    );
+  }
+  final img.Image image = decoded;
   img.Image processed = img.bakeOrientation(image);
 
   // Step 2 — Convert to grayscale then back to RGB

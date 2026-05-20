@@ -152,6 +152,34 @@ void main() {
       expect(String.fromCharCodes(bytes.take(4)), '%PDF');
     });
 
+    test('renders eighth rests and repeated system signatures', () async {
+      const renderer = PdfScoreRenderer(compress: false);
+      final score = _scoreWithMeasures([
+        _measure(
+          1,
+          clef: const Clef(sign: 'F', line: 4),
+          keySignature: const KeySignature(fifths: -2),
+          timeSignature: const TimeSignature(beats: 6, beatType: 8),
+        ),
+        _measure(2),
+        _measure(3),
+        _measure(4),
+        _measure(5, symbols: const [Rest(duration: 1, type: 'eighth')]),
+      ]);
+
+      final pageParts = renderer.debugPageSliceForTesting(score, 0);
+      final secondSystemFirst = pageParts.single[4];
+
+      expect(secondSystemFirst.clef?.sign, 'F');
+      expect(secondSystemFirst.keySignature?.fifths, -2);
+      expect(secondSystemFirst.timeSignature?.beats, 6);
+
+      final bytes = await renderer.render(score);
+
+      expect(bytes, isNotEmpty);
+      expect(String.fromCharCodes(bytes.take(4)), '%PDF');
+    });
+
     test('maps pitches using PDF y-up coordinates', () {
       const renderer = PdfScoreRenderer();
       const staffBottom = 100.0;
@@ -204,6 +232,7 @@ Measure _measure(
   Clef? clef,
   KeySignature? keySignature,
   TimeSignature? timeSignature,
+  List<Rest> symbols = const [Rest(duration: 2, type: 'quarter')],
 }) {
   return Measure(
     number: number,
@@ -211,6 +240,6 @@ Measure _measure(
     keySignature: keySignature,
     timeSignature: timeSignature,
     startsNewPage: startsNewPage,
-    symbols: const [Rest(duration: 2, type: 'quarter')],
+    symbols: symbols,
   );
 }

@@ -566,6 +566,47 @@ void main() {
     },
   );
 
+  testWidgets('page overview modal shows thumbnails and navigates', (
+    tester,
+  ) async {
+    final score = Score(
+      id: 'score-page-overview',
+      title: 'Page Overview',
+      composer: 'Composer',
+      parts: [
+        Part(
+          id: 'P1',
+          name: 'Part 1',
+          measures: List.generate(
+            21,
+            (i) => Measure(
+              number: i + 1,
+              symbols: const [
+                Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+
+    await pumpEditorShell(tester, score: score);
+
+    await tester.tap(find.text('1 / 2').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Page 1'), findsOneWidget);
+    expect(find.text('Page 2'), findsOneWidget);
+
+    await tester.tap(find.text('Page 2'));
+    await tester.pumpAndSettle();
+
+    final viewer = tester.widget<ScoreNotationViewer>(
+      find.byType(ScoreNotationViewer).last,
+    );
+    expect(viewer.firstMeasureIndex, 20);
+  });
+
   testWidgets('portrait narrow screen renders without overflow', (
     tester,
   ) async {
@@ -1050,7 +1091,7 @@ void main() {
         emitPosition(20);
         await tester.pumpAndSettle();
 
-        await tester.tap(find.text('1').last);
+        await tester.tap(find.byTooltip('Previous page').last);
         await tester.pumpAndSettle();
 
         var viewer = tester.widget<ScoreNotationViewer>(

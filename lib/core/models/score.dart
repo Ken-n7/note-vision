@@ -166,8 +166,8 @@ class Score {
   }
 
   /// Removes the measure at [measureIndex] from every part and renumbers.
-  /// The caller is responsible for ensuring the measure is empty and that
-  /// more than one measure exists — this method does no safety checks.
+  /// The caller is responsible for ensuring more than one measure exists —
+  /// this method does no safety checks.
   Score deleteMeasureFromAllParts(int measureIndex) {
     if (parts.isEmpty) return this;
 

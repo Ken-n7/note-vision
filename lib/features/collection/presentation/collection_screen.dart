@@ -23,6 +23,7 @@ import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 
 import 'widgets/empty_collection.dart';
+import 'widgets/score_card.dart';
 
 enum _CollectionFilter { recent, myScores, submissions, feedback }
 
@@ -313,39 +314,7 @@ class _CollectionScreenState extends State<CollectionScreen>
     }
   }
 
-  Future<void> _confirmDelete(Project project) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text(
-          'Delete project?',
-          style: TextStyle(color: AppColors.textPrimary),
-        ),
-        content: Text(
-          '"${project.name}" will be permanently deleted.',
-          style: const TextStyle(color: AppColors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text(
-              'Delete',
-              style: TextStyle(color: Color(0xFFE05252)),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true || !mounted) return;
+  Future<void> _deleteProject(Project project) async {
     await _storage.deleteProject(project.id);
     if (mounted) {
       setState(() => _projects.removeWhere((p) => p.id == project.id));
@@ -602,7 +571,7 @@ class _CollectionScreenState extends State<CollectionScreen>
                   ),
                   onRename: _renameProject,
                   onExport: _exportProject,
-                  onDelete: _confirmDelete,
+                  onDelete: _deleteProject,
                 ),
             ],
           );
@@ -681,7 +650,7 @@ class _CollectionScreenState extends State<CollectionScreen>
               onOpen: (project) => _openProject(project),
               onRename: _renameProject,
               onExport: _exportProject,
-              onDelete: _confirmDelete,
+              onDelete: _deleteProject,
             ),
         ],
         if (showSubmissions) ...[
@@ -726,7 +695,7 @@ class _CollectionScreenState extends State<CollectionScreen>
                 ),
                 onRename: _renameProject,
                 onExport: _exportProject,
-                onDelete: _confirmDelete,
+                onDelete: _deleteProject,
               ),
             ],
         ],
@@ -1078,29 +1047,45 @@ class _ProjectListSliver extends StatelessWidget {
       padding: EdgeInsets.only(
         left: horizontalPadding,
         right: horizontalPadding,
-        bottom: 8,
+        bottom: 16,
       ),
-      sliver: SliverList(
+      sliver: SliverGrid(
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 320,
+          mainAxisSpacing: 14,
+          crossAxisSpacing: 14,
+          childAspectRatio: 0.76,
+        ),
         delegate: SliverChildBuilderDelegate((context, index) {
           final project = projects[index];
-          return Column(
-            children: [
-              _ProjectTile(
-                project: project,
-                formattedDate: formatDate(project.updatedAt),
-                onTap: () => onOpen(project),
-                onLongPress: () => onDelete(project),
-                onRename: () => onRename(project),
-                onExport: () => onExport(project),
-                onDelete: () => onDelete(project),
-              ),
-              if (index < projects.length - 1)
-                const Divider(height: 1, color: AppColors.border, indent: 76),
-            ],
+          final score = _decodeScore(project);
+          final scoreLabel = score == null
+              ? ScoreLabel.generalPiece
+              : ScoreClassifier.classify(score);
+
+          return ScoreCard(
+            imagePath: '',
+            score: score,
+            title: project.name,
+            composer: score?.composer,
+            scoreLabel: scoreLabel.displayName,
+            updatedLabel: formatDate(project.updatedAt),
+            onOpen: () => onOpen(project),
+            onRename: () => onRename(project),
+            onExport: () => onExport(project),
+            onDelete: () => onDelete(project),
           );
         }, childCount: projects.length),
       ),
     );
+  }
+
+  Score? _decodeScore(Project project) {
+    try {
+      return project.decodeScore();
+    } catch (_) {
+      return null;
+    }
   }
 }
 
@@ -1408,229 +1393,6 @@ class _DialogTextField extends StatelessWidget {
         ),
         focusedBorder: const UnderlineInputBorder(
           borderSide: BorderSide(color: AppColors.accent),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Project tile ──────────────────────────────────────────────────────────────
-
-class _ProjectTile extends StatelessWidget {
-  const _ProjectTile({
-    required this.project,
-    required this.formattedDate,
-    required this.onTap,
-    required this.onLongPress,
-    required this.onRename,
-    required this.onExport,
-    required this.onDelete,
-  });
-
-  final Project project;
-  final String formattedDate;
-  final VoidCallback onTap;
-  final VoidCallback onLongPress;
-  final VoidCallback onRename;
-  final VoidCallback onExport;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    final scoreLabel = _projectLabel(project);
-
-    return InkWell(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      splashColor: AppColors.accent.withValues(alpha: 0.06),
-      highlightColor: AppColors.accent.withValues(alpha: 0.04),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceAlt,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: const Icon(
-                Icons.music_note_rounded,
-                color: AppColors.accent,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    project.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  _ScoreLabelBadge(label: scoreLabel.displayName),
-                  const SizedBox(height: 3),
-                  Text(
-                    'Last modified $formattedDate',
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            _ProjectActionsButton(
-              onRename: onRename,
-              onExport: onExport,
-              onDelete: onDelete,
-            ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: AppColors.textSecondary,
-              size: 20,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  ScoreLabel _projectLabel(Project project) {
-    try {
-      return ScoreClassifier.classify(project.decodeScore());
-    } catch (_) {
-      return ScoreLabel.generalPiece;
-    }
-  }
-}
-
-enum _ProjectAction { rename, export, delete }
-
-class _ProjectActionsButton extends StatelessWidget {
-  const _ProjectActionsButton({
-    required this.onRename,
-    required this.onExport,
-    required this.onDelete,
-  });
-
-  final VoidCallback onRename;
-  final VoidCallback onExport;
-  final VoidCallback onDelete;
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<_ProjectAction>(
-      tooltip: 'Project actions',
-      color: AppColors.surface,
-      onSelected: (action) {
-        switch (action) {
-          case _ProjectAction.rename:
-            onRename();
-          case _ProjectAction.export:
-            onExport();
-          case _ProjectAction.delete:
-            onDelete();
-        }
-      },
-      itemBuilder: (_) => const [
-        PopupMenuItem(
-          value: _ProjectAction.rename,
-          child: _ProjectActionRow(
-            icon: Icons.drive_file_rename_outline_rounded,
-            label: 'Rename',
-          ),
-        ),
-        PopupMenuItem(
-          value: _ProjectAction.export,
-          child: _ProjectActionRow(
-            icon: Icons.ios_share_rounded,
-            label: 'Export',
-          ),
-        ),
-        PopupMenuItem(
-          value: _ProjectAction.delete,
-          child: _ProjectActionRow(
-            icon: Icons.delete_outline_rounded,
-            label: 'Delete',
-            color: Color(0xFFE05252),
-          ),
-        ),
-      ],
-      child: const SizedBox(
-        width: 40,
-        height: 40,
-        child: Icon(
-          Icons.more_vert_rounded,
-          color: AppColors.textSecondary,
-          size: 20,
-        ),
-      ),
-    );
-  }
-}
-
-class _ProjectActionRow extends StatelessWidget {
-  const _ProjectActionRow({
-    required this.icon,
-    required this.label,
-    this.color = AppColors.textPrimary,
-  });
-
-  final IconData icon;
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: color),
-        const SizedBox(width: 10),
-        Text(
-          label,
-          style: TextStyle(
-            color: color,
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ScoreLabelBadge extends StatelessWidget {
-  const _ScoreLabelBadge({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: AppColors.accent.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: AppColors.accent.withValues(alpha: 0.22)),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: AppColors.accent,
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
         ),
       ),
     );

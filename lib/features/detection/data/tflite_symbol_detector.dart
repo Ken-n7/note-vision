@@ -64,7 +64,12 @@ class TfliteSymbolDetector implements SymbolDetector {
   ) async {
     if (_interpreter == null) await init();
 
-    final img.Image fullImage = img.decodeImage(input.bytes)!;
+    final img.Image? fullImage = img.decodeImage(input.bytes);
+    if (fullImage == null) {
+      throw Exception(
+        'Could not decode preprocessed image. The scan input may be corrupted.',
+      );
+    }
 
     // Letterbox the image to 640×640: scale uniformly so the long edge fits,
     // then pad the short edge with gray (114) — matching standard Ultralytics

@@ -21,6 +21,7 @@ import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
 import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
+import 'package:note_vision/core/widgets/score_page_thumbnail.dart';
 import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/model/editor_state_history.dart';
@@ -701,6 +702,23 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     );
   }
 
+  Future<void> _showPageOverview() async {
+    final metrics = _pageMetrics;
+    final selectedPageIndex = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _PageOverviewSheet(
+        score: _editorState.score,
+        currentPageIndex: _currentPageIndex,
+        totalPages: metrics.totalPages,
+      ),
+    );
+
+    if (!mounted || selectedPageIndex == null) return;
+    setState(() => _setCurrentPageIndex(selectedPageIndex));
+  }
+
   Future<void> _playFromMeasure(int fromMeasureIndex) async {
     await _playback.play(
       _editorState.score,
@@ -909,15 +927,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
             selectedPartIndex >= _editorState.score.parts.length
         ? 0
         : _editorState.score.parts[selectedPartIndex].measures.length;
-    final canDeleteMeasure =
-        hasMeasureContext &&
-        measureCount > 1 &&
-        _editorState
-            .score
-            .parts[selectedPartIndex]
-            .measures[selectedMeasureIndex]
-            .symbols
-            .isEmpty;
+    final canDeleteMeasure = hasMeasureContext && measureCount > 1;
     final currentMeasureClef =
         _editorState.score.parts.isNotEmpty &&
             selectedPartIndex < _editorState.score.parts.length &&
@@ -1079,7 +1089,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       canEditComment: _canEditTeacherComments,
                       onPrevPage: onPrevPage,
                       onNextPage: onNextPage,
-                      onPageTap: (i) => setState(() => _setCurrentPageIndex(i)),
+                      onPageOverviewTap: _showPageOverview,
                       onEditComment:
                           !_canEditTeacherComments ||
                               selectedMeasureNumber == null ||
@@ -1102,7 +1112,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       totalPages: _pageMetrics.totalPages,
                       onPrevPage: onPrevPage,
                       onNextPage: onNextPage,
-                      onPageTap: (i) => setState(() => _setCurrentPageIndex(i)),
+                      onPageOverviewTap: _showPageOverview,
                       onMoveUp: () =>
                           _updateState((s) => s.moveSelectedSymbolUp()),
                       onMoveDown: () =>
@@ -1144,7 +1154,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       },
                       canDeleteMeasure: canDeleteMeasure,
                       onDeleteMeasure: () =>
-                          _updateState((s) => s.deleteSelectedMeasureIfEmpty()),
+                          _updateState((s) => s.deleteSelectedMeasure()),
                       onDeleteSymbol: () =>
                           _updateState((s) => s.deleteSelectedSymbol()),
                       onToggleDot: () =>
@@ -2436,7 +2446,7 @@ class _ReviewPanel extends StatelessWidget {
     required this.canEditComment,
     required this.onPrevPage,
     required this.onNextPage,
-    required this.onPageTap,
+    required this.onPageOverviewTap,
     required this.onEditComment,
     required this.onExportProject,
   });
@@ -2450,7 +2460,7 @@ class _ReviewPanel extends StatelessWidget {
   final bool canEditComment;
   final VoidCallback? onPrevPage;
   final VoidCallback? onNextPage;
-  final ValueChanged<int> onPageTap;
+  final VoidCallback onPageOverviewTap;
   final VoidCallback? onEditComment;
   final VoidCallback? onExportProject;
 
@@ -2466,7 +2476,7 @@ class _ReviewPanel extends StatelessWidget {
       totalPages: totalPages,
       onPrev: onPrevPage,
       onNext: onNextPage,
-      onPageTap: onPageTap,
+      onPageOverviewTap: onPageOverviewTap,
     );
 
     if (!isLandscape) {
@@ -2741,7 +2751,7 @@ class _InspectorPanel extends StatefulWidget {
     required this.totalPages,
     required this.onPrevPage,
     required this.onNextPage,
-    required this.onPageTap,
+    required this.onPageOverviewTap,
     required this.onMoveUp,
     required this.onMoveDown,
     required this.onWhole,
@@ -2771,7 +2781,7 @@ class _InspectorPanel extends StatefulWidget {
   final int totalPages;
   final VoidCallback? onPrevPage;
   final VoidCallback? onNextPage;
-  final ValueChanged<int> onPageTap;
+  final VoidCallback onPageOverviewTap;
   final VoidCallback onMoveUp;
   final VoidCallback onMoveDown;
   final VoidCallback onWhole;
@@ -3049,7 +3059,7 @@ class _InspectorPanelState extends State<_InspectorPanel> {
       totalPages: widget.totalPages,
       onPrevPage: widget.onPrevPage,
       onNextPage: widget.onNextPage,
-      onPageTap: widget.onPageTap,
+      onPageOverviewTap: widget.onPageOverviewTap,
       compact: !widget.isLandscape,
     );
 
@@ -3345,7 +3355,7 @@ class _SelectionCard extends StatelessWidget {
     required this.totalPages,
     required this.onPrevPage,
     required this.onNextPage,
-    required this.onPageTap,
+    required this.onPageOverviewTap,
     this.compact = false,
   });
 
@@ -3357,7 +3367,7 @@ class _SelectionCard extends StatelessWidget {
   final int totalPages;
   final VoidCallback? onPrevPage;
   final VoidCallback? onNextPage;
-  final ValueChanged<int> onPageTap;
+  final VoidCallback onPageOverviewTap;
   final bool compact;
 
   String get _pitchLabel => selected is Note ? (selected as Note).pitch : '—';
@@ -3376,7 +3386,7 @@ class _SelectionCard extends StatelessWidget {
       totalPages: totalPages,
       onPrev: onPrevPage,
       onNext: onNextPage,
-      onPageTap: onPageTap,
+      onPageOverviewTap: onPageOverviewTap,
     );
 
     if (compact) {
@@ -3531,76 +3541,207 @@ class _SelectionCard extends StatelessWidget {
   }
 }
 
+class _PageOverviewSheet extends StatelessWidget {
+  const _PageOverviewSheet({
+    required this.score,
+    required this.currentPageIndex,
+    required this.totalPages,
+  });
+
+  final Score score;
+  final int currentPageIndex;
+  final int totalPages;
+
+  @override
+  Widget build(BuildContext context) {
+    final sheetHeight = MediaQuery.sizeOf(context).height * 0.72;
+    final pageCount = math.max(1, totalPages);
+
+    return SafeArea(
+      top: false,
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: Material(
+          color: AppColors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+          child: SizedBox(
+            height: sheetHeight,
+            child: Column(
+              children: [
+                const SizedBox(height: 10),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                Expanded(
+                  child: GridView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 14,
+                          childAspectRatio: 0.64,
+                        ),
+                    itemCount: pageCount,
+                    itemBuilder: (context, index) => _PageOverviewCard(
+                      score: score,
+                      pageIndex: index,
+                      isActive: index == currentPageIndex,
+                      onTap: () => Navigator.of(context).pop(index),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PageOverviewCard extends StatelessWidget {
+  const _PageOverviewCard({
+    required this.score,
+    required this.pageIndex,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  final Score score;
+  final int pageIndex;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isActive ? AppColors.accent : AppColors.border,
+            width: isActive ? 2 : 1,
+          ),
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final previewWidth = math.max(1.0, constraints.maxWidth);
+            final previewHeight = math.max(1.0, constraints.maxHeight - 28);
+
+            return Column(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(5),
+                  child: ScorePageThumbnail(
+                    score: score,
+                    pageIndex: pageIndex,
+                    cardWidth: previewWidth,
+                    height: previewHeight,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Page ${pageIndex + 1}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: isActive ? AppColors.accent : AppColors.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
 class _PageNav extends StatelessWidget {
   const _PageNav({
     required this.currentPageIndex,
     required this.totalPages,
     required this.onPrev,
     required this.onNext,
-    required this.onPageTap,
+    required this.onPageOverviewTap,
   });
 
   final int currentPageIndex;
   final int totalPages;
   final VoidCallback? onPrev;
   final VoidCallback? onNext;
-  final ValueChanged<int> onPageTap;
+  final VoidCallback onPageOverviewTap;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _NavBtn(icon: Icons.chevron_left_rounded, onPressed: onPrev),
-        const SizedBox(width: 2),
-        for (int i = 0; i < totalPages; i++) ...[
-          _PageTab(
-            number: i + 1,
-            isActive: i == currentPageIndex,
-            onTap: () => onPageTap(i),
+    return SizedBox(
+      width: 132,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _NavBtn(icon: Icons.chevron_left_rounded, onPressed: onPrev),
+          _PageButton(
+            label: totalPages <= 9
+                ? '${currentPageIndex + 1} / $totalPages'
+                : '${currentPageIndex + 1}',
+            onTap: onPageOverviewTap,
           ),
-          if (i < totalPages - 1) const SizedBox(width: 3),
+          _NavBtn(icon: Icons.chevron_right_rounded, onPressed: onNext),
         ],
-        const SizedBox(width: 2),
-        _NavBtn(icon: Icons.chevron_right_rounded, onPressed: onNext),
-      ],
+      ),
     );
   }
 }
 
-class _PageTab extends StatelessWidget {
-  const _PageTab({
-    required this.number,
-    required this.isActive,
-    required this.onTap,
-  });
+class _PageButton extends StatelessWidget {
+  const _PageButton({required this.label, required this.onTap});
 
-  final int number;
-  final bool isActive;
+  final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-        decoration: BoxDecoration(
-          color: isActive
-              ? AppColors.accent.withValues(alpha: 0.18)
-              : AppColors.surface,
-          borderRadius: BorderRadius.circular(5),
-          border: Border.all(
-            color: isActive ? AppColors.accent : AppColors.border,
-          ),
-        ),
-        child: Text(
-          '$number',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: isActive ? AppColors.accent : AppColors.textPrimary,
+    return Tooltip(
+      message: 'Pages',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: SizedBox.square(
+          dimension: 44,
+          child: Container(
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.accent.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: AppColors.accent.withValues(alpha: 0.75),
+              ),
+            ),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.accent,
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -3616,17 +3757,21 @@ class _NavBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 28,
-      height: 28,
-      child: IconButton(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 16),
-        padding: EdgeInsets.zero,
-        color: onPressed != null
-            ? AppColors.textPrimary
-            : AppColors.textSecondary.withValues(alpha: 0.3),
-        visualDensity: VisualDensity.compact,
+    return Tooltip(
+      message: icon == Icons.chevron_left_rounded
+          ? 'Previous page'
+          : 'Next page',
+      child: SizedBox.square(
+        dimension: 44,
+        child: IconButton(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 22),
+          padding: EdgeInsets.zero,
+          color: onPressed != null
+              ? AppColors.textPrimary
+              : AppColors.textSecondary.withValues(alpha: 0.3),
+          visualDensity: VisualDensity.compact,
+        ),
       ),
     );
   }
