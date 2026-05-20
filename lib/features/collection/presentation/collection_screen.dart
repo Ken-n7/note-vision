@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:note_vision/core/utils/emoji_blocking_formatter.dart';
 import 'package:note_vision/core/config/app_features.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/key_signature.dart';
@@ -1224,6 +1227,7 @@ class _RenameProjectDialog extends StatefulWidget {
 
 class _RenameProjectDialogState extends State<_RenameProjectDialog> {
   late final TextEditingController _controller;
+  String? _errorText;
 
   @override
   void initState() {
@@ -1237,6 +1241,15 @@ class _RenameProjectDialogState extends State<_RenameProjectDialog> {
     super.dispose();
   }
 
+  void _submit() {
+    final trimmed = _controller.text.trim();
+    if (trimmed.isEmpty) {
+      setState(() => _errorText = 'Name cannot be empty');
+      return;
+    }
+    Navigator.of(context).pop(trimmed);
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
@@ -1248,14 +1261,42 @@ class _RenameProjectDialogState extends State<_RenameProjectDialog> {
       content: TextField(
         controller: _controller,
         autofocus: true,
+        maxLength: 60,
         style: const TextStyle(color: AppColors.textPrimary),
-        decoration: const InputDecoration(
+        inputFormatters: [
+          EmojiBlockingFormatter(onBlocked: () {
+            setState(() => _errorText = 'Emoji not allowed');
+          }),
+        ],
+        buildCounter: (_, {required currentLength, required isFocused, maxLength}) {
+          if (maxLength == null || currentLength <= maxLength - 20) return null;
+          return Text(
+            '$currentLength / $maxLength',
+            style: TextStyle(
+              color: currentLength >= maxLength
+                  ? const Color(0xFFE05252)
+                  : AppColors.textSecondary,
+              fontSize: 11,
+            ),
+          );
+        },
+        onChanged: (_) {
+          if (_errorText != null) setState(() => _errorText = null);
+        },
+        onSubmitted: (_) => _submit(),
+        decoration: InputDecoration(
           labelText: 'Project name',
-          labelStyle: TextStyle(color: AppColors.textSecondary),
-          enabledBorder: UnderlineInputBorder(
+          helperText: 'No emoji',
+          helperStyle: const TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: 11,
+          ),
+          errorText: _errorText,
+          labelStyle: const TextStyle(color: AppColors.textSecondary),
+          enabledBorder: const UnderlineInputBorder(
             borderSide: BorderSide(color: AppColors.border),
           ),
-          focusedBorder: UnderlineInputBorder(
+          focusedBorder: const UnderlineInputBorder(
             borderSide: BorderSide(color: AppColors.accent),
           ),
         ),
@@ -1269,7 +1310,7 @@ class _RenameProjectDialogState extends State<_RenameProjectDialog> {
           ),
         ),
         TextButton(
-          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
+          onPressed: _submit,
           child: const Text(
             'Rename',
             style: TextStyle(
@@ -1324,12 +1365,14 @@ class _NewScoreDialogState extends State<_NewScoreDialog> {
             label: 'Title',
             hint: 'Untitled',
             autofocus: true,
+            maxLength: 100,
           ),
           const SizedBox(height: 16),
           _DialogTextField(
             controller: _composerController,
             label: 'Composer',
             hint: 'Unknown',
+            maxLength: 100,
           ),
         ],
       ),
@@ -1359,42 +1402,94 @@ class _NewScoreDialogState extends State<_NewScoreDialog> {
   }
 }
 
-class _DialogTextField extends StatelessWidget {
+class _DialogTextField extends StatefulWidget {
   const _DialogTextField({
     required this.controller,
     required this.label,
     required this.hint,
     this.autofocus = false,
+    this.maxLength,
   });
 
   final TextEditingController controller;
   final String label;
   final String hint;
   final bool autofocus;
+  final int? maxLength;
+
+  @override
+  State<_DialogTextField> createState() => _DialogTextFieldState();
+}
+
+class _DialogTextFieldState extends State<_DialogTextField> {
+  String? _emojiError;
+  Timer? _emojiTimer;
+
+  @override
+  void dispose() {
+    _emojiTimer?.cancel();
+    super.dispose();
+  }
+
+  void _onEmojiBlocked() {
+    _emojiTimer?.cancel();
+    setState(() => _emojiError = 'Emoji not allowed');
+    _emojiTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _emojiError = null);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      autofocus: autofocus,
-      style: const TextStyle(color: AppColors.textPrimary),
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        labelStyle: const TextStyle(
-          color: AppColors.textSecondary,
-          fontSize: 13,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextField(
+          controller: widget.controller,
+          autofocus: widget.autofocus,
+          maxLength: widget.maxLength,
+          inputFormatters: [
+            EmojiBlockingFormatter(onBlocked: _onEmojiBlocked),
+          ],
+          buildCounter: (_, {required currentLength, required isFocused, maxLength}) {
+            if (maxLength == null || currentLength <= maxLength - 20) return null;
+            return Text(
+              '$currentLength / $maxLength',
+              style: TextStyle(
+                color: currentLength >= maxLength
+                    ? const Color(0xFFE05252)
+                    : AppColors.textSecondary,
+                fontSize: 11,
+              ),
+            );
+          },
+          style: const TextStyle(color: AppColors.textPrimary),
+          decoration: InputDecoration(
+            labelText: widget.label,
+            hintText: widget.hint,
+            labelStyle: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 13,
+            ),
+            hintStyle: TextStyle(
+              color: AppColors.textSecondary.withValues(alpha: 0.5),
+            ),
+            helperText: 'No emoji',
+            helperStyle: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+            ),
+            errorText: _emojiError,
+            enabledBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: AppColors.border),
+            ),
+            focusedBorder: const UnderlineInputBorder(
+              borderSide: BorderSide(color: AppColors.accent),
+            ),
+          ),
         ),
-        hintStyle: TextStyle(
-          color: AppColors.textSecondary.withValues(alpha: 0.5),
-        ),
-        enabledBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: AppColors.border),
-        ),
-        focusedBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: AppColors.accent),
-        ),
-      ),
+      ],
     );
   }
 }

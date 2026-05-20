@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -33,6 +34,8 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   File? _newPhoto;
   bool  _clearPhoto = false;
   bool  _isSaving   = false;
+  String? _photoError;
+  Timer?  _photoErrorTimer;
 
   bool get _hasChanges {
     final nameChanged = _nameController.text.trim() != (widget.profile?.name ?? '');
@@ -64,7 +67,16 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     _nameController.dispose();
     _nameError.dispose();
     _nameFocusNode.dispose();
+    _photoErrorTimer?.cancel();
     super.dispose();
+  }
+
+  void _showPhotoError(String message) {
+    _photoErrorTimer?.cancel();
+    setState(() => _photoError = message);
+    _photoErrorTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _photoError = null);
+    });
   }
 
   Future<void> _pickPhoto() async {
@@ -76,12 +88,26 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
         imageQuality: 85,
       );
       if (image == null) return;
+      final ext = image.path.contains('.')
+          ? image.path.substring(image.path.lastIndexOf('.')).toLowerCase()
+          : '';
+      const supported = {'.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'};
+      if (!supported.contains(ext)) {
+        if (mounted) _showPhotoError('Unsupported format. Use JPG, PNG, or WebP.');
+        return;
+      }
       setState(() {
-        _newPhoto   = File(image.path);
-        _clearPhoto = false;
+        _newPhoto     = File(image.path);
+        _clearPhoto   = false;
+        _photoError   = null;
+        _photoErrorTimer?.cancel();
       });
     } on PlatformException catch (e) {
       debugPrint('Image picker error: $e');
+      if (mounted) _showPhotoError('Could not access photos. Check app permissions.');
+    } catch (e) {
+      debugPrint('Unexpected image picker error: $e');
+      if (mounted) _showPhotoError('Failed to pick photo. Please try again.');
     }
   }
 
@@ -257,6 +283,20 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
               ),
             ],
           ),
+
+          if (_photoError != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.error_outline, size: 13, color: Color(0xFFE05252)),
+                const SizedBox(width: 4),
+                Text(
+                  _photoError!,
+                  style: const TextStyle(color: Color(0xFFE05252), fontSize: 12),
+                ),
+              ],
+            ),
+          ],
 
           const SizedBox(height: 24),
 

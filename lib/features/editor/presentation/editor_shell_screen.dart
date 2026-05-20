@@ -9,6 +9,7 @@ import 'package:note_vision/core/models/project.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
+import 'package:note_vision/core/utils/emoji_blocking_formatter.dart';
 import 'package:note_vision/core/utils/image_picker_helper.dart';
 import 'package:note_vision/features/scan/presentation/scan_screen.dart';
 import 'package:note_vision/core/services/playback_display_preferences_service.dart';
@@ -376,51 +377,93 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     final controller = TextEditingController(text: defaultName);
     return showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text(
-          'Name your project',
-          style: TextStyle(color: AppColors.textPrimary),
-        ),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          style: const TextStyle(color: AppColors.textPrimary),
-          decoration: const InputDecoration(
-            hintText: 'Project name',
-            hintStyle: TextStyle(color: AppColors.textSecondary),
-            enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.border),
+      builder: (ctx) {
+        String? errorText;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: const Text(
+              'Name your project',
+              style: TextStyle(color: AppColors.textPrimary),
             ),
-            focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.accent),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              maxLength: 60,
+              inputFormatters: [
+                EmojiBlockingFormatter(onBlocked: () {
+                  setDialogState(() => errorText = 'Emoji not allowed');
+                }),
+              ],
+              buildCounter: (_, {required currentLength, required isFocused, maxLength}) {
+                if (maxLength == null || currentLength <= maxLength - 20) return null;
+                return Text(
+                  '$currentLength / $maxLength',
+                  style: TextStyle(
+                    color: currentLength >= maxLength
+                        ? const Color(0xFFE05252)
+                        : AppColors.textSecondary,
+                    fontSize: 11,
+                  ),
+                );
+              },
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: InputDecoration(
+                hintText: 'Project name',
+                hintStyle: const TextStyle(color: AppColors.textSecondary),
+                helperText: 'No emoji',
+                helperStyle: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 11,
+                ),
+                errorText: errorText,
+                enabledBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: AppColors.accent),
+                ),
+              ),
+              onChanged: (_) {
+                if (errorText != null) {
+                  setDialogState(() => errorText = null);
+                }
+              },
+              onSubmitted: (v) {
+                final trimmed = v.trim();
+                if (trimmed.isEmpty) {
+                  setDialogState(() => errorText = 'Name cannot be empty');
+                  return;
+                }
+                Navigator.of(ctx).pop(trimmed);
+              },
             ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  final trimmed = controller.text.trim();
+                  if (trimmed.isEmpty) {
+                    setDialogState(() => errorText = 'Name cannot be empty');
+                    return;
+                  }
+                  Navigator.of(ctx).pop(trimmed);
+                },
+                child: const Text(
+                  'Save',
+                  style: TextStyle(color: AppColors.accent),
+                ),
+              ),
+            ],
           ),
-          onSubmitted: (v) {
-            final trimmed = v.trim();
-            Navigator.of(ctx).pop(trimmed.isEmpty ? null : trimmed);
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              final trimmed = controller.text.trim();
-              Navigator.of(ctx).pop(trimmed.isEmpty ? null : trimmed);
-            },
-            child: const Text(
-              'Save',
-              style: TextStyle(color: AppColors.accent),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -4079,9 +4122,9 @@ class _MetadataSheetState extends State<_MetadataSheet> {
             ],
           ),
           const SizedBox(height: 16),
-          _MetadataField(label: 'Title', controller: _titleCtrl),
+          _MetadataField(label: 'Title', controller: _titleCtrl, maxLength: 100),
           const SizedBox(height: 12),
-          _MetadataField(label: 'Composer', controller: _composerCtrl),
+          _MetadataField(label: 'Composer', controller: _composerCtrl, maxLength: 100),
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
@@ -4099,11 +4142,34 @@ class _MetadataSheetState extends State<_MetadataSheet> {
   }
 }
 
-class _MetadataField extends StatelessWidget {
-  const _MetadataField({required this.label, required this.controller});
+class _MetadataField extends StatefulWidget {
+  const _MetadataField({required this.label, required this.controller, this.maxLength});
 
   final String label;
   final TextEditingController controller;
+  final int? maxLength;
+
+  @override
+  State<_MetadataField> createState() => _MetadataFieldState();
+}
+
+class _MetadataFieldState extends State<_MetadataField> {
+  String? _emojiError;
+  Timer? _emojiTimer;
+
+  @override
+  void dispose() {
+    _emojiTimer?.cancel();
+    super.dispose();
+  }
+
+  void _onEmojiBlocked() {
+    _emojiTimer?.cancel();
+    setState(() => _emojiError = 'Emoji not allowed');
+    _emojiTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _emojiError = null);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -4111,7 +4177,7 @@ class _MetadataField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          label,
+          widget.label,
           style: const TextStyle(
             color: AppColors.textSecondary,
             fontSize: 12,
@@ -4120,10 +4186,32 @@ class _MetadataField extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         TextField(
-          controller: controller,
+          controller: widget.controller,
+          maxLength: widget.maxLength,
+          inputFormatters: [
+            EmojiBlockingFormatter(onBlocked: _onEmojiBlocked),
+          ],
+          buildCounter: (_, {required currentLength, required isFocused, maxLength}) {
+            if (maxLength == null || currentLength <= maxLength - 20) return null;
+            return Text(
+              '$currentLength / $maxLength',
+              style: TextStyle(
+                color: currentLength >= maxLength
+                    ? const Color(0xFFE05252)
+                    : AppColors.textSecondary,
+                fontSize: 11,
+              ),
+            );
+          },
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
           cursorColor: AppColors.accent,
           decoration: InputDecoration(
+            helperText: 'No emoji',
+            helperStyle: const TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+            ),
+            errorText: _emojiError,
             filled: true,
             fillColor: AppColors.background,
             border: OutlineInputBorder(

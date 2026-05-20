@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -25,6 +26,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   final ImagePicker _picker = ImagePicker();
 
   File? _selectedPhoto;
+  String? _photoError;
+  Timer? _photoErrorTimer;
   bool _isLoading = false;
   bool _showRoleStep = false;
 
@@ -70,12 +73,21 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     _nameController.dispose();
     _nameFocusNode.dispose();
     _animController.dispose();
+    _photoErrorTimer?.cancel();
     super.dispose();
   }
 
   void _onNameChanged() {
     final error = NameValidator.validate(_nameController.text);
     setState(() => _nameError = error);
+  }
+
+  void _showPhotoError(String message) {
+    _photoErrorTimer?.cancel();
+    setState(() => _photoError = message);
+    _photoErrorTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _photoError = null);
+    });
   }
 
   Future<void> _pickPhoto() async {
@@ -87,11 +99,25 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         imageQuality: 85,
       );
       if (image == null) return;
-      setState(() => _selectedPhoto = File(image.path));
+      final ext = image.path.contains('.')
+          ? image.path.substring(image.path.lastIndexOf('.')).toLowerCase()
+          : '';
+      const supported = {'.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'};
+      if (!supported.contains(ext)) {
+        if (mounted) _showPhotoError('Unsupported format. Use JPG, PNG, or WebP.');
+        return;
+      }
+      setState(() {
+        _selectedPhoto = File(image.path);
+        _photoError = null;
+        _photoErrorTimer?.cancel();
+      });
     } on PlatformException catch (e) {
       debugPrint('Image picker error: $e');
+      if (mounted) _showPhotoError('Could not access photos. Check app permissions.');
     } catch (e) {
       debugPrint('Unexpected image picker error: $e');
+      if (mounted) _showPhotoError('Failed to pick photo. Please try again.');
     }
   }
 
@@ -378,6 +404,19 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             ),
           ],
         ),
+        if (_photoError != null) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.error_outline, size: 13, color: Color(0xFFE05252)),
+              const SizedBox(width: 4),
+              Text(
+                _photoError!,
+                style: const TextStyle(color: Color(0xFFE05252), fontSize: 12),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
