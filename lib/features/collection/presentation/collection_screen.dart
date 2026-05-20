@@ -352,6 +352,63 @@ class _CollectionScreenState extends State<CollectionScreen>
     }
   }
 
+  Future<void> _renameProject(Project project) async {
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (_) => _RenameProjectDialog(initialName: project.name),
+    );
+
+    if (newName == null || newName.isEmpty || newName == project.name) return;
+
+    final renamed = project.copyWithUpdated(name: newName);
+    await _storage.saveProject(renamed);
+    if (!mounted) return;
+    setState(() {
+      final index = _projects.indexWhere((p) => p.id == project.id);
+      if (index >= 0) _projects[index] = renamed;
+    });
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Project renamed.')));
+  }
+
+  Future<void> _exportProject(Project project) async {
+    try {
+      final path = await const NvscoreExportService().exportProject(
+        project,
+        fileName: await _exportFileNameFor(project),
+      );
+      if (!mounted || path == null) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Score exported.')));
+    } catch (e) {
+      debugPrint('CollectionScreen: failed to export score: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not export score.')));
+    }
+  }
+
+  Future<String> _exportFileNameFor(Project project) async {
+    if (!AppFeatures.classroomWorkflow) return project.name;
+    if (_hasTeacherComments(project)) {
+      return NvscoreExportService.feedbackFileName(project);
+    }
+    if (_isTeacher) return project.name;
+
+    final profile = _userProfile ?? await UserProfileService.loadProfile();
+    final studentName = profile?.name.trim();
+    if (studentName == null || studentName.isEmpty) return project.name;
+
+    return NvscoreExportService.submissionFileName(
+      project: project,
+      studentName: studentName,
+      studentId: await UserProfileService.loadOrCreateUserId(),
+    );
+  }
+
   void _goToCapture() {
     setState(() => _fabOpen = false);
     Navigator.push(
@@ -543,6 +600,8 @@ class _CollectionScreenState extends State<CollectionScreen>
                         _hasTeacherComments(project),
                     canEditTeacherComments: false,
                   ),
+                  onRename: _renameProject,
+                  onExport: _exportProject,
                   onDelete: _confirmDelete,
                 ),
             ],
@@ -620,6 +679,8 @@ class _CollectionScreenState extends State<CollectionScreen>
               projects: myScores,
               formatDate: _formatDate,
               onOpen: (project) => _openProject(project),
+              onRename: _renameProject,
+              onExport: _exportProject,
               onDelete: _confirmDelete,
             ),
         ],
@@ -663,6 +724,8 @@ class _CollectionScreenState extends State<CollectionScreen>
                   reviewMode: true,
                   canEditTeacherComments: true,
                 ),
+                onRename: _renameProject,
+                onExport: _exportProject,
                 onDelete: _confirmDelete,
               ),
             ],
@@ -996,6 +1059,8 @@ class _ProjectListSliver extends StatelessWidget {
     required this.projects,
     required this.formatDate,
     required this.onOpen,
+    required this.onRename,
+    required this.onExport,
     required this.onDelete,
   });
 
@@ -1003,6 +1068,8 @@ class _ProjectListSliver extends StatelessWidget {
   final List<Project> projects;
   final String Function(DateTime) formatDate;
   final ValueChanged<Project> onOpen;
+  final ValueChanged<Project> onRename;
+  final ValueChanged<Project> onExport;
   final ValueChanged<Project> onDelete;
 
   @override
@@ -1023,6 +1090,9 @@ class _ProjectListSliver extends StatelessWidget {
                 formattedDate: formatDate(project.updatedAt),
                 onTap: () => onOpen(project),
                 onLongPress: () => onDelete(project),
+                onRename: () => onRename(project),
+                onExport: () => onExport(project),
+                onDelete: () => onDelete(project),
               ),
               if (index < projects.length - 1)
                 const Divider(height: 1, color: AppColors.border, indent: 76),
@@ -1158,6 +1228,76 @@ class _MiniFabRow extends StatelessWidget {
   }
 }
 
+class _RenameProjectDialog extends StatefulWidget {
+  const _RenameProjectDialog({required this.initialName});
+
+  final String initialName;
+
+  @override
+  State<_RenameProjectDialog> createState() => _RenameProjectDialogState();
+}
+
+class _RenameProjectDialogState extends State<_RenameProjectDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialName);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.surface,
+      title: const Text(
+        'Rename project',
+        style: TextStyle(color: AppColors.textPrimary),
+      ),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        style: const TextStyle(color: AppColors.textPrimary),
+        decoration: const InputDecoration(
+          labelText: 'Project name',
+          labelStyle: TextStyle(color: AppColors.textSecondary),
+          enabledBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: AppColors.border),
+          ),
+          focusedBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: AppColors.accent),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text(
+            'Cancel',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
+          child: const Text(
+            'Rename',
+            style: TextStyle(
+              color: AppColors.accent,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 // ── New Score dialog ──────────────────────────────────────────────────────────
 
 class _NewScoreDialog extends StatefulWidget {
@@ -1282,12 +1422,18 @@ class _ProjectTile extends StatelessWidget {
     required this.formattedDate,
     required this.onTap,
     required this.onLongPress,
+    required this.onRename,
+    required this.onExport,
+    required this.onDelete,
   });
 
   final Project project;
   final String formattedDate;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+  final VoidCallback onRename;
+  final VoidCallback onExport;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -1345,6 +1491,11 @@ class _ProjectTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
+            _ProjectActionsButton(
+              onRename: onRename,
+              onExport: onExport,
+              onDelete: onDelete,
+            ),
             const Icon(
               Icons.chevron_right_rounded,
               color: AppColors.textSecondary,
@@ -1362,6 +1513,101 @@ class _ProjectTile extends StatelessWidget {
     } catch (_) {
       return ScoreLabel.generalPiece;
     }
+  }
+}
+
+enum _ProjectAction { rename, export, delete }
+
+class _ProjectActionsButton extends StatelessWidget {
+  const _ProjectActionsButton({
+    required this.onRename,
+    required this.onExport,
+    required this.onDelete,
+  });
+
+  final VoidCallback onRename;
+  final VoidCallback onExport;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<_ProjectAction>(
+      tooltip: 'Project actions',
+      color: AppColors.surface,
+      onSelected: (action) {
+        switch (action) {
+          case _ProjectAction.rename:
+            onRename();
+          case _ProjectAction.export:
+            onExport();
+          case _ProjectAction.delete:
+            onDelete();
+        }
+      },
+      itemBuilder: (_) => const [
+        PopupMenuItem(
+          value: _ProjectAction.rename,
+          child: _ProjectActionRow(
+            icon: Icons.drive_file_rename_outline_rounded,
+            label: 'Rename',
+          ),
+        ),
+        PopupMenuItem(
+          value: _ProjectAction.export,
+          child: _ProjectActionRow(
+            icon: Icons.ios_share_rounded,
+            label: 'Export',
+          ),
+        ),
+        PopupMenuItem(
+          value: _ProjectAction.delete,
+          child: _ProjectActionRow(
+            icon: Icons.delete_outline_rounded,
+            label: 'Delete',
+            color: Color(0xFFE05252),
+          ),
+        ),
+      ],
+      child: const SizedBox(
+        width: 40,
+        height: 40,
+        child: Icon(
+          Icons.more_vert_rounded,
+          color: AppColors.textSecondary,
+          size: 20,
+        ),
+      ),
+    );
+  }
+}
+
+class _ProjectActionRow extends StatelessWidget {
+  const _ProjectActionRow({
+    required this.icon,
+    required this.label,
+    this.color = AppColors.textPrimary,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: color),
+        const SizedBox(width: 10),
+        Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
   }
 }
 

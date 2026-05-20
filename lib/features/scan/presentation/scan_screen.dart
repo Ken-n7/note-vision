@@ -10,6 +10,7 @@ import 'package:note_vision/core/services/usage_stats_service.dart';
 import 'package:note_vision/core/widgets/tappable_button.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/theme/responsive_layout.dart';
+import 'package:note_vision/features/capture/presentation/import_score_screen.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
 import 'package:note_vision/features/detection/data/tflite_symbol_detector.dart';
@@ -20,21 +21,23 @@ import 'package:note_vision/features/scan/presentation/scan_viewmodel.dart';
 import 'widgets/scan_actions.dart';
 import 'widgets/scan_image_view.dart';
 
-
 class ScanScreen extends StatefulWidget {
   final Uint8List imageBytes;
   final bool appendMode;
 
-  const ScanScreen({super.key, required this.imageBytes, this.appendMode = false});
+  const ScanScreen({
+    super.key,
+    required this.imageBytes,
+    this.appendMode = false,
+  });
 
   @override
   State<ScanScreen> createState() => _ScanScreenState();
 }
 
 class _ScanScreenState extends State<ScanScreen> {
-  bool _skipReview       = false;
-  bool _autoNavigated    = false;
-  bool _noDetectionsShown = false;
+  bool _skipReview = false;
+  bool _autoNavigated = false;
 
   @override
   void initState() {
@@ -74,31 +77,32 @@ class _ScanScreenState extends State<ScanScreen> {
         centerTitle: true,
       ),
       body: switch (vm.state) {
-        ScanState.idle         => const SizedBox(),
+        ScanState.idle => const SizedBox(),
         ScanState.preprocessing => _PipelineStatus(
-            icon: Icons.tune_outlined,
-            message: 'Preprocessing image',
-            subMessage: 'Cleaning up and preparing your scan…',
-          ),
+          icon: Icons.tune_outlined,
+          message: 'Preprocessing image',
+          subMessage: 'Cleaning up and preparing your scan…',
+        ),
         ScanState.detectingStaves => const _PipelineStatus(
-            icon: Icons.grid_4x4_outlined,
-            message: 'Detecting staff lines',
-            subMessage: 'Finding stave boundaries…',
-          ),
-        ScanState.detecting    => const _PipelineStatus(
-            icon: Icons.image_search_outlined,
-            message: 'Detecting symbols',
-            subMessage: 'Running the detection model…',
-          ),
-        ScanState.done         => _buildDone(context, vm),
-        ScanState.error        => _buildError(context, vm),
+          icon: Icons.grid_4x4_outlined,
+          message: 'Detecting staff lines',
+          subMessage: 'Finding stave boundaries…',
+        ),
+        ScanState.detecting => const _PipelineStatus(
+          icon: Icons.image_search_outlined,
+          message: 'Detecting symbols',
+          subMessage: 'Running the detection model…',
+        ),
+        ScanState.done => _buildDone(context, vm),
+        ScanState.error => _buildError(context, vm),
       },
     );
   }
 
   void _navigateContinue(BuildContext context, ScanViewModel vm) {
     unawaited(UsageStatsService.incrementScans());
-    final mappedScore = vm.mappingResult?.score ??
+    final mappedScore =
+        vm.mappingResult?.score ??
         const Score(
           id: 'scan-score',
           title: 'Scanned Score',
@@ -127,14 +131,11 @@ class _ScanScreenState extends State<ScanScreen> {
   }
 
   Widget _buildDone(BuildContext context, ScanViewModel vm) {
-    final hasDetections = vm.result?.hasDetections ?? false;
+    final hasMusicSymbols = vm.result?.detection.symbols.isNotEmpty ?? false;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!context.mounted) return;
-      if (!hasDetections && !_noDetectionsShown) {
-        _noDetectionsShown = true;
-        _showNoDetectionsBar(context);
-      } else if (_skipReview && !_autoNavigated) {
+      if (hasMusicSymbols && _skipReview && !_autoNavigated) {
         _autoNavigated = true;
         _navigateContinue(context, vm);
       }
@@ -142,22 +143,38 @@ class _ScanScreenState extends State<ScanScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final horizontalPadding = ResponsiveLayout.horizontalPadding(constraints.maxWidth);
+        final horizontalPadding = ResponsiveLayout.horizontalPadding(
+          constraints.maxWidth,
+        );
         final isLandscape = constraints.maxWidth > constraints.maxHeight;
 
         final actions = Padding(
           padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
           child: ScanActions(
             onRedo: () => Navigator.pop(context),
-            canContinue: hasDetections,
+            redoLabel: hasMusicSymbols ? 'Redo' : 'Retake',
+            onImport: hasMusicSymbols ? null : _goToImport,
+            canContinue: hasMusicSymbols,
             onContinue: () => _navigateContinue(context, vm),
           ),
         );
+        final noDetectionsPanel = hasMusicSymbols
+            ? const SizedBox.shrink()
+            : Padding(
+                padding: EdgeInsets.fromLTRB(
+                  horizontalPadding,
+                  0,
+                  horizontalPadding,
+                  12,
+                ),
+                child: const _NoDetectionsPanel(),
+              );
 
         if (!isLandscape) {
           return Column(
             children: [
               Expanded(child: ScanImageView(result: vm.result!)),
+              noDetectionsPanel,
               actions,
             ],
           );
@@ -171,7 +188,10 @@ class _ScanScreenState extends State<ScanScreen> {
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 520),
-                  child: actions,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [noDetectionsPanel, actions],
+                  ),
                 ),
               ),
             ),
@@ -181,27 +201,10 @@ class _ScanScreenState extends State<ScanScreen> {
     );
   }
 
-  void _showNoDetectionsBar(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(Icons.lightbulb_outline, size: 16, color: AppColors.accent),
-            const SizedBox(width: 10),
-            const Expanded(
-              child: Text(
-                'No symbols detected — try recapturing with better lighting.',
-                style: TextStyle(fontSize: 13, color: Colors.white),
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: const Color(0xFF1A1A1A),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-        duration: const Duration(seconds: 4),
-      ),
+  void _goToImport() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute<void>(builder: (_) => const ImportScoreScreen()),
     );
   }
 
@@ -285,6 +288,63 @@ class _ScanScreenState extends State<ScanScreen> {
   }
 }
 
+class _NoDetectionsPanel extends StatelessWidget {
+  const _NoDetectionsPanel();
+
+  static const _surface = Color(0xFF1A1A1A);
+  static const _border = Color(0xFF2C2C2C);
+  static const _textSecondary = Color(0xFF8A8A8A);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _border),
+      ),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.lightbulb_outline_rounded,
+            color: AppColors.accent,
+            size: 20,
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'No music symbols found',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                SizedBox(height: 5),
+                Text(
+                  'Retake with the page flat and well lit, or import a score file instead.',
+                  style: TextStyle(
+                    color: _textSecondary,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Pipeline status widget ───────────────────────────────────────────────────
 
 class _PipelineStatus extends StatelessWidget {
@@ -298,8 +358,8 @@ class _PipelineStatus extends StatelessWidget {
     required this.subMessage,
   });
 
-  static const _accent        = Color(0xFFD4A96A);
-  static const _surface       = Color(0xFF1A1A1A);
+  static const _accent = Color(0xFFD4A96A);
+  static const _surface = Color(0xFF1A1A1A);
   static const _textSecondary = Color(0xFF8A8A8A);
 
   @override
@@ -374,7 +434,11 @@ class ScanScreenProvider extends StatelessWidget {
   final Uint8List imageBytes;
   final bool appendMode;
 
-  const ScanScreenProvider({super.key, required this.imageBytes, this.appendMode = false});
+  const ScanScreenProvider({
+    super.key,
+    required this.imageBytes,
+    this.appendMode = false,
+  });
 
   @override
   Widget build(BuildContext context) {

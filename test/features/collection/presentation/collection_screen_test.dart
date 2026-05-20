@@ -21,12 +21,21 @@ class FakeProjectStorageService extends ProjectStorageService {
   FakeProjectStorageService(this._future);
 
   final Future<List<Project>> _future;
+  final deletedIds = <String>[];
+  final savedProjects = <Project>[];
 
   @override
   Future<List<Project>> loadAllProjects() => _future;
 
   @override
-  Future<void> deleteProject(String id) async {}
+  Future<void> saveProject(Project project) async {
+    savedProjects.add(project);
+  }
+
+  @override
+  Future<void> deleteProject(String id) async {
+    deletedIds.add(id);
+  }
 }
 
 // ── Minimal valid scoreJson ───────────────────────────────────────────────────
@@ -206,6 +215,52 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Editor Route Opened'), findsOneWidget);
+    });
+
+    testWidgets('shows visible project actions menu', (
+      WidgetTester tester,
+    ) async {
+      final service = FakeProjectStorageService(
+        Future.value([_makeProject('Action Score', id: 'actions')]),
+      );
+
+      await tester.pumpWidget(
+        makeTestableWidget(CollectionScreen(storageService: service)),
+      );
+
+      await pumpLoadedState(tester);
+
+      await tester.tap(find.byTooltip('Project actions'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Rename'), findsOneWidget);
+      expect(find.text('Export'), findsOneWidget);
+      expect(find.text('Delete'), findsOneWidget);
+    });
+
+    testWidgets('renames a project from the actions menu', (
+      WidgetTester tester,
+    ) async {
+      final service = FakeProjectStorageService(
+        Future.value([_makeProject('Old Score', id: 'rename')]),
+      );
+
+      await tester.pumpWidget(
+        makeTestableWidget(CollectionScreen(storageService: service)),
+      );
+
+      await pumpLoadedState(tester);
+      await tester.tap(find.byTooltip('Project actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Rename'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'New Score');
+      await tester.tap(find.text('Rename').last);
+      await tester.pumpAndSettle();
+
+      expect(service.savedProjects.single.name, 'New Score');
+      expect(find.text('New Score'), findsOneWidget);
+      expect(find.text('Old Score'), findsNothing);
     });
   });
 }

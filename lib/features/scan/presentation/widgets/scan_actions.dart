@@ -6,6 +6,7 @@ class ScanActions extends StatelessWidget {
   final VoidCallback onContinue;
   final VoidCallback? onImport;
   final bool canContinue;
+  final String redoLabel;
 
   const ScanActions({
     super.key,
@@ -13,6 +14,7 @@ class ScanActions extends StatelessWidget {
     required this.onContinue,
     this.onImport,
     this.canContinue = true,
+    this.redoLabel = 'Redo',
   });
 
   static const _bg = Color(0xFF0D0D0D);
@@ -75,16 +77,16 @@ class ScanActions extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: _border),
         ),
-        child: const FittedBox(
+        child: FittedBox(
           fit: BoxFit.scaleDown,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.redo_outlined, size: 18, color: _textMuted),
-              SizedBox(width: 8),
+              const Icon(Icons.redo_outlined, size: 18, color: _textMuted),
+              const SizedBox(width: 8),
               Text(
-                'Redo',
-                style: TextStyle(
+                redoLabel,
+                style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
                   color: _textMuted,

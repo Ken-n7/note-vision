@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -38,18 +39,20 @@ class _FakeStaffLineDetector implements StaffLineDetector {
 }
 
 class _FakeSymbolDetector implements SymbolDetector {
+  const _FakeSymbolDetector({
+    this.result = const DetectionResult(
+      imageId: 'scan-test',
+      symbols: [DetectedSymbol(id: 's1', type: 'noteheadFilled', x: 1, y: 1)],
+    ),
+  });
+
+  final DetectionResult result;
+
   @override
   Future<DetectionResult> detect(
     PreprocessedResult input,
     List<DetectedStaff> staves,
-  ) async {
-    return const DetectionResult(
-      imageId: 'scan-test',
-      symbols: [
-        DetectedSymbol(id: 's1', type: 'noteheadFilled', x: 1, y: 1),
-      ],
-    );
-  }
+  ) async => result;
 }
 
 class _FakeScoreMapperService extends ScoreMapperService {
@@ -75,23 +78,17 @@ class _FakeScoreMapperService extends ScoreMapperService {
 }
 
 void main() {
-  final validImageBytes = Uint8List.fromList(const <int>[
-    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-    0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
-    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-    0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
-    0x89, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x44, 0x41,
-    0x54, 0x78, 0x9C, 0x63, 0xF8, 0xCF, 0xC0, 0x00,
-    0x00, 0x03, 0x01, 0x01, 0x00, 0x18, 0xDD, 0x8D,
-    0x18, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E,
-    0x44, 0xAE, 0x42, 0x60, 0x82,
-  ]);
+  final validImageBytes = base64Decode(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8AAAAMBAQAY3Y0YAAAAAElFTkSuQmCC',
+  );
 
-  testWidgets('continue opens editor shell route from scan screen', (tester) async {
+  testWidgets('continue opens editor shell route from scan screen', (
+    tester,
+  ) async {
     final vm = ScanViewModel(
       _FakeImagePreprocessor(),
       _FakeStaffLineDetector(),
-      _FakeSymbolDetector(),
+      const _FakeSymbolDetector(),
       mapper: const _FakeScoreMapperService(),
     );
 
@@ -106,9 +103,7 @@ void main() {
               );
             }
             return MaterialPageRoute<void>(
-              builder: (_) => ScanScreen(
-                imageBytes: validImageBytes,
-              ),
+              builder: (_) => ScanScreen(imageBytes: validImageBytes),
             );
           },
         ),
@@ -123,5 +118,57 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Editor Opened'), findsOneWidget);
+  });
+
+  testWidgets('shows inline no-detection recovery actions', (tester) async {
+    final vm = ScanViewModel(
+      _FakeImagePreprocessor(),
+      _FakeStaffLineDetector(),
+      const _FakeSymbolDetector(
+        result: DetectionResult(
+          imageId: 'staff-only',
+          staffs: [
+            DetectedStaff(
+              id: 'staff-1',
+              topY: 1,
+              bottomY: 5,
+              lineYs: [1, 2, 3, 4, 5],
+            ),
+          ],
+        ),
+      ),
+      mapper: const _FakeScoreMapperService(),
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<ScanViewModel>.value(
+        value: vm,
+        child: MaterialApp(
+          onGenerateRoute: (settings) {
+            if (settings.name == EditorShellScreen.routeName) {
+              return MaterialPageRoute<void>(
+                builder: (_) => const Scaffold(body: Text('Editor Opened')),
+              );
+            }
+            return MaterialPageRoute<void>(
+              builder: (_) => ScanScreen(imageBytes: validImageBytes),
+            );
+          },
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    expect(find.text('No music symbols found'), findsOneWidget);
+    expect(find.text('Retake'), findsOneWidget);
+    expect(find.text('Import'), findsOneWidget);
+
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Editor Opened'), findsNothing);
   });
 }
