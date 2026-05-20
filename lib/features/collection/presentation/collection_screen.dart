@@ -1286,11 +1286,6 @@ class _RenameProjectDialogState extends State<_RenameProjectDialog> {
         onSubmitted: (_) => _submit(),
         decoration: InputDecoration(
           labelText: 'Project name',
-          helperText: 'No emoji',
-          helperStyle: const TextStyle(
-            color: AppColors.textSecondary,
-            fontSize: 11,
-          ),
           errorText: _errorText,
           labelStyle: const TextStyle(color: AppColors.textSecondary),
           enabledBorder: const UnderlineInputBorder(
@@ -1474,11 +1469,6 @@ class _DialogTextFieldState extends State<_DialogTextField> {
             ),
             hintStyle: TextStyle(
               color: AppColors.textSecondary.withValues(alpha: 0.5),
-            ),
-            helperText: 'No emoji',
-            helperStyle: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 11,
             ),
             errorText: _emojiError,
             enabledBorder: const UnderlineInputBorder(

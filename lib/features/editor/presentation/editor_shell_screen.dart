@@ -411,11 +411,6 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               decoration: InputDecoration(
                 hintText: 'Project name',
                 hintStyle: const TextStyle(color: AppColors.textSecondary),
-                helperText: 'No emoji',
-                helperStyle: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 11,
-                ),
                 errorText: errorText,
                 enabledBorder: const UnderlineInputBorder(
                   borderSide: BorderSide(color: AppColors.border),
@@ -4206,11 +4201,6 @@ class _MetadataFieldState extends State<_MetadataField> {
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
           cursorColor: AppColors.accent,
           decoration: InputDecoration(
-            helperText: 'No emoji',
-            helperStyle: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 11,
-            ),
             errorText: _emojiError,
             filled: true,
             fillColor: AppColors.background,
