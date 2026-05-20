@@ -102,7 +102,12 @@ void main() {
 
       expect(find.byType(EmptyCollection), findsOneWidget);
       expect(find.text('Your collection\nis empty'), findsOneWidget);
-      expect(find.byKey(const ValueKey('addImageButton')), findsOneWidget);
+      expect(find.byKey(const ValueKey('scanImageButton')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('importMusicXmlButton')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('newScoreButton')), findsOneWidget);
     });
 
     testWidgets('shows project tiles when saved projects exist', (
@@ -145,7 +150,9 @@ void main() {
     testWidgets('keeps speed dial actions out of the closed layout', (
       WidgetTester tester,
     ) async {
-      final service = FakeProjectStorageService(Future.value([]));
+      final service = FakeProjectStorageService(
+        Future.value([_makeProject('Existing Score', id: 'speed-dial')]),
+      );
 
       await tester.pumpWidget(
         makeTestableWidget(CollectionScreen(storageService: service)),

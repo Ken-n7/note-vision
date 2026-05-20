@@ -467,7 +467,11 @@ class _CollectionScreenState extends State<CollectionScreen>
     if (_projects.isEmpty && !_isTeacher) {
       return FadeTransition(
         opacity: _fadeIn,
-        child: EmptyCollection(onAddPressed: _goToCapture),
+        child: EmptyCollection(
+          onAddPressed: _goToCapture,
+          onImportPressed: _goToImport,
+          onNewScorePressed: _showNewScoreDialog,
+        ),
       );
     }
 

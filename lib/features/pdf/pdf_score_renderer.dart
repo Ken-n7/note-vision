@@ -37,6 +37,7 @@ class PdfScoreRenderer {
   static const double _editorStaffTopOffset = 28.0;
   static const int _measuresPerSystem = 4;
   static const int _baseRowsPerPage = 5;
+  static const double _editorFirstPageHeaderOffset = 88.0;
 
   static final double _scale = PdfPageFormat.a4.height / _editorPageH;
   static final double _pageX0 =
@@ -51,6 +52,13 @@ class PdfScoreRenderer {
       _scale;
   static final double _ls = _editorLineSpacing * _scale;
   static final double _staffH = ScoreNotationMetrics.staffHeightFor(_ls);
+  static final double _firstPageHeaderOffset =
+      _editorFirstPageHeaderOffset * _scale;
+
+  static const double _titleFontSize = 20.0;
+  static const double _composerFontSize = 10.5;
+  static const double _headerTopInset = 24.0;
+  static const double _headerComposerGap = 8.0;
 
   static const PdfColor _ink = PdfColor.fromInt(0xFF111827);
 
@@ -75,20 +83,22 @@ class PdfScoreRenderer {
     if (score.parts.isEmpty) {
       final page = PdfPage(doc, pageFormat: PdfPageFormat.a4);
       final g = page.getGraphics();
+      _drawScoreHeader(g, score, font, fontBold, PdfPageFormat.a4);
       _text(
         g,
         fontBold,
         14,
         'Empty score',
         _pageX0 + _padX,
-        PdfPageFormat.a4.height - _pageY0 - _padY - 14,
+        PdfPageFormat.a4.height - _pageY0 - _padY - _firstPageHeaderOffset - 14,
       );
       return doc.save();
     }
 
     final pages = _paginate(score);
 
-    for (final pageData in pages) {
+    for (var i = 0; i < pages.length; i++) {
+      final pageData = pages[i];
       final page = PdfPage(doc, pageFormat: PdfPageFormat.a4);
       final g = page.getGraphics();
       _paintPage(
@@ -99,6 +109,7 @@ class PdfScoreRenderer {
         fontBold,
         musicFont,
         PdfPageFormat.a4,
+        isFirstPage: i == 0,
       );
     }
 
@@ -124,6 +135,14 @@ class PdfScoreRenderer {
       return const <List<Measure>>[];
     }
     return _sliceScoreForPage(score, pages[pageIndex]);
+  }
+
+  PdfHeaderLayoutInfo debugHeaderLayoutForTesting(Score score) {
+    return PdfHeaderLayoutInfo(
+      title: _headerTitle(score),
+      composer: _headerComposer(score),
+      firstPageStaffOffset: _firstPageHeaderOffset,
+    );
   }
 
   double debugPitchYForTesting({
@@ -278,8 +297,9 @@ class PdfScoreRenderer {
     PdfFont font,
     PdfFont fontBold,
     PdfFont musicFont,
-    PdfPageFormat fmt,
-  ) {
+    PdfPageFormat fmt, {
+    required bool isFirstPage,
+  }) {
     final pageH = fmt.height;
     final partCount = score.parts.length;
     final pageParts = _sliceScoreForPage(score, page);
@@ -287,6 +307,11 @@ class PdfScoreRenderer {
     final systemCount = maxMeasures == 0
         ? 0
         : (maxMeasures / page.measuresPerSystem).ceil();
+    final headerOffset = isFirstPage ? _firstPageHeaderOffset : 0.0;
+
+    if (isFirstPage) {
+      _drawScoreHeader(g, score, font, fontBold, fmt);
+    }
 
     for (var s = 0; s < systemCount; s++) {
       final startM = s * page.measuresPerSystem;
@@ -307,7 +332,8 @@ class PdfScoreRenderer {
             s * partCount * _editorRowH +
             pi * _editorRowH +
             _editorStaffTopOffset;
-        final staffTop = pageH - _pageY0 - editorStaffTop * _scale;
+        final staffTop =
+            pageH - _pageY0 - editorStaffTop * _scale - headerOffset;
 
         _drawStaffRow(
           g,
@@ -322,6 +348,49 @@ class PdfScoreRenderer {
         );
       }
     }
+  }
+
+  void _drawScoreHeader(
+    PdfGraphics g,
+    Score score,
+    PdfFont font,
+    PdfFont fontBold,
+    PdfPageFormat fmt,
+  ) {
+    final left = _pageX0 + _padX;
+    final right = fmt.width - _pageX0 - _padX;
+    final width = right - left;
+    final titleBaseline =
+        fmt.height - _pageY0 - _headerTopInset - _titleFontSize;
+    final composerBaseline =
+        titleBaseline - _titleFontSize - _headerComposerGap;
+
+    _drawFittedText(
+      g,
+      fontBold,
+      _titleFontSize,
+      _headerTitle(score),
+      left,
+      width,
+      titleBaseline,
+      align: _PdfTextAlign.center,
+      minSize: 12,
+    );
+
+    final composer = _headerComposer(score);
+    if (composer.isEmpty) return;
+
+    _drawFittedText(
+      g,
+      font,
+      _composerFontSize,
+      composer,
+      left,
+      width,
+      composerBaseline,
+      align: _PdfTextAlign.right,
+      minSize: 8,
+    );
   }
 
   // ── Staff row ──────────────────────────────────────────────────────────────
@@ -1302,6 +1371,68 @@ class PdfScoreRenderer {
     g.drawString(font, size, text, x, y);
   }
 
+  void _drawFittedText(
+    PdfGraphics g,
+    PdfFont font,
+    double preferredSize,
+    String text,
+    double left,
+    double maxWidth,
+    double y, {
+    required _PdfTextAlign align,
+    required double minSize,
+  }) {
+    final normalized = text.trim();
+    if (normalized.isEmpty) return;
+
+    var size = preferredSize;
+    final unitWidth = font.stringMetrics(normalized).advanceWidth;
+    if (unitWidth > 0) {
+      size = math.min(preferredSize, math.max(minSize, maxWidth / unitWidth));
+    }
+
+    final fittedText = _truncateTextToWidth(font, normalized, size, maxWidth);
+    if (fittedText.isEmpty) return;
+
+    final width = _textWidth(font, size, fittedText);
+    final x = switch (align) {
+      _PdfTextAlign.left => left,
+      _PdfTextAlign.center => left + (maxWidth - width) / 2,
+      _PdfTextAlign.right => left + maxWidth - width,
+    };
+    _text(g, font, size, fittedText, x, y);
+  }
+
+  String _truncateTextToWidth(
+    PdfFont font,
+    String text,
+    double size,
+    double maxWidth,
+  ) {
+    if (_textWidth(font, size, text) <= maxWidth) return text;
+
+    const suffix = '...';
+    if (_textWidth(font, size, suffix) > maxWidth) return '';
+
+    var low = 0;
+    var high = text.length;
+    while (low < high) {
+      final mid = (low + high + 1) ~/ 2;
+      final candidate = '${text.substring(0, mid).trimRight()}$suffix';
+      if (_textWidth(font, size, candidate) <= maxWidth) {
+        low = mid;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    return '${text.substring(0, low).trimRight()}$suffix';
+  }
+
+  double _textWidth(PdfFont font, double size, String text) {
+    return (font.stringMetrics(text) * size).advanceWidth;
+  }
+
   int _visualSlotCount(List<dynamic> symbols) {
     var count = 0;
     for (final symbol in symbols) {
@@ -1338,9 +1469,18 @@ class PdfScoreRenderer {
     }
     return 2;
   }
+
+  static String _headerTitle(Score score) {
+    final title = score.title.trim();
+    return title.isEmpty ? 'Untitled Score' : title;
+  }
+
+  static String _headerComposer(Score score) => score.composer.trim();
 }
 
 // ── Data class ────────────────────────────────────────────────────────────────
+
+enum _PdfTextAlign { left, center, right }
 
 class _PageData {
   const _PageData({
@@ -1354,6 +1494,18 @@ class _PageData {
   final int measureCount;
   final int measuresPerSystem;
   final int rowsPerPage;
+}
+
+class PdfHeaderLayoutInfo {
+  const PdfHeaderLayoutInfo({
+    required this.title,
+    required this.composer,
+    required this.firstPageStaffOffset,
+  });
+
+  final String title;
+  final String composer;
+  final double firstPageStaffOffset;
 }
 
 class PdfPageLayoutInfo {

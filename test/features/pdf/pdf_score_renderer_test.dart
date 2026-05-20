@@ -80,6 +80,30 @@ void main() {
       expect(firstVisible.timeSignature?.beats, 3);
       expect(firstVisible.timeSignature?.beatType, 4);
     });
+
+    test('normalizes score metadata for the first-page header', () {
+      final score = Score(
+        id: 'score',
+        title: '  Moonlight Study  ',
+        composer: '  L. Composer  ',
+        parts: const [],
+      );
+
+      final header = renderer.debugHeaderLayoutForTesting(score);
+
+      expect(header.title, 'Moonlight Study');
+      expect(header.composer, 'L. Composer');
+      expect(header.firstPageStaffOffset, greaterThan(0));
+    });
+
+    test('uses an untitled fallback for blank PDF titles', () {
+      const score = Score(id: 'score', title: '   ', composer: '', parts: []);
+
+      final header = renderer.debugHeaderLayoutForTesting(score);
+
+      expect(header.title, 'Untitled Score');
+      expect(header.composer, isEmpty);
+    });
   });
 
   group('PdfScoreRenderer symbols', () {

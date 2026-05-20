@@ -100,7 +100,7 @@ class CollectionDrawer extends StatelessWidget {
 
               _DrawerItem(
                 icon: Icons.school_outlined,
-                title: 'Instruction',
+                title: 'Instructions',
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.pushNamed(context, InstructionsScreen.routeName);
@@ -443,13 +443,17 @@ class _DrawerItemState extends State<_DrawerItem> {
               ),
             ),
             const SizedBox(width: 14),
-            Text(
-              widget.title,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-                color: _hovered ? _textPrimary : _textSecondary,
-                letterSpacing: 0.2,
+            Expanded(
+              child: Text(
+                widget.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                  color: _hovered ? _textPrimary : _textSecondary,
+                  letterSpacing: 0.2,
+                ),
               ),
             ),
           ],

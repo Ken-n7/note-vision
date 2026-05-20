@@ -43,11 +43,11 @@ void main() {
     expect(find.text('Digital Writing'), findsNothing);
   });
 
-  testWidgets('Instruction item is present in the drawer', (tester) async {
+  testWidgets('Instructions item is present in the drawer', (tester) async {
     await tester.pumpWidget(_makeApp());
     await _openDrawer(tester);
 
-    expect(find.text('Instruction'), findsOneWidget);
+    expect(find.text('Instructions'), findsOneWidget);
   });
 
   testWidgets('About item is present in the drawer', (tester) async {
@@ -71,13 +71,13 @@ void main() {
     expect(find.text('Student'), findsNothing);
   });
 
-  testWidgets('tapping Instruction navigates to InstructionsScreen', (
+  testWidgets('tapping Instructions navigates to InstructionsScreen', (
     tester,
   ) async {
     await tester.pumpWidget(_makeApp());
     await _openDrawer(tester);
 
-    await tester.tap(find.text('Instruction'));
+    await tester.tap(find.text('Instructions'));
     await tester.pumpAndSettle();
 
     expect(find.text('InstructionsScreen'), findsOneWidget);
