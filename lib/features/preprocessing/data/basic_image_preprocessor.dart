@@ -43,7 +43,7 @@ PreprocessedResult _processImage(Uint8List bytes) {
   processed = rgbImage;
 
   // Step 3 — Return full-resolution image (no resize).
-  // The 640×640 stretch happens inside TfliteSymbolDetector to match training.
+  // Letterboxing to 640×640 happens inside TfliteSymbolDetector.
   return PreprocessedResult(
     bytes: Uint8List.fromList(img.encodePng(processed)),
     width: processed.width,

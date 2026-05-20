@@ -73,25 +73,22 @@ class ScanImageView extends StatelessWidget {
                 minScale: 0.5,
                 maxScale: 4.0,
                 child: Center(
-                  child: SizedBox(
-                    width: result.preprocessed.width.toDouble(),
-                    height: result.preprocessed.height.toDouble(),
+                  child: AspectRatio(
+                    aspectRatio: result.preprocessed.width /
+                        result.preprocessed.height,
                     child: Stack(
+                      fit: StackFit.expand,
                       children: [
-                        Positioned.fill(
-                          child: Image.memory(
-                            result.preprocessed.bytes,
-                            fit: BoxFit.contain,
-                          ),
+                        Image.memory(
+                          result.preprocessed.bytes,
+                          fit: BoxFit.fill,
                         ),
                         if (hasDetections)
-                          Positioned.fill(
-                            child: DetectionOverlay(
-                              symbols: result.symbols,
-                              staffs: result.detection.staffs,
-                              imageWidth: result.preprocessed.width,
-                              imageHeight: result.preprocessed.height,
-                            ),
+                          DetectionOverlay(
+                            symbols: result.symbols,
+                            staffs: result.detection.staffs,
+                            imageWidth: result.preprocessed.width,
+                            imageHeight: result.preprocessed.height,
                           ),
                       ],
                     ),
