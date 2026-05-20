@@ -455,19 +455,6 @@ Suggested fix:
 - Schedule a dependency upgrade branch.
 - Upgrade major packages with focused regression tests for import/export, sharing, and picker flows.
 
-### 27. Informational Pages Have Fixed Rows That Can Overflow
-
-Severity: Low
-
-Evidence:
-- About and Instructions screens use fixed card rows and unwrapped titles/tech details.
-
-Impact:
-- Long text, localization, or larger text can overflow.
-
-Suggested fix:
-- Use flexible text, wrapping rows, and text-scale tests.
-
 ## Cross-Cutting Test Gaps
 
 - Add a detector contract test that loads `assets/models/best_int8.tflite` and validates actual input/output shapes.
