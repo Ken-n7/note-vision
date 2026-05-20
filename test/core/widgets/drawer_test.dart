@@ -25,7 +25,8 @@ Widget _makeApp() {
 }
 
 Future<void> _openDrawer(WidgetTester tester) async {
-  await tester.dragFrom(const Offset(0, 300), const Offset(200, 300));
+  final size = tester.view.physicalSize / tester.view.devicePixelRatio;
+  await tester.dragFrom(Offset(0, size.height / 2), const Offset(220, 0));
   await tester.pumpAndSettle();
 }
 
@@ -34,19 +35,20 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('Digital Writing item does not appear in the drawer',
-      (tester) async {
+  testWidgets('Digital Writing item does not appear in the drawer', (
+    tester,
+  ) async {
     await tester.pumpWidget(_makeApp());
     await _openDrawer(tester);
 
     expect(find.text('Digital Writing'), findsNothing);
   });
 
-  testWidgets('Instruction item is present in the drawer', (tester) async {
+  testWidgets('Instructions item is present in the drawer', (tester) async {
     await tester.pumpWidget(_makeApp());
     await _openDrawer(tester);
 
-    expect(find.text('Instruction'), findsOneWidget);
+    expect(find.text('Instructions'), findsOneWidget);
   });
 
   testWidgets('About item is present in the drawer', (tester) async {
@@ -56,12 +58,42 @@ void main() {
     expect(find.text('About'), findsOneWidget);
   });
 
-  testWidgets('tapping Instruction navigates to InstructionsScreen',
-      (tester) async {
+  testWidgets('classroom role switch is hidden for presentation branch', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({'dev_mode_enabled': true});
+
     await tester.pumpWidget(_makeApp());
     await _openDrawer(tester);
 
-    await tester.tap(find.text('Instruction'));
+    expect(find.text('TEMP TESTING'), findsNothing);
+    expect(find.text('Developer Role Switch'), findsNothing);
+    expect(find.text('Teacher'), findsNothing);
+    expect(find.text('Student'), findsNothing);
+  });
+
+  testWidgets('drawer content scrolls on short screens', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 260);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(_makeApp());
+    await _openDrawer(tester);
+
+    expect(find.byType(SingleChildScrollView), findsOneWidget);
+    expect(tester.getSize(find.byType(Drawer)).width, lessThanOrEqualTo(320));
+  });
+
+  testWidgets('tapping Instructions navigates to InstructionsScreen', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_makeApp());
+    await _openDrawer(tester);
+
+    await tester.tap(find.text('Instructions'));
     await tester.pumpAndSettle();
 
     expect(find.text('InstructionsScreen'), findsOneWidget);

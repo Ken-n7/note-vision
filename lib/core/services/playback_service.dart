@@ -38,25 +38,61 @@ class PlaybackPosition {
     required this.partIndex,
     required this.measureIndex,
     required this.symbolIndex,
+    this.durationMs = 0,
+    this.measureElapsedMs = 0,
+    this.measureDurationMs = 0,
+    this.nextPartIndex,
+    this.nextMeasureIndex,
+    this.nextSymbolIndex,
   });
 
-  static const none = PlaybackPosition(partIndex: -1, measureIndex: -1, symbolIndex: -1);
+  static const none = PlaybackPosition(
+    partIndex: -1,
+    measureIndex: -1,
+    symbolIndex: -1,
+  );
 
   final int partIndex;
   final int measureIndex;
   final int symbolIndex;
+  final int durationMs;
+  final int measureElapsedMs;
+  final int measureDurationMs;
+  final int? nextPartIndex;
+  final int? nextMeasureIndex;
+  final int? nextSymbolIndex;
 
   bool get isNone => partIndex < 0;
+  bool get hasNext =>
+      nextPartIndex != null &&
+      nextMeasureIndex != null &&
+      nextSymbolIndex != null;
 
   @override
   bool operator ==(Object other) =>
       other is PlaybackPosition &&
       other.partIndex == partIndex &&
       other.measureIndex == measureIndex &&
-      other.symbolIndex == symbolIndex;
+      other.symbolIndex == symbolIndex &&
+      other.durationMs == durationMs &&
+      other.measureElapsedMs == measureElapsedMs &&
+      other.measureDurationMs == measureDurationMs &&
+      other.nextPartIndex == nextPartIndex &&
+      other.nextMeasureIndex == nextMeasureIndex &&
+      other.nextSymbolIndex == nextSymbolIndex;
 
   @override
-  int get hashCode => Object.hash(partIndex, measureIndex, symbolIndex);
+  int get hashCode => Object.hash(
+    partIndex,
+    measureIndex,
+    symbolIndex,
+    durationMs,
+    measureElapsedMs,
+    measureDurationMs,
+    nextPartIndex,
+    nextMeasureIndex,
+    nextSymbolIndex,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -179,7 +215,8 @@ class PlaybackService {
       _sfId = null;
       _emitState(
         PlaybackStatus.error,
-        error: 'Could not load soundfont. '
+        error:
+            'Could not load soundfont. '
             'Add assets/soundfonts/piano.sf2 (any standard GM SF2 file) '
             'then run: flutter pub get\n\nDetail: $e',
       );
@@ -258,37 +295,60 @@ class PlaybackService {
     while (_shouldPlay && _currentEventIndex < _events.length) {
       final event = _events[_currentEventIndex];
       final groupEnd = _eventGroupEnd(_currentEventIndex);
+      final nextEvent = groupEnd < _events.length ? _events[groupEnd] : null;
+      final ms = _converter.scaledDuration(event.baseDurationMs, _tempo);
+      final measureElapsedMs = _converter.scaledDuration(
+        _measureElapsedBaseDuration(_currentEventIndex),
+        _tempo,
+      );
+      final measureDurationMs = _converter.scaledDuration(
+        _measureBaseDuration(_currentEventIndex),
+        _tempo,
+      );
 
       // Emit current score position for the viewer highlight.
-      _positionController.add(PlaybackPosition(
-        partIndex: event.partIndex,
-        measureIndex: event.measureIndex,
-        symbolIndex: event.symbolIndex,
-      ));
+      _positionController.add(
+        PlaybackPosition(
+          partIndex: event.partIndex,
+          measureIndex: event.measureIndex,
+          symbolIndex: event.symbolIndex,
+          durationMs: ms,
+          measureElapsedMs: measureElapsedMs,
+          measureDurationMs: measureDurationMs,
+          nextPartIndex: nextEvent?.partIndex,
+          nextMeasureIndex: nextEvent?.measureIndex,
+          nextSymbolIndex: nextEvent?.symbolIndex,
+        ),
+      );
 
       _activeMidiNotes.clear();
 
-      // Play all notes in the current rhythmic group (skip rests).
+      // Fire all notes in the current rhythmic group without awaiting.
+      // Awaiting playNote() blocks for ~10–20 ms per call (MIDI platform
+      // overhead), which would delay _waitMs() and make the visual clock
+      // run ahead of the audio by that amount on every note boundary.
+      // Fire-and-forget keeps the wall-clock timer aligned with the audio.
       if (_sfId != null) {
         for (var i = _currentEventIndex; i < groupEnd; i++) {
           final groupedEvent = _events[i];
           if (groupedEvent.isRest) continue;
-          await _midi.playNote(
+          unawaited(_midi.playNote(
             sfId: _sfId!,
             channel: _midiChannel,
             key: groupedEvent.midiNote,
             velocity: _velocity,
-          );
+          ));
           _activeMidiNotes.add(groupedEvent.midiNote);
         }
       }
 
       // Wait for duration, scaled to current tempo.
-      final ms = _converter.scaledDuration(event.baseDurationMs, _tempo);
       final completed = await _waitMs(ms);
 
-      // Stop sounding notes before advancing.
-      await _stopActiveNotes();
+      // Stop notes without awaiting — same reason as playNote above.
+      // _stopActiveNotes() copies _activeMidiNotes before clearing it so the
+      // next group can safely populate the list while stops are in flight.
+      unawaited(_stopActiveNotes());
 
       if (!completed) break; // paused or stopped mid-note
       _currentEventIndex = groupEnd;
@@ -338,16 +398,39 @@ class PlaybackService {
     return index;
   }
 
+  int _measureElapsedBaseDuration(int eventIndex) {
+    final current = _events[eventIndex];
+    var elapsed = 0;
+    for (var i = 0; i < eventIndex; i++) {
+      final event = _events[i];
+      if (event.partIndex != current.partIndex ||
+          event.measureIndex != current.measureIndex) {
+        continue;
+      }
+      if (!event.isChordTone) elapsed += event.baseDurationMs;
+    }
+    return elapsed;
+  }
+
+  int _measureBaseDuration(int eventIndex) {
+    final current = _events[eventIndex];
+    var duration = 0;
+    for (final event in _events) {
+      if (event.partIndex != current.partIndex ||
+          event.measureIndex != current.measureIndex) {
+        continue;
+      }
+      if (!event.isChordTone) duration += event.baseDurationMs;
+    }
+    return duration > 0 ? duration : current.baseDurationMs;
+  }
+
   Future<void> _stopActiveNotes() async {
     if (_sfId == null || _activeMidiNotes.isEmpty) return;
     final keys = List<int>.from(_activeMidiNotes);
     _activeMidiNotes.clear();
     for (final key in keys) {
-      await _midi.stopNote(
-        sfId: _sfId!,
-        channel: _midiChannel,
-        key: key,
-      );
+      await _midi.stopNote(sfId: _sfId!, channel: _midiChannel, key: key);
     }
   }
 

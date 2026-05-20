@@ -21,6 +21,17 @@ class PitchCalculator {
     if (spacing <= 0) return null;
 
     final centerY = symbol.y + ((symbol.height ?? 0) / 2);
+
+    // Reject noteheads that are clearly outside the staff — almost certainly
+    // false-positive detections (text, artifacts, noise). Allow up to 2× staff
+    // height above/below the outermost staff lines, which accommodates ~5
+    // ledger lines in each direction and covers all practical notation.
+    final staffHeight = sortedLines.last - sortedLines.first;
+    final margin = staffHeight * 2.0;
+    if (centerY < sortedLines.first - margin || centerY > sortedLines.last + margin) {
+      return null;
+    }
+
     final diatonicOffset = _diatonicOffset(
       symbol: symbol,
       centerY: centerY,

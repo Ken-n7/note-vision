@@ -19,7 +19,7 @@ void main() {
       );
       expect(
         TfliteSymbolDetector.confidenceThresholdFor(
-          MusicSymbol.legerLine,
+          MusicSymbol.ledgerLine,
         ),
         0.60,
       );
@@ -34,7 +34,7 @@ void main() {
     test('falls back to the default threshold for structural classes', () {
       expect(
         TfliteSymbolDetector.confidenceThresholdFor(
-          MusicSymbol.noteheadBlack,
+          MusicSymbol.noteheadBlackOnLine,
         ),
         0.75,
       );

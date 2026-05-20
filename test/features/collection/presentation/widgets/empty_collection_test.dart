@@ -3,17 +3,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:note_vision/features/collection/presentation/widgets/empty_collection.dart';
 
 void main() {
-  testWidgets('EmptyCollection shows current copy and handles add tap', (
+  testWidgets('EmptyCollection shows creation choices and handles taps', (
     WidgetTester tester,
   ) async {
-    var tapped = false;
+    var scanTapped = false;
+    var importTapped = false;
+    var newScoreTapped = false;
 
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
           body: EmptyCollection(
             onAddPressed: () {
-              tapped = true;
+              scanTapped = true;
+            },
+            onImportPressed: () {
+              importTapped = true;
+            },
+            onNewScorePressed: () {
+              newScoreTapped = true;
             },
           ),
         ),
@@ -22,18 +30,29 @@ void main() {
 
     expect(find.text('Your collection\nis empty'), findsOneWidget);
     expect(
-      find.text(
-        'Scan or import a music sheet\nto start building your collection.',
-      ),
+      find.text('Scan, import, or start with a blank score.'),
       findsOneWidget,
     );
-    expect(find.text('Add Image'), findsOneWidget);
-    expect(find.byKey(const ValueKey('addImageButton')), findsOneWidget);
-    expect(find.text('Supports camera scan & file import'), findsOneWidget);
+    expect(find.text('Scan Image'), findsOneWidget);
+    expect(find.text('Import'), findsOneWidget);
+    expect(find.text('New Score'), findsOneWidget);
+    expect(find.byKey(const ValueKey('scanImageButton')), findsOneWidget);
+    expect(find.byKey(const ValueKey('importMusicXmlButton')), findsOneWidget);
+    expect(find.byKey(const ValueKey('newScoreButton')), findsOneWidget);
+    expect(
+      find.text('Camera scan, file import, or blank score'),
+      findsOneWidget,
+    );
 
-    await tester.tap(find.byKey(const ValueKey('addImageButton')));
+    await tester.tap(find.byKey(const ValueKey('scanImageButton')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('importMusicXmlButton')));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('newScoreButton')));
     await tester.pump();
 
-    expect(tapped, isTrue);
+    expect(scanTapped, isTrue);
+    expect(importTapped, isTrue);
+    expect(newScoreTapped, isTrue);
   });
 }

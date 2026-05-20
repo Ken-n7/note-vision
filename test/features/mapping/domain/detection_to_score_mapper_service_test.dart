@@ -54,7 +54,7 @@ void main() {
           ),
           DetectedSymbol(
             id: 'head-1',
-            type: 'noteheadBlack',
+            type: 'noteheadBlackOnLine',
             x: 42,
             y: 136,
             width: 10,
@@ -104,7 +104,7 @@ void main() {
         symbols: [
           DetectedSymbol(
             id: 'clef-1',
-            type: 'gClef',
+            type: 'clefG',
             x: 10,
             y: 95,
             width: 18,
@@ -112,7 +112,7 @@ void main() {
           ),
           DetectedSymbol(
             id: 'whole-1',
-            type: 'noteheadWhole',
+            type: 'noteheadWholeOnLine',
             x: 52,
             y: 126,
             width: 12,
@@ -143,12 +143,12 @@ void main() {
         imageId: 'signature-detection',
         staffs: [singleStaff],
         symbols: [
-          DetectedSymbol(id: 'clef-1', type: 'gClef', x: 10, y: 92, width: 18, height: 44),
+          DetectedSymbol(id: 'clef-1', type: 'clefG', x: 10, y: 92, width: 18, height: 44),
           DetectedSymbol(id: 'sharp-1', type: 'accidentalSharp', x: 32, y: 101, width: 8, height: 18),
           DetectedSymbol(id: 'sharp-2', type: 'accidentalSharp', x: 41, y: 111, width: 8, height: 18),
           DetectedSymbol(id: 'time-top', type: 'timeSig4', x: 60, y: 102, width: 10, height: 14),
           DetectedSymbol(id: 'time-bottom', type: 'timeSig4', x: 60, y: 122, width: 10, height: 14),
-          DetectedSymbol(id: 'head-1', type: 'noteheadBlack', x: 92, y: 136, width: 10, height: 8),
+          DetectedSymbol(id: 'head-1', type: 'noteheadBlackOnLine', x: 92, y: 136, width: 10, height: 8),
           DetectedSymbol(id: 'stem-1', type: 'stem', x: 100, y: 108, width: 2, height: 28),
         ],
       );
@@ -192,7 +192,7 @@ void main() {
             ),
             symbol(
               id: 'whole-1',
-              type: 'noteheadWhole',
+              type: 'noteheadWholeOnLine',
               x: 58,
               y: 126,
               width: 12,
@@ -200,7 +200,7 @@ void main() {
             ),
             symbol(
               id: 'half-1',
-              type: 'noteheadHalf',
+              type: 'noteheadHalfOnLine',
               x: 92,
               y: 116,
               width: 10,
@@ -216,7 +216,7 @@ void main() {
             ),
             symbol(
               id: 'quarter-1',
-              type: 'noteheadBlack',
+              type: 'noteheadBlackOnLine',
               x: 124,
               y: 136,
               width: 10,
@@ -232,7 +232,7 @@ void main() {
             ),
             symbol(
               id: 'eighth-1',
-              type: 'noteheadBlack',
+              type: 'noteheadBlackOnLine',
               x: 156,
               y: 101,
               width: 10,
@@ -296,7 +296,7 @@ void main() {
         symbols: [
           symbol(
             id: 'clef-1',
-            type: 'gClef',
+            type: 'clefG',
             x: 10,
             y: 92,
             width: 18,
@@ -304,7 +304,7 @@ void main() {
           ),
           symbol(
             id: 'head-1',
-            type: 'noteheadBlack',
+            type: 'noteheadBlackOnLine',
             x: 52,
             y: 136,
             width: 10,
@@ -320,7 +320,7 @@ void main() {
           ),
           symbol(
             id: 'head-2',
-            type: 'noteheadHalf',
+            type: 'noteheadHalfOnLine',
             x: 142,
             y: 116,
             width: 10,
@@ -367,8 +367,8 @@ void main() {
           ),
         ],
         symbols: [
-          DetectedSymbol(id: 'clef-1', type: 'gClef', x: 10, y: 92, width: 18, height: 44),
-          DetectedSymbol(id: 'head-1', type: 'noteheadBlack', x: 52, y: 136, width: 10, height: 8),
+          DetectedSymbol(id: 'clef-1', type: 'clefG', x: 10, y: 92, width: 18, height: 44),
+          DetectedSymbol(id: 'head-1', type: 'noteheadBlackOnLine', x: 52, y: 136, width: 10, height: 8),
           DetectedSymbol(id: 'stem-1', type: 'stem', x: 60, y: 108, width: 2, height: 28),
           DetectedSymbol(id: 'rest-other', type: 'restQuarter', x: 54, y: 214, width: 10, height: 16),
         ],
@@ -398,8 +398,8 @@ void main() {
         imageId: 'ambiguous',
         staffs: [singleStaff],
         symbols: [
-          DetectedSymbol(id: 'clef-1', type: 'gClef', x: 10, y: 92, width: 18, height: 44),
-          DetectedSymbol(id: 'head-1', type: 'noteheadBlack', x: 52, y: 136, width: 10, height: 8),
+          DetectedSymbol(id: 'clef-1', type: 'clefG', x: 10, y: 92, width: 18, height: 44),
+          DetectedSymbol(id: 'head-1', type: 'noteheadBlackOnLine', x: 52, y: 136, width: 10, height: 8),
           DetectedSymbol(id: 'stem-1', type: 'stem', x: 130, y: 108, width: 2, height: 28),
         ],
       );
@@ -449,7 +449,7 @@ void main() {
         symbols: [
           DetectedSymbol(
             id: 'head-1',
-            type: 'noteheadBlack',
+            type: 'noteheadBlackOnLine',
             x: 42,
             y: 136,
             width: 10,
@@ -494,7 +494,7 @@ void main() {
         symbols: [
           symbol(
             id: 'head-1',
-            type: 'noteheadBlack',
+            type: 'noteheadBlackOnLine',
             x: 42,
             y: 136,
             width: 10,
@@ -535,8 +535,8 @@ void main() {
         imageId: 'eighth-note',
         staffs: [singleStaff],
         symbols: [
-          DetectedSymbol(id: 'clef-1', type: 'gClef', x: 10, y: 92, width: 18, height: 44),
-          DetectedSymbol(id: 'head-1', type: 'noteheadBlack', x: 52, y: 136, width: 10, height: 8),
+          DetectedSymbol(id: 'clef-1', type: 'clefG', x: 10, y: 92, width: 18, height: 44),
+          DetectedSymbol(id: 'head-1', type: 'noteheadBlackOnLine', x: 52, y: 136, width: 10, height: 8),
           DetectedSymbol(id: 'stem-1', type: 'stem', x: 60, y: 108, width: 2, height: 28),
           DetectedSymbol(id: 'flag-1', type: 'flag8thUp', x: 61, y: 107, width: 8, height: 12),
         ],
@@ -549,15 +549,44 @@ void main() {
       expect(note.type, 'eighth');
     });
 
+    test('drops noteheads that are far outside the staff bounds (false positives)', () {
+      // singleStaff lineYs = [100..140], staffHeight = 40, margin = 80.
+      // Valid centerY range: 20..220.
+      // Note at y=0 (centerY=4) and y=280 (centerY=284) are well outside → dropped.
+      // Only the note within the staff (y=136, centerY=140) should survive.
+      const detection = DetectionResult(
+        imageId: 'out-of-range',
+        staffs: [singleStaff],
+        symbols: [
+          DetectedSymbol(id: 'clef-1', type: 'clefG', x: 10, y: 92, width: 18, height: 44),
+          // Far above staff (false positive — text artifact or noise at top of image).
+          DetectedSymbol(id: 'head-far-above', type: 'noteheadBlackOnLine', x: 52, y: 0, width: 10, height: 8),
+          DetectedSymbol(id: 'stem-far-above', type: 'stem', x: 60, y: 0, width: 2, height: 20),
+          // Within the staff — should be kept.
+          DetectedSymbol(id: 'head-normal', type: 'noteheadBlackOnLine', x: 100, y: 136, width: 10, height: 8),
+          DetectedSymbol(id: 'stem-normal', type: 'stem', x: 108, y: 108, width: 2, height: 28),
+          // Far below staff (false positive).
+          DetectedSymbol(id: 'head-far-below', type: 'noteheadBlackOnLine', x: 150, y: 280, width: 10, height: 8),
+          DetectedSymbol(id: 'stem-far-below', type: 'stem', x: 158, y: 280, width: 2, height: 20),
+        ],
+      );
+
+      final result = mapper.map(detection);
+      final symbols = result.score.parts.single.measures.single.symbols;
+
+      expect(symbols, hasLength(1), reason: 'Only the in-range note should survive');
+      expect((symbols.single as Note).type, 'quarter');
+    });
+
     test('keeps symbols ordered from left to right within each measure', () {
       const detection = DetectionResult(
         imageId: 'order-check',
         staffs: [singleStaff],
         barlines: [DetectedBarline(x: 120, staffId: 'staff-1')],
         symbols: [
-          DetectedSymbol(id: 'clef-1', type: 'gClef', x: 10, y: 92, width: 18, height: 44),
+          DetectedSymbol(id: 'clef-1', type: 'clefG', x: 10, y: 92, width: 18, height: 44),
           DetectedSymbol(id: 'rest-1', type: 'restQuarter', x: 100, y: 116, width: 8, height: 20),
-          DetectedSymbol(id: 'head-1', type: 'noteheadWhole', x: 52, y: 126, width: 12, height: 8),
+          DetectedSymbol(id: 'head-1', type: 'noteheadWholeOnLine', x: 52, y: 126, width: 12, height: 8),
           DetectedSymbol(id: 'rest-2', type: 'restWhole', x: 140, y: 116, width: 8, height: 20),
         ],
       );

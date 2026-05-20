@@ -10,13 +10,13 @@ import 'musicxml_parser_service.dart';
 
 /// Service responsible for picking and reading a MusicXML file.
 class MusicXmlImporter {
-   MusicXmlImporter({FilePicker? filePicker, MusicXmlParserService? parser})
-      : _filePicker = filePicker ?? FilePicker.platform,
-        _parser = parser ?? const MusicXmlParserService();
+  MusicXmlImporter({FilePicker? filePicker, MusicXmlParserService? parser})
+    : _filePicker = filePicker ?? FilePicker.platform,
+      _parser = parser ?? const MusicXmlParserService();
 
   final FilePicker _filePicker;
   final MusicXmlParserService _parser;
-  static const _allowedExtensions = ['xml', 'mxl'];
+  static const _allowedExtensions = ['xml', 'musicxml', 'mxl'];
 
   /// Opens the file picker and returns a [MusicXmlImportResult].
   ///
@@ -57,7 +57,7 @@ class MusicXmlImporter {
     final String ext = fileName.split('.').last.toLowerCase();
     if (!_allowedExtensions.contains(ext)) {
       throw MusicXmlImportException(
-        'Unsupported file type ".$ext". Please select a .xml or .mxl file.',
+        'Unsupported file type .$ext. Please select a .xml, .musicxml, or .mxl file.',
       );
     }
 

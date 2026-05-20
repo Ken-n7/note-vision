@@ -8,8 +8,8 @@ class ScanImageView extends StatelessWidget {
   const ScanImageView({super.key, required this.result});
 
   // ── Design tokens ──────────────────────────────────────────────────────────
-  static const _surface       = Color(0xFF1A1A1A);
-  static const _border        = Color(0xFF2C2C2C);
+  static const _surface = Color(0xFF1A1A1A);
+  static const _border = Color(0xFF2C2C2C);
   // static const _accent        = Color(0xFFD4A96A);
   // static const _textPrimary   = Color(0xFFFFFFFF);
   static const _textSecondary = Color(0xFF8A8A8A);
@@ -40,10 +40,7 @@ class ScanImageView extends StatelessWidget {
                   letterSpacing: 2.0,
                 ),
               ),
-              _DetectionBadge(
-                count: symbolCount,
-                hasDetections: hasDetections,
-              ),
+              _DetectionBadge(count: symbolCount, hasDetections: hasDetections),
             ],
           ),
 
@@ -76,25 +73,22 @@ class ScanImageView extends StatelessWidget {
                 minScale: 0.5,
                 maxScale: 4.0,
                 child: Center(
-                  child: SizedBox(
-                    width: result.preprocessed.width.toDouble(),
-                    height: result.preprocessed.height.toDouble(),
+                  child: AspectRatio(
+                    aspectRatio: result.preprocessed.width /
+                        result.preprocessed.height,
                     child: Stack(
+                      fit: StackFit.expand,
                       children: [
-                        Positioned.fill(
-                          child: Image.memory(
-                            result.preprocessed.bytes,
-                            fit: BoxFit.fill,
-                          ),
+                        Image.memory(
+                          result.preprocessed.bytes,
+                          fit: BoxFit.fill,
                         ),
                         if (hasDetections)
-                          Positioned.fill(
-                            child: DetectionOverlay(
-                              symbols: result.symbols,
-                              staffs: result.detection.staffs,
-                              imageWidth: result.preprocessed.width,
-                              imageHeight: result.preprocessed.height,
-                            ),
+                          DetectionOverlay(
+                            symbols: result.symbols,
+                            staffs: result.detection.staffs,
+                            imageWidth: result.preprocessed.width,
+                            imageHeight: result.preprocessed.height,
                           ),
                       ],
                     ),
@@ -164,10 +158,7 @@ class _DetectionBadge extends StatelessWidget {
           Container(
             width: 6,
             height: 6,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
           Text(

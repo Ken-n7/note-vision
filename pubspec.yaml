@@ -61,13 +61,22 @@ flutter:
     - assets/images/
     - assets/fonts/
     - assets/models/best_int8.tflite
+    - assets/models/deepscores_int8.tflite
     - assets/soundfonts/
     - assets/samples/
 
   fonts:
-    - family: MaturaMTScriptCapitals
+    - family: PlayfairDisplay
       fonts:
-        - asset: assets/fonts/maturasc.ttf
+        - asset: assets/fonts/PlayfairDisplay-Bold.ttf
+    - family: NotoMusic
+      fonts:
+        - asset: assets/fonts/NotoMusic-Regular.ttf
+    - family: NotoSans
+      fonts:
+        - asset: assets/fonts/NotoSans-Regular.ttf
+        - asset: assets/fonts/NotoSans-Bold.ttf
+          weight: 700
 
 flutter_launcher_icons:
   android: true

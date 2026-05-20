@@ -66,7 +66,7 @@ class SemanticInferrer {
               )
               .toList();
           final ledgerLines = measure.symbols
-              .where((e) => e.symbol.type == 'legerLine')
+              .where((e) => e.symbol.type == 'ledgerLine')
               .map((e) => e.symbol)
               .toList(growable: false);
           final noteAlters = _matchAccidentalsToNoteheads(
@@ -151,7 +151,12 @@ class SemanticInferrer {
               continue;
             }
 
-            warnings.add('Unsupported symbol "$type" was ignored during mapping.');
+            // Only warn for types outside the model's class taxonomy entirely.
+            // Known-but-unhandled classes (articulations, dynamics, ornaments,
+            // ties, slurs, tuplets, etc.) are silently skipped.
+            if (entry.symbol.musicSymbol == null) {
+              warnings.add('Unknown symbol type "$type" was ignored during mapping.');
+            }
           }
 
           _warnAboutClef(clef, measure, warnings);
@@ -287,18 +292,20 @@ class SemanticInferrer {
     final hasBeam = link.hasBeam;
 
     final noteType = switch (type) {
-      'noteheadDoubleWhole' => 'breve',
-      'noteheadWhole' => 'whole',
-      'noteheadHalf' when hasStem => 'half',
+      'noteheadDoubleWholeInSpace' || 'noteheadDoubleWholeOnLine' => 'breve',
+      'noteheadWholeInSpace' || 'noteheadWholeOnLine' => 'whole',
+      'noteheadHalfInSpace' || 'noteheadHalfOnLine' when hasStem => 'half',
       // Flag OR beam both indicate an eighth note.
-      'noteheadBlack' when hasStem && (hasFlag || hasBeam) => 'eighth',
-      'noteheadBlack' when hasStem => 'quarter',
+      'noteheadBlackInSpace' || 'noteheadBlackOnLine'
+          when hasStem && (hasFlag || hasBeam) =>
+        'eighth',
+      'noteheadBlackInSpace' || 'noteheadBlackOnLine' when hasStem => 'quarter',
       // Beam detected even without a stem — beams are thicker and easier for
       // the model to detect than thin stems; trust the beam evidence.
-      'noteheadBlack' when hasBeam => 'eighth',
+      'noteheadBlackInSpace' || 'noteheadBlackOnLine' when hasBeam => 'eighth',
       // No stem and no beam — use remaining-beat context to infer duration.
       // Falls back to quarter when context is ambiguous.
-      'noteheadBlack' => _stemlessNoteDuration(
+      'noteheadBlackInSpace' || 'noteheadBlackOnLine' => _stemlessNoteDuration(
           beatsUsed: beatsUsed,
           beatsPerMeasure: beatsPerMeasure,
           isLastMusical: isLastMusical,

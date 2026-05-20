@@ -15,15 +15,18 @@ import 'package:note_vision/features/editor/presentation/editor_shell_screen.dar
 
 void main() {
   group('pageStartIndicesForMeasures', () {
-    test('does not create a duplicate first page when measure 1 is flagged', () {
-      final measures = [
-        const Measure(number: 1, symbols: [], startsNewPage: true),
-        const Measure(number: 2, symbols: []),
-        const Measure(number: 3, symbols: []),
-      ];
+    test(
+      'does not create a duplicate first page when measure 1 is flagged',
+      () {
+        final measures = [
+          const Measure(number: 1, symbols: [], startsNewPage: true),
+          const Measure(number: 2, symbols: []),
+          const Measure(number: 3, symbols: []),
+        ];
 
-      expect(pageStartIndicesForMeasures(measures), const [0]);
-    });
+        expect(pageStartIndicesForMeasures(measures), const [0]);
+      },
+    );
 
     test('uses explicit startsNewPage markers when present', () {
       final measures = [
@@ -183,47 +186,48 @@ void main() {
     expect(find.byTooltip('More'), findsOneWidget);
   });
 
-  testWidgets('uses overflow menu for scan and export actions on narrow screens', (
-    tester,
-  ) async {
-    final score = Score(
-      id: 'score-narrow',
-      title: 'Moonlight Sonata',
-      composer: 'Composer',
-      parts: [
-        Part(
-          id: 'P1',
-          name: 'Part 1',
-          measures: const [
-            Measure(
-              number: 1,
-              symbols: [
-                Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
-              ],
-            ),
-          ],
-        ),
-      ],
-    );
+  testWidgets(
+    'uses overflow menu for scan and export actions on narrow screens',
+    (tester) async {
+      final score = Score(
+        id: 'score-narrow',
+        title: 'Moonlight Sonata',
+        composer: 'Composer',
+        parts: [
+          Part(
+            id: 'P1',
+            name: 'Part 1',
+            measures: const [
+              Measure(
+                number: 1,
+                symbols: [
+                  Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
 
-    await pumpEditorShell(
-      tester,
-      score: score,
-      surfaceSize: const Size(360, 800),
-    );
+      await pumpEditorShell(
+        tester,
+        score: score,
+        surfaceSize: const Size(360, 800),
+      );
 
-    expect(find.text('Moonlight Sonata'), findsOneWidget);
-    expect(find.byTooltip('Scan New Page'), findsNothing);
-    expect(find.byTooltip('More'), findsOneWidget);
-    expect(tester.takeException(), isNull);
+      expect(find.text('Moonlight Sonata'), findsOneWidget);
+      expect(find.byTooltip('Scan New Page'), findsNothing);
+      expect(find.byTooltip('More'), findsOneWidget);
+      expect(tester.takeException(), isNull);
 
-    await tester.tap(find.byTooltip('More'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('More'));
+      await tester.pumpAndSettle();
 
-    expect(find.text('Scan New Page'), findsOneWidget);
-    expect(find.text('Export MusicXML…'), findsOneWidget);
-    expect(find.text('Export PDF…'), findsOneWidget);
-  });
+      expect(find.text('Scan New Page'), findsOneWidget);
+      expect(find.text('Export MusicXML…'), findsOneWidget);
+      expect(find.text('Export PDF…'), findsOneWidget);
+    },
+  );
 
   testWidgets('keeps measure actions enabled with default measure context', (
     tester,
@@ -396,73 +400,185 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('move to next measure across a page boundary follows the target page', (
-    tester,
-  ) async {
-    final score = Score(
-      id: 'score-page-follow-next',
-      title: 'Boundary Move',
-      composer: 'Composer',
-      parts: [
-        Part(
-          id: 'P1',
-          name: 'Part 1',
-          measures: List.generate(21, (i) {
-            return Measure(
-              number: i + 1,
-              symbols: [
-                Note(
-                  step: i == 19 ? 'C' : 'D',
-                  octave: 4,
-                  duration: 1,
-                  type: 'quarter',
-                ),
-              ],
-            );
-          }),
+  testWidgets(
+    'move to next measure across a page boundary follows the target page',
+    (tester) async {
+      final score = Score(
+        id: 'score-page-follow-next',
+        title: 'Boundary Move',
+        composer: 'Composer',
+        parts: [
+          Part(
+            id: 'P1',
+            name: 'Part 1',
+            measures: List.generate(21, (i) {
+              return Measure(
+                number: i + 1,
+                symbols: [
+                  Note(
+                    step: i == 19 ? 'C' : 'D',
+                    octave: 4,
+                    duration: 1,
+                    type: 'quarter',
+                  ),
+                ],
+              );
+            }),
+          ),
+        ],
+      );
+
+      await pumpEditorShell(tester, score: score);
+
+      final viewerBefore = tester.widget<ScoreNotationViewer>(
+        find.byType(ScoreNotationViewer).last,
+      );
+      viewerBefore.onSymbolTap!(
+        const NotationSymbolTarget(
+          partIndex: 0,
+          measureIndex: 19,
+          symbolIndex: 0,
+          center: Offset.zero,
+          hitRect: Rect.zero,
         ),
-      ],
-    );
+      );
+      await tester.pump();
 
-    await pumpEditorShell(tester, score: score);
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
 
-    final viewerBefore = tester.widget<ScoreNotationViewer>(
-      find.byType(ScoreNotationViewer).last,
-    );
-    viewerBefore.onSymbolTap!(
-      const NotationSymbolTarget(
-        partIndex: 0,
-        measureIndex: 19,
-        symbolIndex: 0,
-        center: Offset.zero,
-        hitRect: Rect.zero,
-      ),
-    );
-    await tester.pump();
+      final viewerAfter = tester.widget<ScoreNotationViewer>(
+        find.byType(ScoreNotationViewer).last,
+      );
+      expect(viewerAfter.firstMeasureIndex, 20);
+      expect(viewerAfter.selectedMeasureIndex, 0);
+    },
+  );
 
-    await tester.tap(find.text('Next'));
-    await tester.pumpAndSettle();
+  testWidgets(
+    'adding a measure after the last visible measure follows the new page',
+    (tester) async {
+      final score = Score(
+        id: 'score-page-follow-add',
+        title: 'Boundary Add',
+        composer: 'Composer',
+        parts: [
+          Part(
+            id: 'P1',
+            name: 'Part 1',
+            measures: List.generate(
+              20,
+              (i) => Measure(
+                number: i + 1,
+                symbols: const [
+                  Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
 
-    final viewerAfter = tester.widget<ScoreNotationViewer>(
-      find.byType(ScoreNotationViewer).last,
-    );
-    expect(viewerAfter.firstMeasureIndex, 20);
-    expect(viewerAfter.selectedMeasureIndex, 0);
-  });
+      await pumpEditorShell(tester, score: score);
 
-  testWidgets('adding a measure after the last visible measure follows the new page', (
+      final viewerBefore = tester.widget<ScoreNotationViewer>(
+        find.byType(ScoreNotationViewer).last,
+      );
+      viewerBefore.onSymbolTap!(
+        const NotationSymbolTarget(
+          partIndex: 0,
+          measureIndex: 19,
+          symbolIndex: 0,
+          center: Offset.zero,
+          hitRect: Rect.zero,
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Add'));
+      await tester.pumpAndSettle();
+
+      final viewerAfter = tester.widget<ScoreNotationViewer>(
+        find.byType(ScoreNotationViewer).last,
+      );
+      expect(viewerAfter.firstMeasureIndex, 20);
+      expect(viewerAfter.pageMeasureCount, 1);
+      expect(viewerAfter.selectedMeasureIndex, 0);
+    },
+  );
+
+  testWidgets(
+    'deleting the only measure on the last page returns to the previous page',
+    (tester) async {
+      final score = Score(
+        id: 'score-page-follow-delete',
+        title: 'Boundary Delete',
+        composer: 'Composer',
+        parts: [
+          Part(
+            id: 'P1',
+            name: 'Part 1',
+            measures: List.generate(
+              20,
+              (i) => Measure(
+                number: i + 1,
+                symbols: const [
+                  Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+
+      await pumpEditorShell(tester, score: score);
+
+      final viewerBefore = tester.widget<ScoreNotationViewer>(
+        find.byType(ScoreNotationViewer).last,
+      );
+      viewerBefore.onSymbolTap!(
+        const NotationSymbolTarget(
+          partIndex: 0,
+          measureIndex: 19,
+          symbolIndex: 0,
+          center: Offset.zero,
+          hitRect: Rect.zero,
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.text('Add'));
+      await tester.pumpAndSettle();
+
+      var viewer = tester.widget<ScoreNotationViewer>(
+        find.byType(ScoreNotationViewer).last,
+      );
+      expect(viewer.firstMeasureIndex, 20);
+
+      await tester.tap(find.text('Del'));
+      await tester.pumpAndSettle();
+
+      viewer = tester.widget<ScoreNotationViewer>(
+        find.byType(ScoreNotationViewer).last,
+      );
+      expect(viewer.firstMeasureIndex, 0);
+      expect(viewer.pageMeasureCount, 20);
+    },
+  );
+
+  testWidgets('page overview modal shows thumbnails and navigates', (
     tester,
   ) async {
     final score = Score(
-      id: 'score-page-follow-add',
-      title: 'Boundary Add',
+      id: 'score-page-overview',
+      title: 'Page Overview',
       composer: 'Composer',
       parts: [
         Part(
           id: 'P1',
           name: 'Part 1',
           measures: List.generate(
-            20,
+            21,
             (i) => Measure(
               number: i + 1,
               symbols: const [
@@ -476,87 +592,19 @@ void main() {
 
     await pumpEditorShell(tester, score: score);
 
-    final viewerBefore = tester.widget<ScoreNotationViewer>(
-      find.byType(ScoreNotationViewer).last,
-    );
-    viewerBefore.onSymbolTap!(
-      const NotationSymbolTarget(
-        partIndex: 0,
-        measureIndex: 19,
-        symbolIndex: 0,
-        center: Offset.zero,
-        hitRect: Rect.zero,
-      ),
-    );
-    await tester.pump();
-
-    await tester.tap(find.text('Add'));
+    await tester.tap(find.text('1 / 2').last);
     await tester.pumpAndSettle();
 
-    final viewerAfter = tester.widget<ScoreNotationViewer>(
-      find.byType(ScoreNotationViewer).last,
-    );
-    expect(viewerAfter.firstMeasureIndex, 20);
-    expect(viewerAfter.pageMeasureCount, 1);
-    expect(viewerAfter.selectedMeasureIndex, 0);
-  });
+    expect(find.text('Page 1'), findsOneWidget);
+    expect(find.text('Page 2'), findsOneWidget);
 
-  testWidgets('deleting the only measure on the last page returns to the previous page', (
-    tester,
-  ) async {
-    final score = Score(
-      id: 'score-page-follow-delete',
-      title: 'Boundary Delete',
-      composer: 'Composer',
-      parts: [
-        Part(
-          id: 'P1',
-          name: 'Part 1',
-          measures: List.generate(
-            20,
-            (i) => Measure(
-              number: i + 1,
-              symbols: const [
-                Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-
-    await pumpEditorShell(tester, score: score);
-
-    final viewerBefore = tester.widget<ScoreNotationViewer>(
-      find.byType(ScoreNotationViewer).last,
-    );
-    viewerBefore.onSymbolTap!(
-      const NotationSymbolTarget(
-        partIndex: 0,
-        measureIndex: 19,
-        symbolIndex: 0,
-        center: Offset.zero,
-        hitRect: Rect.zero,
-      ),
-    );
-    await tester.pump();
-
-    await tester.tap(find.text('Add'));
+    await tester.tap(find.text('Page 2'));
     await tester.pumpAndSettle();
 
-    var viewer = tester.widget<ScoreNotationViewer>(
+    final viewer = tester.widget<ScoreNotationViewer>(
       find.byType(ScoreNotationViewer).last,
     );
     expect(viewer.firstMeasureIndex, 20);
-
-    await tester.tap(find.text('Del'));
-    await tester.pumpAndSettle();
-
-    viewer = tester.widget<ScoreNotationViewer>(
-      find.byType(ScoreNotationViewer).last,
-    );
-    expect(viewer.firstMeasureIndex, 0);
-    expect(viewer.pageMeasureCount, 20);
   });
 
   testWidgets('portrait narrow screen renders without overflow', (
@@ -582,9 +630,8 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Save'), findsOneWidget);
-    // Toolbar buttons use 3-char labels in portrait mode
-    expect(find.text('PIT'), findsOneWidget);
-    expect(find.text('CLE'), findsOneWidget);
+    expect(find.text('PITCH'), findsOneWidget);
+    expect(find.text('CLEF'), findsOneWidget);
   });
 
   testWidgets(
@@ -624,7 +671,7 @@ void main() {
       await tester.pump();
 
       expect(tester.takeException(), isNull);
-    expect(find.text('C4'), findsWidgets);
+      expect(find.text('C4'), findsWidgets);
       expect(find.text('quarter'), findsOneWidget);
     },
   );
@@ -667,7 +714,7 @@ void main() {
       selectFirstNote(tester);
       await tester.pump();
 
-      await tester.tap(find.text('PIT'));
+      await tester.tap(find.text('PITCH').last);
       await tester.pump();
       expect(find.text('Up'), findsOneWidget);
 
@@ -681,7 +728,7 @@ void main() {
       selectFirstNote(tester);
       await tester.pump();
 
-      await tester.tap(find.text('ACC'));
+      await tester.tap(find.text('ACCIDENTAL'));
       await tester.pump();
       expect(find.text('♯'), findsOneWidget);
 
@@ -695,7 +742,7 @@ void main() {
       selectFirstNote(tester);
       await tester.pump();
 
-      await tester.tap(find.text('DUR'));
+      await tester.tap(find.text('DURATION'));
       await tester.pump();
       expect(find.text('8th'), findsOneWidget);
 
@@ -709,7 +756,7 @@ void main() {
       selectFirstNote(tester);
       await tester.pump();
 
-      await tester.tap(find.text('MEA'));
+      await tester.tap(find.text('MEASURE'));
       await tester.pump();
       expect(find.text('Add'), findsOneWidget);
 
@@ -723,11 +770,11 @@ void main() {
       selectFirstNote(tester);
       await tester.pump();
 
-      await tester.tap(find.text('PIT'));
+      await tester.tap(find.text('PITCH').last);
       await tester.pump();
       expect(find.text('Up'), findsOneWidget);
 
-      await tester.tap(find.text('PIT'));
+      await tester.tap(find.text('PITCH').last);
       await tester.pump();
       expect(find.text('Up'), findsNothing);
     });
@@ -936,7 +983,7 @@ void main() {
       await tester.pump();
 
       // Tapping a tab while disabled should not open the popup.
-      await tester.tap(find.text('PIT'));
+      await tester.tap(find.text('PITCH').last);
       await tester.pump();
       expect(find.text('Up'), findsNothing);
     });
@@ -947,7 +994,7 @@ void main() {
       await pumpPortrait(tester, buildScore());
 
       // Open the PITCH popup.
-      await tester.tap(find.text('PIT'));
+      await tester.tap(find.text('PITCH').last);
       await tester.pump();
       expect(find.text('Up'), findsOneWidget);
 
@@ -966,99 +1013,101 @@ void main() {
       await tester.pump();
 
       // Confirm tab is suppressed.
-      await tester.tap(find.text('PIT'));
+      await tester.tap(find.text('PITCH').last);
       await tester.pump();
       expect(find.text('Up'), findsNothing);
 
       // Stop playback — tab should work again.
       emitStopped();
       await tester.pump();
-      await tester.tap(find.text('PIT'));
+      await tester.tap(find.text('PITCH').last);
       await tester.pump();
       expect(find.text('Up'), findsOneWidget);
     });
 
-    testWidgets('playback position follows the page containing the active measure', (
-      tester,
-    ) async {
-      final score = Score(
-        id: 'score-playback-page-follow',
-        title: 'Playback Follow',
-        composer: 'Composer',
-        parts: [
-          Part(
-            id: 'P1',
-            name: 'Part 1',
-            measures: List.generate(
-              21,
-              (i) => Measure(
-                number: i + 1,
-                symbols: const [
-                  Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
-                ],
+    testWidgets(
+      'playback position follows the page containing the active measure',
+      (tester) async {
+        final score = Score(
+          id: 'score-playback-page-follow',
+          title: 'Playback Follow',
+          composer: 'Composer',
+          parts: [
+            Part(
+              id: 'P1',
+              name: 'Part 1',
+              measures: List.generate(
+                21,
+                (i) => Measure(
+                  number: i + 1,
+                  symbols: const [
+                    Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
-      );
+          ],
+        );
 
-      await pumpEditorShell(tester, score: score);
+        await pumpEditorShell(tester, score: score);
 
-      emitPosition(20);
-      await tester.pumpAndSettle();
+        emitPosition(20);
+        await tester.pumpAndSettle();
 
-      final viewer = tester.widget<ScoreNotationViewer>(
-        find.byType(ScoreNotationViewer).last,
-      );
-      expect(viewer.firstMeasureIndex, 20);
-      expect(viewer.playbackMeasureIndex, 0);
-    });
+        final viewer = tester.widget<ScoreNotationViewer>(
+          find.byType(ScoreNotationViewer).last,
+        );
+        expect(viewer.firstMeasureIndex, 20);
+        expect(viewer.playbackMeasureIndex, 0);
+      },
+    );
 
-    testWidgets('new playback positions pull the view back from manual page browsing', (
-      tester,
-    ) async {
-      final score = Score(
-        id: 'score-playback-recenter',
-        title: 'Playback Recenter',
-        composer: 'Composer',
-        parts: [
-          Part(
-            id: 'P1',
-            name: 'Part 1',
-            measures: List.generate(
-              21,
-              (i) => Measure(
-                number: i + 1,
-                symbols: const [
-                  Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
-                ],
+    testWidgets(
+      'new playback positions pull the view back from manual page browsing',
+      (tester) async {
+        final score = Score(
+          id: 'score-playback-recenter',
+          title: 'Playback Recenter',
+          composer: 'Composer',
+          parts: [
+            Part(
+              id: 'P1',
+              name: 'Part 1',
+              measures: List.generate(
+                21,
+                (i) => Measure(
+                  number: i + 1,
+                  symbols: const [
+                    Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
-      );
+          ],
+        );
 
-      await pumpEditorShell(tester, score: score);
+        await pumpEditorShell(tester, score: score);
 
-      emitPosition(20);
-      await tester.pumpAndSettle();
+        emitPosition(20);
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.text('1').last);
-      await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('Previous page').last);
+        await tester.pumpAndSettle();
 
-      var viewer = tester.widget<ScoreNotationViewer>(
-        find.byType(ScoreNotationViewer).last,
-      );
-      expect(viewer.firstMeasureIndex, 0);
+        var viewer = tester.widget<ScoreNotationViewer>(
+          find.byType(ScoreNotationViewer).last,
+        );
+        expect(viewer.firstMeasureIndex, 0);
 
-      emitPosition(20);
-      await tester.pumpAndSettle();
+        emitPosition(20);
+        await tester.pumpAndSettle();
 
-      viewer = tester.widget<ScoreNotationViewer>(
-        find.byType(ScoreNotationViewer).last,
-      );
-      expect(viewer.firstMeasureIndex, 20);
-    });
+        viewer = tester.widget<ScoreNotationViewer>(
+          find.byType(ScoreNotationViewer).last,
+        );
+        expect(viewer.firstMeasureIndex, 20);
+      },
+    );
   });
 
   // ── existing tests continue ──────────────────────────────────────────────
@@ -1101,7 +1150,7 @@ void main() {
     await tester.pump();
 
     // Open the DURATION group popup first, then change duration
-    await tester.tap(find.text('DUR'), warnIfMissed: false);
+    await tester.tap(find.text('DURATION'), warnIfMissed: false);
     await tester.pump();
     await tester.tap(find.text('Whole').first, warnIfMissed: false);
     await tester.pump();

@@ -4,6 +4,17 @@ import 'package:note_vision/features/info/presentation/instructions_screen.dart'
 
 void main() {
   Widget wrap(Widget child) => MaterialApp(home: child);
+  Widget wrapWithTextScale(Widget child, double scale) {
+    return MaterialApp(
+      home: child,
+      builder: (context, routeChild) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(scale)),
+        child: routeChild!,
+      ),
+    );
+  }
 
   testWidgets('renders app bar with correct title', (tester) async {
     await tester.pumpWidget(wrap(const InstructionsScreen()));
@@ -26,6 +37,24 @@ void main() {
     for (var i = 1; i <= 5; i++) {
       expect(find.text('$i'), findsOneWidget);
     }
+  });
+
+  testWidgets('wraps step titles on narrow text-scaled screens', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 640);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    await tester.pumpWidget(
+      wrapWithTextScale(const InstructionsScreen(), 1.35),
+    );
+
+    expect(find.text('Review Detections'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('back button pops the screen', (tester) async {

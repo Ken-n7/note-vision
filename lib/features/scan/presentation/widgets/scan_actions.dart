@@ -6,6 +6,7 @@ class ScanActions extends StatelessWidget {
   final VoidCallback onContinue;
   final VoidCallback? onImport;
   final bool canContinue;
+  final String redoLabel;
 
   const ScanActions({
     super.key,
@@ -13,6 +14,7 @@ class ScanActions extends StatelessWidget {
     required this.onContinue,
     this.onImport,
     this.canContinue = true,
+    this.redoLabel = 'Redo',
   });
 
   static const _bg = Color(0xFF0D0D0D);
@@ -24,7 +26,8 @@ class ScanActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
     final stackButtons = isLandscape && onImport != null;
 
     return Container(
@@ -44,7 +47,7 @@ class ScanActions extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 12),
-                SizedBox(width: double.infinity, child: _buildContinueButton(flex: 1)),
+                SizedBox(width: double.infinity, child: _buildContinueButton()),
               ],
             )
           : Row(
@@ -55,7 +58,10 @@ class ScanActions extends StatelessWidget {
                   Expanded(child: _buildImportButton()),
                   const SizedBox(width: 12),
                 ],
-                _buildContinueButton(flex: onImport == null ? 2 : 1),
+                Expanded(
+                  flex: onImport == null ? 2 : 1,
+                  child: _buildContinueButton(),
+                ),
               ],
             ),
     );
@@ -71,16 +77,16 @@ class ScanActions extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: _border),
         ),
-        child: const FittedBox(
+        child: FittedBox(
           fit: BoxFit.scaleDown,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.redo_outlined, size: 18, color: _textMuted),
-              SizedBox(width: 8),
+              const Icon(Icons.redo_outlined, size: 18, color: _textMuted),
+              const SizedBox(width: 8),
               Text(
-                'Redo',
-                style: TextStyle(
+                redoLabel,
+                style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w400,
                   color: _textMuted,
@@ -127,46 +133,43 @@ class ScanActions extends StatelessWidget {
     );
   }
 
-  Widget _buildContinueButton({required int flex}) {
-    return Expanded(
-      flex: flex,
-      child: TappableButton(
-        onPressed: canContinue ? onContinue : null,
-        child: Container(
-          height: 52,
-          decoration: BoxDecoration(
-            color: canContinue ? _textPrimary : _border,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: _accent.withValues(alpha: 0.18),
-                blurRadius: 20,
-                offset: const Offset(0, 6),
+  Widget _buildContinueButton() {
+    return TappableButton(
+      onPressed: canContinue ? onContinue : null,
+      child: Container(
+        height: 52,
+        decoration: BoxDecoration(
+          color: canContinue ? _textPrimary : _border,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: _accent.withValues(alpha: 0.18),
+              blurRadius: 20,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Continue',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: canContinue ? _bg : _textMuted,
+                  letterSpacing: 0.3,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.arrow_forward,
+                size: 18,
+                color: canContinue ? _bg : _textMuted,
               ),
             ],
-          ),
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Continue',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: canContinue ? _bg : _textMuted,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.arrow_forward,
-                  size: 18,
-                  color: canContinue ? _bg : _textMuted,
-                ),
-              ],
-            ),
           ),
         ),
       ),

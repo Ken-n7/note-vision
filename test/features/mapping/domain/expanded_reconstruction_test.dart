@@ -57,11 +57,11 @@ void main() {
           imageId: 'accidental-test',
           staffs: const [staff],
           symbols: [
-            sym(id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44),
-            sym(id: 'note-1', type: 'noteheadBlack', x: 50, y: 116),
+            sym(id: 'clef', type: 'clefG', x: 10, y: 92, width: 18, height: 44),
+            sym(id: 'note-1', type: 'noteheadBlackOnLine', x: 50, y: 116),
             sym(id: 'stem-1', type: 'stem', x: 58, y: 88, width: 2, height: 32),
             sym(id: 'acc', type: accidentalType, x: 70, y: 103, width: 8, height: 18),
-            sym(id: 'note-2', type: 'noteheadBlack', x: 88, y: 126),
+            sym(id: 'note-2', type: 'noteheadBlackOnLine', x: 88, y: 126),
             sym(id: 'stem-2', type: 'stem', x: 96, y: 98, width: 2, height: 32),
           ],
         );
@@ -112,7 +112,7 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+            id: 'clef', type: 'clefG', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
             id: 'sharp-1', type: 'accidentalSharp', x: 32, y: 101, width: 8, height: 18,
@@ -121,7 +121,7 @@ void main() {
             id: 'sharp-2', type: 'accidentalSharp', x: 42, y: 111, width: 8, height: 18,
           ),
           DetectedSymbol(
-            id: 'note-1', type: 'noteheadBlack', x: 80, y: 116, width: 10, height: 8,
+            id: 'note-1', type: 'noteheadBlackOnLine', x: 80, y: 116, width: 10, height: 8,
           ),
           DetectedSymbol(
             id: 'stem-1', type: 'stem', x: 88, y: 88, width: 2, height: 32,
@@ -152,10 +152,10 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+            id: 'clef', type: 'clefG', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
-            id: 'note-1', type: 'noteheadBlack', x: 50, y: 116, width: 10, height: 8,
+            id: 'note-1', type: 'noteheadBlackOnLine', x: 50, y: 116, width: 10, height: 8,
           ),
           DetectedSymbol(
             id: 'stem-1', type: 'stem', x: 58, y: 82, width: 2, height: 38,
@@ -180,16 +180,16 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+            id: 'clef', type: 'clefG', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
-            id: 'note-1', type: 'noteheadBlack', x: 50, y: 116, width: 10, height: 8,
+            id: 'note-1', type: 'noteheadBlackOnLine', x: 50, y: 116, width: 10, height: 8,
           ),
           DetectedSymbol(
             id: 'stem-1', type: 'stem', x: 58, y: 82, width: 2, height: 38,
           ),
           DetectedSymbol(
-            id: 'note-2', type: 'noteheadBlack', x: 66, y: 126, width: 10, height: 8,
+            id: 'note-2', type: 'noteheadBlackOnLine', x: 66, y: 126, width: 10, height: 8,
           ),
           DetectedSymbol(
             id: 'stem-2', type: 'stem', x: 74, y: 92, width: 2, height: 38,
@@ -213,10 +213,10 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+            id: 'clef', type: 'clefG', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
-            id: 'note-1', type: 'noteheadBlack', x: 50, y: 116, width: 10, height: 8,
+            id: 'note-1', type: 'noteheadBlackOnLine', x: 50, y: 116, width: 10, height: 8,
           ),
           DetectedSymbol(
             id: 'stem-1', type: 'stem', x: 58, y: 82, width: 2, height: 38,
@@ -238,13 +238,13 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+            id: 'clef', type: 'clefG', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
-            id: 'note-1', type: 'noteheadBlack', x: 50, y: 126, width: 10, height: 8,
+            id: 'note-1', type: 'noteheadBlackOnLine', x: 50, y: 126, width: 10, height: 8,
           ),
           DetectedSymbol(
-            id: 'note-2', type: 'noteheadBlack', x: 50, y: 116, width: 10, height: 8,
+            id: 'note-2', type: 'noteheadBlackOnLine', x: 50, y: 116, width: 10, height: 8,
           ),
           DetectedSymbol(
             id: 'stem-1', type: 'stem', x: 58, y: 82, width: 2, height: 52,
@@ -269,16 +269,16 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+            id: 'clef', type: 'clefG', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
-            id: 'note-1', type: 'noteheadBlack', x: 50, y: 136, width: 10, height: 8,
+            id: 'note-1', type: 'noteheadBlackOnLine', x: 50, y: 136, width: 10, height: 8,
           ),
           DetectedSymbol(
-            id: 'note-2', type: 'noteheadBlack', x: 50, y: 126, width: 10, height: 8,
+            id: 'note-2', type: 'noteheadBlackOnLine', x: 50, y: 126, width: 10, height: 8,
           ),
           DetectedSymbol(
-            id: 'note-3', type: 'noteheadBlack', x: 50, y: 116, width: 10, height: 8,
+            id: 'note-3', type: 'noteheadBlackOnLine', x: 50, y: 116, width: 10, height: 8,
           ),
           DetectedSymbol(
             id: 'stem-1', type: 'stem', x: 58, y: 82, width: 2, height: 62,
@@ -301,10 +301,10 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+            id: 'clef', type: 'clefG', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
-            id: 'note-1', type: 'noteheadBlack', x: 50, y: 126, width: 10, height: 8,
+            id: 'note-1', type: 'noteheadBlackOnLine', x: 50, y: 126, width: 10, height: 8,
           ),
           DetectedSymbol(
             id: 'stem-1', type: 'stem', x: 58, y: 82, width: 2, height: 52,
@@ -325,13 +325,13 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+            id: 'clef', type: 'clefG', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
-            id: 'note-1', type: 'noteheadBlack', x: 50, y: 126, width: 10, height: 8,
+            id: 'note-1', type: 'noteheadBlackOnLine', x: 50, y: 126, width: 10, height: 8,
           ),
           DetectedSymbol(
-            id: 'note-2', type: 'noteheadBlack', x: 50, y: 40, width: 10, height: 8,
+            id: 'note-2', type: 'noteheadBlackOnLine', x: 50, y: 40, width: 10, height: 8,
           ),
           DetectedSymbol(
             id: 'stem-1', type: 'stem', x: 58, y: 82, width: 2, height: 42,
@@ -355,10 +355,10 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+            id: 'clef', type: 'clefG', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
-            id: 'note-1', type: 'noteheadBlack', x: 50, y: 116, width: 10, height: 8,
+            id: 'note-1', type: 'noteheadBlackOnLine', x: 50, y: 116, width: 10, height: 8,
           ),
           DetectedSymbol(
             id: 'stem-1', type: 'stem', x: 58, y: 82, width: 2, height: 38,
@@ -383,7 +383,7 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+            id: 'clef', type: 'clefG', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
             id: 'rest-1', type: 'restQuarter', x: 60, y: 116, width: 10, height: 20,
@@ -414,7 +414,7 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+            id: 'clef', type: 'clefG', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
             id: 'r1', type: 'rest8th', x: 60, y: 116, width: 8, height: 16,
@@ -435,7 +435,7 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+            id: 'clef', type: 'clefG', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
             id: 'r1', type: 'rest16th', x: 60, y: 116, width: 8, height: 16,
@@ -458,10 +458,10 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+            id: 'clef', type: 'clefG', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
-            id: 'note-1', type: 'noteheadDoubleWhole', x: 50, y: 126, width: 14, height: 10,
+            id: 'note-1', type: 'noteheadDoubleWholeOnLine', x: 50, y: 126, width: 14, height: 10,
           ),
         ],
       );
@@ -493,10 +493,10 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef', type: 'fClef', x: 10, y: 92, width: 18, height: 44,
+            id: 'clef', type: 'clefF', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
-            id: 'note-1', type: 'noteheadBlack', x: 50, y: 116, width: 10, height: 8,
+            id: 'note-1', type: 'noteheadBlackOnLine', x: 50, y: 116, width: 10, height: 8,
           ),
           DetectedSymbol(
             id: 'stem-1', type: 'stem', x: 58, y: 88, width: 2, height: 32,
@@ -518,10 +518,10 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef', type: 'fClef', x: 10, y: 92, width: 18, height: 44,
+            id: 'clef', type: 'clefF', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
-            id: 'note-1', type: 'noteheadBlack', x: 50, y: 136, width: 10, height: 8,
+            id: 'note-1', type: 'noteheadBlackOnLine', x: 50, y: 136, width: 10, height: 8,
           ),
           DetectedSymbol(
             id: 'stem-1', type: 'stem', x: 58, y: 108, width: 2, height: 32,
@@ -543,10 +543,10 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef', type: 'fClef', x: 10, y: 92, width: 18, height: 44,
+            id: 'clef', type: 'clefF', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
-            id: 'note-1', type: 'noteheadBlack', x: 50, y: 126, width: 10, height: 8,
+            id: 'note-1', type: 'noteheadBlackOnLine', x: 50, y: 126, width: 10, height: 8,
           ),
           DetectedSymbol(
             id: 'stem-1', type: 'stem', x: 58, y: 98, width: 2, height: 32,
@@ -570,13 +570,13 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+            id: 'clef', type: 'clefG', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
-            id: 'ledger-1', type: 'legerLine', x: 46, y: 149, width: 18, height: 2,
+            id: 'ledger-1', type: 'ledgerLine', x: 46, y: 149, width: 18, height: 2,
           ),
           DetectedSymbol(
-            id: 'note-1', type: 'noteheadBlack', x: 50, y: 146, width: 10, height: 8,
+            id: 'note-1', type: 'noteheadBlackOnLine', x: 50, y: 146, width: 10, height: 8,
           ),
           DetectedSymbol(
             id: 'stem-1', type: 'stem', x: 58, y: 112, width: 2, height: 38,
@@ -596,16 +596,16 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+            id: 'clef', type: 'clefG', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
-            id: 'ledger-1', type: 'legerLine', x: 46, y: 89, width: 18, height: 2,
+            id: 'ledger-1', type: 'ledgerLine', x: 46, y: 89, width: 18, height: 2,
           ),
           DetectedSymbol(
-            id: 'ledger-2', type: 'legerLine', x: 46, y: 79, width: 18, height: 2,
+            id: 'ledger-2', type: 'ledgerLine', x: 46, y: 79, width: 18, height: 2,
           ),
           DetectedSymbol(
-            id: 'note-1', type: 'noteheadBlack', x: 50, y: 76, width: 10, height: 8,
+            id: 'note-1', type: 'noteheadBlackOnLine', x: 50, y: 76, width: 10, height: 8,
           ),
           DetectedSymbol(
             id: 'stem-1', type: 'stem', x: 58, y: 76, width: 2, height: 38,
@@ -625,13 +625,13 @@ void main() {
         staffs: [staff],
         symbols: [
           DetectedSymbol(
-            id: 'clef', type: 'gClef', x: 10, y: 92, width: 18, height: 44,
+            id: 'clef', type: 'clefG', x: 10, y: 92, width: 18, height: 44,
           ),
           DetectedSymbol(
-            id: 'ledger-1', type: 'legerLine', x: 46, y: 129, width: 18, height: 2,
+            id: 'ledger-1', type: 'ledgerLine', x: 46, y: 129, width: 18, height: 2,
           ),
           DetectedSymbol(
-            id: 'note-1', type: 'noteheadBlack', x: 50, y: 126, width: 10, height: 8,
+            id: 'note-1', type: 'noteheadBlackOnLine', x: 50, y: 126, width: 10, height: 8,
           ),
           DetectedSymbol(
             id: 'stem-1', type: 'stem', x: 58, y: 90, width: 2, height: 38,

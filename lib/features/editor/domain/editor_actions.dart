@@ -37,11 +37,9 @@ const DurationSpec quarterDuration = DurationSpec('quarter', 2);
 const DurationSpec eighthDuration = DurationSpec('eighth', 1);
 
 extension EditorActions on EditorState {
-  bool get hasSelection =>
-      hasSymbolSelection;
+  bool get hasSelection => hasSymbolSelection;
 
-  bool get hasEditableSelection =>
-      hasEditableSymbolSelection;
+  bool get hasEditableSelection => hasEditableSymbolSelection;
 
   bool get canUndo => undoStack.isNotEmpty;
 
@@ -76,10 +74,7 @@ extension EditorActions on EditorState {
   }
 
   EditorState clearSymbolSelectionPreservingMeasureContext() {
-    return copyWith(
-      selectedSymbolIndex: null,
-      selectedSymbol: null,
-    );
+    return copyWith(selectedSymbolIndex: null, selectedSymbol: null);
   }
 
   EditorState deleteSymbolAtSelectionTarget({
@@ -163,6 +158,62 @@ extension EditorActions on EditorState {
     return this;
   }
 
+  EditorState toggleSelectedDot() {
+    if (!hasSelection) return this;
+    final symbol = selectedSymbol;
+
+    final type = symbol is Note
+        ? symbol.type.trim().toLowerCase()
+        : symbol is Rest
+        ? symbol.type.trim().toLowerCase()
+        : null;
+    if (type == null) return this;
+
+    // Dotted eighth = 1.5 divisions — not representable with 2 divs/quarter.
+    const baseDivisions = {'whole': 8, 'half': 4, 'quarter': 2};
+    final base = baseDivisions[type];
+    if (base == null) return this;
+
+    final currentDots = symbol is Note ? symbol.dots : (symbol as Rest).dots;
+    final newDots = currentDots > 0 ? 0 : 1;
+    final newDuration = newDots == 1 ? base + base ~/ 2 : base;
+
+    if (!_canReplaceSelectedSymbolWithDuration(newDuration)) return this;
+
+    if (symbol is Note) {
+      return _replaceSelectedSymbol(
+        Note(
+          step: symbol.step,
+          octave: symbol.octave,
+          alter: symbol.alter,
+          duration: newDuration,
+          type: symbol.type,
+          voice: symbol.voice,
+          staff: symbol.staff,
+          beamed: symbol.beamed,
+          dots: newDots,
+          isChordTone: symbol.isChordTone,
+        ),
+        intent: EditorEditIntent.replaceSelection,
+      );
+    }
+
+    if (symbol is Rest) {
+      return _replaceSelectedSymbol(
+        Rest(
+          duration: newDuration,
+          type: symbol.type,
+          voice: symbol.voice,
+          staff: symbol.staff,
+          dots: newDots,
+        ),
+        intent: EditorEditIntent.replaceSelection,
+      );
+    }
+
+    return this;
+  }
+
   EditorState insertNoteAfterSelection() {
     if (selectedPartIndex == null || selectedMeasureIndex == null) return this;
 
@@ -181,13 +232,12 @@ extension EditorActions on EditorState {
     );
   }
 
-  EditorState deleteSelectedMeasureIfEmpty() {
+  EditorState deleteSelectedMeasure() {
     if (selectedPartIndex == null || selectedMeasureIndex == null) return this;
     final partIndex = selectedPartIndex!;
     final measureIndex = selectedMeasureIndex!;
     final measures = score.parts[partIndex].measures;
     if (measures.length <= 1) return this; // keep at least one measure
-    if (measures[measureIndex].symbols.isNotEmpty) return this; // not empty
 
     final nextScore = score.deleteMeasureFromAllParts(measureIndex);
     final nextMeasureIndex = (measureIndex - 1).clamp(
@@ -515,8 +565,11 @@ extension EditorActions on EditorState {
       partIndex: toPartIndex,
       measureIndex: toMeasureIndex,
       symbol: moved,
-      replacingSymbolDuration:
-          sameMeasure ? _symbolDuration(fromMeasures[fromMeasureIndex].symbols[fromSymbolIndex]) : 0,
+      replacingSymbolDuration: sameMeasure
+          ? _symbolDuration(
+              fromMeasures[fromMeasureIndex].symbols[fromSymbolIndex],
+            )
+          : 0,
     )) {
       return this;
     }
@@ -647,7 +700,8 @@ extension EditorActions on EditorState {
     if (partIndex < 0 || partIndex >= score.parts.length) return this;
     final measures = score.parts[partIndex].measures;
     if (measureIndex < 0 || measureIndex >= measures.length) return this;
-    if (insertIndex < 0 || insertIndex > measures[measureIndex].symbols.length) {
+    if (insertIndex < 0 ||
+        insertIndex > measures[measureIndex].symbols.length) {
       return this;
     }
     if (!_canMeasureAcceptSymbol(

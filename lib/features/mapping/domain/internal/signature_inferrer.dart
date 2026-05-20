@@ -17,7 +17,7 @@ class SignatureInferrer {
   }) {
     for (final entry in symbols) {
       if (!SymbolClassifier.isSupportedClef(entry.symbol.type)) continue;
-      return entry.symbol.type == 'fClef'
+      return entry.symbol.type == 'clefF'
           ? const Clef(sign: 'F', line: 4)
           : const Clef(sign: 'G', line: 2);
     }

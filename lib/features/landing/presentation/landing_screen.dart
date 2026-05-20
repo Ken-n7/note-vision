@@ -105,7 +105,7 @@ class _LandingScreenState extends State<LandingScreen>
                   const Text(
                     'Note Vision',
                     style: TextStyle(
-                      fontFamily: 'MaturaMTScriptCapitals',
+                      fontFamily: 'PlayfairDisplay',
                       fontSize: 42,
                       color: AppColors.textPrimary,
                       letterSpacing: 1.5,

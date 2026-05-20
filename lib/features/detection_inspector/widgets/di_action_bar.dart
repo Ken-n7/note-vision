@@ -6,8 +6,9 @@ import '../controller/detection_inspector_controller.dart';
 
 class DiActionBar extends StatelessWidget {
   final DetectionInspectorController controller;
+  final VoidCallback? onOpenInEditor;
 
-  const DiActionBar({super.key, required this.controller});
+  const DiActionBar({super.key, required this.controller, this.onOpenInEditor});
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +69,13 @@ class DiActionBar extends StatelessWidget {
           isRunning: controller.isRunningMapping,
           onTap: () => controller.runMapping(),
         ),
+
+        // ── Open in Editor ───────────────────────────────────────────────
+        if (controller.status == InspectorStatus.mapped &&
+            onOpenInEditor != null) ...[
+          const SizedBox(height: 10),
+          _OpenInEditorButton(onTap: onOpenInEditor!),
+        ],
       ],
     );
   }
@@ -334,6 +342,46 @@ class _RunButton extends StatelessWidget {
                     ),
                   ],
                 ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Open in Editor button ──────────────────────────────────────────────────
+
+class _OpenInEditorButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _OpenInEditorButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFD4A96A).withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: const Color(0xFFD4A96A).withValues(alpha: 0.45),
+          ),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.edit_note_rounded, size: 18, color: Color(0xFFD4A96A)),
+            SizedBox(width: 6),
+            Text(
+              'Open in Editor',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFD4A96A),
+                letterSpacing: 0.3,
+              ),
+            ),
+          ],
         ),
       ),
     );

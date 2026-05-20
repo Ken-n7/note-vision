@@ -5,33 +5,57 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config/app_features.dart';
 import '../models/project.dart';
+import 'user_profile_service.dart';
 
-/// Persists [Project] objects as individual JSON files under
+/// Persists [Project] objects as individual JSON files. Classroom builds can
+/// scope storage by the current role; presentation builds fall back to
 /// `{appDocumentsDir}/projects/{id}.json`.
 ///
-/// A lightweight master index stored in [SharedPreferences] under
-/// [_indexKey] maps project ids → names, allowing [loadAllProjects] to
-/// enumerate projects without loading every file. The index is kept in sync
-/// with the filesystem on every write/delete.
+/// A lightweight role-scoped master index stored in [SharedPreferences] maps
+/// project ids → names, allowing [loadAllProjects] to enumerate projects
+/// without loading every file. The index is kept in sync with the filesystem
+/// on every write/delete.
 class ProjectStorageService {
   static const _indexKey = 'project_index';
 
   /// Overridable for testing — when null the real documents directory is used.
   final Future<Directory> Function()? _projectsDirOverride;
+  final Future<String?> Function()? _roleProvider;
   Future<SharedPreferences>? _prefsFuture;
 
-  ProjectStorageService({Future<Directory> Function()? projectsDirOverride})
-      : _projectsDirOverride = projectsDirOverride;
+  ProjectStorageService({
+    Future<Directory> Function()? projectsDirOverride,
+    Future<String?> Function()? roleProvider,
+  }) : _projectsDirOverride = projectsDirOverride,
+       _roleProvider = roleProvider;
 
   // ── directory / file helpers ────────────────────────────────────────────
 
   Future<Directory> _projectsDir() async {
-    if (_projectsDirOverride != null) return _projectsDirOverride();
-    final docs = await getApplicationDocumentsDirectory();
-    final dir = Directory(p.join(docs.path, 'projects'));
+    final baseDir = _projectsDirOverride != null
+        ? await _projectsDirOverride()
+        : Directory(
+            p.join((await getApplicationDocumentsDirectory()).path, 'projects'),
+          );
+    final scope = await _roleScope();
+    final dir = scope == null
+        ? baseDir
+        : Directory(p.join(baseDir.path, scope));
     if (!await dir.exists()) await dir.create(recursive: true);
     return dir;
+  }
+
+  Future<String?> _roleScope() async {
+    if (!AppFeatures.classroomWorkflow && _roleProvider == null) return null;
+    final role = await (_roleProvider ?? UserProfileService.loadRole)();
+    return role == 'teacher' || role == 'student' ? role : null;
+  }
+
+  Future<String> _indexKeyForScope() async {
+    final scope = await _roleScope();
+    return scope == null ? _indexKey : '${_indexKey}_$scope';
   }
 
   Future<File> _fileFor(String id) async {
@@ -87,7 +111,7 @@ class ProjectStorageService {
 
   Future<List<Map<String, String>>> _readIndex() async {
     final prefs = await _prefs();
-    final raw = prefs.getString(_indexKey);
+    final raw = prefs.getString(await _indexKeyForScope());
     if (raw == null) return [];
     return (jsonDecode(raw) as List<dynamic>)
         .map((e) => Map<String, String>.from(e as Map))
@@ -96,7 +120,7 @@ class ProjectStorageService {
 
   Future<void> _writeIndex(List<Map<String, String>> index) async {
     final prefs = await _prefs();
-    await prefs.setString(_indexKey, jsonEncode(index));
+    await prefs.setString(await _indexKeyForScope(), jsonEncode(index));
   }
 
   Future<void> _upsertIndex(String id, String name) async {

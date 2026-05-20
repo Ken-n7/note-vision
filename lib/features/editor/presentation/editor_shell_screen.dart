@@ -2,21 +2,27 @@ import 'dart:async' show StreamSubscription, Timer, unawaited;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:note_vision/core/config/app_features.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/project.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
+import 'package:note_vision/core/utils/emoji_blocking_formatter.dart';
 import 'package:note_vision/core/utils/image_picker_helper.dart';
 import 'package:note_vision/features/scan/presentation/scan_screen.dart';
+import 'package:note_vision/core/services/playback_display_preferences_service.dart';
 import 'package:note_vision/core/services/playback_service.dart';
 import 'package:note_vision/core/services/project_storage_service.dart';
+import 'package:note_vision/core/services/nvscore_export_service.dart';
 import 'package:note_vision/core/services/score_classifier.dart';
+import 'package:note_vision/core/services/user_profile_service.dart';
 import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
 import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
+import 'package:note_vision/core/widgets/score_page_thumbnail.dart';
 import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/model/editor_state_history.dart';
@@ -32,6 +38,8 @@ class EditorShellArgs {
     required this.score,
     required this.initialState,
     this.existingProject,
+    this.reviewMode = false,
+    this.canEditTeacherComments = true,
   });
 
   final Score score;
@@ -39,6 +47,9 @@ class EditorShellArgs {
 
   /// Non-null when the editor was opened from the project list screen.
   final Project? existingProject;
+
+  final bool reviewMode;
+  final bool canEditTeacherComments;
 }
 
 class EditorShellScreen extends StatefulWidget {
@@ -68,10 +79,22 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   NotationSymbolTarget? _dragTarget;
   PaletteSymbolType? _insertSymbolType;
 
+  OverlayEntry? _dragGhostEntry;
+  final ValueNotifier<Offset> _ghostPosition = ValueNotifier(Offset.zero);
+  PaletteSymbolType? _dragSymbolType;
+
   // Playback
   late final PlaybackService _playback;
   PlaybackPosition _playbackPosition = PlaybackPosition.none;
   PlaybackStatus _playbackStatus = PlaybackStatus.stopped;
+  // Per-note AnimationController anchor in _NotationAreaState.
+  // Epoch increments on every position event; the state responds by calling
+  // forward(from:0) so T sweeps 0→1 over exactly pos.durationMs.
+  int _playheadEpoch = 0;
+  int _playheadSymbolIndex = 0;
+  int _playheadNoteDurationMs = 0;
+  bool _showPlaybackSymbolHighlight =
+      PlaybackDisplayPreferencesService.showSymbolGlowNotifier.value;
   StreamSubscription<PlaybackPosition>? _positionSub;
   StreamSubscription<PlaybackState>? _stateSub;
 
@@ -79,6 +102,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   Project? _currentProject;
   int _scoreEditCount = 0;
   bool _isSaving = false;
+  bool _isSubmitting = false;
+  String? _role;
   _EditorBannerData? _banner;
   Timer? _bannerTimer;
 
@@ -86,6 +111,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
   EditorLayoutPolicy get _layoutPolicy =>
       EditorLayoutPolicy.forPartCount(_editorState.score.parts.length);
+
+  bool get _isReviewMode =>
+      AppFeatures.classroomWorkflow && widget.args.reviewMode;
+  bool get _isStudent => AppFeatures.classroomWorkflow && _role == 'student';
+  bool get _canEditTeacherComments =>
+      AppFeatures.classroomWorkflow && widget.args.canEditTeacherComments;
 
   EditorPageMetrics get _pageMetrics {
     final score = _editorState.score;
@@ -120,7 +151,33 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       widget.args.initialState.copyWith(score: widget.args.score),
     );
     _initPlayback();
+    PlaybackDisplayPreferencesService.showSymbolGlowNotifier.addListener(
+      _onPlaybackDisplayPreferencesChanged,
+    );
+    _loadPlaybackDisplayPreferences();
     _loadScoreEditCount();
+    _loadRole();
+  }
+
+  Future<void> _loadRole() async {
+    if (!AppFeatures.classroomWorkflow) return;
+    final role = await UserProfileService.loadRole();
+    if (mounted) setState(() => _role = role);
+  }
+
+  Future<void> _loadPlaybackDisplayPreferences() async {
+    final showSymbolGlow =
+        await PlaybackDisplayPreferencesService.getShowSymbolGlow();
+    if (!mounted) return;
+    setState(() => _showPlaybackSymbolHighlight = showSymbolGlow);
+  }
+
+  void _onPlaybackDisplayPreferencesChanged() {
+    if (!mounted) return;
+    setState(() {
+      _showPlaybackSymbolHighlight =
+          PlaybackDisplayPreferencesService.showSymbolGlowNotifier.value;
+    });
   }
 
   Future<void> _initPlayback() async {
@@ -131,10 +188,28 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       setState(() {
         _playbackPosition = pos;
         _syncPageToPlaybackPosition(pos);
+        // Each position event starts a fresh per-note AnimationController sweep
+        // in _NotationAreaState (epoch change → forward(from:0)). The painter
+        // uses T (0→1) + the symbol index to interpolate X directly from slot
+        // geometry — no base-ms accumulation needed.
+        if (!pos.isNone) {
+          _playheadSymbolIndex = pos.symbolIndex;
+          _playheadNoteDurationMs = pos.durationMs;
+          _playheadEpoch++;
+        }
       });
     });
     _stateSub = _playback.stateStream.listen((state) {
-      if (mounted) setState(() => _playbackStatus = state.status);
+      if (!mounted) return;
+      setState(() {
+        _playbackStatus = state.status;
+        if (state.status == PlaybackStatus.stopped ||
+            state.status == PlaybackStatus.error) {
+          _playheadEpoch = 0;
+          _playheadSymbolIndex = 0;
+          _playheadNoteDurationMs = 0;
+        }
+      });
     });
     await _playback.init();
   }
@@ -143,9 +218,35 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   void dispose() {
     _positionSub?.cancel();
     _stateSub?.cancel();
+    PlaybackDisplayPreferencesService.showSymbolGlowNotifier.removeListener(
+      _onPlaybackDisplayPreferencesChanged,
+    );
     _bannerTimer?.cancel();
     _playback.stop();
+    _dragGhostEntry?.remove();
+    _ghostPosition.dispose();
     super.dispose();
+  }
+
+  PaletteSymbolType? _paletteTypeForSymbol(ScoreSymbol? symbol) {
+    if (symbol is Note) {
+      return switch (symbol.type.trim().toLowerCase()) {
+        'whole' => PaletteSymbolType.wholeNote,
+        'half' => PaletteSymbolType.halfNote,
+        'quarter' => PaletteSymbolType.quarterNote,
+        'eighth' => PaletteSymbolType.eighthNote,
+        _ => null,
+      };
+    }
+    if (symbol is Rest) {
+      return switch (symbol.type.trim().toLowerCase()) {
+        'whole' => PaletteSymbolType.wholeRest,
+        'half' => PaletteSymbolType.halfRest,
+        'quarter' || 'eighth' => PaletteSymbolType.quarterRest,
+        _ => null,
+      };
+    }
+    return null;
   }
 
   // ── Save logic ─────────────────────────────────────────────────────────────
@@ -188,7 +289,53 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     }
   }
 
+  Future<void> _onSubmit() async {
+    if (_isSubmitting || _playbackStatus == PlaybackStatus.playing) return;
+    setState(() => _isSubmitting = true);
+
+    try {
+      final profile = await UserProfileService.loadProfile();
+      final submittedBy = profile?.name.trim();
+      if (submittedBy == null || submittedBy.isEmpty) {
+        _showEditorBanner(
+          const _EditorBannerData.error('Submit failed: profile name missing.'),
+        );
+        return;
+      }
+      final submittedById = await UserProfileService.loadOrCreateUserId();
+
+      final project =
+          (_currentProject ??
+                  Project.create(
+                    name: _editorState.score.title.trim().isEmpty
+                        ? 'Untitled'
+                        : _editorState.score.title.trim(),
+                    score: _editorState.score,
+                  ))
+              .copyWithUpdated(
+                score: _editorState.score,
+                submittedBy: submittedBy,
+                submittedById: submittedById,
+              );
+
+      await _runExport(
+        export: () => const NvscoreExportService().exportProject(
+          project,
+          fileName: NvscoreExportService.submissionFileName(
+            project: project,
+            studentName: submittedBy,
+            studentId: submittedById,
+          ),
+        ),
+        successMessage: 'Submission exported',
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
   Future<void> _onSave() async {
+    if (_isReviewMode) return;
     if (_isSaving) return;
     setState(() => _isSaving = true);
     try {
@@ -230,56 +377,178 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     final controller = TextEditingController(text: defaultName);
     return showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text(
-          'Name your project',
-          style: TextStyle(color: AppColors.textPrimary),
-        ),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          style: const TextStyle(color: AppColors.textPrimary),
-          decoration: const InputDecoration(
-            hintText: 'Project name',
-            hintStyle: TextStyle(color: AppColors.textSecondary),
-            enabledBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.border),
+      builder: (ctx) {
+        String? errorText;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: const Text(
+              'Name your project',
+              style: TextStyle(color: AppColors.textPrimary),
             ),
-            focusedBorder: UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.accent),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              maxLength: 60,
+              inputFormatters: [
+                EmojiBlockingFormatter(onBlocked: () {
+                  setDialogState(() => errorText = 'Emoji not allowed');
+                }),
+              ],
+              buildCounter: (_, {required currentLength, required isFocused, maxLength}) {
+                if (maxLength == null || currentLength <= maxLength - 20) return null;
+                return Text(
+                  '$currentLength / $maxLength',
+                  style: TextStyle(
+                    color: currentLength >= maxLength
+                        ? const Color(0xFFE05252)
+                        : AppColors.textSecondary,
+                    fontSize: 11,
+                  ),
+                );
+              },
+              style: const TextStyle(color: AppColors.textPrimary),
+              decoration: InputDecoration(
+                hintText: 'Project name',
+                hintStyle: const TextStyle(color: AppColors.textSecondary),
+                errorText: errorText,
+                enabledBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: const UnderlineInputBorder(
+                  borderSide: BorderSide(color: AppColors.accent),
+                ),
+              ),
+              onChanged: (_) {
+                if (errorText != null) {
+                  setDialogState(() => errorText = null);
+                }
+              },
+              onSubmitted: (v) {
+                final trimmed = v.trim();
+                if (trimmed.isEmpty) {
+                  setDialogState(() => errorText = 'Name cannot be empty');
+                  return;
+                }
+                Navigator.of(ctx).pop(trimmed);
+              },
             ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: AppColors.textSecondary),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  final trimmed = controller.text.trim();
+                  if (trimmed.isEmpty) {
+                    setDialogState(() => errorText = 'Name cannot be empty');
+                    return;
+                  }
+                  Navigator.of(ctx).pop(trimmed);
+                },
+                child: const Text(
+                  'Save',
+                  style: TextStyle(color: AppColors.accent),
+                ),
+              ),
+            ],
           ),
-          onSubmitted: (v) {
-            final trimmed = v.trim();
-            Navigator.of(ctx).pop(trimmed.isEmpty ? null : trimmed);
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              final trimmed = controller.text.trim();
-              Navigator.of(ctx).pop(trimmed.isEmpty ? null : trimmed);
-            },
-            child: const Text(
-              'Save',
-              style: TextStyle(color: AppColors.accent),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   void _showSavedBanner(String name) {
     _showEditorBanner(_EditorBannerData.success('Saved as $name'));
+  }
+
+  String? _commentForSelectedMeasure() {
+    final measureNumber = _selectedMeasureNumber();
+    if (measureNumber == null) return null;
+    return _currentProject?.teacherComments?[measureNumber];
+  }
+
+  int? _selectedMeasureNumber() {
+    final selectedPartIndex = _editorState.selectedPartIndex ?? 0;
+    final selectedMeasureIndex = _editorState.selectedMeasureIndex;
+    if (selectedMeasureIndex == null ||
+        _editorState.score.parts.isEmpty ||
+        selectedPartIndex >= _editorState.score.parts.length) {
+      return null;
+    }
+    final measures = _editorState.score.parts[selectedPartIndex].measures;
+    if (selectedMeasureIndex < 0 || selectedMeasureIndex >= measures.length) {
+      return null;
+    }
+    return measures[selectedMeasureIndex].number;
+  }
+
+  void _selectMeasureForReview(NotationMeasureTarget? target) {
+    if (target == null) return;
+    setState(() {
+      _editorState = _editorState.copyWith(
+        selectedPartIndex: target.partIndex,
+        selectedMeasureIndex: target.measureIndex,
+        selectedSymbolIndex: null,
+        selectedSymbol: null,
+      );
+      _syncPageToEditorState(_editorState);
+    });
+  }
+
+  Future<void> _showMeasureCommentDialog() async {
+    if (!_canEditTeacherComments) return;
+    final measureNumber = _selectedMeasureNumber();
+    final currentProject = _currentProject;
+    if (measureNumber == null || currentProject == null) return;
+
+    final currentComment = currentProject.teacherComments?[measureNumber] ?? '';
+    final result = await showDialog<String?>(
+      context: context,
+      builder: (_) => _MeasureCommentDialog(
+        measureNumber: measureNumber,
+        initialComment: currentComment,
+      ),
+    );
+
+    if (result == null || !mounted) return;
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted) return;
+
+    final comments = Map<int, String>.from(
+      currentProject.teacherComments ?? const <int, String>{},
+    );
+    if (result.isEmpty) {
+      comments.remove(measureNumber);
+    } else {
+      comments[measureNumber] = result;
+    }
+
+    final updatedProject = currentProject.copyWithUpdated(
+      score: _editorState.score,
+      teacherComments: comments,
+    );
+    if (!await _trySaveProject(updatedProject)) return;
+    if (!mounted) return;
+    setState(() => _currentProject = updatedProject);
+    _showEditorBanner(const _EditorBannerData.success('Comment saved'));
+  }
+
+  Future<void> _exportCurrentNvscoreProject() async {
+    final project = _currentProject;
+    if (project == null) return;
+
+    await _runExport(
+      export: () => const NvscoreExportService().exportProject(
+        project,
+        fileName: NvscoreExportService.feedbackFileName(project),
+      ),
+      successMessage: 'Reviewed score exported',
+    );
   }
 
   void _showEditorBanner(_EditorBannerData banner) {
@@ -471,6 +740,52 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     );
   }
 
+  Future<void> _showPageOverview() async {
+    final metrics = _pageMetrics;
+    final selectedPageIndex = await showModalBottomSheet<int>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _PageOverviewSheet(
+        score: _editorState.score,
+        currentPageIndex: _currentPageIndex,
+        totalPages: metrics.totalPages,
+      ),
+    );
+
+    if (!mounted || selectedPageIndex == null) return;
+    setState(() => _setCurrentPageIndex(selectedPageIndex));
+  }
+
+  Future<void> _playFromMeasure(int fromMeasureIndex) async {
+    await _playback.play(
+      _editorState.score,
+      fromMeasureIndex: fromMeasureIndex,
+    );
+    if (!mounted) return;
+    if (_playback.status != PlaybackStatus.playing) {
+      setState(() {
+        _playheadEpoch = 0;
+        _playheadSymbolIndex = 0;
+        _playheadNoteDurationMs = 0;
+      });
+    }
+  }
+
+  void _stopVisualPlayback() {
+    setState(() {
+      _playheadEpoch = 0;
+      _playheadSymbolIndex = 0;
+      _playheadNoteDurationMs = 0;
+    });
+  }
+
+  void _setPlaybackTempo(int bpm) {
+    // Tempo only affects the *next* note's animation duration (pos.durationMs),
+    // exactly as it affects the audio timer — no mid-note visual correction needed.
+    _playback.setTempo(bpm);
+  }
+
   void _jumpToLastPage() {
     _setCurrentPageIndex(_pageMetrics.totalPages - 1);
   }
@@ -506,6 +821,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   }
 
   void _updateState(EditorState Function(EditorState state) updater) {
+    if (_isReviewMode) return;
     setState(() {
       final prev = _editorState;
       final nextState = updater(_editorState);
@@ -636,6 +952,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   @override
   Widget build(BuildContext context) {
     final isPlaybackActive = _playbackStatus == PlaybackStatus.playing;
+    final isReadOnly = _isReviewMode;
     final selected = _editorState.selectedSymbol;
     final hasSelection = _editorState.hasSelection;
     final hasMeasureContext =
@@ -648,16 +965,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
             selectedPartIndex >= _editorState.score.parts.length
         ? 0
         : _editorState.score.parts[selectedPartIndex].measures.length;
-    final canDeleteMeasure =
-        hasMeasureContext &&
-        measureCount > 1 &&
-        _editorState
-            .score
-            .parts[selectedPartIndex]
-            .measures[selectedMeasureIndex]
-            .symbols
-            .isEmpty;
-    final currentMeasureClef = _editorState.score.parts.isNotEmpty &&
+    final canDeleteMeasure = hasMeasureContext && measureCount > 1;
+    final currentMeasureClef =
+        _editorState.score.parts.isNotEmpty &&
             selectedPartIndex < _editorState.score.parts.length &&
             _editorState.score.parts[selectedPartIndex].measures.isNotEmpty
         ? _editorState.score.parts[selectedPartIndex].measures.first.clef
@@ -671,7 +981,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         : null;
 
     return PopScope(
-      canPop: !_editorState.hasUnsavedChanges,
+      canPop: isReadOnly || !_editorState.hasUnsavedChanges,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _handlePopAttempt();
       },
@@ -690,16 +1000,25 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 insertMode: _insertMode,
                 insertSymbolType: _insertSymbolType,
                 playbackPosition: _playbackPosition,
+                playheadEpoch: _playheadEpoch,
+                playheadSymbolIndex: _playheadSymbolIndex,
+                playheadNoteDurationMs: _playheadNoteDurationMs,
+                showPlaybackSymbolHighlight: _showPlaybackSymbolHighlight,
                 isDraggingNote: _isDraggingNote,
                 dragGlobal: _dragGlobal,
                 trashZoneKey: _trashZoneKey,
                 showTrashZone: isLandscape,
                 isPlaybackActive: isPlaybackActive,
+                isReadOnly: isReadOnly,
+                suppressCanvasDragGhost: _dragSymbolType != null,
                 onToggleInsertMode: _toggleInsertMode,
                 onPaletteTypeTap: _onPaletteTypeTap,
+                onMeasureTap: _selectMeasureForReview,
                 onSymbolTap: (target) {
                   if (target == null) {
-                    _updateState((s) => s.clearSymbolSelectionPreservingMeasureContext());
+                    _updateState(
+                      (s) => s.clearSymbolSelectionPreservingMeasureContext(),
+                    );
                   } else {
                     _onNotationSymbolTap(
                       target.partIndex,
@@ -710,15 +1029,35 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 },
                 onInsertTap: _onInsertTap,
                 onDragStarted: (target) {
+                  final symbol = _editorState.score.getSymbolAt(
+                    target.partIndex,
+                    target.measureIndex,
+                    target.symbolIndex,
+                  );
                   setState(() {
                     _isDraggingNote = true;
                     _dragTarget = target;
+                    _dragSymbolType = _paletteTypeForSymbol(symbol);
                   });
                 },
                 onDragGlobalUpdate: (global) {
                   setState(() => _dragGlobal = global);
+                  _ghostPosition.value = global;
+                  if (_dragGhostEntry == null &&
+                      _dragSymbolType != null &&
+                      mounted) {
+                    _dragGhostEntry = OverlayEntry(
+                      builder: (_) => _DragGhostOverlay(
+                        positionNotifier: _ghostPosition,
+                        type: _dragSymbolType!,
+                      ),
+                    );
+                    Overlay.of(context).insert(_dragGhostEntry!);
+                  }
                 },
                 onDragCompleted: (reorder, global) {
+                  _dragGhostEntry?.remove();
+                  _dragGhostEntry = null;
                   final trashBox =
                       _trashZoneKey.currentContext?.findRenderObject()
                           as RenderBox?;
@@ -751,70 +1090,114 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                     _isDraggingNote = false;
                     _dragGlobal = Offset.zero;
                     _dragTarget = null;
+                    _dragSymbolType = null;
                   });
                 },
-                onDragCancelled: () => setState(() {
-                  _isDraggingNote = false;
-                  _dragGlobal = Offset.zero;
-                  _dragTarget = null;
-                }),
+                onDragCancelled: () {
+                  _dragGhostEntry?.remove();
+                  _dragGhostEntry = null;
+                  setState(() {
+                    _isDraggingNote = false;
+                    _dragGlobal = Offset.zero;
+                    _dragTarget = null;
+                    _dragSymbolType = null;
+                  });
+                },
                 onExternalDrop: _onPaletteDrop,
               );
 
-              final inspectorPanel = _InspectorPanel(
-                isLandscape: isLandscape,
-                isPlaybackActive: isPlaybackActive,
-                selected: selected,
-                hasSelection: hasSelection,
-                hasMeasureContext: hasMeasureContext,
-                selectedMeasureNumber: selectedMeasureNumber,
-                currentPageIndex: _currentPageIndex,
-                totalPages: _pageMetrics.totalPages,
-                onPrevPage: _currentPageIndex > 0
-                    ? () => setState(
-                        () => _setCurrentPageIndex(_currentPageIndex - 1),
-                      )
-                    : null,
-                onNextPage: _currentPageIndex < _pageMetrics.totalPages - 1
-                    ? () => setState(
-                        () => _setCurrentPageIndex(_currentPageIndex + 1),
-                      )
-                    : null,
-                onPageTap: (i) => setState(() => _setCurrentPageIndex(i)),
-                onMoveUp: () => _updateState((s) => s.moveSelectedSymbolUp()),
-                onMoveDown: () =>
-                    _updateState((s) => s.moveSelectedSymbolDown()),
-                onWhole: () =>
-                    _updateState((s) => s.setSelectedDuration(wholeDuration)),
-                onHalf: () =>
-                    _updateState((s) => s.setSelectedDuration(halfDuration)),
-                onQuarter: () =>
-                    _updateState((s) => s.setSelectedDuration(quarterDuration)),
-                onEighth: () =>
-                    _updateState((s) => s.setSelectedDuration(eighthDuration)),
-                onSetAccidental: (alter) =>
-                    _updateState((s) => s.setSelectedNoteAccidental(alter)),
-                currentMeasureClef: currentMeasureClef,
-                onSetClef: (clef) {
-                  if (clef != null) _updateState((s) => s.setPartClef(clef));
-                },
-                onMoveToPrev: () => _updateState(
-                  (s) => s.moveSelectedSymbolToMeasureOffset(-1),
-                ),
-                onMoveToNext: () =>
-                    _updateState((s) => s.moveSelectedSymbolToMeasureOffset(1)),
-                onAddMeasure: () {
-                  _updateState((s) => s.appendMeasureAtEnd());
-                  setState(_jumpToLastPage);
-                },
-                onAddPage: () {
-                  _updateState((s) => s.addPageAtEnd());
-                  setState(_jumpToLastPage);
-                },
-                canDeleteMeasure: canDeleteMeasure,
-                onDeleteMeasure: () =>
-                    _updateState((s) => s.deleteSelectedMeasureIfEmpty()),
-              );
+              final onPrevPage = _currentPageIndex > 0
+                  ? () => setState(
+                      () => _setCurrentPageIndex(_currentPageIndex - 1),
+                    )
+                  : null;
+              final onNextPage = _currentPageIndex < _pageMetrics.totalPages - 1
+                  ? () => setState(
+                      () => _setCurrentPageIndex(_currentPageIndex + 1),
+                    )
+                  : null;
+              final inspectorPanel = isReadOnly
+                  ? _ReviewPanel(
+                      isLandscape: isLandscape,
+                      isPlaybackActive: isPlaybackActive,
+                      selectedMeasureNumber: selectedMeasureNumber,
+                      currentComment: _commentForSelectedMeasure(),
+                      currentPageIndex: _currentPageIndex,
+                      totalPages: _pageMetrics.totalPages,
+                      canEditComment: _canEditTeacherComments,
+                      onPrevPage: onPrevPage,
+                      onNextPage: onNextPage,
+                      onPageOverviewTap: _showPageOverview,
+                      onEditComment:
+                          !_canEditTeacherComments ||
+                              selectedMeasureNumber == null ||
+                              isPlaybackActive
+                          ? null
+                          : _showMeasureCommentDialog,
+                      onExportProject:
+                          _canEditTeacherComments && _currentProject != null
+                          ? _exportCurrentNvscoreProject
+                          : null,
+                    )
+                  : _InspectorPanel(
+                      isLandscape: isLandscape,
+                      isPlaybackActive: isPlaybackActive,
+                      selected: selected,
+                      hasSelection: hasSelection,
+                      hasMeasureContext: hasMeasureContext,
+                      selectedMeasureNumber: selectedMeasureNumber,
+                      currentPageIndex: _currentPageIndex,
+                      totalPages: _pageMetrics.totalPages,
+                      onPrevPage: onPrevPage,
+                      onNextPage: onNextPage,
+                      onPageOverviewTap: _showPageOverview,
+                      onMoveUp: () =>
+                          _updateState((s) => s.moveSelectedSymbolUp()),
+                      onMoveDown: () =>
+                          _updateState((s) => s.moveSelectedSymbolDown()),
+                      onWhole: () => _updateState(
+                        (s) => s.setSelectedDuration(wholeDuration),
+                      ),
+                      onHalf: () => _updateState(
+                        (s) => s.setSelectedDuration(halfDuration),
+                      ),
+                      onQuarter: () => _updateState(
+                        (s) => s.setSelectedDuration(quarterDuration),
+                      ),
+                      onEighth: () => _updateState(
+                        (s) => s.setSelectedDuration(eighthDuration),
+                      ),
+                      onSetAccidental: (alter) => _updateState(
+                        (s) => s.setSelectedNoteAccidental(alter),
+                      ),
+                      currentMeasureClef: currentMeasureClef,
+                      onSetClef: (clef) {
+                        if (clef != null) {
+                          _updateState((s) => s.setPartClef(clef));
+                        }
+                      },
+                      onMoveToPrev: () => _updateState(
+                        (s) => s.moveSelectedSymbolToMeasureOffset(-1),
+                      ),
+                      onMoveToNext: () => _updateState(
+                        (s) => s.moveSelectedSymbolToMeasureOffset(1),
+                      ),
+                      onAddMeasure: () {
+                        _updateState((s) => s.appendMeasureAtEnd());
+                        setState(_jumpToLastPage);
+                      },
+                      onAddPage: () {
+                        _updateState((s) => s.addPageAtEnd());
+                        setState(_jumpToLastPage);
+                      },
+                      canDeleteMeasure: canDeleteMeasure,
+                      onDeleteMeasure: () =>
+                          _updateState((s) => s.deleteSelectedMeasure()),
+                      onDeleteSymbol: () =>
+                          _updateState((s) => s.deleteSelectedSymbol()),
+                      onToggleDot: () =>
+                          _updateState((s) => s.toggleSelectedDot()),
+                    );
 
               final scoreIsEmpty =
                   _editorState.score.parts.isEmpty ||
@@ -837,13 +1220,27 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   hasUnsavedChanges: _editorState.hasUnsavedChanges,
                   editCount: _scoreEditCount,
                   scoreLabel: ScoreClassifier.classify(_editorState.score),
-                  canUndo: _editorState.canUndo && !isPlaybackActive,
-                  canRedo: _editorState.canRedo && !isPlaybackActive,
+                  isReviewMode: isReadOnly,
+                  reviewModeLabel: _canEditTeacherComments
+                      ? 'Review Mode'
+                      : 'Feedback Mode',
+                  canUndo:
+                      _editorState.canUndo && !isPlaybackActive && !isReadOnly,
+                  canRedo:
+                      _editorState.canRedo && !isPlaybackActive && !isReadOnly,
                   onBack: () => Navigator.of(context).maybePop(),
                   onUndo: () => _updateState((s) => s.applyUndo()),
                   onRedo: () => _updateState((s) => s.applyRedo()),
-                  onSave: _onSave,
-                  onMetadataTap: _showMetadataSheet,
+                  onSave: isReadOnly ? null : _onSave,
+                  showSubmitButton: _isStudent && !isReadOnly,
+                  onSubmit:
+                      _isStudent &&
+                          !isReadOnly &&
+                          !isPlaybackActive &&
+                          !_isSubmitting
+                      ? _onSubmit
+                      : null,
+                  onMetadataTap: isReadOnly ? null : _showMetadataSheet,
                   onExportXml: () => _runExport(
                     export: () => const MusicXmlExportService().exportToDevice(
                       _editorState.score,
@@ -852,11 +1249,14 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   ),
                   scoreIsEmpty: scoreIsEmpty,
                   onExportPdf: () => _runExport(
-                    export: () =>
-                        const PdfExportService().exportToDevice(_editorState.score),
+                    export: () => const PdfExportService().exportToDevice(
+                      _editorState.score,
+                    ),
                     successMessage: 'PDF saved',
                   ),
-                  onScanPage: isPlaybackActive ? null : _onScanPage,
+                  onScanPage: isPlaybackActive || isReadOnly
+                      ? null
+                      : _onScanPage,
                 ),
                 notationArea: notationArea,
                 inspectorPanel: inspectorPanel,
@@ -865,20 +1265,23 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   totalMeasures: _editorState.score.parts.isEmpty
                       ? 0
                       : _editorState.score.parts
-                          .map((p) => p.measures.length)
-                          .reduce((a, b) => a > b ? a : b),
-                  onPlay: () => _playback.play(
-                    _editorState.score,
-                    fromMeasureIndex: _editorState.selectedMeasureIndex ?? 0,
+                            .map((p) => p.measures.length)
+                            .reduce((a, b) => a > b ? a : b),
+                  onPlay: () => unawaited(
+                    _playFromMeasure(_editorState.selectedMeasureIndex ?? 0),
                   ),
-                  onResume: _playback.resume,
-                  onPause: _playback.pause,
-                  onStop: _playback.stop,
-                  onTempoChanged: _playback.setTempo,
-                  onSeek: (measure) => _playback.play(
-                    _editorState.score,
-                    fromMeasureIndex: measure,
-                  ),
+                  onResume: () {
+                    _playback.resume();
+                  },
+                  onPause: () {
+                    _playback.pause();
+                  },
+                  onStop: () {
+                    _stopVisualPlayback();
+                    _playback.stop();
+                  },
+                  onTempoChanged: _setPlaybackTempo,
+                  onSeek: (measure) => unawaited(_playFromMeasure(measure)),
                 ),
               );
             },
@@ -927,7 +1330,12 @@ class _EditorWorkspace extends StatelessWidget {
                           children: [
                             Expanded(
                               child: Padding(
-                                padding: const EdgeInsets.fromLTRB(12, 0, 6, 12),
+                                padding: const EdgeInsets.fromLTRB(
+                                  12,
+                                  0,
+                                  6,
+                                  12,
+                                ),
                                 child: notationArea,
                               ),
                             ),
@@ -937,7 +1345,12 @@ class _EditorWorkspace extends StatelessWidget {
                                 320.0,
                               ),
                               child: Padding(
-                                padding: const EdgeInsets.fromLTRB(6, 0, 12, 12),
+                                padding: const EdgeInsets.fromLTRB(
+                                  6,
+                                  0,
+                                  12,
+                                  12,
+                                ),
                                 child: inspectorPanel,
                               ),
                             ),
@@ -1153,6 +1566,8 @@ class _EditorHeader extends StatelessWidget {
     required this.hasUnsavedChanges,
     required this.editCount,
     required this.scoreLabel,
+    required this.isReviewMode,
+    required this.reviewModeLabel,
     required this.canUndo,
     required this.canRedo,
     required this.onBack,
@@ -1163,6 +1578,8 @@ class _EditorHeader extends StatelessWidget {
     required this.onExportPdf,
     required this.scoreIsEmpty,
     required this.onMetadataTap,
+    this.showSubmitButton = false,
+    this.onSubmit,
     this.onScanPage,
   });
 
@@ -1170,16 +1587,20 @@ class _EditorHeader extends StatelessWidget {
   final bool hasUnsavedChanges;
   final int editCount;
   final ScoreLabel scoreLabel;
+  final bool isReviewMode;
+  final String reviewModeLabel;
   final bool canUndo;
   final bool canRedo;
   final VoidCallback onBack;
   final VoidCallback onUndo;
   final VoidCallback onRedo;
-  final VoidCallback onSave;
+  final VoidCallback? onSave;
   final VoidCallback onExportXml;
   final VoidCallback onExportPdf;
   final bool scoreIsEmpty;
-  final VoidCallback onMetadataTap;
+  final VoidCallback? onMetadataTap;
+  final bool showSubmitButton;
+  final VoidCallback? onSubmit;
   final VoidCallback? onScanPage;
 
   static final ButtonStyle _compactIconButtonStyle = IconButton.styleFrom(
@@ -1263,7 +1684,7 @@ class _EditorHeader extends StatelessWidget {
                       children: [
                         Flexible(
                           child: Text(
-                            'Score Editor · ${scoreLabel.displayName}',
+                            '${isReviewMode ? reviewModeLabel : 'Score Editor'} · ${scoreLabel.displayName}',
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: AppColors.textSecondary,
@@ -1310,16 +1731,27 @@ class _EditorHeader extends StatelessWidget {
             style: _compactIconButtonStyle,
           ),
           const SizedBox(width: 4),
-          FilledButton.icon(
-            onPressed: onSave,
-            icon: const Icon(Icons.save_rounded, size: 15),
-            label: const Text('Save', style: TextStyle(fontSize: 13)),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(60, 34),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+          if (showSubmitButton)
+            IconButton(
+              onPressed: onSubmit,
+              icon: const Icon(Icons.upload_rounded, size: 18),
+              color: onSubmit == null
+                  ? AppColors.textSecondary.withValues(alpha: 0.35)
+                  : AppColors.accent,
+              tooltip: 'Submit',
+              style: _compactIconButtonStyle,
             ),
-          ),
+          if (onSave != null)
+            FilledButton.icon(
+              onPressed: onSave,
+              icon: const Icon(Icons.save_rounded, size: 15),
+              label: const Text('Save', style: TextStyle(fontSize: 13)),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(60, 34),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+              ),
+            ),
           const SizedBox(width: 2),
           PopupMenuButton<_HeaderMenuAction>(
             onSelected: (action) {
@@ -1384,13 +1816,20 @@ class _NotationArea extends StatefulWidget {
     required this.insertMode,
     required this.insertSymbolType,
     required this.playbackPosition,
+    required this.playheadEpoch,
+    required this.playheadSymbolIndex,
+    required this.playheadNoteDurationMs,
+    required this.showPlaybackSymbolHighlight,
     required this.isDraggingNote,
     required this.dragGlobal,
     required this.trashZoneKey,
     this.showTrashZone = true,
     required this.isPlaybackActive,
+    required this.isReadOnly,
+    this.suppressCanvasDragGhost = false,
     required this.onToggleInsertMode,
     required this.onPaletteTypeTap,
+    required this.onMeasureTap,
     required this.onSymbolTap,
     required this.onInsertTap,
     required this.onDragStarted,
@@ -1407,13 +1846,20 @@ class _NotationArea extends StatefulWidget {
   final bool insertMode;
   final PaletteSymbolType? insertSymbolType;
   final PlaybackPosition playbackPosition;
+  final int playheadEpoch;
+  final int playheadSymbolIndex;
+  final int playheadNoteDurationMs;
+  final bool showPlaybackSymbolHighlight;
   final bool isDraggingNote;
   final Offset dragGlobal;
   final GlobalKey trashZoneKey;
   final bool showTrashZone;
   final bool isPlaybackActive;
+  final bool isReadOnly;
+  final bool suppressCanvasDragGhost;
   final VoidCallback onToggleInsertMode;
   final ValueChanged<PaletteSymbolType> onPaletteTypeTap;
+  final ValueChanged<NotationMeasureTarget?> onMeasureTap;
   final ValueChanged<NotationSymbolTarget?> onSymbolTap;
   final ValueChanged<NotationInsertTarget?> onInsertTap;
   final void Function(NotationSymbolTarget symbol) onDragStarted;
@@ -1427,8 +1873,10 @@ class _NotationArea extends StatefulWidget {
   State<_NotationArea> createState() => _NotationAreaState();
 }
 
-class _NotationAreaState extends State<_NotationArea> {
+class _NotationAreaState extends State<_NotationArea>
+    with SingleTickerProviderStateMixin {
   final _transformController = TransformationController();
+  late final AnimationController _playheadController;
   Size? _viewportSize;
   Size? _contentSize;
   bool _fittedOnce = false;
@@ -1436,6 +1884,10 @@ class _NotationAreaState extends State<_NotationArea> {
   @override
   void initState() {
     super.initState();
+    _playheadController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    );
     _transformController.addListener(_onTransformChanged);
   }
 
@@ -1443,6 +1895,7 @@ class _NotationAreaState extends State<_NotationArea> {
   void dispose() {
     _transformController.removeListener(_onTransformChanged);
     _transformController.dispose();
+    _playheadController.dispose();
     super.dispose();
   }
 
@@ -1457,6 +1910,16 @@ class _NotationAreaState extends State<_NotationArea> {
     if (oldWidget.pageFirstMeasure != widget.pageFirstMeasure &&
         !widget.isPlaybackActive) {
       _fittedOnce = false;
+    }
+    if (oldWidget.playheadEpoch != widget.playheadEpoch &&
+        widget.playheadNoteDurationMs > 0) {
+      _playheadController.duration = Duration(
+        milliseconds: widget.playheadNoteDurationMs,
+      );
+      _playheadController.forward(from: 0.0);
+    } else if (!widget.isPlaybackActive && oldWidget.isPlaybackActive) {
+      _playheadController.stop();
+      _playheadController.value = 0;
     }
   }
 
@@ -1555,6 +2018,137 @@ class _NotationAreaState extends State<_NotationArea> {
     );
   }
 
+  ScoreNotationViewer _buildScoreNotationViewer() {
+    final pos = widget.playbackPosition;
+    final playheadPartIndex = pos.isNone ? null : pos.partIndex;
+    final playheadMeasureIndex = pos.isNone ? null : _rel(pos.measureIndex);
+    final canEdit = !widget.isPlaybackActive && !widget.isReadOnly;
+
+    // AnimationController runs 0→1 over the current note's scaled duration.
+    // The painter uses T + the symbol index to interpolate X directly from
+    // slot geometry — no accumulated base-ms needed.
+    final playbackT = widget.isPlaybackActive ? _playheadController.value : 0.0;
+
+    return ScoreNotationViewer(
+      score: widget.editorState.score,
+      selectedPartIndex: widget.editorState.selectedPartIndex ?? 0,
+      measuresPerRow: widget.layoutPolicy.measuresPerRow,
+      minMeasureWidth: widget.layoutPolicy.minMeasureWidth,
+      rowHeight: widget.layoutPolicy.rowHeight,
+      padding: EdgeInsets.symmetric(
+        horizontal: widget.layoutPolicy.horizontalPadding,
+        vertical: widget.layoutPolicy.verticalPadding,
+      ),
+      backgroundColor: Colors.white,
+      firstMeasureIndex: widget.pageFirstMeasure,
+      pageMeasureCount: widget.pageMeasureCount,
+      selectedMeasureIndex: _rel(widget.editorState.selectedMeasureIndex),
+      selectedSymbolIndex: widget.editorState.selectedSymbolIndex,
+      playbackPartIndex: widget.playbackPosition.isNone
+          ? null
+          : widget.playbackPosition.partIndex,
+      playbackMeasureIndex: widget.playbackPosition.isNone
+          ? null
+          : _rel(widget.playbackPosition.measureIndex),
+      playbackSymbolIndex: widget.playbackPosition.isNone
+          ? null
+          : widget.playbackPosition.symbolIndex,
+      playbackNextPartIndex: widget.playbackPosition.hasNext
+          ? widget.playbackPosition.nextPartIndex
+          : null,
+      playbackNextMeasureIndex: widget.playbackPosition.hasNext
+          ? _rel(widget.playbackPosition.nextMeasureIndex)
+          : null,
+      playbackNextSymbolIndex: widget.playbackPosition.hasNext
+          ? widget.playbackPosition.nextSymbolIndex
+          : null,
+      playheadPartIndex: playheadPartIndex,
+      playheadMeasureIndex: playheadMeasureIndex,
+      playheadSymbolIndex: pos.isNone ? null : widget.playheadSymbolIndex,
+      playbackProgress: playbackT,
+      showPlaybackSymbolHighlight: widget.showPlaybackSymbolHighlight,
+      insertMode: widget.insertMode,
+      canAcceptExternalDrop: canEdit ? (data) => data is PaletteDragData : null,
+      externalPreviewResolver: _previewGlyphForDragData,
+      onExternalDrop: !canEdit
+          ? null
+          : (target, data) => widget.onExternalDrop(
+              NotationInsertTarget(
+                partIndex: target.partIndex,
+                measureIndex: target.measureIndex + widget.pageFirstMeasure,
+                insertIndex: target.insertIndex,
+                indicatorX: target.indicatorX,
+                step: target.step,
+                octave: target.octave,
+              ),
+              data,
+            ),
+      onMeasureTap: widget.isReadOnly && !widget.isPlaybackActive
+          ? widget.onMeasureTap
+          : null,
+      onSymbolTap: (widget.insertMode || !canEdit)
+          ? null
+          : (target) => widget.onSymbolTap(
+              target == null
+                  ? null
+                  : NotationSymbolTarget(
+                      partIndex: target.partIndex,
+                      measureIndex:
+                          target.measureIndex + widget.pageFirstMeasure,
+                      symbolIndex: target.symbolIndex,
+                      center: target.center,
+                      hitRect: target.hitRect,
+                    ),
+            ),
+      onInsertTap: (widget.insertMode && canEdit)
+          ? (target) => widget.onInsertTap(
+              target == null
+                  ? null
+                  : NotationInsertTarget(
+                      partIndex: target.partIndex,
+                      measureIndex:
+                          target.measureIndex + widget.pageFirstMeasure,
+                      insertIndex: target.insertIndex,
+                      indicatorX: target.indicatorX,
+                      step: target.step,
+                      octave: target.octave,
+                    ),
+            )
+          : null,
+      onDragStarted: (widget.insertMode || !canEdit)
+          ? null
+          : (target) => widget.onDragStarted(
+              NotationSymbolTarget(
+                partIndex: target.partIndex,
+                measureIndex: target.measureIndex + widget.pageFirstMeasure,
+                symbolIndex: target.symbolIndex,
+                center: target.center,
+                hitRect: target.hitRect,
+              ),
+            ),
+      onDragGlobalUpdate: canEdit ? widget.onDragGlobalUpdate : null,
+      onDragCompleted: canEdit
+          ? (reorder, global) => widget.onDragCompleted(
+              reorder == null
+                  ? null
+                  : NotationSymbolReorder(
+                      fromPartIndex: reorder.fromPartIndex,
+                      fromMeasureIndex:
+                          reorder.fromMeasureIndex + widget.pageFirstMeasure,
+                      fromSymbolIndex: reorder.fromSymbolIndex,
+                      toPartIndex: reorder.toPartIndex,
+                      toMeasureIndex:
+                          reorder.toMeasureIndex + widget.pageFirstMeasure,
+                      toSymbolIndex: reorder.toSymbolIndex,
+                    ),
+              global,
+            )
+          : null,
+      onDragCancelled: canEdit ? widget.onDragCancelled : null,
+      suppressCanvasDragGhost: widget.suppressCanvasDragGhost,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -1609,134 +2203,10 @@ class _NotationAreaState extends State<_NotationArea> {
                                   ),
                                 ],
                               ),
-                              child: ScoreNotationViewer(
-                                score: widget.editorState.score,
-                                selectedPartIndex:
-                                    widget.editorState.selectedPartIndex ?? 0,
-                                measuresPerRow:
-                                    widget.layoutPolicy.measuresPerRow,
-                                minMeasureWidth: widget.layoutPolicy.minMeasureWidth,
-                                rowHeight: widget.layoutPolicy.rowHeight,
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: widget.layoutPolicy.horizontalPadding,
-                                  vertical: widget.layoutPolicy.verticalPadding,
-                                ),
-                                backgroundColor: Colors.white,
-                                firstMeasureIndex: widget.pageFirstMeasure,
-                                pageMeasureCount: widget.pageMeasureCount,
-                                selectedMeasureIndex: _rel(
-                                  widget.editorState.selectedMeasureIndex,
-                                ),
-                                selectedSymbolIndex:
-                                    widget.editorState.selectedSymbolIndex,
-                                playbackPartIndex:
-                                    widget.playbackPosition.isNone
-                                    ? null
-                                    : widget.playbackPosition.partIndex,
-                                playbackMeasureIndex:
-                                    widget.playbackPosition.isNone
-                                    ? null
-                                    : _rel(
-                                        widget.playbackPosition.measureIndex,
-                                      ),
-                                playbackSymbolIndex:
-                                    widget.playbackPosition.isNone
-                                    ? null
-                                    : widget.playbackPosition.symbolIndex,
-                                insertMode: widget.insertMode,
-                                canAcceptExternalDrop: widget.isPlaybackActive
-                                    ? (_) => false
-                                    : (data) => data is PaletteDragData,
-                                externalPreviewResolver:
-                                    _previewGlyphForDragData,
-                                onExternalDrop: widget.isPlaybackActive
-                                    ? null
-                                    : (target, data) => widget.onExternalDrop(
-                                        NotationInsertTarget(
-                                          partIndex: target.partIndex,
-                                          measureIndex:
-                                              target.measureIndex +
-                                              widget.pageFirstMeasure,
-                                          insertIndex: target.insertIndex,
-                                          indicatorX: target.indicatorX,
-                                          step: target.step,
-                                          octave: target.octave,
-                                        ),
-                                        data,
-                                      ),
-                                onSymbolTap:
-                                    (widget.insertMode ||
-                                        widget.isPlaybackActive)
-                                    ? null
-                                    : (target) => widget.onSymbolTap(
-                                        target == null
-                                            ? null
-                                            : NotationSymbolTarget(
-                                                partIndex: target.partIndex,
-                                                measureIndex:
-                                                    target.measureIndex +
-                                                    widget.pageFirstMeasure,
-                                                symbolIndex: target.symbolIndex,
-                                                center: target.center,
-                                                hitRect: target.hitRect,
-                                              ),
-                                      ),
-                                onInsertTap:
-                                    (widget.insertMode &&
-                                        !widget.isPlaybackActive)
-                                    ? (target) => widget.onInsertTap(
-                                        target == null
-                                            ? null
-                                            : NotationInsertTarget(
-                                                partIndex: target.partIndex,
-                                                measureIndex:
-                                                    target.measureIndex +
-                                                    widget.pageFirstMeasure,
-                                                insertIndex: target.insertIndex,
-                                                indicatorX: target.indicatorX,
-                                                step: target.step,
-                                                octave: target.octave,
-                                              ),
-                                      )
-                                    : null,
-                                onDragStarted:
-                                    (widget.insertMode ||
-                                        widget.isPlaybackActive)
-                                    ? null
-                                    : (target) => widget.onDragStarted(
-                                        NotationSymbolTarget(
-                                          partIndex: target.partIndex,
-                                          measureIndex:
-                                              target.measureIndex +
-                                              widget.pageFirstMeasure,
-                                          symbolIndex: target.symbolIndex,
-                                          center: target.center,
-                                          hitRect: target.hitRect,
-                                        ),
-                                      ),
-                                onDragGlobalUpdate: widget.onDragGlobalUpdate,
-                                onDragCompleted: (reorder, global) =>
-                                    widget.onDragCompleted(
-                                      reorder == null
-                                          ? null
-                                          : NotationSymbolReorder(
-                                              fromPartIndex:
-                                                  reorder.fromPartIndex,
-                                              fromMeasureIndex:
-                                                  reorder.fromMeasureIndex +
-                                                  widget.pageFirstMeasure,
-                                              fromSymbolIndex:
-                                                  reorder.fromSymbolIndex,
-                                              toPartIndex: reorder.toPartIndex,
-                                              toMeasureIndex:
-                                                  reorder.toMeasureIndex +
-                                                  widget.pageFirstMeasure,
-                                              toSymbolIndex:
-                                                  reorder.toSymbolIndex,
-                                            ),
-                                      global,
-                                    ),
-                                onDragCancelled: widget.onDragCancelled,
+                              child: AnimatedBuilder(
+                                animation: _playheadController,
+                                builder: (context, _) =>
+                                    _buildScoreNotationViewer(),
                               ),
                             ),
                           ),
@@ -1822,6 +2292,7 @@ class _NotationAreaState extends State<_NotationArea> {
                 child: _FloatingControls(
                   zoomPercent: _zoomPercent,
                   insertMode: widget.insertMode && !widget.isPlaybackActive,
+                  showInsertToggle: !widget.isReadOnly,
                   onZoomIn: _zoomIn,
                   onZoomOut: _zoomOut,
                   onFitToScreen: _fitToScreen,
@@ -1833,15 +2304,16 @@ class _NotationAreaState extends State<_NotationArea> {
             ],
           ),
         ),
-        IgnorePointer(
-          ignoring: widget.isPlaybackActive,
-          child: SymbolPalette(
-            selectedType: widget.insertMode && !widget.isPlaybackActive
-                ? widget.insertSymbolType
-                : null,
-            onTypeTap: widget.onPaletteTypeTap,
+        if (!widget.isReadOnly)
+          IgnorePointer(
+            ignoring: widget.isPlaybackActive,
+            child: SymbolPalette(
+              selectedType: widget.insertMode && !widget.isPlaybackActive
+                  ? widget.insertSymbolType
+                  : null,
+              onTypeTap: widget.onPaletteTypeTap,
+            ),
           ),
-        ),
       ],
     );
   }
@@ -1874,6 +2346,7 @@ class _FloatingControls extends StatelessWidget {
   const _FloatingControls({
     required this.zoomPercent,
     required this.insertMode,
+    required this.showInsertToggle,
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onFitToScreen,
@@ -1882,6 +2355,7 @@ class _FloatingControls extends StatelessWidget {
 
   final int zoomPercent;
   final bool insertMode;
+  final bool showInsertToggle;
   final VoidCallback onZoomIn;
   final VoidCallback onZoomOut;
   final VoidCallback onFitToScreen;
@@ -1893,46 +2367,48 @@ class _FloatingControls extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        GestureDetector(
-          onTap: onToggleInsertMode,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: insertMode
-                  ? AppColors.accent.withValues(alpha: 0.2)
-                  : AppColors.surface.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: insertMode ? AppColors.accent : AppColors.border,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  insertMode ? Icons.edit_rounded : Icons.touch_app_rounded,
-                  size: 13,
-                  color: insertMode
-                      ? AppColors.accent
-                      : AppColors.textSecondary,
+        if (showInsertToggle) ...[
+          GestureDetector(
+            onTap: onToggleInsertMode,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: insertMode
+                    ? AppColors.accent.withValues(alpha: 0.2)
+                    : AppColors.surface.withValues(alpha: 0.9),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: insertMode ? AppColors.accent : AppColors.border,
                 ),
-                const SizedBox(width: 5),
-                Text(
-                  insertMode ? 'Insert' : 'Select',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    insertMode ? Icons.edit_rounded : Icons.touch_app_rounded,
+                    size: 13,
                     color: insertMode
                         ? AppColors.accent
                         : AppColors.textSecondary,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 5),
+                  Text(
+                    insertMode ? 'Insert' : 'Select',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: insertMode
+                          ? AppColors.accent
+                          : AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 6),
+          const SizedBox(height: 6),
+        ],
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           decoration: BoxDecoration(
@@ -1997,6 +2473,310 @@ class _ZoomBtn extends StatelessWidget {
 // Inspector panel (routes to landscape or portrait variant)
 // ---------------------------------------------------------------------------
 
+class _ReviewPanel extends StatelessWidget {
+  const _ReviewPanel({
+    required this.isLandscape,
+    required this.isPlaybackActive,
+    required this.selectedMeasureNumber,
+    required this.currentComment,
+    required this.currentPageIndex,
+    required this.totalPages,
+    required this.canEditComment,
+    required this.onPrevPage,
+    required this.onNextPage,
+    required this.onPageOverviewTap,
+    required this.onEditComment,
+    required this.onExportProject,
+  });
+
+  final bool isLandscape;
+  final bool isPlaybackActive;
+  final int? selectedMeasureNumber;
+  final String? currentComment;
+  final int currentPageIndex;
+  final int totalPages;
+  final bool canEditComment;
+  final VoidCallback? onPrevPage;
+  final VoidCallback? onNextPage;
+  final VoidCallback onPageOverviewTap;
+  final VoidCallback? onEditComment;
+  final VoidCallback? onExportProject;
+
+  @override
+  Widget build(BuildContext context) {
+    final comment = currentComment?.trim();
+    final hasComment = comment != null && comment.isNotEmpty;
+    final measureLabel = selectedMeasureNumber == null
+        ? 'No measure selected'
+        : 'Measure $selectedMeasureNumber';
+    final pageNav = _PageNav(
+      currentPageIndex: currentPageIndex,
+      totalPages: totalPages,
+      onPrev: onPrevPage,
+      onNext: onNextPage,
+      onPageOverviewTap: onPageOverviewTap,
+    );
+
+    if (!isLandscape) {
+      return Stack(
+        children: [
+          Positioned(
+            top: 8,
+            left: 8,
+            right: 8,
+            child: _ReviewMeasureBar(
+              measureLabel: measureLabel,
+              pageNav: pageNav,
+              compact: true,
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              height: _kInspectorBarHeight,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              decoration: const BoxDecoration(
+                color: AppColors.surface,
+                border: Border(top: BorderSide(color: AppColors.border)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      hasComment ? comment : 'No comment',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  if (canEditComment)
+                    IconButton(
+                      onPressed: onEditComment,
+                      icon: Icon(
+                        hasComment
+                            ? Icons.mode_comment_rounded
+                            : Icons.add_comment_rounded,
+                        size: 20,
+                      ),
+                      color: onEditComment == null
+                          ? AppColors.textSecondary.withValues(alpha: 0.35)
+                          : AppColors.accent,
+                      tooltip: isPlaybackActive
+                          ? 'Playback active'
+                          : hasComment
+                          ? 'Edit Comment'
+                          : 'Add Comment',
+                    ),
+                  if (onExportProject != null)
+                    IconButton(
+                      onPressed: onExportProject,
+                      icon: const Icon(Icons.ios_share_rounded, size: 20),
+                      color: AppColors.accent,
+                      tooltip: 'Export Reviewed Score',
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _ReviewMeasureBar(measureLabel: measureLabel, pageNav: pageNav),
+          const SizedBox(height: 16),
+          const Text(
+            'COMMENT',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 10,
+              letterSpacing: 1.0,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Text(
+                hasComment ? comment : 'No comment',
+                style: TextStyle(
+                  color: hasComment
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary,
+                  fontSize: 13,
+                  height: 1.45,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (canEditComment)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onEditComment,
+                icon: Icon(
+                  hasComment
+                      ? Icons.mode_comment_rounded
+                      : Icons.add_comment_rounded,
+                  size: 17,
+                ),
+                label: Text(
+                  isPlaybackActive
+                      ? 'Playback Active'
+                      : hasComment
+                      ? 'Edit Comment'
+                      : 'Add Comment',
+                ),
+              ),
+            ),
+          if (onExportProject != null) ...[
+            if (canEditComment) const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: onExportProject,
+                icon: const Icon(Icons.ios_share_rounded, size: 17),
+                label: const Text('Export Reviewed Score'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ReviewMeasureBar extends StatelessWidget {
+  const _ReviewMeasureBar({
+    required this.measureLabel,
+    required this.pageNav,
+    this.compact = false,
+  });
+
+  final String measureLabel;
+  final Widget pageNav;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 10 : 0,
+        vertical: compact ? 6 : 0,
+      ),
+      decoration: compact
+          ? BoxDecoration(
+              color: AppColors.surfaceAlt,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.border),
+            )
+          : null,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              measureLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          pageNav,
+        ],
+      ),
+    );
+  }
+}
+
+class _MeasureCommentDialog extends StatefulWidget {
+  const _MeasureCommentDialog({
+    required this.measureNumber,
+    required this.initialComment,
+  });
+
+  final int measureNumber;
+  final String initialComment;
+
+  @override
+  State<_MeasureCommentDialog> createState() => _MeasureCommentDialogState();
+}
+
+class _MeasureCommentDialogState extends State<_MeasureCommentDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialComment);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.surface,
+      title: Text(
+        'Measure ${widget.measureNumber} Comment',
+        style: const TextStyle(color: AppColors.textPrimary),
+      ),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        minLines: 3,
+        maxLines: 6,
+        style: const TextStyle(color: AppColors.textPrimary),
+        decoration: const InputDecoration(
+          hintText: 'Teacher comment',
+          hintStyle: TextStyle(color: AppColors.textSecondary),
+          enabledBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: AppColors.border),
+          ),
+          focusedBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: AppColors.accent),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(null),
+          child: const Text(
+            'Cancel',
+            style: TextStyle(color: AppColors.textSecondary),
+          ),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text.trim()),
+          child: const Text('Save', style: TextStyle(color: AppColors.accent)),
+        ),
+      ],
+    );
+  }
+}
+
 class _InspectorPanel extends StatefulWidget {
   const _InspectorPanel({
     required this.isLandscape,
@@ -2009,7 +2789,7 @@ class _InspectorPanel extends StatefulWidget {
     required this.totalPages,
     required this.onPrevPage,
     required this.onNextPage,
-    required this.onPageTap,
+    required this.onPageOverviewTap,
     required this.onMoveUp,
     required this.onMoveDown,
     required this.onWhole,
@@ -2025,6 +2805,8 @@ class _InspectorPanel extends StatefulWidget {
     required this.onAddPage,
     required this.canDeleteMeasure,
     required this.onDeleteMeasure,
+    required this.onDeleteSymbol,
+    required this.onToggleDot,
   });
 
   final bool isLandscape;
@@ -2037,7 +2819,7 @@ class _InspectorPanel extends StatefulWidget {
   final int totalPages;
   final VoidCallback? onPrevPage;
   final VoidCallback? onNextPage;
-  final ValueChanged<int> onPageTap;
+  final VoidCallback onPageOverviewTap;
   final VoidCallback onMoveUp;
   final VoidCallback onMoveDown;
   final VoidCallback onWhole;
@@ -2053,6 +2835,8 @@ class _InspectorPanel extends StatefulWidget {
   final VoidCallback onAddPage;
   final bool canDeleteMeasure;
   final VoidCallback onDeleteMeasure;
+  final VoidCallback onDeleteSymbol;
+  final VoidCallback onToggleDot;
 
   @override
   State<_InspectorPanel> createState() => _InspectorPanelState();
@@ -2063,9 +2847,9 @@ class _InspectorPanelState extends State<_InspectorPanel> {
 
   static const _groupIcons = [
     Icons.unfold_more_rounded,
-    Icons.piano_rounded,
+    Icons.tag_rounded,
     Icons.music_note_rounded,
-    Icons.access_time_rounded,
+    Icons.hourglass_empty_rounded,
     Icons.grid_on_rounded,
   ];
 
@@ -2093,6 +2877,22 @@ class _InspectorPanelState extends State<_InspectorPanel> {
     final currentClef = widget.currentMeasureClef;
     final hasMeasureContext = widget.hasMeasureContext;
 
+    final currentType = widget.selected is Note
+        ? (widget.selected as Note).type.trim().toLowerCase()
+        : widget.selected is Rest
+        ? (widget.selected as Rest).type.trim().toLowerCase()
+        : null;
+    final currentDots = widget.selected is Note
+        ? (widget.selected as Note).dots
+        : widget.selected is Rest
+        ? (widget.selected as Rest).dots
+        : 0;
+    final canDot =
+        currentType != null &&
+        currentType != 'eighth' &&
+        currentType != 'sixteenth';
+    final isDotted = currentDots > 0;
+
     return [
       _ActionGroup(
         label: 'PITCH',
@@ -2109,6 +2909,14 @@ class _InspectorPanelState extends State<_InspectorPanel> {
             label: 'Down',
             onPressed: _wrapAction(
               widget.hasSelection ? widget.onMoveDown : null,
+            ),
+          ),
+          _ActionTile(
+            icon: Icons.delete_rounded,
+            label: 'Delete',
+            danger: true,
+            onPressed: _wrapAction(
+              widget.hasSelection ? widget.onDeleteSymbol : null,
             ),
           ),
         ],
@@ -2201,16 +3009,19 @@ class _InspectorPanelState extends State<_InspectorPanel> {
           _DurTile(
             label: 'W',
             sublabel: 'Whole',
+            isActive: currentType == 'whole',
             onPressed: _wrapAction(widget.hasSelection ? widget.onWhole : null),
           ),
           _DurTile(
             label: 'H',
             sublabel: 'Half',
+            isActive: currentType == 'half',
             onPressed: _wrapAction(widget.hasSelection ? widget.onHalf : null),
           ),
           _DurTile(
             label: '♩',
             sublabel: 'Qtr',
+            isActive: currentType == 'quarter',
             onPressed: _wrapAction(
               widget.hasSelection ? widget.onQuarter : null,
             ),
@@ -2218,8 +3029,17 @@ class _InspectorPanelState extends State<_InspectorPanel> {
           _DurTile(
             label: '♪',
             sublabel: '8th',
+            isActive: currentType == 'eighth',
             onPressed: _wrapAction(
               widget.hasSelection ? widget.onEighth : null,
+            ),
+          ),
+          _DurTile(
+            label: '.',
+            sublabel: 'Dot',
+            isActive: isDotted,
+            onPressed: _wrapAction(
+              canDot && widget.hasSelection ? widget.onToggleDot : null,
             ),
           ),
         ],
@@ -2277,7 +3097,7 @@ class _InspectorPanelState extends State<_InspectorPanel> {
       totalPages: widget.totalPages,
       onPrevPage: widget.onPrevPage,
       onNextPage: widget.onNextPage,
-      onPageTap: widget.onPageTap,
+      onPageOverviewTap: widget.onPageOverviewTap,
       compact: !widget.isLandscape,
     );
 
@@ -2453,13 +3273,13 @@ class _BottomInspectorBar extends StatelessWidget {
                     Icon(icons[i], size: 20, color: iconColor),
                     const SizedBox(height: 2),
                     Text(
-                      groups[i].label.length > 3
-                          ? groups[i].label.substring(0, 3)
-                          : groups[i].label,
+                      groups[i].label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 9,
+                        fontSize: 8,
                         fontWeight: FontWeight.w600,
-                        letterSpacing: 0.3,
+                        letterSpacing: 0.2,
                         color: iconColor,
                       ),
                     ),
@@ -2573,7 +3393,7 @@ class _SelectionCard extends StatelessWidget {
     required this.totalPages,
     required this.onPrevPage,
     required this.onNextPage,
-    required this.onPageTap,
+    required this.onPageOverviewTap,
     this.compact = false,
   });
 
@@ -2585,7 +3405,7 @@ class _SelectionCard extends StatelessWidget {
   final int totalPages;
   final VoidCallback? onPrevPage;
   final VoidCallback? onNextPage;
-  final ValueChanged<int> onPageTap;
+  final VoidCallback onPageOverviewTap;
   final bool compact;
 
   String get _pitchLabel => selected is Note ? (selected as Note).pitch : '—';
@@ -2604,7 +3424,7 @@ class _SelectionCard extends StatelessWidget {
       totalPages: totalPages,
       onPrev: onPrevPage,
       onNext: onNextPage,
-      onPageTap: onPageTap,
+      onPageOverviewTap: onPageOverviewTap,
     );
 
     if (compact) {
@@ -2759,76 +3579,207 @@ class _SelectionCard extends StatelessWidget {
   }
 }
 
+class _PageOverviewSheet extends StatelessWidget {
+  const _PageOverviewSheet({
+    required this.score,
+    required this.currentPageIndex,
+    required this.totalPages,
+  });
+
+  final Score score;
+  final int currentPageIndex;
+  final int totalPages;
+
+  @override
+  Widget build(BuildContext context) {
+    final sheetHeight = MediaQuery.sizeOf(context).height * 0.72;
+    final pageCount = math.max(1, totalPages);
+
+    return SafeArea(
+      top: false,
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: Material(
+          color: AppColors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+          child: SizedBox(
+            height: sheetHeight,
+            child: Column(
+              children: [
+                const SizedBox(height: 10),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.border,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                Expanded(
+                  child: GridView.builder(
+                    padding: const EdgeInsets.fromLTRB(16, 18, 16, 24),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 14,
+                          childAspectRatio: 0.64,
+                        ),
+                    itemCount: pageCount,
+                    itemBuilder: (context, index) => _PageOverviewCard(
+                      score: score,
+                      pageIndex: index,
+                      isActive: index == currentPageIndex,
+                      onTap: () => Navigator.of(context).pop(index),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PageOverviewCard extends StatelessWidget {
+  const _PageOverviewCard({
+    required this.score,
+    required this.pageIndex,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  final Score score;
+  final int pageIndex;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isActive ? AppColors.accent : AppColors.border,
+            width: isActive ? 2 : 1,
+          ),
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final previewWidth = math.max(1.0, constraints.maxWidth);
+            final previewHeight = math.max(1.0, constraints.maxHeight - 28);
+
+            return Column(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(5),
+                  child: ScorePageThumbnail(
+                    score: score,
+                    pageIndex: pageIndex,
+                    cardWidth: previewWidth,
+                    height: previewHeight,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Page ${pageIndex + 1}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: isActive ? AppColors.accent : AppColors.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
 class _PageNav extends StatelessWidget {
   const _PageNav({
     required this.currentPageIndex,
     required this.totalPages,
     required this.onPrev,
     required this.onNext,
-    required this.onPageTap,
+    required this.onPageOverviewTap,
   });
 
   final int currentPageIndex;
   final int totalPages;
   final VoidCallback? onPrev;
   final VoidCallback? onNext;
-  final ValueChanged<int> onPageTap;
+  final VoidCallback onPageOverviewTap;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _NavBtn(icon: Icons.chevron_left_rounded, onPressed: onPrev),
-        const SizedBox(width: 2),
-        for (int i = 0; i < totalPages; i++) ...[
-          _PageTab(
-            number: i + 1,
-            isActive: i == currentPageIndex,
-            onTap: () => onPageTap(i),
+    return SizedBox(
+      width: 132,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _NavBtn(icon: Icons.chevron_left_rounded, onPressed: onPrev),
+          _PageButton(
+            label: totalPages <= 9
+                ? '${currentPageIndex + 1} / $totalPages'
+                : '${currentPageIndex + 1}',
+            onTap: onPageOverviewTap,
           ),
-          if (i < totalPages - 1) const SizedBox(width: 3),
+          _NavBtn(icon: Icons.chevron_right_rounded, onPressed: onNext),
         ],
-        const SizedBox(width: 2),
-        _NavBtn(icon: Icons.chevron_right_rounded, onPressed: onNext),
-      ],
+      ),
     );
   }
 }
 
-class _PageTab extends StatelessWidget {
-  const _PageTab({
-    required this.number,
-    required this.isActive,
-    required this.onTap,
-  });
+class _PageButton extends StatelessWidget {
+  const _PageButton({required this.label, required this.onTap});
 
-  final int number;
-  final bool isActive;
+  final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-        decoration: BoxDecoration(
-          color: isActive
-              ? AppColors.accent.withValues(alpha: 0.18)
-              : AppColors.surface,
-          borderRadius: BorderRadius.circular(5),
-          border: Border.all(
-            color: isActive ? AppColors.accent : AppColors.border,
-          ),
-        ),
-        child: Text(
-          '$number',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: isActive ? AppColors.accent : AppColors.textPrimary,
+    return Tooltip(
+      message: 'Pages',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: SizedBox.square(
+          dimension: 44,
+          child: Container(
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.accent.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: AppColors.accent.withValues(alpha: 0.75),
+              ),
+            ),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.accent,
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -2844,17 +3795,21 @@ class _NavBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 28,
-      height: 28,
-      child: IconButton(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 16),
-        padding: EdgeInsets.zero,
-        color: onPressed != null
-            ? AppColors.textPrimary
-            : AppColors.textSecondary.withValues(alpha: 0.3),
-        visualDensity: VisualDensity.compact,
+    return Tooltip(
+      message: icon == Icons.chevron_left_rounded
+          ? 'Previous page'
+          : 'Next page',
+      child: SizedBox.square(
+        dimension: 44,
+        child: IconButton(
+          onPressed: onPressed,
+          icon: Icon(icon, size: 22),
+          padding: EdgeInsets.zero,
+          color: onPressed != null
+              ? AppColors.textPrimary
+              : AppColors.textSecondary.withValues(alpha: 0.3),
+          visualDensity: VisualDensity.compact,
+        ),
       ),
     );
   }
@@ -3162,9 +4117,9 @@ class _MetadataSheetState extends State<_MetadataSheet> {
             ],
           ),
           const SizedBox(height: 16),
-          _MetadataField(label: 'Title', controller: _titleCtrl),
+          _MetadataField(label: 'Title', controller: _titleCtrl, maxLength: 100),
           const SizedBox(height: 12),
-          _MetadataField(label: 'Composer', controller: _composerCtrl),
+          _MetadataField(label: 'Composer', controller: _composerCtrl, maxLength: 100),
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
@@ -3182,11 +4137,34 @@ class _MetadataSheetState extends State<_MetadataSheet> {
   }
 }
 
-class _MetadataField extends StatelessWidget {
-  const _MetadataField({required this.label, required this.controller});
+class _MetadataField extends StatefulWidget {
+  const _MetadataField({required this.label, required this.controller, this.maxLength});
 
   final String label;
   final TextEditingController controller;
+  final int? maxLength;
+
+  @override
+  State<_MetadataField> createState() => _MetadataFieldState();
+}
+
+class _MetadataFieldState extends State<_MetadataField> {
+  String? _emojiError;
+  Timer? _emojiTimer;
+
+  @override
+  void dispose() {
+    _emojiTimer?.cancel();
+    super.dispose();
+  }
+
+  void _onEmojiBlocked() {
+    _emojiTimer?.cancel();
+    setState(() => _emojiError = 'Emoji not allowed');
+    _emojiTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _emojiError = null);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3194,7 +4172,7 @@ class _MetadataField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          label,
+          widget.label,
           style: const TextStyle(
             color: AppColors.textSecondary,
             fontSize: 12,
@@ -3203,10 +4181,27 @@ class _MetadataField extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         TextField(
-          controller: controller,
+          controller: widget.controller,
+          maxLength: widget.maxLength,
+          inputFormatters: [
+            EmojiBlockingFormatter(onBlocked: _onEmojiBlocked),
+          ],
+          buildCounter: (_, {required currentLength, required isFocused, maxLength}) {
+            if (maxLength == null || currentLength <= maxLength - 20) return null;
+            return Text(
+              '$currentLength / $maxLength',
+              style: TextStyle(
+                color: currentLength >= maxLength
+                    ? const Color(0xFFE05252)
+                    : AppColors.textSecondary,
+                fontSize: 11,
+              ),
+            );
+          },
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
           cursorColor: AppColors.accent,
           decoration: InputDecoration(
+            errorText: _emojiError,
             filled: true,
             fillColor: AppColors.background,
             border: OutlineInputBorder(
@@ -3236,12 +4231,16 @@ class _DurTile extends StatelessWidget {
   const _DurTile({
     required this.label,
     required this.sublabel,
+    required this.isActive,
     required this.onPressed,
   });
 
   final String label;
   final String sublabel;
+  final bool isActive;
   final VoidCallback? onPressed;
+
+  static const _accent = Color(0xFFD4A96A);
 
   @override
   Widget build(BuildContext context) {
@@ -3257,10 +4256,16 @@ class _DurTile extends StatelessWidget {
           width: 44,
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
           decoration: BoxDecoration(
-            color: enabled ? AppColors.surfaceAlt : AppColors.background,
+            color: isActive
+                ? _accent.withValues(alpha: 0.15)
+                : enabled
+                ? AppColors.surfaceAlt
+                : AppColors.background,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: enabled
+              color: isActive
+                  ? _accent.withValues(alpha: 0.6)
+                  : enabled
                   ? AppColors.border
                   : AppColors.border.withValues(alpha: 0.4),
             ),
@@ -3272,7 +4277,9 @@ class _DurTile extends StatelessWidget {
                 label,
                 style: TextStyle(
                   fontSize: 15,
-                  color: enabled
+                  color: isActive
+                      ? _accent
+                      : enabled
                       ? AppColors.textPrimary
                       : AppColors.textSecondary.withValues(alpha: 0.35),
                   fontWeight: FontWeight.w700,
@@ -3284,7 +4291,9 @@ class _DurTile extends StatelessWidget {
                 sublabel,
                 style: TextStyle(
                   fontSize: 9,
-                  color: enabled
+                  color: isActive
+                      ? _accent.withValues(alpha: 0.8)
+                      : enabled
                       ? AppColors.textSecondary.withValues(alpha: 0.7)
                       : AppColors.textSecondary.withValues(alpha: 0.3),
                   fontWeight: FontWeight.w500,
@@ -3302,3 +4311,77 @@ class _DurTile extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Save error overlay
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Drag ghost overlay — floats above all UI during symbol reorder drag
+// ---------------------------------------------------------------------------
+
+class _DragGhostOverlay extends StatefulWidget {
+  const _DragGhostOverlay({required this.positionNotifier, required this.type});
+
+  final ValueNotifier<Offset> positionNotifier;
+  final PaletteSymbolType type;
+
+  @override
+  State<_DragGhostOverlay> createState() => _DragGhostOverlayState();
+}
+
+class _DragGhostOverlayState extends State<_DragGhostOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scale;
+  Offset _position = Offset.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _position = widget.positionNotifier.value;
+    widget.positionNotifier.addListener(_onPositionChanged);
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 200),
+      vsync: this,
+    );
+    _scale = Tween<double>(
+      begin: 0.4,
+      end: 1.5,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    widget.positionNotifier.removeListener(_onPositionChanged);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onPositionChanged() {
+    setState(() => _position = widget.positionNotifier.value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const ghostSize = Size(34, 40);
+    return Positioned(
+      left: _position.dx - ghostSize.width / 2,
+      top: _position.dy - ghostSize.height * 1.9,
+      child: IgnorePointer(
+        child: AnimatedBuilder(
+          animation: _scale,
+          builder: (_, child) =>
+              Transform.scale(scale: _scale.value, child: child),
+          child: Material(
+            color: Colors.transparent,
+            child: CustomPaint(
+              size: ghostSize,
+              painter: PaletteSymbolPainter(
+                type: widget.type,
+                color: AppColors.accent,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

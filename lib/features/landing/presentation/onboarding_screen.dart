@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -5,7 +6,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../core/config/app_features.dart';
 import '../../../core/services/user_profile_service.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/name_validator.dart';
 import '../../collection/presentation/collection_screen.dart';
 
@@ -23,7 +26,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   final ImagePicker _picker = ImagePicker();
 
   File? _selectedPhoto;
+  String? _photoError;
+  Timer? _photoErrorTimer;
   bool _isLoading = false;
+  bool _showRoleStep = false;
 
   // Validation state
   String? _nameError;
@@ -50,13 +56,13 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       parent: _animController,
       curve: const Interval(0.0, 0.7, curve: Curves.easeOut),
     );
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, 0.12),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animController,
-      curve: const Interval(0.0, 0.7, curve: Curves.easeOut),
-    ));
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.12), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _animController,
+            curve: const Interval(0.0, 0.7, curve: Curves.easeOut),
+          ),
+        );
 
     _animController.forward();
   }
@@ -67,12 +73,21 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     _nameController.dispose();
     _nameFocusNode.dispose();
     _animController.dispose();
+    _photoErrorTimer?.cancel();
     super.dispose();
   }
 
   void _onNameChanged() {
     final error = NameValidator.validate(_nameController.text);
     setState(() => _nameError = error);
+  }
+
+  void _showPhotoError(String message) {
+    _photoErrorTimer?.cancel();
+    setState(() => _photoError = message);
+    _photoErrorTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _photoError = null);
+    });
   }
 
   Future<void> _pickPhoto() async {
@@ -84,11 +99,25 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         imageQuality: 85,
       );
       if (image == null) return;
-      setState(() => _selectedPhoto = File(image.path));
+      final ext = image.path.contains('.')
+          ? image.path.substring(image.path.lastIndexOf('.')).toLowerCase()
+          : '';
+      const supported = {'.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'};
+      if (!supported.contains(ext)) {
+        if (mounted) _showPhotoError('Unsupported format. Use JPG, PNG, or WebP.');
+        return;
+      }
+      setState(() {
+        _selectedPhoto = File(image.path);
+        _photoError = null;
+        _photoErrorTimer?.cancel();
+      });
     } on PlatformException catch (e) {
       debugPrint('Image picker error: $e');
+      if (mounted) _showPhotoError('Could not access photos. Check app permissions.');
     } catch (e) {
       debugPrint('Unexpected image picker error: $e');
+      if (mounted) _showPhotoError('Failed to pick photo. Please try again.');
     }
   }
 
@@ -112,14 +141,49 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         savedPhotoPath = destPath;
       }
 
-      await UserProfileService.saveProfile(name: name, photoPath: savedPhotoPath);
+      await UserProfileService.saveProfile(
+        name: name,
+        photoPath: savedPhotoPath,
+        completeOnboarding: !AppFeatures.classroomWorkflow,
+      );
+
+      if (!mounted) return;
+      if (!AppFeatures.classroomWorkflow) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const CollectionScreen()),
+        );
+        return;
+      }
+      setState(() => _showRoleStep = true);
+    } catch (e) {
+      debugPrint('Onboarding save error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Something went wrong. Please try again.'),
+            backgroundColor: Color(0xFF2A2A2A),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _onRoleSelected(String role) async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+
+    try {
+      await UserProfileService.saveRole(role);
+      await UserProfileService.markOnboardingComplete();
 
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const CollectionScreen()),
       );
     } catch (e) {
-      debugPrint('Onboarding save error: $e');
+      debugPrint('Role save error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -152,11 +216,15 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     const SizedBox(height: 64),
                     _buildHeader(),
                     const SizedBox(height: 56),
-                    _buildAvatarSection(),
-                    const SizedBox(height: 48),
-                    _buildNameField(),
-                    const SizedBox(height: 48),
-                    _buildContinueButton(),
+                    if (AppFeatures.classroomWorkflow && _showRoleStep)
+                      _buildRoleStep()
+                    else ...[
+                      _buildAvatarSection(),
+                      const SizedBox(height: 48),
+                      _buildNameField(),
+                      const SizedBox(height: 48),
+                      _buildContinueButton(),
+                    ],
                     const SizedBox(height: 32),
                   ],
                 ),
@@ -181,8 +249,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           ),
         ),
         const SizedBox(height: 20),
-        const Text(
-          'Welcome.',
+        Text(
+          AppFeatures.classroomWorkflow && _showRoleStep
+              ? 'Choose your role.'
+              : 'Welcome.',
           style: TextStyle(
             color: Color(0xFFF5F5F5),
             fontSize: 40,
@@ -192,8 +262,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           ),
         ),
         const SizedBox(height: 10),
-        const Text(
-          "Let's set up your profile.\nThis takes less than a minute.",
+        Text(
+          AppFeatures.classroomWorkflow && _showRoleStep
+              ? 'This stays with this installation.\nOnly reinstalling the app resets it.'
+              : "Let's set up your profile.\nThis takes less than a minute.",
           style: TextStyle(
             color: Color(0xFF888888),
             fontSize: 16,
@@ -237,7 +309,12 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       color: const Color(0xFF1A1A1A),
                       border: Border.all(
                         color: _selectedPhoto != null
-                            ? const Color.fromARGB(255, 212, 169, 106) // Changed
+                            ? const Color.fromARGB(
+                                255,
+                                212,
+                                169,
+                                106,
+                              ) // Changed
                             : const Color(0xFF2A2A2A),
                         width: 2,
                       ),
@@ -255,7 +332,12 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                 name.isNotEmpty ? initial : '+',
                                 style: TextStyle(
                                   color: name.isNotEmpty
-                                      ? const Color.fromARGB(255, 212, 169, 106) // Changed
+                                      ? const Color.fromARGB(
+                                          255,
+                                          212,
+                                          169,
+                                          106,
+                                        ) // Changed
                                       : const Color(0xFF444444),
                                   fontSize: name.isNotEmpty ? 34 : 28,
                                   fontWeight: FontWeight.w700,
@@ -322,6 +404,19 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             ),
           ],
         ),
+        if (_photoError != null) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(Icons.error_outline, size: 13, color: Color(0xFFE05252)),
+              const SizedBox(width: 4),
+              Text(
+                _photoError!,
+                style: const TextStyle(color: Color(0xFFE05252), fontSize: 12),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -331,8 +426,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     final borderColor = hasError
         ? const Color(0xFFE05252)
         : _nameFocusNode.hasFocus
-            ? const Color.fromARGB(255, 212, 169, 106).withValues(alpha: 0.6)
-            : const Color(0xFF2A2A2A);
+        ? const Color.fromARGB(255, 212, 169, 106).withValues(alpha: 0.6)
+        : const Color(0xFF2A2A2A);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -450,8 +545,18 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         child: ElevatedButton(
           onPressed: _isContinueEnabled ? _onContinue : null,
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color.fromARGB(255, 212, 169, 106), // Changed
-            disabledBackgroundColor: const Color.fromARGB(255, 212, 169, 106), // Changed
+            backgroundColor: const Color.fromARGB(
+              255,
+              212,
+              169,
+              106,
+            ), // Changed
+            disabledBackgroundColor: const Color.fromARGB(
+              255,
+              212,
+              169,
+              106,
+            ), // Changed
             foregroundColor: const Color(0xFF0F0F0F),
             disabledForegroundColor: const Color(0xFF0F0F0F),
             elevation: 0,
@@ -465,7 +570,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   height: 22,
                   child: CircularProgressIndicator(
                     strokeWidth: 2.5,
-                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0F0F0F)),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Color(0xFF0F0F0F),
+                    ),
                   ),
                 )
               : const Text(
@@ -476,6 +583,109 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     letterSpacing: 0.4,
                   ),
                 ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoleStep() {
+    return Column(
+      children: [
+        _RoleCard(
+          icon: Icons.school_rounded,
+          title: 'I am a Student',
+          subtitle: 'Create scores and submit them to a teacher.',
+          isLoading: _isLoading,
+          onTap: () => _onRoleSelected('student'),
+        ),
+        const SizedBox(height: 14),
+        _RoleCard(
+          icon: Icons.workspace_premium_rounded,
+          title: 'I am a Teacher',
+          subtitle: 'Import, review, and export student submissions.',
+          isLoading: _isLoading,
+          onTap: () => _onRoleSelected('teacher'),
+        ),
+      ],
+    );
+  }
+}
+
+class _RoleCard extends StatelessWidget {
+  const _RoleCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool isLoading;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: isLoading ? null : onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedOpacity(
+        opacity: isLoading ? 0.55 : 1,
+        duration: const Duration(milliseconds: 180),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.border, width: 1.5),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: AppColors.accent, size: 24),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 13,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textSecondary,
+                size: 22,
+              ),
+            ],
+          ),
         ),
       ),
     );

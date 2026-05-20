@@ -21,12 +21,21 @@ class FakeProjectStorageService extends ProjectStorageService {
   FakeProjectStorageService(this._future);
 
   final Future<List<Project>> _future;
+  final deletedIds = <String>[];
+  final savedProjects = <Project>[];
 
   @override
   Future<List<Project>> loadAllProjects() => _future;
 
   @override
-  Future<void> deleteProject(String id) async {}
+  Future<void> saveProject(Project project) async {
+    savedProjects.add(project);
+  }
+
+  @override
+  Future<void> deleteProject(String id) async {
+    deletedIds.add(id);
+  }
 }
 
 // ── Minimal valid scoreJson ───────────────────────────────────────────────────
@@ -57,12 +66,12 @@ final _simpleMelodyScoreJson = jsonEncode(
 );
 
 Project _makeProject(String name, {String id = '1'}) => Project(
-      id: id,
-      name: name,
-      createdAt: DateTime(2026, 1, 1),
-      updatedAt: DateTime(2026, 3, 20),
-      scoreJson: _simpleMelodyScoreJson,
-    );
+  id: id,
+  name: name,
+  createdAt: DateTime(2026, 1, 1),
+  updatedAt: DateTime(2026, 3, 20),
+  scoreJson: _simpleMelodyScoreJson,
+);
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
@@ -102,7 +111,12 @@ void main() {
 
       expect(find.byType(EmptyCollection), findsOneWidget);
       expect(find.text('Your collection\nis empty'), findsOneWidget);
-      expect(find.byKey(const ValueKey('addImageButton')), findsOneWidget);
+      expect(find.byKey(const ValueKey('scanImageButton')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('importMusicXmlButton')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('newScoreButton')), findsOneWidget);
     });
 
     testWidgets('shows project tiles when saved projects exist', (
@@ -127,9 +141,7 @@ void main() {
       expect(find.text('2 projects'), findsOneWidget);
     });
 
-    testWidgets('shows app bar content and FAB', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('shows app bar content and FAB', (WidgetTester tester) async {
       final service = FakeProjectStorageService(Future.value([]));
 
       await tester.pumpWidget(
@@ -144,6 +156,37 @@ void main() {
       expect(find.byType(FloatingActionButton), findsAtLeastNWidgets(1));
     });
 
+    testWidgets('keeps speed dial actions out of the closed layout', (
+      WidgetTester tester,
+    ) async {
+      final service = FakeProjectStorageService(
+        Future.value([_makeProject('Existing Score', id: 'speed-dial')]),
+      );
+
+      await tester.pumpWidget(
+        makeTestableWidget(CollectionScreen(storageService: service)),
+      );
+
+      await pumpLoadedState(tester);
+
+      expect(find.byType(FloatingActionButton), findsOneWidget);
+      expect(find.text('New Score'), findsNothing);
+      expect(find.text('Import MusicXML'), findsNothing);
+      expect(find.text('Scan Image'), findsNothing);
+
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 220));
+
+      expect(find.text('New Score'), findsOneWidget);
+      expect(find.text('Import MusicXML'), findsOneWidget);
+      expect(find.text('Scan Image'), findsOneWidget);
+      expect(find.text('Import Feedback'), findsNothing);
+      expect(find.text('Import Score'), findsNothing);
+      expect(find.text('Export All'), findsNothing);
+      expect(find.byType(FloatingActionButton), findsNWidgets(4));
+    });
+
     testWidgets('opens editor route when project tile is tapped', (
       WidgetTester tester,
     ) async {
@@ -156,7 +199,8 @@ void main() {
           onGenerateRoute: (settings) {
             if (settings.name == EditorShellScreen.routeName) {
               return MaterialPageRoute<void>(
-                builder: (_) => const Scaffold(body: Text('Editor Route Opened')),
+                builder: (_) =>
+                    const Scaffold(body: Text('Editor Route Opened')),
               );
             }
             return MaterialPageRoute<void>(
@@ -171,6 +215,52 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Editor Route Opened'), findsOneWidget);
+    });
+
+    testWidgets('shows visible project actions menu', (
+      WidgetTester tester,
+    ) async {
+      final service = FakeProjectStorageService(
+        Future.value([_makeProject('Action Score', id: 'actions')]),
+      );
+
+      await tester.pumpWidget(
+        makeTestableWidget(CollectionScreen(storageService: service)),
+      );
+
+      await pumpLoadedState(tester);
+
+      await tester.tap(find.byTooltip('Project actions'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Rename'), findsOneWidget);
+      expect(find.text('Export'), findsOneWidget);
+      expect(find.text('Delete'), findsOneWidget);
+    });
+
+    testWidgets('renames a project from the actions menu', (
+      WidgetTester tester,
+    ) async {
+      final service = FakeProjectStorageService(
+        Future.value([_makeProject('Old Score', id: 'rename')]),
+      );
+
+      await tester.pumpWidget(
+        makeTestableWidget(CollectionScreen(storageService: service)),
+      );
+
+      await pumpLoadedState(tester);
+      await tester.tap(find.byTooltip('Project actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Rename'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'New Score');
+      await tester.tap(find.text('Rename').last);
+      await tester.pumpAndSettle();
+
+      expect(service.savedProjects.single.name, 'New Score');
+      expect(find.text('New Score'), findsOneWidget);
+      expect(find.text('Old Score'), findsNothing);
     });
   });
 }

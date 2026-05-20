@@ -9,6 +9,7 @@ import '../../models/note.dart';
 import '../../models/rest.dart';
 import '../../models/score_symbol.dart';
 import '../../models/time_signature.dart';
+import 'score_notation_metrics.dart';
 import 'staff_pitch_mapper.dart';
 
 class ScoreNotationPainter extends CustomPainter {
@@ -25,6 +26,14 @@ class ScoreNotationPainter extends CustomPainter {
     this.playbackPartIndex,
     this.playbackMeasureIndex,
     this.playbackSymbolIndex,
+    this.playbackNextPartIndex,
+    this.playbackNextMeasureIndex,
+    this.playbackNextSymbolIndex,
+    this.playheadPartIndex,
+    this.playheadMeasureIndex,
+    this.playheadSymbolIndex,
+    this.playbackProgress = 0,
+    this.showPlaybackSymbolHighlight = true,
     this.dragFeedback,
     this.insertionTarget,
     this.insertionPreviewGlyph,
@@ -46,13 +55,23 @@ class ScoreNotationPainter extends CustomPainter {
   final int? playbackPartIndex;
   final int? playbackMeasureIndex;
   final int? playbackSymbolIndex;
+  final int? playbackNextPartIndex;
+  final int? playbackNextMeasureIndex;
+  final int? playbackNextSymbolIndex;
+  final int? playheadPartIndex;
+  final int? playheadMeasureIndex;
+  /// Index of the symbol within its measure that the playhead is on.
+  final int? playheadSymbolIndex;
+  /// 0→1 fractional progress within the current note (from AnimationController).
+  final double playbackProgress;
+  final bool showPlaybackSymbolHighlight;
 
   final NotationDragFeedback? dragFeedback;
   final NotationInsertTarget? insertionTarget;
   final NotationPreviewGlyph? insertionPreviewGlyph;
 
-  static const double staffLineSpacing = 12;
-  static const double tapTargetSize = 24;
+  static const double staffLineSpacing = ScoreNotationMetrics.staffLineSpacing;
+  static const double tapTargetSize = ScoreNotationMetrics.tapTargetSize;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -61,6 +80,7 @@ class ScoreNotationPainter extends CustomPainter {
       _drawRow(canvas, row);
     }
     if (parts.length > 1) _drawSystemConnectors(canvas, metrics);
+    _drawPlaybackPlayhead(canvas, metrics);
   }
 
   List<_RowMetrics> _buildRowMetrics() {
@@ -111,13 +131,18 @@ class ScoreNotationPainter extends CustomPainter {
         final partMeasures = parts[partIdx];
         if (systemStartMeasure >= partMeasures.length) continue;
 
-        final rowEndExclusive =
-            math.min(systemStartMeasure + measuresPerRow, partMeasures.length);
-        final rowMeasures =
-            partMeasures.sublist(systemStartMeasure, rowEndExclusive);
+        final rowEndExclusive = math.min(
+          systemStartMeasure + measuresPerRow,
+          partMeasures.length,
+        );
+        final rowMeasures = partMeasures.sublist(
+          systemStartMeasure,
+          rowEndExclusive,
+        );
 
         final staffTop = systemTopY + partIdx * rowHeight + 28;
-        final staffBottom = staffTop + staffLineSpacing * 4;
+        final staffBottom =
+            staffTop + ScoreNotationMetrics.staffHeightFor(staffLineSpacing);
         final rowStartX = padding.left;
         final contentStartX = rowStartX + rowPrefixWidth;
         final rowEndX = contentStartX + (rowMeasures.length * minMeasureWidth);
@@ -161,19 +186,28 @@ class ScoreNotationPainter extends CustomPainter {
     final targets = <NotationSymbolTarget>[];
 
     for (final row in rows) {
-      for (var measureInRow = 0; measureInRow < row.measures.length; measureInRow++) {
+      for (
+        var measureInRow = 0;
+        measureInRow < row.measures.length;
+        measureInRow++
+      ) {
         final measure = row.measures[measureInRow];
-        final measureStartX = row.contentStartX + (measureInRow * minMeasureWidth);
+        final measureStartX =
+            row.contentStartX + (measureInRow * minMeasureWidth);
         final measureEndX = measureStartX + minMeasureWidth;
         if (measure.symbols.isEmpty) continue;
 
-        const innerPadding = 16.0;
+        const innerPadding = ScoreNotationMetrics.measureInnerPadding;
         final drawableWidth = math.max(
           12.0,
           (measureEndX - measureStartX) - (innerPadding * 2),
         );
 
-        for (var symbolIndex = 0; symbolIndex < measure.symbols.length; symbolIndex++) {
+        for (
+          var symbolIndex = 0;
+          symbolIndex < measure.symbols.length;
+          symbolIndex++
+        ) {
           final symbol = measure.symbols[symbolIndex];
           if (symbol is Note && symbol.isChordTone) {
             continue;
@@ -182,7 +216,13 @@ class ScoreNotationPainter extends CustomPainter {
           final slotCount = _visualSlotCount(measure.symbols);
           final progress = (visualSlot + 1) / (slotCount + 1);
           final x = measureStartX + innerPadding + (drawableWidth * progress);
-          final y = _symbolCenterY(symbol, row.staffTop, row.staffBottom, row.clefSign, clefLine: row.clefLine);
+          final y = _symbolCenterY(
+            symbol,
+            row.staffTop,
+            row.staffBottom,
+            row.clefSign,
+            clefLine: row.clefLine,
+          );
           targets.add(
             NotationSymbolTarget(
               partIndex: row.partIndex,
@@ -221,35 +261,61 @@ class ScoreNotationPainter extends CustomPainter {
     }
 
     final restType = symbol is Rest ? symbol.type.trim().toLowerCase() : '';
-    if (restType == 'whole') return staffTop + (staffLineSpacing * 3) + 4.3;
-    if (restType == 'half') return staffTop + (staffLineSpacing * 2) - 3.0;
-    return staffTop + (staffLineSpacing * 1.35) + 8.0;
+    if (restType == 'whole') {
+      return staffTop +
+          (staffLineSpacing * ScoreNotationMetrics.wholeRestLineIndex) +
+          ScoreNotationMetrics.wholeRestCenterYOffset;
+    }
+    if (restType == 'half') {
+      return staffTop +
+          (staffLineSpacing * ScoreNotationMetrics.halfRestLineIndex) +
+          ScoreNotationMetrics.halfRestCenterYOffset;
+    }
+    return staffTop +
+        (staffLineSpacing * ScoreNotationMetrics.quarterRestLineIndex) +
+        ScoreNotationMetrics.quarterRestCenterYOffset;
   }
 
   void _drawRow(Canvas canvas, _RowMetrics row) {
     final linePaint = Paint()
       ..color = const Color(0xFF111827)
-      ..strokeWidth = 1.1
+      ..strokeWidth = ScoreNotationMetrics.staffLineStrokeWidth
       ..style = PaintingStyle.stroke;
 
     final thinBarPaint = Paint()
       ..color = const Color(0xFF111827)
-      ..strokeWidth = 1.2;
+      ..strokeWidth = ScoreNotationMetrics.barlineStrokeWidth;
 
     switch (row.clefSign.toUpperCase()) {
       case 'F':
         _drawBassClef(canvas, x: row.rowStartX + 8, y: row.staffTop - 4);
       case 'C':
-        _drawCClef(canvas, x: row.rowStartX + 6, y: row.staffTop, clefLine: row.clefLine);
+        _drawCClef(
+          canvas,
+          x: row.rowStartX + 6,
+          y: row.staffTop,
+          clefLine: row.clefLine,
+        );
       default:
-        _drawTrebleClef(canvas, x: row.rowStartX + 10, y: row.staffTop - 14);
+        _drawTrebleClef(
+          canvas,
+          x: row.rowStartX + ScoreNotationMetrics.trebleClefXOffset,
+          y: ScoreNotationMetrics.trebleClefTopForStaff(
+            staffTop: row.staffTop,
+            lineSpacing: staffLineSpacing,
+          ),
+        );
     }
 
     _drawRowSignatures(canvas, row);
 
-    for (var i = 0; i < 5; i++) {
+    for (var i = 0; i < ScoreNotationMetrics.staffLineCount; i++) {
       final y = row.staffTop + (i * staffLineSpacing);
-      canvas.drawLine(Offset(row.rowStartX, y), Offset(row.rowEndX, y), linePaint);
+      canvas.drawLine(
+        Offset(row.rowStartX, y),
+        Offset(row.rowEndX, y),
+        linePaint,
+      );
     }
 
     canvas.drawLine(
@@ -272,7 +338,7 @@ class ScoreNotationPainter extends CustomPainter {
     final firstMeasure = row.measures.first;
     final timeSig = firstMeasure.timeSignature;
     final keySig = firstMeasure.keySignature;
-    var signatureX = row.rowStartX + 42;
+    var signatureX = row.rowStartX + ScoreNotationMetrics.rowSignatureStartX;
 
     if (keySig != null) {
       signatureX = _drawKeySignature(
@@ -298,11 +364,16 @@ class ScoreNotationPainter extends CustomPainter {
   void _drawMeasures(Canvas canvas, _RowMetrics row, Paint barPaint) {
     const measureNumberStyle = TextStyle(
       color: Color(0xFF374151),
-      fontSize: 11,
+      fontSize: ScoreNotationMetrics.measureNumberFontSize,
+      fontFamily: ScoreNotationMetrics.textFontFamily,
       fontWeight: FontWeight.w600,
     );
 
-    for (var measureInRow = 0; measureInRow < row.measures.length; measureInRow++) {
+    for (
+      var measureInRow = 0;
+      measureInRow < row.measures.length;
+      measureInRow++
+    ) {
       final measure = row.measures[measureInRow];
       final measureX = row.contentStartX + (measureInRow * minMeasureWidth);
       final nextMeasureX = measureX + minMeasureWidth;
@@ -310,8 +381,8 @@ class ScoreNotationPainter extends CustomPainter {
       _drawMeasureNumber(
         canvas,
         text: '${measure.number}',
-        x: measureX + 8,
-        y: row.staffTop - 22,
+        x: measureX + ScoreNotationMetrics.measureNumberOffsetX,
+        y: row.staffTop + ScoreNotationMetrics.measureNumberOffsetY,
         style: measureNumberStyle,
       );
 
@@ -350,9 +421,11 @@ class ScoreNotationPainter extends CustomPainter {
     required String clefSign,
     int clefLine = 2,
   }) {
-    final middleLineY = staffTop + staffLineSpacing * 2;
+    final middleLineY =
+        staffTop + staffLineSpacing * ScoreNotationMetrics.middleStaffLineIndex;
     final insertTarget = insertionTarget;
-    if (insertTarget != null && insertTarget.measureIndex == absoluteMeasureIndex) {
+    if (insertTarget != null &&
+        insertTarget.measureIndex == absoluteMeasureIndex) {
       final linePaint = Paint()
         ..color = const Color(0xFF60A5FA)
         ..strokeWidth = 2.0;
@@ -383,7 +456,7 @@ class ScoreNotationPainter extends CustomPainter {
 
     final symbolCount = measure.symbols.length;
     final slotCount = _visualSlotCount(measure.symbols);
-    const innerPadding = 16.0;
+    const innerPadding = ScoreNotationMetrics.measureInnerPadding;
     final drawableWidth = math.max(
       12.0,
       (measureEndX - measureStartX) - (innerPadding * 2),
@@ -422,10 +495,16 @@ class ScoreNotationPainter extends CustomPainter {
       final symbol = measure.symbols[i];
       var visualIndex = _visualSlotForIndex(measure.symbols, i);
       if (activeDrag != null) {
-        final draggedSlot = _visualSlotForIndex(measure.symbols, activeDrag.draggedSymbolIndex);
-        final compactIndex = visualIndex > draggedSlot ? visualIndex - 1 : visualIndex;
-        visualIndex =
-            compactIndex >= activeDrag.targetSymbolIndex ? compactIndex + 1 : compactIndex;
+        final draggedSlot = _visualSlotForIndex(
+          measure.symbols,
+          activeDrag.draggedSymbolIndex,
+        );
+        final compactIndex = visualIndex > draggedSlot
+            ? visualIndex - 1
+            : visualIndex;
+        visualIndex = compactIndex >= activeDrag.targetSymbolIndex
+            ? compactIndex + 1
+            : compactIndex;
       }
       final progress = (visualIndex + 1) / (slotCount + 1);
       final x = measureStartX + innerPadding + (drawableWidth * progress);
@@ -440,25 +519,45 @@ class ScoreNotationPainter extends CustomPainter {
           clefLine: clefLine,
         );
         notePositions[i] = Offset(x, y);
-        final isSelected = selectedPartIndex == partIndex &&
+        final isSelected =
+            selectedPartIndex == partIndex &&
             selectedMeasureIndex == absoluteMeasureIndex &&
             selectedSymbolIndex == i;
-        final isPlaying = playbackPartIndex == partIndex &&
+        final isPlaying =
+            playbackPartIndex == partIndex &&
             playbackMeasureIndex == absoluteMeasureIndex &&
             playbackSymbolIndex == i;
-        if (isPlaying) _drawPlaybackHighlight(canvas, Offset(x, y));
+        if (isPlaying && showPlaybackSymbolHighlight) {
+          _drawPlaybackHighlight(canvas, Offset(x, y));
+        }
         if (isSelected) _drawSelectionHighlight(canvas, Offset(x, y));
-        _drawNote(canvas, symbol, x: x, y: y, middleLineY: middleLineY,
-            suppressFlag: beamedIndices.contains(i));
+        _drawNote(
+          canvas,
+          symbol,
+          x: x,
+          y: y,
+          middleLineY: middleLineY,
+          suppressFlag: beamedIndices.contains(i),
+        );
       } else if (symbol is Rest) {
-        final y = _symbolCenterY(symbol, staffTop, staffBottom, clefSign, clefLine: clefLine);
-        final isSelected = selectedPartIndex == partIndex &&
+        final y = _symbolCenterY(
+          symbol,
+          staffTop,
+          staffBottom,
+          clefSign,
+          clefLine: clefLine,
+        );
+        final isSelected =
+            selectedPartIndex == partIndex &&
             selectedMeasureIndex == absoluteMeasureIndex &&
             selectedSymbolIndex == i;
-        final isPlaying = playbackPartIndex == partIndex &&
+        final isPlaying =
+            playbackPartIndex == partIndex &&
             playbackMeasureIndex == absoluteMeasureIndex &&
             playbackSymbolIndex == i;
-        if (isPlaying) _drawPlaybackHighlight(canvas, Offset(x, y));
+        if (isPlaying && showPlaybackSymbolHighlight) {
+          _drawPlaybackHighlight(canvas, Offset(x, y));
+        }
         if (isSelected) _drawSelectionHighlight(canvas, Offset(x, y));
         _drawRest(canvas, symbol, x: x, staffTop: staffTop);
       }
@@ -467,12 +566,28 @@ class ScoreNotationPainter extends CustomPainter {
     // Draw beam bars for groups of 2+.
     _drawBeamBars(canvas, beamGroups, notePositions, middleLineY);
 
-    if (!hasDragInMeasure || draggedSymbol == null) return;
+    if (!hasDragInMeasure || draggedSymbol == null || !drag.showGhostAtDrag) {
+      return;
+    }
 
-    final dragY = _symbolCenterY(draggedSymbol, staffTop, staffBottom, clefSign, clefLine: clefLine) - 8;
+    final dragY =
+        _symbolCenterY(
+          draggedSymbol,
+          staffTop,
+          staffBottom,
+          clefSign,
+          clefLine: clefLine,
+        ) -
+        8;
     if (draggedSymbol is Note) {
       _drawSelectionHighlight(canvas, Offset(clampedDragX, dragY), radius: 16);
-      _drawNote(canvas, draggedSymbol, x: clampedDragX, y: dragY, middleLineY: middleLineY);
+      _drawNote(
+        canvas,
+        draggedSymbol,
+        x: clampedDragX,
+        y: dragY,
+        middleLineY: middleLineY,
+      );
     } else if (draggedSymbol is Rest) {
       _drawSelectionHighlight(canvas, Offset(clampedDragX, dragY), radius: 16);
       _drawRest(canvas, draggedSymbol, x: clampedDragX, staffTop: staffTop - 8);
@@ -485,7 +600,10 @@ class ScoreNotationPainter extends CustomPainter {
     List<int>? current;
     for (var i = 0; i < symbols.length; i++) {
       final sym = symbols[i];
-      if (sym is Note && !sym.isChordTone && sym.type == 'eighth' && sym.beamed) {
+      if (sym is Note &&
+          !sym.isChordTone &&
+          sym.type == 'eighth' &&
+          sym.beamed) {
         current ??= [];
         current.add(i);
       } else {
@@ -509,8 +627,9 @@ class ScoreNotationPainter extends CustomPainter {
       ..color = const Color(0xFF111827)
       ..style = PaintingStyle.fill;
 
-    const stemLen = staffLineSpacing * 3.4;
-    const stemOffX = 6.0; // matches _drawStemAndFlag
+    const stemLen =
+        staffLineSpacing * ScoreNotationMetrics.stemLengthStaffSpaces;
+    const stemOffX = ScoreNotationMetrics.stemXOffset;
 
     for (final group in beamGroups) {
       if (group.length < 2) continue;
@@ -527,7 +646,7 @@ class ScoreNotationPainter extends CustomPainter {
       final y1 = firstPos.dy - sign * stemLen;
       final y2 = lastPos.dy - sign * stemLen;
 
-      const beamThickness = 4.0;
+      const beamThickness = ScoreNotationMetrics.beamThickness;
       final top = math.min(y1, y2) - beamThickness / 2;
       canvas.drawRect(
         Rect.fromLTWH(x1, top, x2 - x1, beamThickness),
@@ -536,7 +655,11 @@ class ScoreNotationPainter extends CustomPainter {
     }
   }
 
-  void _drawSelectionHighlight(Canvas canvas, Offset center, {double radius = 14}) {
+  void _drawSelectionHighlight(
+    Canvas canvas,
+    Offset center, {
+    double radius = 14,
+  }) {
     final paint = Paint()
       ..color = const Color(0xFFD4A96A).withValues(alpha: 0.26)
       ..style = PaintingStyle.fill;
@@ -548,22 +671,114 @@ class ScoreNotationPainter extends CustomPainter {
   void _drawPlaybackHighlight(Canvas canvas, Offset center) {
     // Outer glow ring
     final ringPaint = Paint()
-      ..color = const Color(0xFFD4A96A).withValues(alpha: 0.18)
+      ..color = ScoreNotationMetrics.playbackSymbolHighlightColor.withValues(
+        alpha: 0.18,
+      )
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, 20, ringPaint);
 
     // Inner solid fill
     final fillPaint = Paint()
-      ..color = const Color(0xFFD4A96A).withValues(alpha: 0.45)
+      ..color = ScoreNotationMetrics.playbackSymbolHighlightColor.withValues(
+        alpha: 0.45,
+      )
       ..style = PaintingStyle.fill;
     canvas.drawCircle(center, 13, fillPaint);
 
     // Accent border
     final borderPaint = Paint()
-      ..color = const Color(0xFFD4A96A).withValues(alpha: 0.8)
+      ..color = ScoreNotationMetrics.playbackSymbolHighlightColor.withValues(
+        alpha: 0.8,
+      )
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5;
     canvas.drawCircle(center, 13, borderPaint);
+  }
+
+  void _drawPlaybackPlayhead(Canvas canvas, List<_RowMetrics> rows) {
+    final partIndex = playheadPartIndex ?? playbackPartIndex;
+    final measureIndex = playheadMeasureIndex ?? playbackMeasureIndex;
+    final symIndex = playheadSymbolIndex ?? playbackSymbolIndex;
+    if (partIndex == null || measureIndex == null) return;
+
+    // Find the row that contains this measure.
+    final partRows = rows
+        .where((r) => r.partIndex == partIndex)
+        .toList()
+      ..sort((a, b) => a.globalStartMeasureIndex.compareTo(b.globalStartMeasureIndex));
+    if (partRows.isEmpty) return;
+
+    _RowMetrics? currentRow;
+    for (final row in partRows) {
+      final rel = measureIndex - row.globalStartMeasureIndex;
+      if (rel >= 0 && rel < row.measures.length) {
+        currentRow = row;
+        break;
+      }
+    }
+    if (currentRow == null) return;
+
+    // Locate the measure and compute its slot geometry.
+    final measureRelIdx = measureIndex - currentRow.globalStartMeasureIndex;
+    if (measureRelIdx < 0 || measureRelIdx >= currentRow.measures.length) return;
+    final measure = currentRow.measures[measureRelIdx];
+
+    const ip = ScoreNotationMetrics.measureInnerPadding;
+    final measureStartX = currentRow.contentStartX + measureRelIdx * minMeasureWidth;
+    final dw = math.max(12.0, minMeasureWidth - ip * 2);
+    final laneStartX = measureStartX + ip;
+
+    final symbols = measure.symbols;
+    final slotCount = _visualSlotCount(symbols);
+    if (slotCount == 0) return;
+
+    // Count how many non-chord-tone symbols appear before symIndex to get the slot.
+    final effectiveSymIndex = symIndex ?? 0;
+    var slot = 0;
+    for (var i = 0; i < effectiveSymIndex && i < symbols.length; i++) {
+      final sym = symbols[i];
+      if (sym is Note && sym.isChordTone) continue;
+      slot++;
+    }
+    slot = slot.clamp(0, slotCount - 1);
+
+    final currentX = laneStartX + dw * (slot + 1) / (slotCount + 1);
+
+    // Next X: the next symbol in this measure, or the first symbol of the next
+    // measure in the same row, or the right barline if at the end of the row.
+    double nextX;
+    if (slot + 1 < slotCount) {
+      nextX = laneStartX + dw * (slot + 2) / (slotCount + 1);
+    } else if (measureRelIdx + 1 < currentRow.measures.length) {
+      final nextMeasure = currentRow.measures[measureRelIdx + 1];
+      final nextMeasureStartX =
+          currentRow.contentStartX + (measureRelIdx + 1) * minMeasureWidth;
+      final nextLaneStartX = nextMeasureStartX + ip;
+      final nextSlotCount = _visualSlotCount(nextMeasure.symbols);
+      nextX = nextSlotCount > 0
+          ? nextLaneStartX + dw * 1 / (nextSlotCount + 1)
+          : nextMeasureStartX + minMeasureWidth;
+    } else {
+      nextX = currentRow.contentStartX + currentRow.measures.length * minMeasureWidth;
+    }
+
+    // Lerp using T (0→1 from AnimationController).
+    final t = playbackProgress.clamp(0.0, 1.0);
+    final x = currentX + t * (nextX - currentX);
+
+    final verticalPadding = ScoreNotationMetrics.playbackPlayheadStaffPadding;
+    final paint = Paint()
+      ..color = ScoreNotationMetrics.playbackPlayheadColor.withValues(
+        alpha: ScoreNotationMetrics.playbackPlayheadOpacity,
+      )
+      ..strokeWidth = ScoreNotationMetrics.playbackPlayheadStrokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawLine(
+      Offset(x, currentRow.staffTop - verticalPadding),
+      Offset(x, currentRow.staffBottom + verticalPadding),
+      paint,
+    );
   }
 
   void _drawInsertionPreview(
@@ -580,16 +795,25 @@ class ScoreNotationPainter extends CustomPainter {
       ..color = const Color(0xFF2563EB).withValues(alpha: 0.24)
       ..style = PaintingStyle.fill;
     final y = switch (glyph) {
-      NotationPreviewGlyph.wholeRest => staffTop + (staffLineSpacing * 3) + 4.3,
-      NotationPreviewGlyph.halfRest => staffTop + (staffLineSpacing * 2) - 3.0,
-      NotationPreviewGlyph.quarterRest => staffTop + (staffLineSpacing * 1.35) + 8.0,
+      NotationPreviewGlyph.wholeRest =>
+        staffTop +
+            (staffLineSpacing * ScoreNotationMetrics.wholeRestLineIndex) +
+            ScoreNotationMetrics.wholeRestCenterYOffset,
+      NotationPreviewGlyph.halfRest =>
+        staffTop +
+            (staffLineSpacing * ScoreNotationMetrics.halfRestLineIndex) +
+            ScoreNotationMetrics.halfRestCenterYOffset,
+      NotationPreviewGlyph.quarterRest =>
+        staffTop +
+            (staffLineSpacing * ScoreNotationMetrics.quarterRestLineIndex) +
+            ScoreNotationMetrics.quarterRestCenterYOffset,
       _ => StaffPitchMapper.yForPitch(
-          step: target.step,
-          octave: target.octave,
-          bottomLineY: staffBottom,
-          lineSpacing: staffLineSpacing,
-          clefSign: clefSign,
-        ),
+        step: target.step,
+        octave: target.octave,
+        bottomLineY: staffBottom,
+        lineSpacing: staffLineSpacing,
+        clefSign: clefSign,
+      ),
     };
     _drawSelectionHighlight(canvas, Offset(x, y), radius: 15);
     canvas.drawCircle(Offset(x, y), 15, previewPaint);
@@ -628,11 +852,26 @@ class ScoreNotationPainter extends CustomPainter {
           middleLineY: middleLineY,
         );
       case NotationPreviewGlyph.wholeRest:
-        _drawRest(canvas, const Rest(duration: 8, type: 'whole'), x: x, staffTop: staffTop);
+        _drawRest(
+          canvas,
+          const Rest(duration: 8, type: 'whole'),
+          x: x,
+          staffTop: staffTop,
+        );
       case NotationPreviewGlyph.halfRest:
-        _drawRest(canvas, const Rest(duration: 4, type: 'half'), x: x, staffTop: staffTop);
+        _drawRest(
+          canvas,
+          const Rest(duration: 4, type: 'half'),
+          x: x,
+          staffTop: staffTop,
+        );
       case NotationPreviewGlyph.quarterRest:
-        _drawRest(canvas, const Rest(duration: 2, type: 'quarter'), x: x, staffTop: staffTop);
+        _drawRest(
+          canvas,
+          const Rest(duration: 2, type: 'quarter'),
+          x: x,
+          staffTop: staffTop,
+        );
     }
   }
 
@@ -648,12 +887,17 @@ class ScoreNotationPainter extends CustomPainter {
     final isBreve = normalizedType == 'breve';
     final isWhole = normalizedType == 'whole' || isBreve;
     final isHalf = normalizedType == 'half';
-    final isEighth = normalizedType == 'eighth' ||
+    final isEighth =
+        normalizedType == 'eighth' ||
         normalizedType == 'flag8thup' ||
         normalizedType == 'flag8thdown';
 
-    final headWidth = isWhole ? 14.0 : 12.5;
-    final headHeight = isWhole ? 9.8 : 8.8;
+    final headWidth = isWhole
+        ? ScoreNotationMetrics.noteheadWholeWidth
+        : ScoreNotationMetrics.noteheadDefaultWidth;
+    final headHeight = isWhole
+        ? ScoreNotationMetrics.noteheadWholeHeight
+        : ScoreNotationMetrics.noteheadDefaultHeight;
 
     final fillPaint = Paint()
       ..color = const Color(0xFF111827)
@@ -662,16 +906,16 @@ class ScoreNotationPainter extends CustomPainter {
     final strokePaint = Paint()
       ..color = const Color(0xFF111827)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
+      ..strokeWidth = ScoreNotationMetrics.openNoteStrokeWidth;
 
     // Draw accidental to the left of the notehead.
     if (note.alter != null) {
       final accidentalText = switch (note.alter) {
-        1 => '♯',
-        -1 => '♭',
-        0 => '♮',
-        2 => '𝄪',
-        -2 => '𝄫',
+        1 => ScoreNotationMetrics.sharpGlyph,
+        -1 => ScoreNotationMetrics.flatGlyph,
+        0 => ScoreNotationMetrics.naturalGlyph,
+        2 => ScoreNotationMetrics.doubleSharpGlyph,
+        -2 => ScoreNotationMetrics.doubleFlatGlyph,
         _ => null,
       };
       if (accidentalText != null) {
@@ -679,7 +923,8 @@ class ScoreNotationPainter extends CustomPainter {
           text: TextSpan(
             text: accidentalText,
             style: const TextStyle(
-              fontSize: 16,
+              fontSize: ScoreNotationMetrics.accidentalFontSize,
+              fontFamily: ScoreNotationMetrics.musicFontFamily,
               color: Color(0xFF111827),
               fontWeight: FontWeight.w600,
               height: 1,
@@ -687,14 +932,24 @@ class ScoreNotationPainter extends CustomPainter {
           ),
           textDirection: TextDirection.ltr,
         )..layout();
-        tp.paint(canvas, Offset(x - tp.width - 3, y - tp.height * 0.6));
+        tp.paint(
+          canvas,
+          Offset(
+            x - tp.width - ScoreNotationMetrics.accidentalGap,
+            y - tp.height * 0.6,
+          ),
+        );
       }
     }
 
     canvas.save();
     canvas.translate(x, y);
-    canvas.rotate(-0.35);
-    final noteRect = Rect.fromCenter(center: Offset.zero, width: headWidth, height: headHeight);
+    canvas.rotate(ScoreNotationMetrics.noteheadRotation);
+    final noteRect = Rect.fromCenter(
+      center: Offset.zero,
+      width: headWidth,
+      height: headHeight,
+    );
     if (isWhole || isHalf) {
       canvas.drawOval(noteRect, strokePaint);
     } else {
@@ -705,15 +960,26 @@ class ScoreNotationPainter extends CustomPainter {
     if (isBreve) {
       final sidePaint = Paint()
         ..color = const Color(0xFF111827)
-        ..strokeWidth = 1.2;
-      canvas.drawLine(Offset(x - headWidth * 0.9, y - 10), Offset(x - headWidth * 0.9, y + 10), sidePaint);
-      canvas.drawLine(Offset(x + headWidth * 0.9, y - 10), Offset(x + headWidth * 0.9, y + 10), sidePaint);
+        ..strokeWidth = ScoreNotationMetrics.openNoteStrokeWidth;
+      final sideOffset =
+          headWidth * ScoreNotationMetrics.breveSideLineOffsetFactor;
+      const halfHeight = ScoreNotationMetrics.breveSideLineHalfHeight;
+      canvas.drawLine(
+        Offset(x - sideOffset, y - halfHeight),
+        Offset(x - sideOffset, y + halfHeight),
+        sidePaint,
+      );
+      canvas.drawLine(
+        Offset(x + sideOffset, y - halfHeight),
+        Offset(x + sideOffset, y + halfHeight),
+        sidePaint,
+      );
     }
 
     if (isWhole) {
       _drawAugmentationDots(
         canvas,
-        x: x + headWidth * 0.9,
+        x: x + headWidth * ScoreNotationMetrics.breveSideLineOffsetFactor,
         y: y,
         dots: note.dots,
       );
@@ -723,7 +989,7 @@ class ScoreNotationPainter extends CustomPainter {
     if (note.isChordTone) {
       _drawAugmentationDots(
         canvas,
-        x: x + headWidth * 0.9,
+        x: x + headWidth * ScoreNotationMetrics.breveSideLineOffsetFactor,
         y: y,
         dots: note.dots,
       );
@@ -731,11 +997,16 @@ class ScoreNotationPainter extends CustomPainter {
     }
 
     final stemUp = y > middleLineY;
-    _drawStemAndFlag(canvas, x: x, y: y, stemUp: stemUp,
-        drawFlag: isEighth && !suppressFlag);
+    _drawStemAndFlag(
+      canvas,
+      x: x,
+      y: y,
+      stemUp: stemUp,
+      drawFlag: isEighth && !suppressFlag,
+    );
     _drawAugmentationDots(
       canvas,
-      x: x + headWidth * 0.9,
+      x: x + headWidth * ScoreNotationMetrics.breveSideLineOffsetFactor,
       y: y,
       dots: note.dots,
     );
@@ -750,10 +1021,12 @@ class ScoreNotationPainter extends CustomPainter {
   }) {
     final stemPaint = Paint()
       ..color = const Color(0xFF111827)
-      ..strokeWidth = 1.3;
+      ..strokeWidth = ScoreNotationMetrics.stemStrokeWidth;
 
-    final stemLength = staffLineSpacing * 3.4;
-    final stemX = stemUp ? x + 6 : x - 6;
+    final stemLength = ScoreNotationMetrics.stemLengthFor(staffLineSpacing);
+    final stemX = stemUp
+        ? x + ScoreNotationMetrics.stemXOffset
+        : x - ScoreNotationMetrics.stemXOffset;
     final endY = stemUp ? y - stemLength : y + stemLength;
 
     canvas.drawLine(Offset(stemX, y), Offset(stemX, endY), stemPaint);
@@ -774,43 +1047,62 @@ class ScoreNotationPainter extends CustomPainter {
     final flagPaint = Paint()
       ..color = const Color(0xFF111827)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
+      ..strokeWidth = ScoreNotationMetrics.flagStrokeWidth;
     canvas.drawPath(path, flagPaint);
   }
 
-  void _drawRest(Canvas canvas, Rest rest, {required double x, required double staffTop}) {
+  void _drawRest(
+    Canvas canvas,
+    Rest rest, {
+    required double x,
+    required double staffTop,
+  }) {
     final type = rest.type.trim().toLowerCase();
     final paint = Paint()
       ..color = const Color(0xFF111827)
       ..style = PaintingStyle.fill;
 
     if (type == 'whole') {
-      final line4Y = staffTop + (staffLineSpacing * 3);
-      final rect = Rect.fromCenter(center: Offset(x, line4Y + 4.3), width: 16, height: 4.8);
+      final line4Y =
+          staffTop +
+          (staffLineSpacing * ScoreNotationMetrics.wholeRestLineIndex);
+      final rect = Rect.fromCenter(
+        center: Offset(x, line4Y + ScoreNotationMetrics.wholeRestCenterYOffset),
+        width: ScoreNotationMetrics.restRectWidth,
+        height: ScoreNotationMetrics.restRectHeight,
+      );
       canvas.drawRect(rect, paint);
       _drawAugmentationDots(
         canvas,
-        x: x + 12,
-        y: line4Y + 4.3,
+        x: x + ScoreNotationMetrics.restDotXOffset,
+        y: line4Y + ScoreNotationMetrics.wholeRestCenterYOffset,
         dots: rest.dots,
       );
       return;
     }
 
     if (type == 'half') {
-      final line3Y = staffTop + (staffLineSpacing * 2);
-      final rect = Rect.fromCenter(center: Offset(x, line3Y - 3.0), width: 16, height: 4.8);
+      final line3Y =
+          staffTop +
+          (staffLineSpacing * ScoreNotationMetrics.halfRestLineIndex);
+      final rect = Rect.fromCenter(
+        center: Offset(x, line3Y + ScoreNotationMetrics.halfRestCenterYOffset),
+        width: ScoreNotationMetrics.restRectWidth,
+        height: ScoreNotationMetrics.restRectHeight,
+      );
       canvas.drawRect(rect, paint);
       _drawAugmentationDots(
         canvas,
-        x: x + 12,
-        y: line3Y - 3.0,
+        x: x + ScoreNotationMetrics.restDotXOffset,
+        y: line3Y + ScoreNotationMetrics.halfRestCenterYOffset,
         dots: rest.dots,
       );
       return;
     }
 
-    final y = staffTop + (staffLineSpacing * 1.35);
+    final y =
+        staffTop +
+        (staffLineSpacing * ScoreNotationMetrics.quarterRestLineIndex);
     final path = Path()
       ..moveTo(x - 3, y - 5)
       ..lineTo(x + 3, y - 1)
@@ -826,8 +1118,8 @@ class ScoreNotationPainter extends CustomPainter {
     canvas.drawPath(path, paint);
     _drawAugmentationDots(
       canvas,
-      x: x + 10,
-      y: y + 8,
+      x: x + ScoreNotationMetrics.quarterRestDotXOffset,
+      y: y + ScoreNotationMetrics.quarterRestDotYOffset,
       dots: rest.dots,
     );
   }
@@ -845,7 +1137,14 @@ class ScoreNotationPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     for (var i = 0; i < dots; i++) {
-      canvas.drawCircle(Offset(x + (i * 6), y - 2), 2.1, paint);
+      canvas.drawCircle(
+        Offset(
+          x + (i * ScoreNotationMetrics.dotSpacing),
+          y + ScoreNotationMetrics.dotYOffset,
+        ),
+        ScoreNotationMetrics.dotRadius,
+        paint,
+      );
     }
   }
 
@@ -902,28 +1201,43 @@ class ScoreNotationPainter extends CustomPainter {
       ..strokeCap = StrokeCap.square;
 
     final top = y;
-    final bottom = y + staffLineSpacing * 4;
+    final bottom = y + ScoreNotationMetrics.staffHeightFor(staffLineSpacing);
     // clefLine: 1 = bottom, 5 = top  →  Y decreases going up
     final targetY = y + (4 - (clefLine - 1)) * staffLineSpacing;
 
     // Left vertical bar (spine)
-    canvas.drawRect(Rect.fromLTWH(x, top, 3.5, bottom - top), fill);
+    canvas.drawRect(
+      Rect.fromLTWH(x, top, ScoreNotationMetrics.cClefSpineWidth, bottom - top),
+      fill,
+    );
 
     // Upper bracket
-    stroke.strokeWidth = 2.0;
-    canvas.drawLine(Offset(x + 3.5, top), Offset(x + 14, top), stroke);
-    stroke.strokeWidth = 1.5;
+    stroke.strokeWidth = ScoreNotationMetrics.cClefBracketStrokeWidth;
+    canvas.drawLine(
+      Offset(x + ScoreNotationMetrics.cClefSpineWidth, top),
+      Offset(x + 14, top),
+      stroke,
+    );
+    stroke.strokeWidth = ScoreNotationMetrics.cClefVerticalStrokeWidth;
     canvas.drawLine(Offset(x + 14, top), Offset(x + 14, targetY), stroke);
 
     // Lower bracket
-    stroke.strokeWidth = 2.0;
-    canvas.drawLine(Offset(x + 3.5, bottom), Offset(x + 14, bottom), stroke);
-    stroke.strokeWidth = 1.5;
+    stroke.strokeWidth = ScoreNotationMetrics.cClefBracketStrokeWidth;
+    canvas.drawLine(
+      Offset(x + ScoreNotationMetrics.cClefSpineWidth, bottom),
+      Offset(x + 14, bottom),
+      stroke,
+    );
+    stroke.strokeWidth = ScoreNotationMetrics.cClefVerticalStrokeWidth;
     canvas.drawLine(Offset(x + 14, targetY), Offset(x + 14, bottom), stroke);
 
     // Centre line at the target staff line
-    stroke.strokeWidth = 1.2;
-    canvas.drawLine(Offset(x + 3.5, targetY), Offset(x + 12, targetY), stroke);
+    stroke.strokeWidth = ScoreNotationMetrics.cClefCenterStrokeWidth;
+    canvas.drawLine(
+      Offset(x + ScoreNotationMetrics.cClefSpineWidth, targetY),
+      Offset(x + 12, targetY),
+      stroke,
+    );
   }
 
   /// Draws a thin vertical line on the far left connecting all staves that
@@ -937,7 +1251,7 @@ class ScoreNotationPainter extends CustomPainter {
 
     final paint = Paint()
       ..color = const Color(0xFF111827)
-      ..strokeWidth = 1.8
+      ..strokeWidth = ScoreNotationMetrics.systemConnectorStrokeWidth
       ..strokeCap = StrokeCap.square;
 
     for (final rows in systems.values) {
@@ -953,8 +1267,13 @@ class ScoreNotationPainter extends CustomPainter {
   void _drawTrebleClef(Canvas canvas, {required double x, required double y}) {
     final textPainter = TextPainter(
       text: const TextSpan(
-        text: '𝄞',
-        style: TextStyle(fontSize: 42, color: Color(0xFF111827), fontWeight: FontWeight.w500),
+        text: ScoreNotationMetrics.trebleClefGlyph,
+        style: TextStyle(
+          fontSize: ScoreNotationMetrics.trebleClefFontSize,
+          fontFamily: ScoreNotationMetrics.musicFontFamily,
+          color: Color(0xFF111827),
+          fontWeight: FontWeight.w500,
+        ),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
@@ -965,7 +1284,7 @@ class ScoreNotationPainter extends CustomPainter {
     final inkPaint = Paint()
       ..color = const Color(0xFF111827)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
+      ..strokeWidth = ScoreNotationMetrics.bassClefStrokeWidth
       ..strokeCap = StrokeCap.round;
     final fillPaint = Paint()
       ..color = const Color(0xFF111827)
@@ -977,20 +1296,34 @@ class ScoreNotationPainter extends CustomPainter {
     final bodyPath = Path();
     bodyPath.moveTo(cx, cy - staffLineSpacing * 1.5);
     bodyPath.cubicTo(
-      cx + 14, cy - staffLineSpacing * 1.5,
-      cx + 18, cy - staffLineSpacing * 0.5,
-      cx + 12, cy,
+      cx + 14,
+      cy - staffLineSpacing * 1.5,
+      cx + 18,
+      cy - staffLineSpacing * 0.5,
+      cx + 12,
+      cy,
     );
     bodyPath.cubicTo(
-      cx + 6, cy + staffLineSpacing * 0.5,
-      cx - 2, cy + staffLineSpacing * 0.8,
-      cx - 6, cy + staffLineSpacing * 2.0,
+      cx + 6,
+      cy + staffLineSpacing * 0.5,
+      cx - 2,
+      cy + staffLineSpacing * 0.8,
+      cx - 6,
+      cy + staffLineSpacing * 2.0,
     );
     canvas.drawPath(bodyPath, inkPaint);
 
     final dotX = cx + 20.0;
-    canvas.drawCircle(Offset(dotX, cy - staffLineSpacing * 0.6), 2.5, fillPaint);
-    canvas.drawCircle(Offset(dotX, cy + staffLineSpacing * 0.4), 2.5, fillPaint);
+    canvas.drawCircle(
+      Offset(dotX, cy - staffLineSpacing * 0.6),
+      ScoreNotationMetrics.bassClefDotRadius,
+      fillPaint,
+    );
+    canvas.drawCircle(
+      Offset(dotX, cy + staffLineSpacing * 0.4),
+      ScoreNotationMetrics.bassClefDotRadius,
+      fillPaint,
+    );
   }
 
   double _drawKeySignature(
@@ -1006,39 +1339,101 @@ class ScoreNotationPainter extends CustomPainter {
 
     final isSharp = fifths > 0;
     final count = fifths.abs().clamp(0, 7);
-    final accidental = isSharp ? '#' : 'b';
+    final accidental = isSharp
+        ? ScoreNotationMetrics.sharpGlyph
+        : ScoreNotationMetrics.flatGlyph;
 
     const sharpOrderTreble = [
-      ('F', 5), ('C', 5), ('G', 5), ('D', 5), ('A', 4), ('E', 5), ('B', 4),
+      ('F', 5),
+      ('C', 5),
+      ('G', 5),
+      ('D', 5),
+      ('A', 4),
+      ('E', 5),
+      ('B', 4),
     ];
     const flatOrderTreble = [
-      ('B', 4), ('E', 5), ('A', 4), ('D', 5), ('G', 4), ('C', 5), ('F', 4),
+      ('B', 4),
+      ('E', 5),
+      ('A', 4),
+      ('D', 5),
+      ('G', 4),
+      ('C', 5),
+      ('F', 4),
     ];
     const sharpOrderBass = [
-      ('F', 3), ('C', 3), ('G', 3), ('D', 3), ('A', 2), ('E', 3), ('B', 2),
+      ('F', 3),
+      ('C', 3),
+      ('G', 3),
+      ('D', 3),
+      ('A', 2),
+      ('E', 3),
+      ('B', 2),
     ];
     const flatOrderBass = [
-      ('B', 2), ('E', 3), ('A', 2), ('D', 3), ('G', 2), ('C', 3), ('F', 2),
+      ('B', 2),
+      ('E', 3),
+      ('A', 2),
+      ('D', 3),
+      ('G', 2),
+      ('C', 3),
+      ('F', 2),
     ];
     const sharpOrderAlto = [
-      ('F', 4), ('C', 4), ('G', 4), ('D', 4), ('A', 4), ('E', 4), ('B', 4),
+      ('F', 4),
+      ('C', 4),
+      ('G', 4),
+      ('D', 4),
+      ('A', 4),
+      ('E', 4),
+      ('B', 4),
     ];
     const flatOrderAlto = [
-      ('B', 3), ('E', 4), ('A', 3), ('D', 4), ('G', 3), ('C', 4), ('F', 3),
+      ('B', 3),
+      ('E', 4),
+      ('A', 3),
+      ('D', 4),
+      ('G', 3),
+      ('C', 4),
+      ('F', 3),
     ];
     const sharpOrderTenor = [
-      ('F', 3), ('C', 4), ('G', 3), ('D', 4), ('A', 3), ('E', 4), ('B', 3),
+      ('F', 3),
+      ('C', 4),
+      ('G', 3),
+      ('D', 4),
+      ('A', 3),
+      ('E', 4),
+      ('B', 3),
     ];
     const flatOrderTenor = [
-      ('B', 3), ('E', 4), ('A', 3), ('D', 4), ('G', 3), ('C', 4), ('F', 3),
+      ('B', 3),
+      ('E', 4),
+      ('A', 3),
+      ('D', 4),
+      ('G', 3),
+      ('C', 4),
+      ('F', 3),
     ];
 
     final isBass = clefSign.toUpperCase() == 'F';
     final isAlto = clefSign.toUpperCase() == 'C' && clefLine == 3;
     final isTenor = clefSign.toUpperCase() == 'C' && clefLine == 4;
     final order = isSharp
-        ? (isBass ? sharpOrderBass : isAlto ? sharpOrderAlto : isTenor ? sharpOrderTenor : sharpOrderTreble)
-        : (isBass ? flatOrderBass : isAlto ? flatOrderAlto : isTenor ? flatOrderTenor : flatOrderTreble);
+        ? (isBass
+              ? sharpOrderBass
+              : isAlto
+              ? sharpOrderAlto
+              : isTenor
+              ? sharpOrderTenor
+              : sharpOrderTreble)
+        : (isBass
+              ? flatOrderBass
+              : isAlto
+              ? flatOrderAlto
+              : isTenor
+              ? flatOrderTenor
+              : flatOrderTreble);
 
     for (var i = 0; i < count; i++) {
       final pitch = order[i];
@@ -1055,7 +1450,8 @@ class ScoreNotationPainter extends CustomPainter {
         text: TextSpan(
           text: accidental,
           style: const TextStyle(
-            fontSize: 20,
+            fontSize: ScoreNotationMetrics.keySignatureFontSize,
+            fontFamily: ScoreNotationMetrics.musicFontFamily,
             color: Color(0xFF111827),
             fontWeight: FontWeight.w500,
           ),
@@ -1063,8 +1459,11 @@ class ScoreNotationPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       )..layout();
 
-      textPainter.paint(canvas, Offset(x, y - 12));
-      x += 10;
+      textPainter.paint(
+        canvas,
+        Offset(x, y - ScoreNotationMetrics.keySignatureYOffset),
+      );
+      x += ScoreNotationMetrics.keySignatureSpacing;
     }
 
     return x;
@@ -1080,7 +1479,8 @@ class ScoreNotationPainter extends CustomPainter {
       text: TextSpan(
         text: '${signature.beats}',
         style: const TextStyle(
-          fontSize: 22,
+          fontSize: ScoreNotationMetrics.timeSignatureFontSize,
+          fontFamily: ScoreNotationMetrics.textFontFamily,
           fontWeight: FontWeight.w700,
           color: Color(0xFF111827),
           height: 1,
@@ -1093,7 +1493,8 @@ class ScoreNotationPainter extends CustomPainter {
       text: TextSpan(
         text: '${signature.beatType}',
         style: const TextStyle(
-          fontSize: 22,
+          fontSize: ScoreNotationMetrics.timeSignatureFontSize,
+          fontFamily: ScoreNotationMetrics.textFontFamily,
           fontWeight: FontWeight.w700,
           color: Color(0xFF111827),
           height: 1,
@@ -1103,7 +1504,15 @@ class ScoreNotationPainter extends CustomPainter {
     )..layout();
 
     top.paint(canvas, Offset(x, y));
-    bottom.paint(canvas, Offset(x, y + staffLineSpacing * 2));
+    bottom.paint(
+      canvas,
+      Offset(
+        x,
+        y +
+            staffLineSpacing *
+                ScoreNotationMetrics.timeSignatureBottomOffsetSpaces,
+      ),
+    );
   }
 
   @override
@@ -1120,6 +1529,15 @@ class ScoreNotationPainter extends CustomPainter {
         oldDelegate.playbackPartIndex != playbackPartIndex ||
         oldDelegate.playbackMeasureIndex != playbackMeasureIndex ||
         oldDelegate.playbackSymbolIndex != playbackSymbolIndex ||
+        oldDelegate.playbackNextPartIndex != playbackNextPartIndex ||
+        oldDelegate.playbackNextMeasureIndex != playbackNextMeasureIndex ||
+        oldDelegate.playbackNextSymbolIndex != playbackNextSymbolIndex ||
+        oldDelegate.playheadPartIndex != playheadPartIndex ||
+        oldDelegate.playheadMeasureIndex != playheadMeasureIndex ||
+        oldDelegate.playheadSymbolIndex != playheadSymbolIndex ||
+        oldDelegate.playbackProgress != playbackProgress ||
+        oldDelegate.showPlaybackSymbolHighlight !=
+            showPlaybackSymbolHighlight ||
         oldDelegate.dragFeedback != dragFeedback ||
         oldDelegate.insertionTarget != insertionTarget ||
         oldDelegate.insertionPreviewGlyph != insertionPreviewGlyph;
@@ -1158,12 +1576,14 @@ class NotationDragFeedback {
     required this.draggedSymbolIndex,
     required this.targetSymbolIndex,
     required this.dragX,
+    this.showGhostAtDrag = true,
   });
 
   final int measureIndex;
   final int draggedSymbolIndex;
   final int targetSymbolIndex;
   final double dragX;
+  final bool showGhostAtDrag;
 
   @override
   bool operator ==(Object other) =>
@@ -1173,14 +1593,16 @@ class NotationDragFeedback {
           measureIndex == other.measureIndex &&
           draggedSymbolIndex == other.draggedSymbolIndex &&
           targetSymbolIndex == other.targetSymbolIndex &&
-          dragX == other.dragX;
+          dragX == other.dragX &&
+          showGhostAtDrag == other.showGhostAtDrag;
 
   @override
   int get hashCode =>
       measureIndex.hashCode ^
       draggedSymbolIndex.hashCode ^
       targetSymbolIndex.hashCode ^
-      dragX.hashCode;
+      dragX.hashCode ^
+      showGhostAtDrag.hashCode;
 }
 
 class NotationInsertTarget {
