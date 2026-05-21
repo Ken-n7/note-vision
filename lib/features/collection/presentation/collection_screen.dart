@@ -592,9 +592,7 @@ class _CollectionScreenState extends State<CollectionScreen>
                   formatDate: _formatDate,
                   onOpen: (project) => _openProject(
                     project,
-                    reviewMode:
-                        AppFeatures.classroomWorkflow &&
-                        _hasTeacherComments(project),
+                    reviewMode: false,
                     canEditTeacherComments: false,
                   ),
                   onRename: _renameProject,

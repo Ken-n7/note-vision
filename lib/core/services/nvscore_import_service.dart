@@ -17,9 +17,8 @@ class NvscoreImportService {
     FutureOr<Project> Function(Project project)? beforeSave,
   }) async {
     final result = await FilePicker.platform.pickFiles(
-      // Some platform pickers render an empty dialog for unknown custom
-      // extensions. Keep the picker broad and validate the JSON content below.
-      type: FileType.any,
+      type: FileType.custom,
+      allowedExtensions: const ['nvscore'],
       withData: true,
     );
     if (result == null || result.files.isEmpty) return null;

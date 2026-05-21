@@ -12,6 +12,7 @@ class MainActivity : FlutterActivity() {
     private val channelName = "com.notevision.app/incoming_file"
     private var methodChannel: MethodChannel? = null
     private var pendingFilePath: String? = null
+    private var launchIntentHandled = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -29,7 +30,10 @@ class MainActivity : FlutterActivity() {
 
     override fun onStart() {
         super.onStart()
-        handleIntent(intent)
+        if (!launchIntentHandled) {
+            launchIntentHandled = true
+            handleIntent(intent)
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
