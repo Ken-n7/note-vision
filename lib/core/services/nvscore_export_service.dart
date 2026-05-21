@@ -1,10 +1,13 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:note_vision/core/models/project.dart';
 import 'package:note_vision/core/utils/export_file_name.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 class NvscoreExportService {
   const NvscoreExportService();
@@ -18,6 +21,17 @@ class NvscoreExportService {
       bytes: bytes,
       type: FileType.custom,
       allowedExtensions: ['nvscore'],
+    );
+  }
+
+  Future<ShareResult> shareProject(Project project, {String? fileName}) async {
+    final bytes = Uint8List.fromList(utf8.encode(jsonEncode(project.toJson())));
+    final exportName = safeExportFileName(fileName ?? project.name);
+    final tempDir = await getTemporaryDirectory();
+    final tempFile = File('${tempDir.path}/$exportName.nvscore');
+    await tempFile.writeAsBytes(bytes);
+    return SharePlus.instance.share(
+      ShareParams(files: [XFile(tempFile.path, mimeType: 'application/octet-stream')]),
     );
   }
 

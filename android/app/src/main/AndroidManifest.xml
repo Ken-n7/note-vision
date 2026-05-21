@@ -31,6 +31,27 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- Open .nvscore files tapped from file manager / email / messaging apps -->
+            <intent-filter android:label="Open with Note Vision">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" android:mimeType="*/*"
+                    android:pathPattern=".*\\.nvscore" />
+            </intent-filter>
+            <intent-filter android:label="Open with Note Vision">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="file" android:mimeType="*/*"
+                    android:host="*" android:pathPattern=".*\\.nvscore" />
+            </intent-filter>
+
+            <!-- Receive .nvscore files from the Android share sheet -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

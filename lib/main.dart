@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'core/services/incoming_file_service.dart';
 import 'core/services/project_storage_service.dart';
 import 'core/services/sample_seeder.dart';
 import 'core/theme/app_theme.dart';
@@ -10,6 +11,7 @@ import 'features/profile/presentation/profile_stats_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  IncomingFileService.instance.init();
   await SampleSeeder.seedIfNeeded(ProjectStorageService());
   runApp(const App());
 }
