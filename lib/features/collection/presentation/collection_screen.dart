@@ -91,7 +91,7 @@ class _CollectionScreenState extends State<CollectionScreen>
   Future<void> _loadProfile() async {
     final profile = await UserProfileService.loadProfile();
     final role = AppFeatures.classroomWorkflow
-        ? await UserProfileService.loadRole()
+        ? (await UserProfileService.loadRole() ?? 'student')
         : null;
     if (mounted) {
       final availableFilters = !AppFeatures.classroomWorkflow

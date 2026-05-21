@@ -1255,12 +1255,15 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   onUndo: () => _updateState((s) => s.applyUndo()),
                   onRedo: () => _updateState((s) => s.applyRedo()),
                   onSave: isReadOnly ? null : _onSave,
-                  showSubmitButton: _isStudent && !isReadOnly,
+                  showSubmitButton: _isStudent &&
+                      !isReadOnly &&
+                      !(_currentProject?.teacherComments?.isNotEmpty ?? false),
                   onSubmit:
                       _isStudent &&
                           !isReadOnly &&
                           !isPlaybackActive &&
-                          !_isSubmitting
+                          !_isSubmitting &&
+                          !(_currentProject?.teacherComments?.isNotEmpty ?? false)
                       ? _onSubmit
                       : null,
                   onMetadataTap: isReadOnly ? null : _showMetadataSheet,
