@@ -16,6 +16,7 @@ import 'package:note_vision/core/services/playback_display_preferences_service.d
 import 'package:note_vision/core/services/playback_service.dart';
 import 'package:note_vision/core/services/project_storage_service.dart';
 import 'package:note_vision/core/services/nvscore_export_service.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:note_vision/core/services/score_classifier.dart';
 import 'package:note_vision/core/services/user_profile_service.dart';
 import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
@@ -289,6 +290,28 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     }
   }
 
+  Future<void> _runShare({
+    required Future<ShareResult> Function() share,
+    required String successMessage,
+  }) async {
+    try {
+      final result = await share();
+      if (!context.mounted) return;
+      if (result.status == ShareResultStatus.dismissed) return;
+      await UsageStatsService.incrementExports();
+      if (!context.mounted) return;
+      _showEditorBanner(_EditorBannerData.success(successMessage));
+    } catch (e) {
+      if (!context.mounted) return;
+      _showEditorBanner(
+        _EditorBannerData.error(
+          'Share failed: $e',
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    }
+  }
+
   Future<void> _onSubmit() async {
     if (_isSubmitting || _playbackStatus == PlaybackStatus.playing) return;
     setState(() => _isSubmitting = true);
@@ -318,8 +341,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 submittedById: submittedById,
               );
 
-      await _runExport(
-        export: () => const NvscoreExportService().exportProject(
+      await _runShare(
+        share: () => const NvscoreExportService().shareProject(
           project,
           fileName: NvscoreExportService.submissionFileName(
             project: project,
@@ -327,7 +350,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
             studentId: submittedById,
           ),
         ),
-        successMessage: 'Submission exported',
+        successMessage: 'Submission shared',
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -542,12 +565,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     final project = _currentProject;
     if (project == null) return;
 
-    await _runExport(
-      export: () => const NvscoreExportService().exportProject(
+    await _runShare(
+      share: () => const NvscoreExportService().shareProject(
         project,
         fileName: NvscoreExportService.feedbackFileName(project),
       ),
-      successMessage: 'Reviewed score exported',
+      successMessage: 'Feedback shared',
     );
   }
 
@@ -1232,12 +1255,15 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   onUndo: () => _updateState((s) => s.applyUndo()),
                   onRedo: () => _updateState((s) => s.applyRedo()),
                   onSave: isReadOnly ? null : _onSave,
-                  showSubmitButton: _isStudent && !isReadOnly,
+                  showSubmitButton: _isStudent &&
+                      !isReadOnly &&
+                      !(_currentProject?.teacherComments?.isNotEmpty ?? false),
                   onSubmit:
                       _isStudent &&
                           !isReadOnly &&
                           !isPlaybackActive &&
-                          !_isSubmitting
+                          !_isSubmitting &&
+                          !(_currentProject?.teacherComments?.isNotEmpty ?? false)
                       ? _onSubmit
                       : null,
                   onMetadataTap: isReadOnly ? null : _showMetadataSheet,

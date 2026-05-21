@@ -17,8 +17,6 @@ class NvscoreImportService {
     FutureOr<Project> Function(Project project)? beforeSave,
   }) async {
     final result = await FilePicker.platform.pickFiles(
-      // Some platform pickers render an empty dialog for unknown custom
-      // extensions. Keep the picker broad and validate the JSON content below.
       type: FileType.any,
       withData: true,
     );
@@ -34,6 +32,22 @@ class NvscoreImportService {
     final project = beforeSave == null
         ? parsedProject
         : await beforeSave(parsedProject);
+    await _storage.saveProject(project);
+    return project;
+  }
+
+  Future<Project?> importFromPath(
+    String path, {
+    FutureOr<Project> Function(Project project)? beforeSave,
+  }) async {
+    final bytes = await File(path).readAsBytes();
+    final decoded = jsonDecode(utf8.decode(bytes));
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('File is not a Note Vision score.');
+    }
+    final parsedProject = Project.fromJson(decoded);
+    final project =
+        beforeSave == null ? parsedProject : await beforeSave(parsedProject);
     await _storage.saveProject(project);
     return project;
   }

@@ -13,6 +13,7 @@ import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/services/project_storage_service.dart';
 import 'package:note_vision/core/services/nvscore_export_service.dart';
+import 'package:note_vision/core/services/incoming_file_service.dart';
 import 'package:note_vision/core/services/nvscore_import_service.dart';
 import 'package:note_vision/core/services/score_classifier.dart';
 import 'package:note_vision/core/services/user_profile_service.dart';
@@ -51,6 +52,7 @@ class _CollectionScreenState extends State<CollectionScreen>
   late final ProjectStorageService _storage;
   late AnimationController _fadeController;
   late Animation<double> _fadeIn;
+  StreamSubscription<String>? _incomingFileSub;
 
   @override
   void initState() {
@@ -72,10 +74,16 @@ class _CollectionScreenState extends State<CollectionScreen>
 
     _loadProjects();
     _loadProfile();
+
+    if (AppFeatures.classroomWorkflow) {
+      _incomingFileSub = IncomingFileService.instance.filePathStream
+          .listen(_handleIncomingFile);
+    }
   }
 
   @override
   void dispose() {
+    _incomingFileSub?.cancel();
     _fadeController.dispose();
     super.dispose();
   }
@@ -83,7 +91,7 @@ class _CollectionScreenState extends State<CollectionScreen>
   Future<void> _loadProfile() async {
     final profile = await UserProfileService.loadProfile();
     final role = AppFeatures.classroomWorkflow
-        ? await UserProfileService.loadRole()
+        ? (await UserProfileService.loadRole() ?? 'student')
         : null;
     if (mounted) {
       final availableFilters = !AppFeatures.classroomWorkflow
@@ -106,6 +114,23 @@ class _CollectionScreenState extends State<CollectionScreen>
           _filter = _CollectionFilter.recent;
         }
       });
+    }
+  }
+
+  Future<void> _handleIncomingFile(String path) async {
+    try {
+      final imported = await NvscoreImportService(storageService: _storage)
+          .importFromPath(path, beforeSave: _isTeacher ? null : _copyForStudentImport);
+      if (!mounted || imported == null) return;
+      setState(() => _projects.insert(0, imported));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('"${imported.name}" imported.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not import file.')),
+      );
     }
   }
 
@@ -567,9 +592,7 @@ class _CollectionScreenState extends State<CollectionScreen>
                   formatDate: _formatDate,
                   onOpen: (project) => _openProject(
                     project,
-                    reviewMode:
-                        AppFeatures.classroomWorkflow &&
-                        _hasTeacherComments(project),
+                    reviewMode: false,
                     canEditTeacherComments: false,
                   ),
                   onRename: _renameProject,
