@@ -17,8 +17,7 @@ class NvscoreImportService {
     FutureOr<Project> Function(Project project)? beforeSave,
   }) async {
     final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['nvscore'],
+      type: FileType.any,
       withData: true,
     );
     if (result == null || result.files.isEmpty) return null;
