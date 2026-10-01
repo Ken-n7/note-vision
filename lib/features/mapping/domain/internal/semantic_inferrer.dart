@@ -291,7 +291,9 @@ class SemanticInferrer {
     final hasFlag = link.flag != null;
     final hasBeam = link.hasBeam;
 
-    final noteType = switch (type) {
+    // Whole-symbol models (one box per note) report the value directly.
+    final noteType = entry.symbol.metadata?['noteType'] as String? ??
+        switch (type) {
       'noteheadDoubleWholeInSpace' || 'noteheadDoubleWholeOnLine' => 'breve',
       'noteheadWholeInSpace' || 'noteheadWholeOnLine' => 'whole',
       'noteheadHalfInSpace' || 'noteheadHalfOnLine' when hasStem => 'half',

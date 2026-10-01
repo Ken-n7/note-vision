@@ -12,32 +12,36 @@ import '../domain/music_symbol.dart';
 import '../domain/symbol_detector.dart';
 
 class TfliteSymbolDetector implements SymbolDetector {
-  static const String _modelPath = 'assets/models/deepscores_int8.tflite';
+  static const String _modelPath = 'assets/models/best.tflite';
 
-  static const double _defaultThreshold = 0.75;
+  /// Model output class index → (pipeline symbol, note value).
+  /// Order must match the training data.yaml `names` list.
+  /// Whole-note symbols (notehead + stem + flag in one box) are mapped onto
+  /// the existing notehead vocabulary; the note value rides along in
+  /// metadata['noteType'] since there are no separate stem/flag detections.
+  static const List<(MusicSymbol, String?)> _classes = [
+    (MusicSymbol.clefF, null), // Fclef
+    (MusicSymbol.clefG, null), // Gclef
+    (MusicSymbol.noteheadBlackInSpace, 'eighth'), // eighthnote
+    (MusicSymbol.noteheadHalfInSpace, 'half'), // halfnote
+    (MusicSymbol.restHalf, null), // halfrest
+    (MusicSymbol.noteheadBlackInSpace, 'quarter'), // quarternote
+    (MusicSymbol.noteheadBlackInSpace, 'sixteenth'), // sixteenthnote
+    (MusicSymbol.noteheadWholeInSpace, 'whole'), // wholenote
+    (MusicSymbol.restWhole, null), // wholerest
+  ];
+
+  // Calibration knobs: rests had the lowest recall in validation.
+  static const double _defaultThreshold = 0.40;
   static const Map<MusicSymbol, double> _confidenceThresholds = {
-    MusicSymbol.accidentalFlat: 0.65,
-    MusicSymbol.accidentalSharp: 0.65,
-    MusicSymbol.accidentalNatural: 0.60,
-    MusicSymbol.accidentalDoubleFlat: 0.60,
-    MusicSymbol.accidentalDoubleSharp: 0.60,
-    MusicSymbol.augmentationDot: 0.55,
-    MusicSymbol.flag8thDown: 0.65,
-    MusicSymbol.flag8thUp: 0.65,
-    MusicSymbol.flag16thDown: 0.65,
-    MusicSymbol.flag16thUp: 0.65,
-    MusicSymbol.flag32ndDown: 0.65,
-    MusicSymbol.flag32ndUp: 0.65,
-    MusicSymbol.flag64thDown: 0.65,
-    MusicSymbol.flag64thUp: 0.65,
-    MusicSymbol.flag128thDown: 0.65,
-    MusicSymbol.flag128thUp: 0.65,
-    MusicSymbol.ledgerLine: 0.60,
-    MusicSymbol.repeatDot: 0.60,
+    MusicSymbol.restHalf: 0.30,
+    MusicSymbol.restWhole: 0.30,
   };
 
   static const double _iouThreshold = 0.35;
   static const int _inputSize = 640;
+  static const int _anchors = 8400;
+  static const int _outputRows = 13; // 4 box + 9 classes
 
   Interpreter? _interpreter;
 
@@ -71,31 +75,26 @@ class TfliteSymbolDetector implements SymbolDetector {
       );
     }
 
-    // Letterbox the image to 640×640: scale uniformly so the long edge fits,
-    // then pad the short edge with gray (114) — matching standard Ultralytics
-    // YOLOv8 training preprocessing. This avoids the aspect-ratio distortion
-    // that stretch-to-square causes for small symbols like noteheads and flags.
-    final lb = _letterbox(fullImage);
-
-    final raw = _runInference(lb.image);
-    final allDetections = _parseOutput(
-      raw,
-      scale: lb.scale,
-      padLeft: lb.padLeft,
-      padTop: lb.padTop,
+    // Stretch to 640×640 — the training images were stretched (Roboflow
+    // "Resize: Stretch"), so letterboxing would skew the input distribution.
+    final resized = img.copyResize(
+      fullImage,
+      width: _inputSize,
+      height: _inputSize,
+      interpolation: img.Interpolation.linear,
     );
 
-    // Partition detections by role before NMS to avoid cross-class suppression.
-    // staff → staff geometry bboxes; everything else → musical symbols.
-    final staffDetections = allDetections
-        .where((s) => s.musicSymbol == MusicSymbol.staff)
-        .toList();
-    final musicalDetections = allDetections
-        .where((s) => s.musicSymbol != MusicSymbol.staff)
-        .toList();
+    final nmsMusical = _nms(
+      _parseOutput(
+        _runInference(resized),
+        image: fullImage,
+        scaleX: fullImage.width / _inputSize,
+        scaleY: fullImage.height / _inputSize,
+      ),
+    );
 
-    final mergedStaves = _mergeStaves(_nms(staffDetections), staves);
-    final nmsMusical = _nms(musicalDetections);
+    // The model has no staff class — staves come from the projector.
+    final mergedStaves = [...staves]..sort((a, b) => a.topY.compareTo(b.topY));
     final afterClefStaves = _addClefStaves(nmsMusical, mergedStaves);
     final allStaves = _addClusterStaves(nmsMusical, afterClefStaves);
     final symbols = _filterOutsideStaves(nmsMusical, allStaves);
@@ -103,8 +102,8 @@ class TfliteSymbolDetector implements SymbolDetector {
     debugPrint(
       '[TfliteSymbolDetector] ${fullImage.width}×${fullImage.height} → '
       '$_inputSize×$_inputSize | '
-      '${staffDetections.length} staff → ${allStaves.length} stave(s) '
-      '(${mergedStaves.length} detected, '
+      '${allStaves.length} stave(s) '
+      '(${mergedStaves.length} projected, '
       '${afterClefStaves.length - mergedStaves.length} clef-synthesized, '
       '${allStaves.length - afterClefStaves.length} cluster-synthesized) | '
       '${symbols.length} musical symbol(s)',
@@ -113,99 +112,28 @@ class TfliteSymbolDetector implements SymbolDetector {
     return DetectionResult(symbols: symbols, staffs: allStaves);
   }
 
-  /// Builds the final staff list by preferring model-detected [staff]
-  /// bboxes and supplementing with [projectorStaves] from
-  /// [HorizontalProjectionStaffDetector] wherever the model missed a staff.
-  List<DetectedStaff> _mergeStaves(
-    List<DetectedSymbol> staffSymbols,
-    List<DetectedStaff> projectorStaves,
-  ) {
-    // Convert each staff bbox into a DetectedStaff. Assume the bbox spans
-    // exactly from the top staff line to the bottom staff line, giving 4 equal
-    // gaps between 5 lines.
-    final modelStaves = <DetectedStaff>[];
-    for (int i = 0; i < staffSymbols.length; i++) {
-      final box = staffSymbols[i].boundingBox;
-      if (box == null) continue;
-      final spacing = box.height / 4;
-      modelStaves.add(
-        DetectedStaff(
-          id: 'model-staff-$i',
-          topY: box.top,
-          bottomY: box.bottom,
-          lineYs: List.generate(5, (l) => box.top + l * spacing),
-        ),
-      );
-    }
-
-    // Add projector staves whose midpoint isn't already covered by a model staff.
-    final supplementary = <DetectedStaff>[];
-    for (final proj in projectorStaves) {
-      final midY = (proj.topY + proj.bottomY) / 2;
-      final covered = modelStaves.any(
-        (ms) => midY >= ms.topY && midY <= ms.bottomY,
-      );
-      if (!covered) supplementary.add(proj);
-    }
-
-    if (modelStaves.isEmpty && supplementary.isEmpty) {
-      debugPrint(
-        '[TfliteSymbolDetector] No staves from model or projector — '
-        'mapper will attempt SyntheticStaffBuilder.',
-      );
-    } else {
-      debugPrint(
-        '[TfliteSymbolDetector] Staves: ${modelStaves.length} model, '
-        '${supplementary.length} projector supplement.',
-      );
-    }
-
-    final merged = [...modelStaves, ...supplementary]
-      ..sort((a, b) => a.topY.compareTo(b.topY));
-    return merged;
+  /// Runs the model and returns its raw output, row-major `[13][8400]`:
+  /// rows 0–3 = cx, cy, w, h (normalized 0–1), rows 4–12 = class scores.
+  Float32List _runInference(img.Image resized) {
+    final input = _imageToTensor(resized);
+    final output = Uint8List(_outputRows * _anchors * 4);
+    _interpreter!.run(input.buffer.asUint8List(), output);
+    return output.buffer.asFloat32List();
   }
 
-  List<List<double>> _runInference(img.Image tile) {
-    final inputData = _imageToTensor(tile);
-
-    // Wrap in nested list so tflite_flutter maps it to [1, 640, 640, 3].
-    final input = [
-      List.generate(
-        _inputSize,
-        (y) => List.generate(
-          _inputSize,
-          (x) {
-            final base = (y * _inputSize + x) * 3;
-            return [inputData[base], inputData[base + 1], inputData[base + 2]];
-          },
-        ),
-      ),
-    ];
-
-    final output = List.generate(
-      300,
-      (_) => List.filled(6, 0.0),
-    ).reshape([1, 300, 6]);
-
-    _interpreter!.run(input, output);
-
-    return output[0] as List<List<double>>;
-  }
-
-  /// Builds the input tensor from a 640×640 RGB image.
-  ///
-  /// The Ultralytics INT8 TFLite export keeps float32 I/O (internal ops are
-  /// quantized but the tensor interface remains float32). Pixels are normalized
-  /// to [0.0, 1.0].
-  Float32List _imageToTensor(img.Image tile) {
-    final data = Float32List(_inputSize * _inputSize * 3);
-    int idx = 0;
+  /// Builds the channels-first `[1, 3, 640, 640]` float input the LiteRT
+  /// export expects, pixels normalized to [0.0, 1.0].
+  Float32List _imageToTensor(img.Image resized) {
+    const plane = _inputSize * _inputSize;
+    final data = Float32List(3 * plane);
+    int i = 0;
     for (int y = 0; y < _inputSize; y++) {
       for (int x = 0; x < _inputSize; x++) {
-        final pixel = tile.getPixel(x, y);
-        data[idx++] = pixel.r.toInt() / 255.0;
-        data[idx++] = pixel.g.toInt() / 255.0;
-        data[idx++] = pixel.b.toInt() / 255.0;
+        final pixel = resized.getPixel(x, y);
+        data[i] = pixel.r / 255.0;
+        data[plane + i] = pixel.g / 255.0;
+        data[2 * plane + i] = pixel.b / 255.0;
+        i++;
       }
     }
     return data;
@@ -472,93 +400,100 @@ class TfliteSymbolDetector implements SymbolDetector {
     }).toList();
   }
 
-  /// Scales [src] to fit within [_inputSize]×[_inputSize] preserving aspect
-  /// ratio, then pads the shorter dimension with gray (114) on both sides —
-  /// the standard Ultralytics YOLOv8 letterbox used during training.
-  ({img.Image image, double scale, int padLeft, int padTop}) _letterbox(
-    img.Image src,
-  ) {
-    final scale = src.width >= src.height
-        ? _inputSize / src.width
-        : _inputSize / src.height;
-
-    final scaledW = (src.width * scale).round();
-    final scaledH = (src.height * scale).round();
-    final padLeft = (_inputSize - scaledW) ~/ 2;
-    final padTop = (_inputSize - scaledH) ~/ 2;
-
-    final resized = img.copyResize(
-      src,
-      width: scaledW,
-      height: scaledH,
-      interpolation: img.Interpolation.linear,
-    );
-
-    final canvas = img.Image(
-      width: _inputSize,
-      height: _inputSize,
-      numChannels: 3,
-    );
-
-    // Fill with gray (114, 114, 114) — standard YOLO padding value.
-    for (int y = 0; y < _inputSize; y++) {
-      for (int x = 0; x < _inputSize; x++) {
-        canvas.setPixelRgb(x, y, 114, 114, 114);
-      }
-    }
-
-    // Stamp the resized image into the centre of the canvas.
-    for (int y = 0; y < scaledH; y++) {
-      for (int x = 0; x < scaledW; x++) {
-        canvas.setPixel(x + padLeft, y + padTop, resized.getPixel(x, y));
-      }
-    }
-
-    return (image: canvas, scale: scale, padLeft: padLeft, padTop: padTop);
-  }
-
-  /// Converts raw model output rows into [DetectedSymbol]s in original-image
-  /// pixel space. Undoes the letterbox transform using [scale], [padLeft],
-  /// and [padTop] so all coordinates are in the pre-letterbox image space.
+  /// Converts raw model output into [DetectedSymbol]s in original-image
+  /// pixel space. Note boxes are shrunk to their notehead so pitch is read
+  /// from the head, not the middle of the stem.
   List<DetectedSymbol> _parseOutput(
-    List<List<double>> rawOutput, {
-    required double scale,
-    required int padLeft,
-    required int padTop,
+    Float32List raw, {
+    required img.Image image,
+    required double scaleX,
+    required double scaleY,
   }) {
     final detections = <DetectedSymbol>[];
-    int counter = 0;
 
-    for (final detection in rawOutput) {
-      final classIndex = detection[5].toInt();
-      if (classIndex < 0 || classIndex >= MusicSymbol.values.length) continue;
+    for (int a = 0; a < _anchors; a++) {
+      int classIndex = 0;
+      double confidence = 0;
+      for (int c = 0; c < _classes.length; c++) {
+        final score = raw[(4 + c) * _anchors + a];
+        if (score > confidence) {
+          confidence = score;
+          classIndex = c;
+        }
+      }
 
-      final symbol = MusicSymbol.values[classIndex];
-      final confidence = detection[4];
+      final (symbol, noteType) = _classes[classIndex];
       if (confidence < confidenceThresholdFor(symbol)) continue;
 
-      // Ultralytics YOLO TFLite NMS output: normalized 0–1 coords relative to
-      // the 640×640 letterboxed input. Undo padding then undo the uniform scale
-      // to recover coordinates in the original full-resolution image space.
-      final x1 = (detection[0] * _inputSize - padLeft) / scale;
-      final y1 = (detection[1] * _inputSize - padTop) / scale;
-      final x2 = (detection[2] * _inputSize - padLeft) / scale;
-      final y2 = (detection[3] * _inputSize - padTop) / scale;
+      final cx = raw[a] * _inputSize * scaleX;
+      final cy = raw[_anchors + a] * _inputSize * scaleY;
+      final w = raw[2 * _anchors + a] * _inputSize * scaleX;
+      final h = raw[3 * _anchors + a] * _inputSize * scaleY;
+      if (w <= 0 || h <= 0) continue;
 
-      if (x2 <= x1 || y2 <= y1) continue;
+      var box = Rect.fromCenter(center: Offset(cx, cy), width: w, height: h);
+      if (noteType != null && noteType != 'whole') {
+        box = noteheadRect(image, box);
+      }
 
       detections.add(
         DetectedSymbol.fromMusicSymbol(
-          id: 'symbol-$counter',
+          id: 'symbol-${detections.length}',
           symbol: symbol,
-          boundingBox: Rect.fromLTRB(x1, y1, x2, y2),
+          boundingBox: box,
           confidence: confidence,
+          metadata: noteType == null ? null : {'noteType': noteType},
         ),
       );
-      counter++;
     }
 
     return detections;
+  }
+
+  /// Fraction of a stemmed note's box height taken as the notehead band.
+  static const double _noteheadBandRatio = 0.3;
+
+  /// Height of the returned notehead box as a fraction of the note box. A
+  /// stemmed note spans ~4 line spacings and a printed head is ~0.65 of one,
+  /// which is what the staff-synthesis fallbacks assume.
+  static const double _noteheadBoxRatio = 0.16;
+
+  /// Returns the notehead of a stemmed note box, centred in whichever end
+  /// band (top or bottom) has more ink. The head is a filled/ringed blob,
+  /// the other end is only a thin stem tip plus flag.
+  // ponytail: ink-density guess, ~95% right on the test set; misses some
+  // wide flagged notes. Train a separate notehead class if pitch errors matter.
+  @visibleForTesting
+  static Rect noteheadRect(img.Image image, Rect box) {
+    final band = box.height * _noteheadBandRatio;
+    final top = Rect.fromLTRB(box.left, box.top, box.right, box.top + band);
+    final bottom = Rect.fromLTRB(
+      box.left,
+      box.bottom - band,
+      box.right,
+      box.bottom,
+    );
+    final head =
+        _meanLuminance(image, top) < _meanLuminance(image, bottom) ? top : bottom;
+    return Rect.fromCenter(
+      center: head.center,
+      width: box.width,
+      height: box.height * _noteheadBoxRatio,
+    );
+  }
+
+  static double _meanLuminance(img.Image image, Rect r) {
+    final x0 = r.left.floor().clamp(0, image.width - 1);
+    final x1 = r.right.ceil().clamp(x0 + 1, image.width);
+    final y0 = r.top.floor().clamp(0, image.height - 1);
+    final y1 = r.bottom.ceil().clamp(y0 + 1, image.height);
+    double sum = 0;
+    for (int y = y0; y < y1; y++) {
+      for (int x = x0; x < x1; x++) {
+        sum += image.getPixel(x, y).luminance;
+      }
+    }
+    return sum / ((x1 - x0) * (y1 - y0));
   }
 
   List<DetectedSymbol> _nms(List<DetectedSymbol> detections) {

@@ -61,7 +61,7 @@ flutter:
     - assets/images/
     - assets/fonts/
     - assets/models/best_int8.tflite
-    - assets/models/deepscores_int8.tflite
+    - assets/models/best.tflite
     - assets/soundfonts/
     - assets/samples/
 

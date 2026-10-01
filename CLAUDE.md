@@ -35,7 +35,7 @@ mistakes in an editor, then exports or plays back the result. No internet. No se
 |---------|---------------|
 | Framework | Flutter (Dart) |
 | ML inference | tflite_flutter 0.12.1 |
-| ML model | YOLO — 57 music symbol classes |
+| ML model | YOLO26n — 9 handwritten symbol classes (Fclef, Gclef, eighth/half/quarter/sixteenth/whole note, half/whole rest) |
 | Image processing | image 4.8.0 |
 | XML parsing | xml 6.5.0 |
 | File picking | file_picker 8.1.2 |
@@ -63,9 +63,12 @@ Camera / Gallery / MusicXML file
         ↓
 3. Symbol Detection
    TfliteSymbolDetector — full image stretched to 640×640 (no tiling/letterbox)
-   YOLO on-device int8, NMS, confidence 0.75 threshold
-   combStaff detections → DetectedStaff (model-detected staves, preferred over projector)
-   musical symbol detections → DetectedSymbol list
+   YOLO26n FP32 LiteRT, NCHW input, raw [1,13,8400] output, Dart NMS, confidence 0.40 (rests 0.30)
+   Each note box is one whole symbol (head+stem+flag); it is shrunk to a printed-size
+   notehead centred in the darker end band (for pitch), and the note value travels
+   in metadata['noteType']
+   No staff/barline/accidental/time-sig classes — staves come from the projector,
+   measures split by summed note/rest beat values (MeasureGrouper._splitByBeats)
    SyntheticStaffBuilder fallback when neither source produces staves
         ↓
 4. Reconstruction Pipeline
@@ -153,7 +156,7 @@ lib/
       export_file_name.dart          Shared `safeExportFileName(title)` used by both XML and PDF export
 
 assets/
-  models/best_int8.tflite            YOLO model — 640×640 int8 quantized
+  models/best.tflite                 YOLO26n model — 640×640 FP32, 9 classes
   fonts/                             MaturaMTScriptCapitals
   images/                            notevision.png logo
   soundfonts/piano.sf2               GM SF2 soundfont for MIDI playback (not committed — see README.txt)
@@ -190,7 +193,7 @@ All screens use the same dark theme. Never use light colors unless it is a notat
 
 These are final unless explicitly changed:
 
-- **Model input size:** 640×640 int8 — model is `assets/models/best_int8.tflite`
+- **Model:** `assets/models/best.tflite` — YOLO26n, 640×640 FP32 LiteRT, 9 handwritten classes, trained on stretched grayscale images
 - **Tiling strategy:** No tiling — full image always stretched to 640×640 (no letterbox, no stave-based cropping). Model was trained on full-page stretches.
 - **Staff detection:** Two sources merged — model `combStaff` detections (preferred) + `HorizontalProjectionStaffDetector` supplement + `SyntheticStaffBuilder` fallback. `SyntheticStaffBuilder` uses notehead Y distribution to estimate staff geometry when no staves detected.
 - **Notation renderer:** CustomPainter — not a text list, not an SVG library

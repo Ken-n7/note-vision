@@ -115,13 +115,16 @@ class MeasureGrouper {
     final measures = <MeasureSymbols>[];
     var measureNumber = 1;
     var currentSymbols = <StaffOwnedSymbol>[];
-    var beatCount = 0;
+    var beatCount = 0.0;
 
     for (final symbol in staffSymbols) {
       final isMusical = SymbolClassifier.isNotehead(symbol.symbol.type) ||
           SymbolClassifier.isSupportedRest(symbol.symbol.type);
+      final beats = isMusical ? _beatsFor(symbol) : 0.0;
 
-      if (isMusical && beatCount > 0 && beatCount % beatsPerMeasure == 0) {
+      if (isMusical &&
+          beatCount > 0 &&
+          beatCount + beats > beatsPerMeasure + 1e-6) {
         measures.add(MeasureSymbols(
           number: measureNumber,
           staff: staff,
@@ -129,10 +132,11 @@ class MeasureGrouper {
         ));
         currentSymbols = [];
         measureNumber++;
+        beatCount = 0;
       }
 
       currentSymbols.add(symbol);
-      if (isMusical) beatCount++;
+      beatCount += beats;
     }
 
     measures.add(MeasureSymbols(
@@ -142,6 +146,21 @@ class MeasureGrouper {
     ));
 
     return measures;
+  }
+
+  /// Beats a musical symbol occupies. Noteheads only know their value when
+  /// the detector supplies `metadata['noteType']`; otherwise (stem not yet
+  /// associated) they count as one beat.
+  double _beatsFor(StaffOwnedSymbol entry) {
+    final noteType = switch (entry.symbol.type) {
+      'restWhole' => 'whole',
+      'restHalf' => 'half',
+      'restQuarter' => 'quarter',
+      'rest8th' => 'eighth',
+      'rest16th' => 'sixteenth',
+      _ => entry.symbol.metadata?['noteType'] as String?,
+    };
+    return noteType == null ? 1 : SymbolClassifier.beatValueFor(noteType);
   }
 
   int _inferBeatsPerMeasure(List<StaffOwnedSymbol> symbols) {
