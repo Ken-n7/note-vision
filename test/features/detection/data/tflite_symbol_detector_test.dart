@@ -39,6 +39,43 @@ void main() {
     });
   });
 
+  group('TfliteSymbolDetector.beamedNoteType', () {
+    // Stem-up note: head at the bottom, stem tip at y=100.
+    const note = Rect.fromLTRB(100, 100, 120, 180);
+    const beam = Rect.fromLTRB(110, 95, 200, 105);
+    const secondBeam = Rect.fromLTRB(110, 108, 200, 118);
+
+    test('no beam on the note keeps it a quarter', () {
+      expect(TfliteSymbolDetector.beamedNoteType(note, const []), 'quarter');
+      // A beam over a neighbouring group does not count.
+      expect(
+        TfliteSymbolDetector.beamedNoteType(
+          note,
+          const [Rect.fromLTRB(140, 95, 220, 105)],
+        ),
+        'quarter',
+      );
+    });
+
+    test('one beam makes an eighth, two a sixteenth', () {
+      expect(TfliteSymbolDetector.beamedNoteType(note, const [beam]), 'eighth');
+      expect(
+        TfliteSymbolDetector.beamedNoteType(note, const [beam, secondBeam]),
+        'sixteenth',
+      );
+    });
+
+    test('a beam just past a short stem still counts', () {
+      expect(
+        TfliteSymbolDetector.beamedNoteType(
+          note,
+          const [Rect.fromLTRB(110, 86, 200, 95)],
+        ),
+        'eighth',
+      );
+    });
+  });
+
   group('TfliteSymbolDetector.noteheadRect', () {
     // A 20×80 white note box with a dark 20×20 blob at one end and a thin
     // 2px stem running the full height.

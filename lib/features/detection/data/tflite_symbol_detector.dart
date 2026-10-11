@@ -29,6 +29,13 @@ class TfliteSymbolDetector implements SymbolDetector {
     (MusicSymbol.noteheadBlackInSpace, 'sixteenth'), // sixteenthnote
     (MusicSymbol.noteheadWholeInSpace, 'whole'), // wholenote
     (MusicSymbol.restWhole, null), // wholerest
+    (MusicSymbol.beam, null), // beam
+    (MusicSymbol.accidentalSharp, null), // sharp
+    (MusicSymbol.accidentalFlat, null), // flat
+    (MusicSymbol.accidentalNatural, null), // natural
+    (MusicSymbol.restQuarter, null), // quarterrest
+    (MusicSymbol.rest8th, null), // eighthrest
+    (MusicSymbol.rest16th, null), // sixteenthrest
   ];
 
   // Calibration knobs: rests had the lowest recall in validation.
@@ -41,7 +48,11 @@ class TfliteSymbolDetector implements SymbolDetector {
   static const double _iouThreshold = 0.35;
   static const int _inputSize = 640;
   static const int _anchors = 8400;
-  static const int _outputRows = 13; // 4 box + 9 classes
+  static const int _outputRows = 20; // 4 box + 16 classes
+
+  // Two stacked beams of a sixteenth group overlap far more than two
+  // detections of different symbols do, so beams get a looser NMS.
+  static const double _beamIouThreshold = 0.7;
 
   Interpreter? _interpreter;
 
@@ -112,8 +123,8 @@ class TfliteSymbolDetector implements SymbolDetector {
     return DetectionResult(symbols: symbols, staffs: allStaves);
   }
 
-  /// Runs the model and returns its raw output, row-major `[13][8400]`:
-  /// rows 0–3 = cx, cy, w, h (normalized 0–1), rows 4–12 = class scores.
+  /// Runs the model and returns its raw output, row-major `[20][8400]`:
+  /// rows 0–3 = cx, cy, w, h (normalized 0–1), rows 4–19 = class scores.
   Float32List _runInference(img.Image resized) {
     final input = _imageToTensor(resized);
     final output = Uint8List(_outputRows * _anchors * 4);
@@ -409,7 +420,7 @@ class TfliteSymbolDetector implements SymbolDetector {
     required double scaleX,
     required double scaleY,
   }) {
-    final detections = <DetectedSymbol>[];
+    final decoded = <(int, double, Rect)>[];
 
     for (int a = 0; a < _anchors; a++) {
       int classIndex = 0;
@@ -422,8 +433,7 @@ class TfliteSymbolDetector implements SymbolDetector {
         }
       }
 
-      final (symbol, noteType) = _classes[classIndex];
-      if (confidence < confidenceThresholdFor(symbol)) continue;
+      if (confidence < confidenceThresholdFor(_classes[classIndex].$1)) continue;
 
       final cx = raw[a] * _inputSize * scaleX;
       final cy = raw[_anchors + a] * _inputSize * scaleY;
@@ -431,7 +441,36 @@ class TfliteSymbolDetector implements SymbolDetector {
       final h = raw[3 * _anchors + a] * _inputSize * scaleY;
       if (w <= 0 || h <= 0) continue;
 
-      var box = Rect.fromCenter(center: Offset(cx, cy), width: w, height: h);
+      decoded.add((
+        classIndex,
+        confidence,
+        Rect.fromCenter(center: Offset(cx, cy), width: w, height: h),
+      ));
+    }
+
+    // Beams only tell beamed notes apart; they are used up here and not
+    // passed on to the mapper.
+    final beams = _nms(
+      [
+        for (final (classIndex, confidence, box) in decoded)
+          if (_classes[classIndex].$1 == MusicSymbol.beam)
+            DetectedSymbol.fromMusicSymbol(
+              id: 'beam',
+              symbol: MusicSymbol.beam,
+              boundingBox: box,
+              confidence: confidence,
+            ),
+      ],
+      iouThreshold: _beamIouThreshold,
+    ).map((beam) => beam.boundingBox!).toList();
+
+    final detections = <DetectedSymbol>[];
+
+    for (var (classIndex, confidence, box) in decoded) {
+      var (symbol, noteType) = _classes[classIndex];
+      if (symbol == MusicSymbol.beam) continue;
+      if (noteType == 'quarter') noteType = beamedNoteType(box, beams);
+
       if (noteType != null && noteType != 'whole') {
         box = noteheadRect(image, box);
       }
@@ -448,6 +487,32 @@ class TfliteSymbolDetector implements SymbolDetector {
     }
 
     return detections;
+  }
+
+  /// How far past a note box's top and bottom a beam may sit and still count,
+  /// as a fraction of the box height. Stems are often drawn short of the beam.
+  static const double _beamReachRatio = 0.1;
+
+  /// The model labels a beamed note as a quarter note (head + stem) plus
+  /// separate beam boxes: one beam on the note makes it an eighth, two or
+  /// more a sixteenth.
+  // ponytail: box-overlap count, 94% right on MUSCIMA++ ground-truth boxes;
+  // misses stems drawn well short of the beam. Match beams to the stem tip
+  // if beamed rhythms come out wrong.
+  @visibleForTesting
+  static String beamedNoteType(Rect note, List<Rect> beams) {
+    final reach = note.height * _beamReachRatio;
+    final zone = Rect.fromLTRB(
+      note.left,
+      note.top - reach,
+      note.right,
+      note.bottom + reach,
+    );
+    return switch (beams.where(zone.overlaps).length) {
+      0 => 'quarter',
+      1 => 'eighth',
+      _ => 'sixteenth',
+    };
   }
 
   /// Fraction of a stemmed note's box height taken as the notehead band.
@@ -496,7 +561,10 @@ class TfliteSymbolDetector implements SymbolDetector {
     return sum / ((x1 - x0) * (y1 - y0));
   }
 
-  List<DetectedSymbol> _nms(List<DetectedSymbol> detections) {
+  List<DetectedSymbol> _nms(
+    List<DetectedSymbol> detections, {
+    double iouThreshold = _iouThreshold,
+  }) {
     if (detections.isEmpty) return detections;
 
     detections.sort((a, b) => (b.confidence ?? 0).compareTo(a.confidence ?? 0));
@@ -515,7 +583,7 @@ class TfliteSymbolDetector implements SymbolDetector {
         final keptBox = keptDetection.boundingBox;
         if (keptBox == null) continue;
 
-        if (_iou(detectionBox, keptBox) > _iouThreshold) {
+        if (_iou(detectionBox, keptBox) > iouThreshold) {
           suppressed = true;
           break;
         }
