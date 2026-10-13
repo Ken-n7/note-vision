@@ -36,6 +36,14 @@ class TfliteSymbolDetector implements SymbolDetector {
     (MusicSymbol.restQuarter, null), // quarterrest
     (MusicSymbol.rest8th, null), // eighthrest
     (MusicSymbol.rest16th, null), // sixteenthrest
+    (MusicSymbol.timeSig2, null), // timeSig2
+    (MusicSymbol.timeSig3, null), // timeSig3
+    (MusicSymbol.timeSig4, null), // timeSig4
+    (MusicSymbol.timeSig6, null), // timeSig6
+    (MusicSymbol.timeSig8, null), // timeSig8
+    (MusicSymbol.timeSigCommon, null), // timeSigCommon
+    (MusicSymbol.timeSigCutCommon, null), // timeSigCutCommon
+    (MusicSymbol.augmentationDot, null), // augmentationDot
   ];
 
   // Calibration knobs: rests had the lowest recall in validation.
@@ -46,9 +54,9 @@ class TfliteSymbolDetector implements SymbolDetector {
   };
 
   static const double _iouThreshold = 0.35;
-  static const int _inputSize = 640;
-  static const int _anchors = 8400;
-  static const int _outputRows = 20; // 4 box + 16 classes
+  static const int _inputSize = 960;
+  static const int _anchors = 18900;
+  static const int _outputRows = 28; // 4 box + 24 classes
 
   // Two stacked beams of a sixteenth group overlap far more than two
   // detections of different symbols do, so beams get a looser NMS.
@@ -86,7 +94,7 @@ class TfliteSymbolDetector implements SymbolDetector {
       );
     }
 
-    // Stretch to 640×640 — the training images were stretched (Roboflow
+    // Stretch to 960×960 — the training images were stretched (Roboflow
     // "Resize: Stretch"), so letterboxing would skew the input distribution.
     final resized = img.copyResize(
       fullImage,
@@ -123,8 +131,8 @@ class TfliteSymbolDetector implements SymbolDetector {
     return DetectionResult(symbols: symbols, staffs: allStaves);
   }
 
-  /// Runs the model and returns its raw output, row-major `[20][8400]`:
-  /// rows 0–3 = cx, cy, w, h (normalized 0–1), rows 4–19 = class scores.
+  /// Runs the model and returns its raw output, row-major `[28][18900]`:
+  /// rows 0–3 = cx, cy, w, h (normalized 0–1), rows 4–27 = class scores.
   Float32List _runInference(img.Image resized) {
     final input = _imageToTensor(resized);
     final output = Uint8List(_outputRows * _anchors * 4);
@@ -132,7 +140,7 @@ class TfliteSymbolDetector implements SymbolDetector {
     return output.buffer.asFloat32List();
   }
 
-  /// Builds the channels-first `[1, 3, 640, 640]` float input the LiteRT
+  /// Builds the channels-first `[1, 3, 960, 960]` float input the LiteRT
   /// export expects, pixels normalized to [0.0, 1.0].
   Float32List _imageToTensor(img.Image resized) {
     const plane = _inputSize * _inputSize;
