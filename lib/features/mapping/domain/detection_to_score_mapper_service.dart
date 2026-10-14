@@ -3,7 +3,9 @@
 // Drop-in replacement — adds mapWithPipeline() while keeping map() identical.
 
 import 'dart:math' as math;
+import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/part.dart';
+import 'package:note_vision/features/detection/domain/detected_staff.dart';
 import 'package:note_vision/features/detection/domain/detection_result.dart';
 import 'package:note_vision/features/detection_inspector/model/mapping_pipeline_state.dart';
 import 'mapping_confidence_summary.dart';
@@ -14,6 +16,7 @@ import 'internal/measure_grouper.dart';
 import 'internal/score_builder.dart';
 import 'internal/semantic_inferrer.dart';
 import 'internal/staff_assigner.dart';
+import 'internal/symbol_classifier.dart';
 import 'internal/stem_associator.dart';
 import 'internal/synthetic_staff_builder.dart';
 
@@ -42,6 +45,51 @@ class DetectionToScoreMapperService extends ScoreMapperService {
   @override
   MappingResult map(DetectionResult detection) =>
       mapWithPipeline(detection).result;
+
+  /// For each staff with no clef of its own, the clef to read it in: that of
+  /// the nearest staff above that has one, else the nearest below. Without a
+  /// clef every note on the staff would be dropped, and a clef is easily
+  /// missed or boxed together with the one on the next staff.
+  List<Clef?> _fallbackClefs(
+    List<DetectedStaff> staffs,
+    List<StaffOwnedSymbol> assignments,
+    List<String> warnings,
+  ) {
+    final written = <Clef?>[
+      for (final staff in staffs)
+        switch (assignments
+            .where(
+              (a) =>
+                  identical(a.staff, staff) &&
+                  SymbolClassifier.isSupportedClef(a.symbol.type),
+            )
+            .firstOrNull
+            ?.symbol
+            .type) {
+          null => null,
+          'clefF' => const Clef(sign: 'F', line: 4),
+          _ => const Clef(sign: 'G', line: 2),
+        },
+    ];
+    return [
+      for (var i = 0; i < staffs.length; i++)
+        if (written[i] != null)
+          null
+        else
+          () {
+            final from = [
+              for (var k = i - 1; k >= 0; k--) k,
+              for (var k = i + 1; k < staffs.length; k++) k,
+            ].where((k) => written[k] != null).firstOrNull;
+            if (from == null) return null;
+            warnings.add(
+              'Staff ${i + 1} has no clef; reading it in the clef of '
+              'staff ${from + 1}.',
+            );
+            return written[from];
+          }(),
+    ];
+  }
 
   /// Runs the full pipeline and returns every intermediate stage.
   MappingPipelineState mapWithPipeline(DetectionResult detection) {
@@ -91,6 +139,12 @@ class DetectionToScoreMapperService extends ScoreMapperService {
 
     final assignments = _staffAssigner.assign(effectiveDetection, warnings: warnings);
 
+    final fallbackClefs = _fallbackClefs(
+      effectiveDetection.staffs,
+      assignments,
+      warnings,
+    );
+
     // Run the full pipeline once per staff, producing one Part per staff.
     final parts = <Part>[];
     final allMeasures = <MeasureSymbols>[];
@@ -119,6 +173,7 @@ class DetectionToScoreMapperService extends ScoreMapperService {
         measures: measures,
         stemLinks: stemLinks,
         warnings: warnings,
+        fallbackClef: fallbackClefs[i],
       );
 
       parts.add(_scoreBuilder.buildPart(

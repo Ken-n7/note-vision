@@ -23,8 +23,10 @@ class SemanticInferrer {
     required List<MeasureSymbols> measures,
     required Map<String, StemLink> stemLinks,
     required List<String> warnings,
+    Clef? fallbackClef,
   }) {
-    Clef? activeClef;
+    // Used until the staff shows a clef of its own.
+    Clef? activeClef = fallbackClef;
 
     return measures
         .map((measure) {
