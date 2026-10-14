@@ -523,6 +523,7 @@ class TfliteSymbolDetector implements SymbolDetector {
       if (symbol == MusicSymbol.beam) continue;
       if (noteType == 'quarter') noteType = beamedNoteType(box, beams);
 
+      final fullBox = box;
       if (noteType != null && noteType != 'whole') {
         box = noteheadRect(image, box);
       }
@@ -533,7 +534,19 @@ class TfliteSymbolDetector implements SymbolDetector {
           symbol: symbol,
           boundingBox: box,
           confidence: confidence,
-          metadata: noteType == null ? null : {'noteType': noteType},
+          metadata: noteType == null
+              ? null
+              : {
+                  'noteType': noteType,
+                  // The scan result screen shows what the model boxed.
+                  if (box != fullBox)
+                    DetectedSymbol.fullBoxKey: [
+                      fullBox.left,
+                      fullBox.top,
+                      fullBox.right,
+                      fullBox.bottom,
+                    ],
+                },
         ),
       );
     }

@@ -16,6 +16,12 @@ class ScanImageView extends StatelessWidget {
   // static const _success       = Color(0xFF4ADE80);
   // static const _warning       = Color(0xFFFBBF24);
 
+  static String _staffSummary(int staves) => switch (staves) {
+        0 => 'No staff found',
+        1 => '1 staff',
+        _ => '$staves staves',
+      };
+
   @override
   Widget build(BuildContext context) {
     final symbolCount = result.symbols.length;
@@ -46,9 +52,9 @@ class ScanImageView extends StatelessWidget {
 
           const SizedBox(height: 6),
 
-          // ── Image dimensions ──────────────────────────────────────────
+          // ── Staves found ──────────────────────────────────────────────
           Text(
-            '${result.preprocessed.width} × ${result.preprocessed.height} px',
+            _staffSummary(result.detection.staffs.length),
             style: const TextStyle(
               fontSize: 12,
               color: _textSecondary,
@@ -97,6 +103,12 @@ class ScanImageView extends StatelessWidget {
               ),
             ),
           ),
+
+          if (hasDetections)
+            const Padding(
+              padding: EdgeInsets.only(top: 10),
+              child: DetectionLegend(),
+            ),
 
           // ── Zoom hint ─────────────────────────────────────────────────
           Padding(

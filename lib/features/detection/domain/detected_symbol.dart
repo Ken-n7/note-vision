@@ -12,6 +12,11 @@ class DetectedSymbol {
   final double? confidence;
   final Map<String, Object?>? metadata;
 
+  /// Metadata key for the box the model drew around a whole note
+  /// (head, stem and flag) as `[left, top, right, bottom]`, kept when the
+  /// symbol's own box is shrunk to the notehead.
+  static const fullBoxKey = 'fullBox';
+
   const DetectedSymbol({
     required this.id,
     required this.type,
