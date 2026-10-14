@@ -8,6 +8,7 @@ import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/project.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/utils/emoji_blocking_formatter.dart';
 import 'package:note_vision/core/utils/image_picker_helper.dart';
@@ -1177,6 +1178,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                         (s) => s.setSelectedNoteAccidental(alter),
                       ),
                       currentMeasureClef: currentMeasureClef,
+                      currentTimeSignature:
+                          _editorState.selectedMeasureTimeSignature,
+                      onSetTimeSignature: (timeSignature) => _updateState(
+                        (s) => s.setTimeSignatureAtSelectedMeasure(timeSignature),
+                      ),
                       onSetClef: (clef) {
                         if (clef != null) {
                           _updateState((s) => s.setPartClef(clef));
@@ -2818,6 +2824,8 @@ class _InspectorPanel extends StatefulWidget {
     required this.onEighth,
     required this.onSetAccidental,
     required this.currentMeasureClef,
+    required this.currentTimeSignature,
+    required this.onSetTimeSignature,
     required this.onSetClef,
     required this.onMoveToPrev,
     required this.onMoveToNext,
@@ -2848,6 +2856,8 @@ class _InspectorPanel extends StatefulWidget {
   final VoidCallback onEighth;
   final void Function(int? alter) onSetAccidental;
   final Clef? currentMeasureClef;
+  final TimeSignature? currentTimeSignature;
+  final ValueChanged<TimeSignature> onSetTimeSignature;
   final ValueChanged<Clef?> onSetClef;
   final VoidCallback onMoveToPrev;
   final VoidCallback onMoveToNext;
@@ -2869,6 +2879,7 @@ class _InspectorPanelState extends State<_InspectorPanel> {
     Icons.unfold_more_rounded,
     Icons.tag_rounded,
     Icons.music_note_rounded,
+    Icons.av_timer_rounded,
     Icons.hourglass_empty_rounded,
     Icons.grid_on_rounded,
   ];
@@ -3021,6 +3032,32 @@ class _InspectorPanelState extends State<_InspectorPanel> {
                   : null,
             ),
           ),
+        ],
+      ),
+      _ActionGroup(
+        label: 'TIME',
+        children: [
+          for (final (beats, beatType, name) in const [
+            (2, 4, 'Two'),
+            (3, 4, 'Three'),
+            (4, 4, 'Common'),
+            (2, 2, 'Cut'),
+            (3, 8, 'Three'),
+            (6, 8, 'Six'),
+          ])
+            _ClefTile(
+              shortLabel: '$beats/$beatType',
+              label: name,
+              isActive: widget.currentTimeSignature?.beats == beats &&
+                  widget.currentTimeSignature?.beatType == beatType,
+              onPressed: _wrapAction(
+                hasMeasureContext
+                    ? () => widget.onSetTimeSignature(
+                          TimeSignature(beats: beats, beatType: beatType),
+                        )
+                    : null,
+              ),
+            ),
         ],
       ),
       _ActionGroup(

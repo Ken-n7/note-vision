@@ -312,6 +312,29 @@ extension EditorActions on EditorState {
     );
   }
 
+  /// Sets the time signature from the selected measure on, in every part.
+  EditorState setTimeSignatureAtSelectedMeasure(TimeSignature timeSignature) {
+    if (selectedMeasureIndex == null) return this;
+    final nextScore =
+        score.setTimeSignatureAt(selectedMeasureIndex!, timeSignature);
+    if (identical(nextScore, score)) return this;
+    return _applySelectionPreservingEdit(
+      intent: EditorEditIntent.updateMeasureMetadata,
+      score: nextScore,
+    );
+  }
+
+  /// The time signature in force at the selected measure.
+  TimeSignature? get selectedMeasureTimeSignature {
+    if (selectedMeasureIndex == null || score.parts.isEmpty) return null;
+    final part = (selectedPartIndex ?? 0).clamp(0, score.parts.length - 1);
+    if (selectedMeasureIndex! >= score.parts[part].measures.length) return null;
+    return _activeTimeSignatureForMeasure(
+      partIndex: part,
+      measureIndex: selectedMeasureIndex!,
+    );
+  }
+
   EditorState setSelectedMeasureClef(Clef? clef) {
     if (selectedPartIndex == null || selectedMeasureIndex == null) return this;
 

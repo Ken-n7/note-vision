@@ -5,6 +5,7 @@ import 'clef.dart';
 import 'measure.dart';
 import 'part.dart';
 import 'score_symbol.dart';
+import 'time_signature.dart';
 
 class Score {
   static const Object _keep = Object();
@@ -87,6 +88,23 @@ class Score {
     final symbols = List<ScoreSymbol>.from(measure.symbols)
       ..insert(symbolIndex, symbol);
     return _replaceMeasureSymbols(partIndex, measureIndex, symbols);
+  }
+
+  /// Sets the time signature of measure [measureIndex] in every part: a
+  /// time signature applies to all staves alike. It holds until the next
+  /// measure that sets one.
+  Score setTimeSignatureAt(int measureIndex, TimeSignature timeSignature) {
+    var next = this;
+    for (var p = 0; p < parts.length; p++) {
+      final measure = next._measureAt(p, measureIndex);
+      if (measure == null || measure.timeSignature == timeSignature) continue;
+      next = next._replaceMeasure(
+        p,
+        measureIndex,
+        next._copyMeasure(measure, timeSignature: timeSignature),
+      );
+    }
+    return next;
   }
 
   Score setMeasureClef(int partIndex, int measureIndex, Clef? clef) {
@@ -257,6 +275,7 @@ class Score {
     Measure measure, {
     int? number,
     Object? clef = _keep,
+    Object? timeSignature = _keep,
     List<ScoreSymbol>? symbols,
     bool? startsNewPage,
     Object? leftBarlineType = _keep,
@@ -265,7 +284,9 @@ class Score {
     return Measure(
       number: number ?? measure.number,
       clef: identical(clef, _keep) ? measure.clef : clef as Clef?,
-      timeSignature: measure.timeSignature,
+      timeSignature: identical(timeSignature, _keep)
+          ? measure.timeSignature
+          : timeSignature as TimeSignature?,
       keySignature: measure.keySignature,
       symbols: symbols ?? measure.symbols,
       startsNewPage: startsNewPage ?? measure.startsNewPage,
