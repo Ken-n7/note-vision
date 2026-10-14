@@ -8,6 +8,7 @@ import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/models/time_signature.dart';
+import 'package:note_vision/core/services/accidentals.dart';
 import 'package:xml/xml.dart';
 
 /// Converts a validated MusicXML document into internal score models.
@@ -28,7 +29,8 @@ class MusicXmlScoreConverter {
       id: root.getAttribute('id') ?? root.name.local,
       title: title,
       composer: composer,
-      parts: parts,
+      // <alter> is the pitch heard; notes store the accidental written.
+      parts: parts.map(Accidentals.writtenFromSounding).toList(),
     );
   }
 

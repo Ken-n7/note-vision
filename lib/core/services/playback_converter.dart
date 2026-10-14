@@ -1,6 +1,7 @@
 import '../models/note.dart';
 import '../models/rest.dart';
 import '../models/score.dart';
+import 'accidentals.dart';
 
 // ---------------------------------------------------------------------------
 // PlaybackEvent
@@ -114,16 +115,30 @@ class PlaybackConverter {
   /// Iteration order: parts in index order, each part fully before the next.
   /// Within a part: measures in order, symbols in order.
   /// Notes with unresolvable pitch (unknown step) are skipped silently.
+  ///
+  /// Notes sound as written on the page: a note without its own accidental
+  /// takes the key signature, unless an earlier note of the same pitch in the
+  /// same measure carried an accidental, which holds to the barline.
   List<PlaybackEvent> buildEvents(Score score) {
     final events = <PlaybackEvent>[];
     for (var pi = 0; pi < score.parts.length; pi++) {
       final part = score.parts[pi];
+      final accidentals = Accidentals();
       for (var mi = 0; mi < part.measures.length; mi++) {
         final measure = part.measures[mi];
+        accidentals.startMeasure(measure);
         for (var si = 0; si < measure.symbols.length; si++) {
           final symbol = measure.symbols[si];
           if (symbol is Note) {
-            final midi = noteToMidi(symbol);
+            final midi = noteToMidi(
+              Note(
+                step: symbol.step,
+                octave: symbol.octave,
+                alter: accidentals.sounding(symbol),
+                duration: symbol.duration,
+                type: symbol.type,
+              ),
+            );
             events.add(PlaybackEvent(
               partIndex: pi,
               measureIndex: mi,

@@ -10,6 +10,7 @@ import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/utils/export_file_name.dart';
+import 'package:note_vision/core/services/accidentals.dart';
 import 'package:xml/xml.dart';
 
 /// Converts a [Score] to a valid MusicXML 3.1 string and saves it to a
@@ -99,13 +100,20 @@ class MusicXmlExportService {
   void _buildPart(XmlBuilder b, Part part) {
     b.element('part', attributes: {'id': part.id}, nest: () {
       final measures = part.measures;
+      final accidentals = Accidentals();
       for (var i = 0; i < measures.length; i++) {
-        _buildMeasure(b, measures[i], isFirst: i == 0);
+        accidentals.startMeasure(measures[i]);
+        _buildMeasure(b, measures[i], isFirst: i == 0, accidentals: accidentals);
       }
     });
   }
 
-  void _buildMeasure(XmlBuilder b, Measure measure, {required bool isFirst}) {
+  void _buildMeasure(
+    XmlBuilder b,
+    Measure measure, {
+    required bool isFirst,
+    required Accidentals accidentals,
+  }) {
     b.element(
       'measure',
       attributes: {'number': measure.number.toString()},
@@ -161,7 +169,12 @@ class MusicXmlExportService {
         for (var i = 0; i < symbols.length; i++) {
           final symbol = symbols[i];
           if (symbol is Note) {
-            _buildNote(b, symbol, beamValue: _beamValue(symbols, i));
+            _buildNote(
+              b,
+              symbol,
+              soundingAlter: accidentals.sounding(symbol),
+              beamValue: _beamValue(symbols, i),
+            );
           } else if (symbol is Rest) {
             _buildRest(b, symbol);
           }
@@ -178,15 +191,22 @@ class MusicXmlExportService {
     );
   }
 
-  void _buildNote(XmlBuilder b, Note note, {String? beamValue}) {
+  /// [soundingAlter] goes in `<alter>`, which MusicXML reads as the pitch
+  /// heard, key signature included.
+  void _buildNote(
+    XmlBuilder b,
+    Note note, {
+    required int soundingAlter,
+    String? beamValue,
+  }) {
     b.element('note', nest: () {
       if (note.isChordTone) {
         b.element('chord');
       }
       b.element('pitch', nest: () {
         b.element('step', nest: note.step);
-        if (note.alter != null && note.alter != 0) {
-          b.element('alter', nest: note.alter.toString());
+        if (soundingAlter != 0) {
+          b.element('alter', nest: soundingAlter.toString());
         }
         b.element('octave', nest: note.octave.toString());
       });
