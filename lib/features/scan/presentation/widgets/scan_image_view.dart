@@ -93,6 +93,7 @@ class ScanImageView extends StatelessWidget {
                           DetectionOverlay(
                             symbols: result.symbols,
                             staffs: result.detection.staffs,
+                            barlines: result.detection.barlines,
                             imageWidth: result.preprocessed.width,
                             imageHeight: result.preprocessed.height,
                           ),

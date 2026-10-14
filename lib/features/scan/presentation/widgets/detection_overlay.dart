@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:note_vision/features/detection/domain/detected_barline.dart';
 import 'package:note_vision/features/detection/domain/detected_staff.dart';
 import 'package:note_vision/features/detection/domain/detected_symbol.dart';
 import 'package:note_vision/features/detection/domain/music_symbol.dart';
@@ -87,6 +88,7 @@ Rect? overlayBox(DetectedSymbol symbol) {
 class DetectionOverlay extends StatelessWidget {
   final List<DetectedSymbol> symbols;
   final List<DetectedStaff> staffs;
+  final List<DetectedBarline> barlines;
 
   /// Original image pixel dimensions — used to map detection coordinates
   /// (which are in original-image space) to the actual display space, which
@@ -101,13 +103,20 @@ class DetectionOverlay extends StatelessWidget {
     required this.imageWidth,
     required this.imageHeight,
     this.staffs = const [],
+    this.barlines = const [],
   });
 
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
       size: Size.infinite,
-      painter: _OverlayPainter(symbols, staffs, imageWidth, imageHeight),
+      painter: _OverlayPainter(
+        symbols,
+        staffs,
+        barlines,
+        imageWidth,
+        imageHeight,
+      ),
     );
   }
 }
@@ -118,12 +127,14 @@ class _OverlayPainter extends CustomPainter {
   const _OverlayPainter(
     this.symbols,
     this.staffs,
+    this.barlines,
     this.imageWidth,
     this.imageHeight,
   );
 
   final List<DetectedSymbol> symbols;
   final List<DetectedStaff> staffs;
+  final List<DetectedBarline> barlines;
   final int imageWidth;
   final int imageHeight;
 
@@ -138,6 +149,19 @@ class _OverlayPainter extends CustomPainter {
     final sorted = [...staffs]..sort((a, b) => a.topY.compareTo(b.topY));
     for (var i = 0; i < sorted.length; i++) {
       _paintStaff(canvas, size, sorted[i], i + 1, scaleX, scaleY);
+    }
+    final barlinePaint = Paint()
+      ..strokeWidth = 2
+      ..color = staffOverlayColor;
+    for (final barline in barlines) {
+      final staff = staffs.where((s) => s.id == barline.staffId).firstOrNull;
+      if (staff == null || staff.lineYs.isEmpty) continue;
+      final offset = staff.offsetAt(barline.x);
+      canvas.drawLine(
+        Offset(barline.x * scaleX, (staff.lineYs.first + offset) * scaleY),
+        Offset(barline.x * scaleX, (staff.lineYs.last + offset) * scaleY),
+        barlinePaint,
+      );
     }
     for (final symbol in symbols) {
       _paintSymbol(canvas, symbol, scaleX, scaleY);
@@ -255,6 +279,7 @@ class _OverlayPainter extends CustomPainter {
   bool shouldRepaint(_OverlayPainter old) =>
       old.symbols != symbols ||
       old.staffs != staffs ||
+      old.barlines != barlines ||
       old.imageWidth != imageWidth ||
       old.imageHeight != imageHeight;
 }
@@ -285,7 +310,7 @@ class DetectionLegend extends StatelessWidget {
           children: [
             for (final kind in SymbolKind.values)
               if (kind != SymbolKind.other) entry(kind.color, kind.label),
-            entry(staffOverlayColor, 'Staff'),
+            entry(staffOverlayColor, 'Staff / barline'),
           ],
         ),
         const SizedBox(height: 4),

@@ -125,6 +125,6 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Note'), findsOneWidget);
-    expect(find.text('Staff'), findsOneWidget);
+    expect(find.text('Staff / barline'), findsOneWidget);
   });
 }

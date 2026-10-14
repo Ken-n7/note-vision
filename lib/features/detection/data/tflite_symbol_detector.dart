@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
 
+import '../../preprocessing/data/barline_finder.dart';
 import '../../preprocessing/data/staff_line_tracer.dart';
 import '../../preprocessing/domain/preprocessed_result.dart';
 import '../domain/detected_staff.dart';
@@ -144,7 +145,11 @@ class TfliteSymbolDetector implements SymbolDetector {
       '${symbols.length} musical symbol(s)',
     );
 
-    return DetectionResult(symbols: symbols, staffs: allStaves);
+    return DetectionResult(
+      symbols: symbols,
+      staffs: allStaves,
+      barlines: const BarlineFinder().find(fullImage, allStaves, symbols),
+    );
   }
 
   /// Runs the model and returns its raw output, row-major `[28][18900]`:

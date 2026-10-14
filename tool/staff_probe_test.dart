@@ -14,6 +14,10 @@ import 'dart:ui' show Rect;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
+import 'package:note_vision/features/detection/domain/detected_staff.dart';
+import 'package:note_vision/features/detection/domain/detected_symbol.dart';
+import 'package:note_vision/features/detection/domain/music_symbol.dart';
+import 'package:note_vision/features/preprocessing/data/barline_finder.dart';
 import 'package:note_vision/features/preprocessing/data/horizontal_projection_staff_detector.dart';
 import 'package:note_vision/features/preprocessing/data/staff_line_tracer.dart';
 
@@ -57,6 +61,46 @@ void main() {
             ),
           ),
       ]).map((s) => s.toJson()).toList();
+      // Model classes in dataset order -> what the app turns them into.
+      const classes = <(MusicSymbol, String?)>[
+        (MusicSymbol.clefF, null), (MusicSymbol.clefG, null),
+        (MusicSymbol.noteheadBlackInSpace, 'eighth'),
+        (MusicSymbol.noteheadHalfInSpace, 'half'), (MusicSymbol.restHalf, null),
+        (MusicSymbol.noteheadBlackInSpace, 'quarter'),
+        (MusicSymbol.noteheadBlackInSpace, 'sixteenth'),
+        (MusicSymbol.noteheadWholeInSpace, 'whole'), (MusicSymbol.restWhole, null),
+        (MusicSymbol.beam, null), (MusicSymbol.accidentalSharp, null),
+        (MusicSymbol.accidentalFlat, null), (MusicSymbol.accidentalNatural, null),
+        (MusicSymbol.restQuarter, null), (MusicSymbol.rest8th, null),
+        (MusicSymbol.rest16th, null),
+      ];
+      final symbols = [
+        for (final c in ((meta[name]['boxes'] as List<dynamic>?) ?? const [])
+            .cast<List<dynamic>>())
+          if ((c[4] as num).toInt() < classes.length)
+            DetectedSymbol.fromMusicSymbol(
+              id: 'p',
+              symbol: classes[(c[4] as num).toInt()].$1,
+              boundingBox: Rect.fromCenter(
+                center: Offset((c[0] as num) * gray.width.toDouble(),
+                    (c[1] as num) * gray.height.toDouble()),
+                width: (c[2] as num) * gray.width.toDouble(),
+                height: (c[3] as num) * gray.height.toDouble(),
+              ),
+              metadata: classes[(c[4] as num).toInt()].$2 == null
+                  ? null
+                  : {'noteType': classes[(c[4] as num).toInt()].$2},
+            ),
+      ];
+      final barlines = const BarlineFinder().find(gray, [
+        for (final s in staves) DetectedStaff.fromJson(s.cast<String, dynamic>()),
+      ], symbols);
+      for (final s in staves) {
+        s['barlines'] = [
+          for (final b in barlines)
+            if (b.staffId == s['id']) b.x,
+        ];
+      }
       out[name] = staves;
     }
     // ignore: avoid_print

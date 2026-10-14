@@ -58,8 +58,32 @@ class ScoreBuilder {
       composer: '',
       parts: parts.isEmpty
           ? const [Part(id: 'P1', name: 'Detected Part', measures: [Measure(number: 1, symbols: [])])]
-          : parts,
+          : _sameLength(parts),
     );
+  }
+
+  /// Every part gets as many measures as the longest, padded with empty ones:
+  /// the editor pages by measure index across all parts, so a short part
+  /// would hide the extra measures of the others. Staves of one scan often
+  /// differ in bar count.
+  static List<Part> _sameLength(List<Part> parts) {
+    final longest =
+        parts.map((p) => p.measures.length).reduce((a, b) => a > b ? a : b);
+    return [
+      for (final part in parts)
+        if (part.measures.length == longest)
+          part
+        else
+          Part(
+            id: part.id,
+            name: part.name,
+            measures: [
+              ...part.measures,
+              for (var n = part.measures.length + 1; n <= longest; n++)
+                Measure(number: n, symbols: const []),
+            ],
+          ),
+    ];
   }
 
   /// Convenience: single-pass build for a single part (used by legacy callers).
