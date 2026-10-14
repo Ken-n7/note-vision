@@ -118,31 +118,21 @@ class _StaffOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scaledTop = staff.topY * scaleY;
-    final scaledHeight = (staff.bottomY - staff.topY) * scaleY;
-
-    return Positioned(
-      left: 0,
-      right: 0,
-      top: scaledTop,
-      height: scaledHeight,
+    final labelX = staff.offsetXs.isEmpty ? 0.0 : staff.offsetXs.first;
+    return Positioned.fill(
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // Bounding box border
           Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: _color, width: 1.5),
-                color: _color.withValues(alpha: 0.04),
-              ),
+            child: CustomPaint(
+              painter: _StaffLinesPainter(staff, scaleX, scaleY, _color),
             ),
           ),
 
           // Staff id label
           Positioned(
             left: 4,
-            top: 2,
+            top: (staff.topY + staff.offsetAt(labelX)) * scaleY + 2,
             child: Container(
               color: _color.withValues(alpha: 0.7),
               padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
@@ -156,22 +146,51 @@ class _StaffOverlay extends StatelessWidget {
               ),
             ),
           ),
-
-          // The 5 staff lines (positions are relative to scaledTop)
-          ...staff.lineYs.map((lineY) {
-            final relY = (lineY - staff.topY) * scaleY;
-            return Positioned(
-              left: 0,
-              right: 0,
-              top: relY,
-              child: Container(
-                height: 1,
-                color: _color.withValues(alpha: 0.6),
-              ),
-            );
-          }),
         ],
       ),
     );
   }
+}
+
+/// Draws a staff's five lines and its outer band as they run across the
+/// page, following the slope and bend recorded in [DetectedStaff.offsetAt].
+class _StaffLinesPainter extends CustomPainter {
+  const _StaffLinesPainter(this.staff, this.scaleX, this.scaleY, this.color);
+
+  final DetectedStaff staff;
+  final double scaleX;
+  final double scaleY;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    Path along(double levelY) {
+      final path = Path();
+      for (var px = 0.0; ; px += 8) {
+        final x = px > size.width ? size.width : px;
+        final y = (levelY + staff.offsetAt(x / scaleX)) * scaleY;
+        px == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
+        if (x >= size.width) break;
+      }
+      return path;
+    }
+
+    final line = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = color.withValues(alpha: 0.6);
+    for (final lineY in staff.lineYs) {
+      canvas.drawPath(along(lineY), line);
+    }
+    final band = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..color = color;
+    canvas.drawPath(along(staff.topY), band);
+    canvas.drawPath(along(staff.bottomY), band);
+  }
+
+  @override
+  bool shouldRepaint(_StaffLinesPainter old) =>
+      old.staff != staff || old.scaleX != scaleX || old.scaleY != scaleY;
 }

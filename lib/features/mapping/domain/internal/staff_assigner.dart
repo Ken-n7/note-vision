@@ -24,20 +24,21 @@ class StaffAssigner {
     List<DetectedStaff> staffs,
   ) {
     final centerY = _centerY(symbol);
+    final centerX = symbol.x + ((symbol.width ?? 0) / 2);
 
     for (final staff in staffs) {
-      if (centerY >= staff.topY && centerY <= staff.bottomY) return staff;
+      if (staff.containsY(centerY, x: centerX)) return staff;
     }
 
-    return staffs.reduce((best, candidate) {
-      final bestDist = (_midpoint(best) - centerY).abs();
-      final candidateDist = (_midpoint(candidate) - centerY).abs();
-      return candidateDist < bestDist ? candidate : best;
-    });
+    // A sloped staff is not where its level lines say; measure to where it
+    // actually runs under the symbol.
+    double distance(DetectedStaff staff) =>
+        ((staff.topY + staff.bottomY) / 2 + staff.offsetAt(centerX) - centerY)
+            .abs();
+    return staffs.reduce(
+      (best, candidate) => distance(candidate) < distance(best) ? candidate : best,
+    );
   }
-
-  static double _midpoint(DetectedStaff staff) =>
-      (staff.topY + staff.bottomY) / 2;
 
   static double _centerY(DetectedSymbol symbol) =>
       symbol.y + ((symbol.height ?? 0) / 2);

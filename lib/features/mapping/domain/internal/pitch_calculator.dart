@@ -20,7 +20,11 @@ class PitchCalculator {
     final spacing = _averageSpacing(sortedLines);
     if (spacing <= 0) return null;
 
-    final centerY = symbol.y + ((symbol.height ?? 0) / 2);
+    // Read the head against the staff as it runs under it: a sloped staff
+    // is higher or lower there than its level lines say.
+    final centerX = symbol.x + ((symbol.width ?? 0) / 2);
+    final centerY =
+        symbol.y + ((symbol.height ?? 0) / 2) - staff.offsetAt(centerX);
 
     // Reject noteheads that are clearly outside the staff — almost certainly
     // false-positive detections (text, artifacts, noise). Allow up to 2× staff
@@ -35,8 +39,7 @@ class PitchCalculator {
     final diatonicOffset = _diatonicOffset(
       symbol: symbol,
       centerY: centerY,
-      bottomLineY: sortedLines.last,
-      topLineY: sortedLines.first,
+      sortedLines: sortedLines,
       lineSpacing: spacing,
       ledgerLines: ledgerLines,
     );
@@ -49,14 +52,15 @@ class PitchCalculator {
   int _diatonicOffset({
     required DetectedSymbol symbol,
     required double centerY,
-    required double bottomLineY,
-    required double topLineY,
+    required List<double> sortedLines,
     required double lineSpacing,
     required List<DetectedSymbol> ledgerLines,
   }) {
+    final bottomLineY = sortedLines.last;
+    final topLineY = sortedLines.first;
     final directOffset = _nearestDiatonicOffset(
       centerY: centerY,
-      bottomLineY: bottomLineY,
+      sortedLines: sortedLines,
       lineSpacing: lineSpacing,
     );
 
@@ -141,13 +145,27 @@ class PitchCalculator {
     return total / (sortedLines.length - 1);
   }
 
+  /// Steps above the bottom line. Inside the staff the head is read between
+  /// the two lines it lies between, so a hand-ruled staff with uneven gaps
+  /// still gives the right step; outside it, steps are half the average gap.
   int _nearestDiatonicOffset({
     required double centerY,
-    required double bottomLineY,
+    required List<double> sortedLines,
     required double lineSpacing,
   }) {
     final halfStepSpacing = lineSpacing / 2;
-    return ((bottomLineY - centerY) / halfStepSpacing).round();
+    final last = sortedLines.length - 1;
+    if (centerY > sortedLines[last]) {
+      return ((sortedLines[last] - centerY) / halfStepSpacing).round();
+    }
+    for (var k = 0; k < last; k++) {
+      final lower = sortedLines[last - k];
+      final upper = sortedLines[last - k - 1];
+      if (centerY >= upper && lower > upper) {
+        return (2 * k + 2 * (lower - centerY) / (lower - upper)).round();
+      }
+    }
+    return 2 * last + ((sortedLines[0] - centerY) / halfStepSpacing).round();
   }
 
   /// Bass clef: F clef on line 4. Bottom staff line (line 1) = G2.

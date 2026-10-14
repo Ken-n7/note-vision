@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
 
+import '../../preprocessing/data/staff_line_tracer.dart';
 import '../../preprocessing/domain/preprocessed_result.dart';
 import '../domain/detected_staff.dart';
 import '../domain/detected_symbol.dart';
@@ -112,9 +113,23 @@ class TfliteSymbolDetector implements SymbolDetector {
       ),
     );
 
-    // The model has no staff class — staves come from the projector.
-    final mergedStaves = [...staves]..sort((a, b) => a.topY.compareTo(b.topY));
-    final afterClefStaves = _addClefStaves(nmsMusical, mergedStaves);
+    // The model has no staff class. Each clef first looks for the real lines
+    // it sits on, which follow a sloped or hand-ruled staff; failing that it
+    // gets a level staff sized from the clef. The projector's staves only
+    // fill in where there is no clef: on handwriting it often groups the
+    // wrong rows.
+    final tracedStaves = _tracedStaves(nmsMusical, fullImage);
+    final clefStaves = _addClefStaves(nmsMusical, tracedStaves);
+    final middleX = fullImage.width / 2;
+    final projectedStaves = [
+      for (final staff in staves)
+        if (!clefStaves.any(
+          (c) => c.containsY((staff.topY + staff.bottomY) / 2, x: middleX),
+        ))
+          staff,
+    ];
+    final afterClefStaves = [...clefStaves, ...projectedStaves]
+      ..sort((a, b) => a.topY.compareTo(b.topY));
     final allStaves = _addClusterStaves(nmsMusical, afterClefStaves);
     final symbols = _filterOutsideStaves(nmsMusical, allStaves);
 
@@ -122,8 +137,9 @@ class TfliteSymbolDetector implements SymbolDetector {
       '[TfliteSymbolDetector] ${fullImage.width}×${fullImage.height} → '
       '$_inputSize×$_inputSize | '
       '${allStaves.length} stave(s) '
-      '(${mergedStaves.length} projected, '
-      '${afterClefStaves.length - mergedStaves.length} clef-synthesized, '
+      '(${tracedStaves.length} traced, '
+      '${clefStaves.length - tracedStaves.length} clef-synthesized, '
+      '${projectedStaves.length} projected, '
       '${allStaves.length - afterClefStaves.length} cluster-synthesized) | '
       '${symbols.length} musical symbol(s)',
     );
@@ -179,18 +195,39 @@ class TfliteSymbolDetector implements SymbolDetector {
     MusicSymbol.clefF,
   };
 
-  // Standard music engraving proportions (in inter-line spaces):
+  // Proportions of written clefs, measured on the group's pages (a staff is
+  // 4 spaces tall). They differ from engraved clefs, which are 7 and 3 spaces.
   //
-  // G clef — tall glyph, extends ~2 spaces above line 5 (top staff line)
-  // and ~1 space below line 1 (bottom staff line). Total bbox height ≈ 7
-  // inter-line spaces. The top staff line is ~2 spaces below the clef top.
-  static const _gClefHeightInSpaces = 7.0;
-  static const _gClefSpacesAboveTopLine = 2.0;
+  // G clef — 1.48 staves tall and centred on the staff, so the top staff line
+  // sits ~0.96 spaces below the clef top.
+  static const _gClefHeightInSpaces = 4 * StaffLineTracer.gClefHeightInStaves;
+  static const _gClefSpacesAboveTopLine = _gClefHeightInSpaces / 2 - 2;
 
-  // F clef — compact glyph, roughly 3 inter-line spaces tall. The curl sits
-  // near line 4 (second from top), which is ~0.5 spaces below the clef top.
-  static const _fClefHeightInSpaces = 3.0;
-  static const _fClefSpacesAboveLine4 = 0.5; // line 4 = index 1 from top
+  // F clef — 0.85 staves tall, its middle 0.2 spaces below the staff's, so
+  // the top staff line sits ~0.5 spaces above the clef top.
+  static const _fClefHeightInSpaces = 4 * StaffLineTracer.fClefHeightInStaves;
+  static const _fClefSpacesAboveTopLine =
+      _fClefHeightInSpaces / 2 -
+      StaffLineTracer.fClefMiddleBelowStaffMiddle -
+      2;
+
+  /// A staff for each clef that sits on five traceable lines.
+  List<DetectedStaff> _tracedStaves(
+    List<DetectedSymbol> symbols,
+    img.Image image,
+  ) {
+    final clefs = symbols
+        .where((s) => _clefSymbols.contains(s.musicSymbol))
+        .toList();
+    if (clefs.isEmpty) return const [];
+
+    const tracer = StaffLineTracer();
+    return tracer.stavesAtClefs(tracer.candidates(image), [
+      for (final clef in clefs)
+        if (clef.boundingBox case final box?)
+          (isGClef: clef.musicSymbol == MusicSymbol.clefG, box: box),
+    ]);
+  }
 
   /// Tier-3 staff recovery: any detected clef whose center Y falls outside
   /// every already-known staff is unambiguous evidence of a missed staff.
@@ -217,26 +254,21 @@ class TfliteSymbolDetector implements SymbolDetector {
       final clefCenterY = box.center.dy;
 
       final covered = detectedStaves.any(
-        (s) => clefCenterY >= s.topY && clefCenterY <= s.bottomY,
+        (s) => s.containsY(clefCenterY, x: box.center.dx),
       );
       if (covered) continue;
 
       final List<double> lineYs;
 
       if (clef.musicSymbol == MusicSymbol.clefG) {
-        // lineSpacing derived from the known 7-space total height of the G clef.
         final lineSpacing =
             (box.height / _gClefHeightInSpaces).clamp(8.0, double.infinity);
-        // Top staff line (line 5) sits ~2 spaces below the top of the bbox.
         final topLineY = box.top + _gClefSpacesAboveTopLine * lineSpacing;
         lineYs = List.generate(5, (i) => topLineY + i * lineSpacing);
       } else {
-        // clefF: lineSpacing from the 3-space total height.
         final lineSpacing =
             (box.height / _fClefHeightInSpaces).clamp(8.0, double.infinity);
-        // Line 4 (index 1 from top) sits ~0.5 spaces below the bbox top.
-        final line4Y = box.top + _fClefSpacesAboveLine4 * lineSpacing;
-        final topLineY = line4Y - lineSpacing; // line 5 = one space above line 4
+        final topLineY = box.top + _fClefSpacesAboveTopLine * lineSpacing;
         lineYs = List.generate(5, (i) => topLineY + i * lineSpacing);
       }
 
@@ -406,6 +438,9 @@ class TfliteSymbolDetector implements SymbolDetector {
       ..sort((a, b) => a.topY.compareTo(b.topY)));
   }
 
+  /// Spaces beyond a staff's outer lines within which a symbol is kept.
+  static const _keepSpaces = 2.5;
+
   List<DetectedSymbol> _filterOutsideStaves(
     List<DetectedSymbol> symbols,
     List<DetectedStaff> staves,
@@ -414,8 +449,17 @@ class TfliteSymbolDetector implements SymbolDetector {
     return symbols.where((s) {
       final box = s.boundingBox;
       if (box == null) return true;
-      final centerY = box.center.dy;
-      return staves.any((staff) => centerY >= staff.topY && centerY <= staff.bottomY);
+      return staves.any((staff) {
+        if (staff.lineYs.length < 2) {
+          return staff.containsY(box.center.dy, x: box.center.dx);
+        }
+        // Up to two ledger lines above or below still belongs to the staff.
+        final space =
+            (staff.lineYs.last - staff.lineYs.first) / (staff.lineYs.length - 1);
+        final level = box.center.dy - staff.offsetAt(box.center.dx);
+        return level >= staff.lineYs.first - _keepSpaces * space &&
+            level <= staff.lineYs.last + _keepSpaces * space;
+      });
     }).toList();
   }
 
