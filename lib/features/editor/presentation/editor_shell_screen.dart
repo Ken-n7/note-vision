@@ -758,10 +758,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     setState(() => _setCurrentPageIndex(selectedPageIndex));
   }
 
-  Future<void> _playFromMeasure(int fromMeasureIndex) async {
+  Future<void> _playFromMeasure(int fromMeasureIndex, {int partIndex = 0}) async {
     await _playback.play(
       _editorState.score,
       fromMeasureIndex: fromMeasureIndex,
+      fromPartIndex: partIndex,
     );
     if (!mounted) return;
     if (_playback.status != PlaybackStatus.playing) {
@@ -967,6 +968,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         ? 0
         : _editorState.score.parts[selectedPartIndex].measures.length;
     final canDeleteMeasure = hasMeasureContext && measureCount > 1;
+    final measuresPerPart = _editorState.score.parts.isEmpty
+        ? 1
+        : _editorState.score.parts
+              .map((p) => p.measures.length)
+              .reduce((a, b) => a > b ? a : b)
+              .clamp(1, 1 << 30);
     final currentMeasureClef =
         _editorState.score.parts.isNotEmpty &&
             selectedPartIndex < _editorState.score.parts.length &&
@@ -1274,13 +1281,15 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 inspectorPanel: inspectorPanel,
                 playbackControls: PlaybackControlsBar(
                   isEmpty: scoreIsEmpty,
-                  totalMeasures: _editorState.score.parts.isEmpty
-                      ? 0
-                      : _editorState.score.parts
-                            .map((p) => p.measures.length)
-                            .reduce((a, b) => a > b ? a : b),
+                  // The scrubber covers every staff in reading order.
+                  measuresPerPart: measuresPerPart,
+                  totalMeasures:
+                      measuresPerPart * _editorState.score.parts.length,
                   onPlay: () => unawaited(
-                    _playFromMeasure(_editorState.selectedMeasureIndex ?? 0),
+                    _playFromMeasure(
+                      _editorState.selectedMeasureIndex ?? 0,
+                      partIndex: _editorState.selectedPartIndex ?? 0,
+                    ),
                   ),
                   onResume: () {
                     _playback.resume();
@@ -1293,7 +1302,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                     _playback.stop();
                   },
                   onTempoChanged: _setPlaybackTempo,
-                  onSeek: (measure) => unawaited(_playFromMeasure(measure)),
+                  onSeek: (step) => unawaited(
+                    _playFromMeasure(
+                      step % measuresPerPart,
+                      partIndex: step ~/ measuresPerPart,
+                    ),
+                  ),
                 ),
               );
             },

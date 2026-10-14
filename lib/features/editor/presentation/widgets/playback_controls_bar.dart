@@ -19,6 +19,7 @@ class PlaybackControlsBar extends StatefulWidget {
     required this.onTempoChanged,
     required this.totalMeasures,
     required this.onSeek,
+    this.measuresPerPart,
     this.isEmpty = false,
   });
 
@@ -27,7 +28,12 @@ class PlaybackControlsBar extends StatefulWidget {
   final VoidCallback onPause;
   final VoidCallback onStop;
   final ValueChanged<int> onTempoChanged;
+  /// Scrubber steps: measures of every part in reading order, part by part.
   final int totalMeasures;
+
+  /// Measures in one part, to place a (part, measure) position on the
+  /// scrubber; null when the score has a single part.
+  final int? measuresPerPart;
   final ValueChanged<int> onSeek;
 
   /// When true all controls are disabled and greyed out (empty score).
@@ -112,6 +118,7 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: _Scrubber(
                     totalMeasures: widget.totalMeasures,
+                    measuresPerPart: widget.measuresPerPart,
                     isPlaying: isPlaying,
                     onSeek: widget.onSeek,
                   ),
@@ -177,11 +184,13 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
 class _Scrubber extends StatefulWidget {
   const _Scrubber({
     required this.totalMeasures,
+    required this.measuresPerPart,
     required this.isPlaying,
     required this.onSeek,
   });
 
   final int totalMeasures;
+  final int? measuresPerPart;
   final bool isPlaying;
   final ValueChanged<int> onSeek;
 
@@ -196,7 +205,9 @@ class _ScrubberState extends State<_Scrubber> {
   double _toFraction(PlaybackPosition pos) {
     if (widget.totalMeasures <= 0) return 0;
     if (pos == PlaybackPosition.none) return 0;
-    return (pos.measureIndex / widget.totalMeasures).clamp(0.0, 1.0);
+    final step =
+        pos.partIndex * (widget.measuresPerPart ?? 0) + pos.measureIndex;
+    return (step / widget.totalMeasures).clamp(0.0, 1.0);
   }
 
   void _onDragStart(DragStartDetails d, double width) {

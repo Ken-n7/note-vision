@@ -227,9 +227,29 @@ class PlaybackService {
 
   // ── Playback control ───────────────────────────────────────────────────
 
-  /// Starts playback from [fromMeasureIndex] (default 0 = beginning).
+  /// Index of the first event at or after measure [measureIndex] of part
+  /// [partIndex]. Events run part by part, so earlier parts are skipped.
+  static int startIndex(
+    List<PlaybackEvent> events, {
+    required int partIndex,
+    required int measureIndex,
+  }) {
+    final i = events.indexWhere(
+      (e) =>
+          e.partIndex > partIndex ||
+          (e.partIndex == partIndex && e.measureIndex >= measureIndex),
+    );
+    return i < 0 ? 0 : i;
+  }
+
+  /// Starts playback from measure [fromMeasureIndex] of part [fromPartIndex]
+  /// (default: the beginning), then carries on through the later parts.
   /// Safe to call while already playing (stops previous playback first).
-  Future<void> play(Score score, {int fromMeasureIndex = 0}) async {
+  Future<void> play(
+    Score score, {
+    int fromMeasureIndex = 0,
+    int fromPartIndex = 0,
+  }) async {
     if (_status == PlaybackStatus.playing) stop();
     if (!_initialized) await init();
     if (_status == PlaybackStatus.error) return;
@@ -237,10 +257,11 @@ class PlaybackService {
     _events = _converter.buildEvents(score);
     if (_events.isEmpty) return;
 
-    _currentEventIndex = fromMeasureIndex <= 0
-        ? 0
-        : _events.indexWhere((e) => e.measureIndex >= fromMeasureIndex);
-    if (_currentEventIndex < 0) _currentEventIndex = 0;
+    _currentEventIndex = startIndex(
+      _events,
+      partIndex: fromPartIndex,
+      measureIndex: fromMeasureIndex,
+    );
 
     _shouldPlay = true;
     _emitState(PlaybackStatus.playing);
