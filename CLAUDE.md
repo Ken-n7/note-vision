@@ -9,11 +9,11 @@
 ## What This App Is
 
 Note Vision is a fully offline Flutter mobile app for Optical Music Recognition (OMR).
-The user photographs printed sheet music, the app detects musical symbols using an on-device
+The user photographs handwritten sheet music, the app detects musical symbols using an on-device
 TFLite YOLO model, reconstructs the symbols into a digital score, lets the user correct
 mistakes in an editor, then exports or plays back the result. No internet. No server. Everything on-device.
 
-**Target users:** Music students, teachers, musicians who want to digitize printed scores quickly.
+**Target users:** Music students, teachers, musicians who want to digitize handwritten scores quickly.
 
 **Platform:** Android + iOS (Flutter). Also builds for Linux desktop but mobile is primary.
 
@@ -35,7 +35,7 @@ mistakes in an editor, then exports or plays back the result. No internet. No se
 |---------|---------------|
 | Framework | Flutter (Dart) |
 | ML inference | tflite_flutter 0.12.1 |
-| ML model | YOLO26n — 9 handwritten symbol classes (Fclef, Gclef, eighth/half/quarter/sixteenth/whole note, half/whole rest) |
+| ML model | YOLO26n at 960×960 — 24 handwritten symbol classes (model B6): clefs, 5 note values, 5 rests, beam, sharp/flat/natural, time-sig digits 2/3/4/6/8, C, cut time, augmentation dot |
 | Image processing | image 4.8.0 |
 | XML parsing | xml 6.5.0 |
 | File picking | file_picker 8.1.2 |
@@ -57,19 +57,25 @@ Camera / Gallery / MusicXML file
 1. Preprocessing
    BasicImagePreprocessor — grayscale, orientation-corrected, full resolution
         ↓
-2. Staff Line Detection
-   HorizontalProjectionStaffDetector — finds 5 line Y positions per stave
-   Populates DetectedStaff.lineYs for pitch reconstruction
+2. Staff Line Detection (projector)
+   HorizontalProjectionStaffDetector — level, evenly ruled staves only; on
+   handwriting it is a last resort (see step 3)
         ↓
-3. Symbol Detection
-   TfliteSymbolDetector — full image stretched to 640×640 (no tiling/letterbox)
-   YOLO26n FP32 LiteRT, NCHW input, raw [1,13,8400] output, Dart NMS, confidence 0.40 (rests 0.30)
-   Each note box is one whole symbol (head+stem+flag); it is shrunk to a printed-size
-   notehead centred in the darker end band (for pitch), and the note value travels
-   in metadata['noteType']
-   No staff/barline/accidental/time-sig classes — staves come from the projector,
-   measures split by summed note/rest beat values (MeasureGrouper._splitByBeats)
-   SyntheticStaffBuilder fallback when neither source produces staves
+3. Symbol Detection + staves + barlines
+   TfliteSymbolDetector — full image stretched to 960×960 (no tiling/letterbox)
+   YOLO26n FP32 LiteRT, NCHW input, raw [1,28,18900] output, Dart NMS, confidence 0.40 (rests 0.30)
+   Each note box is one whole symbol (head+stem+flag); it is shrunk to its notehead
+   (for pitch), the model's whole box is kept in metadata['fullBox'] and the note
+   value in metadata['noteType']. Beam boxes turn beamed quarters into 8ths/16ths.
+   Staves, in order of preference:
+     StaffLineTracer — follows each drawn line across the page (hand-ruled, sloped,
+       bent staves); each detected clef picks the five lines it sits on.
+       DetectedStaff.offsetAt(x) carries the slope/bend; pitch, staff assignment,
+       time-sig digits and the overlay all read the staff where the symbol stands.
+     clef-sized level staff (handwritten proportions: G clef 1.48 staves tall, F 0.85)
+     projector staves where there is no clef; cluster/synthetic fallbacks after that
+   BarlineFinder — thin full-staff-height strokes that are not inside a clef or
+     stemmed-note box and stop at the staff → DetectionResult.barlines
         ↓
 4. Reconstruction Pipeline
    StaffAssigner → MeasureGrouper → StemAssociator
@@ -115,7 +121,7 @@ lib/
     collection/                      CollectionScreen — saved score grid + project list (merged)
     capture/                         CaptureScreen — camera + gallery
     scan/                            ScanScreen + ScanViewModel — pipeline orchestrator
-    preprocessing/                   BasicImagePreprocessor
+    preprocessing/                   BasicImagePreprocessor, StaffLineTracer, BarlineFinder
     detection/                       TfliteSymbolDetector, DetectionResult models
     mapping/                         Full reconstruction pipeline
       domain/
@@ -156,7 +162,7 @@ lib/
       export_file_name.dart          Shared `safeExportFileName(title)` used by both XML and PDF export
 
 assets/
-  models/best.tflite                 YOLO26n model — 640×640 FP32, 9 classes
+  models/best.tflite                 YOLO26n model B6 — 960×960 FP32, 24 classes
   fonts/                             MaturaMTScriptCapitals
   images/                            notevision.png logo
   soundfonts/piano.sf2               GM SF2 soundfont for MIDI playback (not committed — see README.txt)
@@ -193,9 +199,10 @@ All screens use the same dark theme. Never use light colors unless it is a notat
 
 These are final unless explicitly changed:
 
-- **Model:** `assets/models/best.tflite` — YOLO26n, 640×640 FP32 LiteRT, 9 handwritten classes, trained on stretched grayscale images
-- **Tiling strategy:** No tiling — full image always stretched to 640×640 (no letterbox, no stave-based cropping). Model was trained on full-page stretches.
-- **Staff detection:** Two sources merged — model `combStaff` detections (preferred) + `HorizontalProjectionStaffDetector` supplement + `SyntheticStaffBuilder` fallback. `SyntheticStaffBuilder` uses notehead Y distribution to estimate staff geometry when no staves detected.
+- **Model:** `assets/models/best.tflite` — YOLO26n model B6, 960×960 FP32 LiteRT, 24 handwritten classes, trained on stretched grayscale images (data project and training notebooks live outside this repo)
+- **Tiling strategy:** No tiling — full image always stretched to 960×960 (no letterbox, no stave-based cropping). Model was trained on full-page stretches.
+- **Staff detection:** `StaffLineTracer` per clef (preferred) → clef-sized level staff → `HorizontalProjectionStaffDetector` where no clef → cluster / `SyntheticStaffBuilder` fallbacks. A staff with no clef of its own is read in the clef of the nearest staff above (else below).
+- **Bars:** split at barlines found by `BarlineFinder`; a staff with none falls back to beat counting. `ScoreBuilder` pads parts to equal measure counts because the editor pages by measure index.
 - **Notation renderer:** CustomPainter — not a text list, not an SVG library
 - **Undo/redo:** Whole-state snapshot, max 50 entries, new edit clears redo stack
 - **Insert default:** C4 quarter note / quarter rest, appended to end of selected measure, auto-selected after insert — only via drag-from-palette. The INSERT inspector button group was removed (redundant with drag-drop). `insertNoteAfterSelection()` / `insertRestAfterSelection()` still exist in `EditorActions` for future use.
@@ -208,7 +215,7 @@ These are final unless explicitly changed:
 - **Save/load:** JSON files in app documents directory via path_provider. Project index in shared_preferences.
 - **Export filename:** shared `safeExportFileName(title)` in `lib/core/utils/export_file_name.dart`.
 - **Delete symbol:** drag-to-trash gesture — drag a symbol to the trash zone in `EditorShellScreen`; no separate delete button. In portrait mode the trash zone overlays the inspector bar (`bottom: 0, height: _kInspectorBarHeight`) while a drag is active so it stays reachable at the bottom edge.
-- **Portrait inspector:** `_BottomInspectorBar` — a 56 px horizontal bar (`_kInspectorBarHeight = 56.0`) above `PlaybackControlsBar` with four tab buttons (PITCH, ACCIDENTAL, DURATION, MEASURE). Tapping a tab opens a popup that floats upward; action buttons keep the popup open so the user can press repeatedly (e.g. Up/Down multiple times). Close by re-tapping the same tab or tapping the canvas. Landscape keeps the original side-panel layout.
+- **Portrait inspector:** `_BottomInspectorBar` — a 56 px horizontal bar (`_kInspectorBarHeight = 56.0`) above `PlaybackControlsBar` with six tab buttons (PITCH, ACCIDENTAL, CLEF, TIME, DURATION, MEASURE). TIME sets 2/4, 3/4, 4/4, 2/2, 3/8 or 6/8 on the selected measure in every part. Tapping a tab opens a popup that floats upward; action buttons keep the popup open so the user can press repeatedly (e.g. Up/Down multiple times). Close by re-tapping the same tab or tapping the canvas. Landscape keeps the original side-panel layout.
 - **In-project scan:** "Scan Page" icon button (`Icons.add_photo_alternate_rounded`) in `_EditorHeader`, disabled during playback. Tapping shows a bottom sheet (Camera / Gallery), picks image, then pushes `ScanScreenProvider(appendMode: true)`. On "Continue", `ScanScreen` pops with the scanned `Score` instead of pushing `EditorShellScreen`. The editor merges parts by index (min of current vs scanned part count), renumbers all measures, pushes to undo stack, and jumps to the last page.
 - **Scan preferences:** `ScanPreferencesService` stores two booleans in SharedPreferences (`scan_skip_preview`, `scan_skip_review`, both default `false`). Toggles live in a "SCAN SETTINGS" section at the bottom of `ProfileStatsScreen`. Skip-preview skips the image preview in `CaptureScreen` and goes straight to scanning. Skip-review auto-advances past the detection results screen in `ScanScreen` when detections are found (guarded by `_autoNavigated` flag to prevent double-fire).
 - **Playback lock:** all editor interactions (symbol tap, drag, palette, insert mode, inspector tiles, undo/redo) are disabled when `PlaybackStatus.playing`. Pan/zoom is unaffected. `paused` leaves interactions enabled so the user can edit between playback sessions.
@@ -309,20 +316,20 @@ deleteMeasureFromAllParts(measureIndex)      // renumbers all measures 1-indexed
 |---------|--------|
 | Single treble clef stave | ✅ Works |
 | Multi-stave (one Part per staff) | ✅ Works |
-| Staff assignment | ✅ Works — model combStaff detections preferred, projector supplement, synthetic fallback |
-| Measure grouping from barlines | ✅ Works |
+| Staff assignment | ✅ Works — traced staves (follow slope/bend), clef-sized, projector and synthetic fallbacks |
+| Measure grouping from barlines | ✅ Works — barlines found in the image; one drawn against a note is taken for its stem and missed |
 | Note reconstruction (whole/half/quarter/eighth/sixteenth) | ✅ Works — noteheadBlack without stem assumed quarter |
 | Rest reconstruction (whole/half/quarter/eighth/sixteenth) | ✅ Works |
 | Pitch calculation from staff position | ✅ Works — treble + bass clef both supported |
 | Stem/flag/beam association | ✅ Works |
 | Key signature | ✅ Works — accidental cluster count → fifths |
-| Time signature | ✅ Works — digit pair + common/cut |
+| Time signature | ✅ Works — digit pair + common/cut; editable in the editor's TIME tab |
 | Accidentals on individual notes | ✅ Works — proximity match to notehead |
 | Beamed eighth notes | ✅ Works |
 | Bass clef (fClef) pitch reconstruction | ✅ Works |
 | SyntheticStaffBuilder fallback | ✅ Works — estimates staff from notehead Y distribution |
 | Grand staff | ❌ Not supported |
-| Chords | ❌ Not supported |
+| Chords | ❌ Not detected — the model reads two heads on one stem as one note |
 | Ties, slurs, tuplets | ❌ Not supported |
 
 ---
@@ -368,17 +375,17 @@ These are current limitations, not hard ceilings — going beyond them is fine i
 
 - Bass clef rendering ✅ done in editor and PDF export; alto clef, tenor clef still unsupported
 - Grand staff (two staves, piano LH+RH)
-- Chords ✅ reconstructed from scan; not editable in editor yet
+- Chords: the model has no class for a second notehead on a stem, so a scanned chord becomes one note
 - Dotted note/rest rhythms ✅ reconstructed from scan
 - Repeat barlines ✅ detected and exported to MusicXML
 - Ties, slurs, tuplets
-- Sixteenth notes or smaller
+- 32nd notes or smaller
 - Grace notes, ornaments
 - Dynamics, articulations, tempo markings
 - D.C., D.S., coda
 - Multiple voices on one staff
 - Lyrics
-- Handwritten music
+- Printed (engraved) music — the model is trained on handwriting only
 - Cloud sync, accounts, collaboration
 - Any network call of any kind
 
