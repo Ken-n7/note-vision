@@ -993,6 +993,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               final isLandscape = constraints.maxWidth > constraints.maxHeight;
 
               final notationArea = _NotationArea(
+                // In portrait the selection card floats over the top of the
+                // canvas; the zoom controls float over its bottom edge.
+                fitInsets: EdgeInsets.only(
+                  top: isLandscape ? 0 : _kSelectionCardReserve,
+                  bottom: _kFloatingControlsReserve,
+                ),
                 editorState: _editorState,
                 layoutPolicy: _pageMetrics.layoutPolicy,
                 pageFirstMeasure: _pageMetrics.pageFirstMeasure,
@@ -1807,8 +1813,15 @@ class _EditorHeader extends StatelessWidget {
 // Inspector bar height (portrait bottom action bar, sits above PlaybackControlsBar).
 const double _kInspectorBarHeight = 56.0;
 
+/// Canvas height hidden by the selection card in portrait (8 px gap, the
+/// compact card, 8 px gap) and by the floating zoom controls at the bottom.
+/// The page is fitted between them so its first and last staves show.
+const double _kSelectionCardReserve = 64.0;
+const double _kFloatingControlsReserve = 46.0;
+
 class _NotationArea extends StatefulWidget {
   const _NotationArea({
+    this.fitInsets = EdgeInsets.zero,
     required this.editorState,
     required this.layoutPolicy,
     required this.pageFirstMeasure,
@@ -1839,6 +1852,9 @@ class _NotationArea extends StatefulWidget {
     required this.onExternalDrop,
   });
 
+  /// Strips of the viewport covered by floating UI; fit-to-screen keeps the
+  /// page out of them.
+  final EdgeInsets fitInsets;
   final EditorState editorState;
   final EditorLayoutPolicy layoutPolicy;
   final int pageFirstMeasure;
@@ -1940,15 +1956,17 @@ class _NotationAreaState extends State<_NotationArea>
     if (viewport == null || content == null) return;
     if (viewport.width <= 0 || viewport.height <= 0) return;
 
+    final freeHeight = viewport.height - widget.fitInsets.vertical;
+    if (freeHeight <= 0) return;
+
     final scale =
-        math.min(
-          viewport.width / content.width,
-          viewport.height / content.height,
-        ) *
+        math.min(viewport.width / content.width, freeHeight / content.height) *
         0.90;
 
     final tx = (viewport.width - content.width * scale) / 2;
-    final ty = math.max(8.0, (viewport.height - content.height * scale) / 2);
+    final ty =
+        widget.fitInsets.top +
+        math.max(8.0, (freeHeight - content.height * scale) / 2);
 
     _transformController.value = Matrix4.identity()
       ..setEntry(0, 0, scale)
@@ -1967,7 +1985,7 @@ class _NotationAreaState extends State<_NotationArea>
     final cy = viewport.height / 2;
 
     final current = _transformController.value;
-    final currentScale = current.getMaxScaleOnAxis();
+    final currentScale = _scale;
     final translation = current.getTranslation();
 
     // Scale around the viewport centre.
@@ -1982,8 +2000,11 @@ class _NotationAreaState extends State<_NotationArea>
       ..setEntry(1, 3, newTy);
   }
 
-  int get _zoomPercent =>
-      (_transformController.value.getMaxScaleOnAxis() * 100).round();
+  // The page is scaled evenly in x and y. getMaxScaleOnAxis also looks at the
+  // untouched z axis, so it reads 1.0 for any zoom below 100 %.
+  double get _scale => _transformController.value.entry(0, 0);
+
+  int get _zoomPercent => (_scale * 100).round();
 
   Size _computeContentSize() {
     final score = widget.editorState.score;
@@ -2363,9 +2384,8 @@ class _FloatingControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Row(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         if (showInsertToggle) ...[
           GestureDetector(
@@ -2407,7 +2427,7 @@ class _FloatingControls extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(width: 6),
         ],
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),

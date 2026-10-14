@@ -433,7 +433,7 @@ class _CaptureScreenState extends State<CaptureScreen>
         ),
         const SizedBox(height: 6),
         const Text(
-          'Scan printed music sheets and convert them into digital notation.',
+          'Scan handwritten music sheets and convert them into digital notation.',
           style: TextStyle(fontSize: 14, color: _textSecondary, height: 1.5),
         ),
         const SizedBox(height: 16),
