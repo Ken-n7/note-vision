@@ -11,7 +11,13 @@ class InstructionsScreen extends StatelessWidget {
       icon: Icons.camera_alt_outlined,
       title: 'Scan',
       description:
-          'Take a photo of sheet music using your camera, or import an image from your gallery.',
+          'Take a photo of handwritten sheet music with your camera, or pick one from your gallery. Lay the page flat, in good light, and fill the frame.',
+    ),
+    _Step(
+      icon: Icons.visibility_outlined,
+      title: 'What the scanner reads',
+      description:
+          'Treble and bass clefs; whole, half, quarter, eighth and sixteenth notes and rests; beams and dots; sharps, flats and naturals; time signatures 2, 3, 4, 6, 8, C and cut time. Barlines are found by a separate step. Chords, ties, slurs and printed music are not read.',
     ),
     _Step(
       icon: Icons.playlist_add_check_outlined,
@@ -23,7 +29,13 @@ class InstructionsScreen extends StatelessWidget {
       icon: Icons.edit_outlined,
       title: 'Edit the Score',
       description:
-          'Use the editor to correct notes, adjust pitches and durations, add accidentals, or insert and delete symbols.',
+          'Use the editor to correct notes, adjust pitches and durations, add accidentals, or insert and delete symbols. Hold a symbol to drag it; drop it on the bin to delete it.',
+    ),
+    _Step(
+      icon: Icons.label_outline_rounded,
+      title: 'Genre',
+      description:
+          'Each score is labelled Waltz, Kundiman or Jazz from its melody, by an on-device model. Short or unusual melodies get a best guess from the time signature and key.',
     ),
     _Step(
       icon: Icons.play_circle_outline_rounded,

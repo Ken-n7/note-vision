@@ -108,6 +108,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   _EditorBannerData? _banner;
   Timer? _bannerTimer;
 
+  /// Genre shown in the header. Worked out again shortly after the edits
+  /// stop, so pressing keys stays quick while the genre model runs.
+  ScoreLabel? _scoreLabel;
+  Timer? _scoreLabelTimer;
+
   int _currentPageIndex = 0;
 
   EditorLayoutPolicy get _layoutPolicy =>
@@ -158,6 +163,16 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     _loadPlaybackDisplayPreferences();
     _loadScoreEditCount();
     _loadRole();
+    _scoreLabel = ScoreClassifier.classify(_editorState.score);
+  }
+
+  void _scheduleScoreLabelUpdate() {
+    _scoreLabelTimer?.cancel();
+    _scoreLabelTimer = Timer(const Duration(milliseconds: 600), () {
+      if (!mounted) return;
+      final label = ScoreClassifier.classify(_editorState.score);
+      if (label != _scoreLabel) setState(() => _scoreLabel = label);
+    });
   }
 
   Future<void> _loadRole() async {
@@ -223,6 +238,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       _onPlaybackDisplayPreferencesChanged,
     );
     _bannerTimer?.cancel();
+    _scoreLabelTimer?.cancel();
     _playback.stop();
     _dragGhostEntry?.remove();
     _ghostPosition.dispose();
@@ -236,6 +252,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         'half' => PaletteSymbolType.halfNote,
         'quarter' => PaletteSymbolType.quarterNote,
         'eighth' => PaletteSymbolType.eighthNote,
+        'sixteenth' || '16th' => PaletteSymbolType.sixteenthNote,
         _ => null,
       };
     }
@@ -243,7 +260,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       return switch (symbol.type.trim().toLowerCase()) {
         'whole' => PaletteSymbolType.wholeRest,
         'half' => PaletteSymbolType.halfRest,
-        'quarter' || 'eighth' => PaletteSymbolType.quarterRest,
+        'quarter' => PaletteSymbolType.quarterRest,
+        'eighth' => PaletteSymbolType.eighthRest,
+        'sixteenth' || '16th' => PaletteSymbolType.sixteenthRest,
         _ => null,
       };
     }
@@ -257,9 +276,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       await _storage.saveProject(project);
       return true;
     } catch (e) {
+      debugPrint('Save failed: $e');
       _showEditorBanner(
         _EditorBannerData.error(
-          'Save failed: $e',
+          'Could not save. Check the phone has free space, then retry.',
           duration: const Duration(seconds: 6),
           actionLabel: 'Retry',
           onAction: _onSave,
@@ -281,10 +301,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       if (!context.mounted) return;
       _showEditorBanner(_EditorBannerData.success(successMessage));
     } catch (e) {
+      debugPrint('Export failed: $e');
       _showEditorBanner(
-        _EditorBannerData.error(
-          'Export failed: $e',
-          duration: const Duration(seconds: 6),
+        const _EditorBannerData.error(
+          'Could not export the score. Try again.',
+          duration: Duration(seconds: 6),
         ),
       );
     }
@@ -645,6 +666,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       }
       _jumpToLastPage();
     });
+    _scheduleScoreLabelUpdate();
   }
 
   Future<void> _handlePopAttempt() async {
@@ -824,6 +846,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
   void _updateState(EditorState Function(EditorState state) updater) {
     if (_isReviewMode) return;
+    final prevScore = _editorState.score;
     setState(() {
       final prev = _editorState;
       final nextState = updater(_editorState);
@@ -834,6 +857,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         unawaited(UsageStatsService.incrementScoreEdits(_editorState.score.id));
       }
     });
+    if (!identical(_editorState.score, prevScore)) _scheduleScoreLabelUpdate();
   }
 
   void _onNotationSymbolTap(int partIndex, int measureIndex, int symbolIndex) {
@@ -911,12 +935,26 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           duration: 1,
           type: 'eighth',
         );
+      case PaletteSymbolType.sixteenthNote:
+        return Note(
+          step: target.step,
+          octave: target.octave.clamp(1, 7).toInt(),
+          duration: sixteenthDuration.divisions,
+          type: sixteenthDuration.type,
+        );
       case PaletteSymbolType.wholeRest:
         return const Rest(duration: 8, type: 'whole');
       case PaletteSymbolType.halfRest:
         return const Rest(duration: 4, type: 'half');
       case PaletteSymbolType.quarterRest:
         return const Rest(duration: 2, type: 'quarter');
+      case PaletteSymbolType.eighthRest:
+        return const Rest(duration: 1, type: 'eighth');
+      case PaletteSymbolType.sixteenthRest:
+        return Rest(
+          duration: sixteenthDuration.divisions,
+          type: sixteenthDuration.type,
+        );
     }
   }
 
@@ -1181,6 +1219,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       onEighth: () => _updateState(
                         (s) => s.setSelectedDuration(eighthDuration),
                       ),
+                      onSixteenth: () => _updateState(
+                        (s) => s.setSelectedDuration(sixteenthDuration),
+                      ),
                       onSetAccidental: (alter) => _updateState(
                         (s) => s.setSelectedNoteAccidental(alter),
                       ),
@@ -1238,7 +1279,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                           : _editorState.score.title),
                   hasUnsavedChanges: _editorState.hasUnsavedChanges,
                   editCount: _scoreEditCount,
-                  scoreLabel: ScoreClassifier.classify(_editorState.score),
+                  scoreLabel: _scoreLabel,
                   isReviewMode: isReadOnly,
                   reviewModeLabel: _canEditTeacherComments
                       ? 'Review Mode'
@@ -1477,7 +1518,9 @@ class _TransientEditorBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    return Semantics(
+      liveRegion: true,
+      child: Material(
       color: Colors.transparent,
       child: Container(
         decoration: BoxDecoration(
@@ -1520,6 +1563,7 @@ class _TransientEditorBanner extends StatelessWidget {
             ],
           ],
         ),
+      ),
       ),
     );
   }
@@ -1612,7 +1656,7 @@ class _EditorHeader extends StatelessWidget {
   final String title;
   final bool hasUnsavedChanges;
   final int editCount;
-  final ScoreLabel scoreLabel;
+  final ScoreLabel? scoreLabel;
   final bool isReviewMode;
   final String reviewModeLabel;
   final bool canUndo;
@@ -1710,7 +1754,10 @@ class _EditorHeader extends StatelessWidget {
                       children: [
                         Flexible(
                           child: Text(
-                            '${isReviewMode ? reviewModeLabel : 'Score Editor'} · ${scoreLabel.displayName}',
+                            [
+                              isReviewMode ? reviewModeLabel : 'Score Editor',
+                              if (scoreLabel != null) scoreLabel!.displayName,
+                            ].join(' · '),
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: AppColors.textSecondary,
@@ -1924,12 +1971,10 @@ class _NotationAreaState extends State<_NotationArea>
       vsync: this,
       duration: const Duration(seconds: 1),
     );
-    _transformController.addListener(_onTransformChanged);
   }
 
   @override
   void dispose() {
-    _transformController.removeListener(_onTransformChanged);
     _transformController.dispose();
     _playheadController.dispose();
     super.dispose();
@@ -1968,7 +2013,6 @@ class _NotationAreaState extends State<_NotationArea>
     return rel;
   }
 
-  void _onTransformChanged() => setState(() {});
 
   void _fitToScreen() {
     final viewport = _viewportSize;
@@ -2024,7 +2068,6 @@ class _NotationAreaState extends State<_NotationArea>
   // untouched z axis, so it reads 1.0 for any zoom below 100 %.
   double get _scale => _transformController.value.entry(0, 0);
 
-  int get _zoomPercent => (_scale * 100).round();
 
   Size _computeContentSize() {
     final score = widget.editorState.score;
@@ -2330,8 +2373,12 @@ class _NotationAreaState extends State<_NotationArea>
               Positioned(
                 right: 8,
                 bottom: 8,
-                child: _FloatingControls(
-                  zoomPercent: _zoomPercent,
+                // Only the zoom readout follows pan and zoom; rebuilding the
+                // page on every frame would repaint the whole score.
+                child: ValueListenableBuilder<Matrix4>(
+                  valueListenable: _transformController,
+                  builder: (context, transform, _) => _FloatingControls(
+                  zoomPercent: (transform.entry(0, 0) * 100).round(),
                   insertMode: widget.insertMode && !widget.isPlaybackActive,
                   showInsertToggle: !widget.isReadOnly,
                   onZoomIn: _zoomIn,
@@ -2340,6 +2387,7 @@ class _NotationAreaState extends State<_NotationArea>
                   onToggleInsertMode: widget.isPlaybackActive
                       ? () {}
                       : widget.onToggleInsertMode,
+                ),
                 ),
               ),
             ],
@@ -2364,9 +2412,12 @@ class _NotationAreaState extends State<_NotationArea>
     PaletteSymbolType.halfNote => 'half note',
     PaletteSymbolType.quarterNote => 'quarter note',
     PaletteSymbolType.eighthNote => 'eighth note',
+    PaletteSymbolType.sixteenthNote => 'sixteenth note',
     PaletteSymbolType.wholeRest => 'whole rest',
     PaletteSymbolType.halfRest => 'half rest',
     PaletteSymbolType.quarterRest => 'quarter rest',
+    PaletteSymbolType.eighthRest => 'eighth rest',
+    PaletteSymbolType.sixteenthRest => 'sixteenth rest',
   };
 
   NotationPreviewGlyph? _previewGlyphForDragData(Object data) {
@@ -2376,9 +2427,12 @@ class _NotationAreaState extends State<_NotationArea>
       PaletteSymbolType.halfNote => NotationPreviewGlyph.halfNote,
       PaletteSymbolType.quarterNote => NotationPreviewGlyph.quarterNote,
       PaletteSymbolType.eighthNote => NotationPreviewGlyph.eighthNote,
+      PaletteSymbolType.sixteenthNote => NotationPreviewGlyph.sixteenthNote,
       PaletteSymbolType.wholeRest => NotationPreviewGlyph.wholeRest,
       PaletteSymbolType.halfRest => NotationPreviewGlyph.halfRest,
       PaletteSymbolType.quarterRest => NotationPreviewGlyph.quarterRest,
+      PaletteSymbolType.eighthRest => NotationPreviewGlyph.eighthRest,
+      PaletteSymbolType.sixteenthRest => NotationPreviewGlyph.sixteenthRest,
     };
   }
 }
@@ -2408,7 +2462,14 @@ class _FloatingControls extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (showInsertToggle) ...[
-          GestureDetector(
+          Semantics(
+            button: true,
+            toggled: insertMode,
+            label: insertMode
+                ? 'Insert mode on. Tap to switch to select mode'
+                : 'Select mode. Tap to switch to insert mode',
+            excludeSemantics: true,
+            child: GestureDetector(
             onTap: onToggleInsertMode,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
@@ -2447,6 +2508,7 @@ class _FloatingControls extends StatelessWidget {
               ),
             ),
           ),
+          ),
           const SizedBox(width: 6),
         ],
         Container(
@@ -2459,7 +2521,11 @@ class _FloatingControls extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _ZoomBtn(icon: Icons.remove_rounded, onPressed: onZoomOut),
+              _ZoomBtn(
+                icon: Icons.remove_rounded,
+                tooltip: 'Zoom out',
+                onPressed: onZoomOut,
+              ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: Text(
@@ -2471,10 +2537,15 @@ class _FloatingControls extends StatelessWidget {
                   ),
                 ),
               ),
-              _ZoomBtn(icon: Icons.add_rounded, onPressed: onZoomIn),
+              _ZoomBtn(
+                icon: Icons.add_rounded,
+                tooltip: 'Zoom in',
+                onPressed: onZoomIn,
+              ),
               const SizedBox(width: 2),
               _ZoomBtn(
                 icon: Icons.fit_screen_rounded,
+                tooltip: 'Fit page',
                 onPressed: onFitToScreen,
               ),
             ],
@@ -2486,19 +2557,25 @@ class _FloatingControls extends StatelessWidget {
 }
 
 class _ZoomBtn extends StatelessWidget {
-  const _ZoomBtn({required this.icon, required this.onPressed});
+  const _ZoomBtn({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
 
   final IconData icon;
+  final String tooltip;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 28,
-      height: 28,
+      width: 36,
+      height: 36,
       child: IconButton(
         onPressed: onPressed,
-        icon: Icon(icon, size: 14),
+        tooltip: tooltip,
+        icon: Icon(icon, size: 16),
         color: onPressed != null
             ? AppColors.textPrimary
             : AppColors.textSecondary.withValues(alpha: 0.4),
@@ -2836,6 +2913,7 @@ class _InspectorPanel extends StatefulWidget {
     required this.onHalf,
     required this.onQuarter,
     required this.onEighth,
+    required this.onSixteenth,
     required this.onSetAccidental,
     required this.currentMeasureClef,
     required this.currentTimeSignature,
@@ -2868,6 +2946,7 @@ class _InspectorPanel extends StatefulWidget {
   final VoidCallback onHalf;
   final VoidCallback onQuarter;
   final VoidCallback onEighth;
+  final VoidCallback onSixteenth;
   final void Function(int? alter) onSetAccidental;
   final Clef? currentMeasureClef;
   final TimeSignature? currentTimeSignature;
@@ -2932,10 +3011,7 @@ class _InspectorPanelState extends State<_InspectorPanel> {
         : widget.selected is Rest
         ? (widget.selected as Rest).dots
         : 0;
-    final canDot =
-        currentType != null &&
-        currentType != 'eighth' &&
-        currentType != 'sixteenth';
+    final canDot = currentType != null;
     final isDotted = currentDots > 0;
 
     return [
@@ -3026,6 +3102,7 @@ class _InspectorPanelState extends State<_InspectorPanel> {
                   : null,
             ),
           ),
+          if (AppFeatures.cClefs) ...[
           _ClefTile(
             shortLabel: 'C3',
             label: 'Alto',
@@ -3046,6 +3123,7 @@ class _InspectorPanelState extends State<_InspectorPanel> {
                   : null,
             ),
           ),
+          ],
         ],
       ),
       _ActionGroup(
@@ -3103,6 +3181,14 @@ class _InspectorPanelState extends State<_InspectorPanel> {
             isActive: currentType == 'eighth',
             onPressed: _wrapAction(
               widget.hasSelection ? widget.onEighth : null,
+            ),
+          ),
+          _DurTile(
+            label: '♬',
+            sublabel: '16th',
+            isActive: currentType == 'sixteenth' || currentType == '16th',
+            onPressed: _wrapAction(
+              widget.hasSelection ? widget.onSixteenth : null,
             ),
           ),
           _DurTile(
@@ -3320,8 +3406,15 @@ class _BottomInspectorBar extends StatelessWidget {
               : isActive
               ? AppColors.accent
               : AppColors.textSecondary;
+          final label = groups[i].label;
           return Expanded(
-            child: GestureDetector(
+            child: Semantics(
+              button: true,
+              selected: isActive,
+              enabled: !disabled,
+              label: '${label[0]}${label.substring(1).toLowerCase()} tools',
+              excludeSemantics: true,
+              child: GestureDetector(
               onTap: disabled ? null : () => onGroupTap(i),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
@@ -3344,19 +3437,20 @@ class _BottomInspectorBar extends StatelessWidget {
                     Icon(icons[i], size: 20, color: iconColor),
                     const SizedBox(height: 2),
                     Text(
-                      groups[i].label,
+                      // Title case fits the narrow tabs at a readable size.
+                      '${label[0]}${label.substring(1).toLowerCase()}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 8,
+                        fontSize: 10,
                         fontWeight: FontWeight.w600,
-                        letterSpacing: 0.2,
                         color: iconColor,
                       ),
                     ),
                   ],
                 ),
               ),
+            ),
             ),
           );
         }),
@@ -3394,7 +3488,7 @@ class _ToolGroupPopup extends StatelessWidget {
           Text(
             group.label,
             style: const TextStyle(
-              fontSize: 9,
+              fontSize: 10,
               color: AppColors.textSecondary,
               letterSpacing: 1.0,
               fontWeight: FontWeight.w600,
@@ -3941,9 +4035,9 @@ class _ActionTile extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 9,
+                  fontSize: 10,
                   color: enabled
-                      ? activeColor.withValues(alpha: 0.7)
+                      ? activeColor
                       : AppColors.textSecondary.withValues(alpha: 0.3),
                   fontWeight: FontWeight.w500,
                 ),
@@ -4021,11 +4115,11 @@ class _AccTile extends StatelessWidget {
               Text(
                 sublabel,
                 style: TextStyle(
-                  fontSize: 9,
+                  fontSize: 10,
                   color: isActive
-                      ? _accent.withValues(alpha: 0.8)
+                      ? _accent
                       : enabled
-                      ? AppColors.textSecondary.withValues(alpha: 0.7)
+                      ? AppColors.textSecondary
                       : AppColors.textSecondary.withValues(alpha: 0.3),
                   fontWeight: FontWeight.w500,
                 ),
@@ -4102,11 +4196,11 @@ class _ClefTile extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 9,
+                  fontSize: 10,
                   color: isActive
-                      ? _accent.withValues(alpha: 0.8)
+                      ? _accent
                       : enabled
-                      ? AppColors.textSecondary.withValues(alpha: 0.7)
+                      ? AppColors.textSecondary
                       : AppColors.textSecondary.withValues(alpha: 0.3),
                   fontWeight: FontWeight.w500,
                 ),
@@ -4361,11 +4455,11 @@ class _DurTile extends StatelessWidget {
               Text(
                 sublabel,
                 style: TextStyle(
-                  fontSize: 9,
+                  fontSize: 10,
                   color: isActive
-                      ? _accent.withValues(alpha: 0.8)
+                      ? _accent
                       : enabled
-                      ? AppColors.textSecondary.withValues(alpha: 0.7)
+                      ? AppColors.textSecondary
                       : AppColors.textSecondary.withValues(alpha: 0.3),
                   fontWeight: FontWeight.w500,
                 ),

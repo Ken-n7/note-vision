@@ -15,7 +15,12 @@ class _TappableButtonState extends State<TappableButton> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    // Announced as a button (with its child's text as the label), and as
+    // disabled when there is nothing to do.
+    return Semantics(
+      button: true,
+      enabled: widget.onPressed != null,
+      child: GestureDetector(
       onTapDown: widget.onPressed == null ? null : (_) => setState(() => _pressed = true),
       onTapCancel: widget.onPressed == null ? null : () => setState(() => _pressed = false),
       onTap: widget.onPressed == null
@@ -32,6 +37,7 @@ class _TappableButtonState extends State<TappableButton> {
           duration: const Duration(milliseconds: 100),
           child: widget.child,
         ),
+      ),
       ),
     );
   }

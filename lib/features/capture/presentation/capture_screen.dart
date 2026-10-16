@@ -159,11 +159,11 @@ class _CaptureScreenState extends State<CaptureScreen>
           ),
         ),
         const SizedBox(height: 6),
-        Text(
+        const Text(
           'Scan or upload a music sheet below',
           style: TextStyle(
             fontSize: 12,
-            color: _textSecondary.withValues(alpha: 0.5),
+            color: _textSecondary,
           ),
         ),
       ],
@@ -359,6 +359,7 @@ class _CaptureScreenState extends State<CaptureScreen>
             size: 20,
             color: _textPrimary,
           ),
+          tooltip: 'Back',
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         title: const Text(
@@ -375,6 +376,7 @@ class _CaptureScreenState extends State<CaptureScreen>
           Builder(
             builder: (context) => IconButton(
               icon: const Icon(Icons.menu, color: _textPrimary, size: 22),
+              tooltip: 'Menu',
               onPressed: () => Scaffold.of(context).openEndDrawer(),
             ),
           ),

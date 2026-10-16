@@ -53,12 +53,12 @@ class CollectionDrawer extends StatelessWidget {
                 // ── ACCOUNT section ───────────────────────────────────────
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
-                  child: Text(
+                  child: const Text(
                     'ACCOUNT',
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: _textSecondary.withValues(alpha: 0.6),
+                      color: _textSecondary,
                       letterSpacing: 2.0,
                     ),
                   ),
@@ -97,12 +97,12 @@ class CollectionDrawer extends StatelessWidget {
                 // ── NAVIGATE section ──────────────────────────────────────
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
-                  child: Text(
+                  child: const Text(
                     'NAVIGATE',
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: _textSecondary.withValues(alpha: 0.6),
+                      color: _textSecondary,
                       letterSpacing: 2.0,
                     ),
                   ),
@@ -329,7 +329,11 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          InkWell(
+          Semantics(
+            button: true,
+            label: 'Edit profile',
+            excludeSemantics: true,
+            child: InkWell(
             onTap: _onAvatarTap,
             customBorder: const CircleBorder(),
             child: Stack(
@@ -361,6 +365,7 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
               ],
             ),
           ),
+          ),
 
           const SizedBox(height: 16),
 
@@ -379,11 +384,11 @@ class _ProfileHeaderState extends State<_ProfileHeader> {
             const SizedBox(height: 4),
           ],
 
-          Text(
-            'Music sheet scanner',
+          const Text(
+            'Handwritten sheet music scanner',
             style: TextStyle(
               fontSize: 12,
-              color: _textSecondary.withValues(alpha: 0.6),
+              color: _textSecondary,
               letterSpacing: 0.3,
             ),
           ),

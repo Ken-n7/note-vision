@@ -200,7 +200,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F0F),
+      backgroundColor: AppColors.background,
       body: SafeArea(
         child: FadeTransition(
           opacity: _fadeAnim,
@@ -244,7 +244,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           width: 36,
           height: 4,
           decoration: BoxDecoration(
-            color: const Color.fromARGB(255, 212, 169, 106), // Changed
+            color: AppColors.accent,
             borderRadius: BorderRadius.circular(2),
           ),
         ),
@@ -288,7 +288,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         const Text(
           'PROFILE PHOTO',
           style: TextStyle(
-            color: Color(0xFF555555),
+            color: AppColors.textSecondary,
             fontSize: 11,
             fontWeight: FontWeight.w600,
             letterSpacing: 1.8,
@@ -297,9 +297,15 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         const SizedBox(height: 16),
         Row(
           children: [
-            GestureDetector(
+            Semantics(
+              button: true,
+              label: _selectedPhoto != null
+                  ? 'Profile photo. Tap to change'
+                  : 'Add a profile photo',
+              child: GestureDetector(
               onTap: _pickPhoto,
               child: Stack(
+                clipBehavior: Clip.none,
                 children: [
                   Container(
                     width: 88,
@@ -309,13 +315,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       color: const Color(0xFF1A1A1A),
                       border: Border.all(
                         color: _selectedPhoto != null
-                            ? const Color.fromARGB(
-                                255,
-                                212,
-                                169,
-                                106,
-                              ) // Changed
-                            : const Color(0xFF2A2A2A),
+                            ? AppColors.accent
+                            : AppColors.border,
                         width: 2,
                       ),
                     ),
@@ -332,13 +333,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                 name.isNotEmpty ? initial : '+',
                                 style: TextStyle(
                                   color: name.isNotEmpty
-                                      ? const Color.fromARGB(
-                                          255,
-                                          212,
-                                          169,
-                                          106,
-                                        ) // Changed
-                                      : const Color(0xFF444444),
+                                      ? AppColors.accent
+                                      : AppColors.textSecondary,
                                   fontSize: name.isNotEmpty ? 34 : 28,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -348,27 +344,42 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   ),
                   if (_selectedPhoto != null)
                     Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: GestureDetector(
-                        onTap: _removePhoto,
-                        child: Container(
-                          width: 24,
-                          height: 24,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Color(0xFF2A2A2A),
-                          ),
-                          child: const Icon(
-                            Icons.close,
-                            color: Color(0xFF888888),
-                            size: 14,
+                      bottom: -10,
+                      right: -10,
+                      // A 44 px touch area around the small round button.
+                      child: Semantics(
+                        button: true,
+                        label: 'Remove photo',
+                        excludeSemantics: true,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: _removePhoto,
+                          child: SizedBox(
+                            width: 44,
+                            height: 44,
+                            child: Center(
+                              child: Container(
+                                width: 24,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: AppColors.surface,
+                                  border: Border.all(color: AppColors.border),
+                                ),
+                                child: const Icon(
+                                  Icons.close,
+                                  color: AppColors.textSecondary,
+                                  size: 14,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ),
                     ),
                 ],
               ),
+            ),
             ),
             const SizedBox(width: 20),
             Expanded(
@@ -387,7 +398,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                           ? 'Change photo'
                           : 'Choose from gallery',
                       style: const TextStyle(
-                        color: Color.fromARGB(255, 212, 169, 106), // Changed
+                        color: AppColors.accent,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0.2,
@@ -397,7 +408,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   const SizedBox(height: 4),
                   const Text(
                     'Optional — you can skip this',
-                    style: TextStyle(color: Color(0xFF555555), fontSize: 12),
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
                 ],
               ),
@@ -408,11 +419,11 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           const SizedBox(height: 8),
           Row(
             children: [
-              const Icon(Icons.error_outline, size: 13, color: Color(0xFFE05252)),
+              const Icon(Icons.error_outline, size: 13, color: AppColors.error),
               const SizedBox(width: 4),
               Text(
                 _photoError!,
-                style: const TextStyle(color: Color(0xFFE05252), fontSize: 12),
+                style: const TextStyle(color: AppColors.error, fontSize: 12),
               ),
             ],
           ),
@@ -424,9 +435,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   Widget _buildNameField() {
     final hasError = _nameError != null && _nameController.text.isNotEmpty;
     final borderColor = hasError
-        ? const Color(0xFFE05252)
+        ? AppColors.error
         : _nameFocusNode.hasFocus
-        ? const Color.fromARGB(255, 212, 169, 106).withValues(alpha: 0.6)
+        ? AppColors.accent.withValues(alpha: 0.6)
         : const Color(0xFF2A2A2A);
 
     return Column(
@@ -435,7 +446,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         const Text(
           'YOUR NAME',
           style: TextStyle(
-            color: Color(0xFF555555),
+            color: AppColors.textSecondary,
             fontSize: 11,
             fontWeight: FontWeight.w600,
             letterSpacing: 1.8,
@@ -465,7 +476,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             decoration: InputDecoration(
               hintText: 'Enter your name',
               hintStyle: const TextStyle(
-                color: Color(0xFF3A3A3A),
+                color: AppColors.textSecondary,
                 fontSize: 18,
                 fontWeight: FontWeight.w400,
               ),
@@ -476,14 +487,15 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 vertical: 16,
               ),
               suffixIcon: _nameController.text.isNotEmpty
-                  ? GestureDetector(
-                      onTap: () {
+                  ? IconButton(
+                      tooltip: 'Clear name',
+                      onPressed: () {
                         _nameController.clear();
                         setState(() {});
                       },
-                      child: const Icon(
+                      icon: const Icon(
                         Icons.cancel,
-                        color: Color(0xFF444444),
+                        color: AppColors.textSecondary,
                         size: 18,
                       ),
                     )
@@ -503,13 +515,13 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   const Icon(
                     Icons.error_outline,
                     size: 13,
-                    color: Color(0xFFE05252),
+                    color: AppColors.error,
                   ),
                   const SizedBox(width: 4),
                   Text(
                     _nameError!,
                     style: const TextStyle(
-                      color: Color(0xFFE05252),
+                      color: AppColors.error,
                       fontSize: 12,
                       fontWeight: FontWeight.w400,
                     ),
@@ -522,9 +534,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             Text(
               '${_nameController.text.trim().length} / ${NameValidator.maxLength}',
               style: TextStyle(
-                color: hasError
-                    ? const Color(0xFFE05252)
-                    : const Color(0xFF555555),
+                color: hasError ? AppColors.error : AppColors.textSecondary,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
@@ -545,18 +555,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         child: ElevatedButton(
           onPressed: _isContinueEnabled ? _onContinue : null,
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color.fromARGB(
-              255,
-              212,
-              169,
-              106,
-            ), // Changed
-            disabledBackgroundColor: const Color.fromARGB(
-              255,
-              212,
-              169,
-              106,
-            ), // Changed
+            backgroundColor: AppColors.accent,
+            disabledBackgroundColor: AppColors.accent,
             foregroundColor: const Color(0xFF0F0F0F),
             disabledForegroundColor: const Color(0xFF0F0F0F),
             elevation: 0,

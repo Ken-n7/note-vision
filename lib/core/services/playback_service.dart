@@ -112,10 +112,12 @@ class PlaybackPosition {
 /// await PlaybackService.instance.play(score);
 /// PlaybackService.instance.pause();
 /// PlaybackService.instance.resume();
-/// PlaybackService.instance.stop();
+/// PlaybackService.instance.stop();       // on screen dispose
 /// PlaybackService.instance.setTempo(90);
-/// PlaybackService.instance.dispose();    // on screen dispose
 /// ```
+///
+/// [dispose] closes the streams of this app-wide instance; only tests call
+/// it. Screens call [stop] when they close.
 ///
 /// Soundfont requirement
 /// ---------------------
@@ -157,6 +159,11 @@ class PlaybackService {
 
   List<PlaybackEvent> _events = const [];
   int _currentEventIndex = 0;
+
+  /// Counts playback loops. A loop that wakes up after a newer one started
+  /// (play() while playing, as when seeking) must leave the notes and the
+  /// state to the newer loop.
+  int _loopRun = 0;
   final List<int> _activeMidiNotes = <int>[];
 
   // ── Streams ────────────────────────────────────────────────────────────
@@ -313,6 +320,7 @@ class PlaybackService {
   // ── Internal playback loop ─────────────────────────────────────────────
 
   void _runLoop() async {
+    final run = ++_loopRun;
     while (_shouldPlay && _currentEventIndex < _events.length) {
       final event = _events[_currentEventIndex];
       final groupEnd = _eventGroupEnd(_currentEventIndex);
@@ -365,6 +373,7 @@ class PlaybackService {
 
       // Wait for duration, scaled to current tempo.
       final completed = await _waitMs(ms);
+      if (run != _loopRun) return; // a newer loop owns playback now
 
       // Stop notes without awaiting — same reason as playNote above.
       // _stopActiveNotes() copies _activeMidiNotes before clearing it so the

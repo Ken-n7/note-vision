@@ -31,7 +31,7 @@ void main() {
   testWidgets('shows app description', (tester) async {
     await tester.pumpWidget(wrap(const AboutScreen()));
 
-    expect(find.textContaining('NoteVision'), findsOneWidget);
+    expect(find.textContaining('Note Vision turns photos of handwritten'), findsOneWidget);
   });
 
   testWidgets('shows Credits section', (tester) async {

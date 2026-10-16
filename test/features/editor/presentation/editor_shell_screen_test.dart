@@ -169,7 +169,8 @@ void main() {
     await pumpEditorShell(tester, score: score);
 
     expect(find.text('Test Score'), findsOneWidget);
-    expect(find.text('Score Editor · Simple Melody'), findsOneWidget);
+    // A single note in 4/4 is not in triple time, so the rules say Jazz.
+    expect(find.text('Score Editor · Jazz'), findsOneWidget);
     expect(find.text('Save'), findsOneWidget);
     expect(find.text('Up'), findsOneWidget);
     expect(find.text('Down'), findsOneWidget);
@@ -555,6 +556,9 @@ void main() {
       );
       expect(viewer.firstMeasureIndex, 20);
 
+      // The landscape tool panel scrolls; Del sits at its bottom.
+      await tester.ensureVisible(find.text('Del'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Del'));
       await tester.pumpAndSettle();
 
@@ -630,8 +634,8 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Save'), findsOneWidget);
-    expect(find.text('PITCH'), findsOneWidget);
-    expect(find.text('CLEF'), findsOneWidget);
+    expect(find.text('Pitch'), findsOneWidget);
+    expect(find.text('Clef'), findsOneWidget);
   });
 
   testWidgets(
@@ -714,7 +718,7 @@ void main() {
       selectFirstNote(tester);
       await tester.pump();
 
-      await tester.tap(find.text('PITCH').last);
+      await tester.tap(find.text('Pitch').last);
       await tester.pump();
       expect(find.text('Up'), findsOneWidget);
 
@@ -728,7 +732,7 @@ void main() {
       selectFirstNote(tester);
       await tester.pump();
 
-      await tester.tap(find.text('ACCIDENTAL'));
+      await tester.tap(find.text('Accidental'));
       await tester.pump();
       expect(find.text('♯'), findsOneWidget);
 
@@ -742,7 +746,7 @@ void main() {
       selectFirstNote(tester);
       await tester.pump();
 
-      await tester.tap(find.text('DURATION'));
+      await tester.tap(find.text('Duration'));
       await tester.pump();
       expect(find.text('8th'), findsOneWidget);
 
@@ -756,7 +760,7 @@ void main() {
       selectFirstNote(tester);
       await tester.pump();
 
-      await tester.tap(find.text('MEASURE'));
+      await tester.tap(find.text('Measure'));
       await tester.pump();
       expect(find.text('Add'), findsOneWidget);
 
@@ -770,11 +774,11 @@ void main() {
       selectFirstNote(tester);
       await tester.pump();
 
-      await tester.tap(find.text('PITCH').last);
+      await tester.tap(find.text('Pitch').last);
       await tester.pump();
       expect(find.text('Up'), findsOneWidget);
 
-      await tester.tap(find.text('PITCH').last);
+      await tester.tap(find.text('Pitch').last);
       await tester.pump();
       expect(find.text('Up'), findsNothing);
     });
@@ -983,7 +987,7 @@ void main() {
       await tester.pump();
 
       // Tapping a tab while disabled should not open the popup.
-      await tester.tap(find.text('PITCH').last);
+      await tester.tap(find.text('Pitch').last);
       await tester.pump();
       expect(find.text('Up'), findsNothing);
     });
@@ -994,7 +998,7 @@ void main() {
       await pumpPortrait(tester, buildScore());
 
       // Open the PITCH popup.
-      await tester.tap(find.text('PITCH').last);
+      await tester.tap(find.text('Pitch').last);
       await tester.pump();
       expect(find.text('Up'), findsOneWidget);
 
@@ -1013,14 +1017,14 @@ void main() {
       await tester.pump();
 
       // Confirm tab is suppressed.
-      await tester.tap(find.text('PITCH').last);
+      await tester.tap(find.text('Pitch').last);
       await tester.pump();
       expect(find.text('Up'), findsNothing);
 
       // Stop playback — tab should work again.
       emitStopped();
       await tester.pump();
-      await tester.tap(find.text('PITCH').last);
+      await tester.tap(find.text('Pitch').last);
       await tester.pump();
       expect(find.text('Up'), findsOneWidget);
     });
@@ -1150,13 +1154,14 @@ void main() {
     await tester.pump();
 
     // Open the DURATION group popup first, then change duration
-    await tester.tap(find.text('DURATION'), warnIfMissed: false);
+    await tester.tap(find.text('Duration'), warnIfMissed: false);
     await tester.pump();
     await tester.tap(find.text('Whole').first, warnIfMissed: false);
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Score Editor · Simple Melody'), findsOneWidget);
+    // A single note in 4/4 is not in triple time, so the rules say Jazz.
+    expect(find.text('Score Editor · Jazz'), findsOneWidget);
   });
 }
 

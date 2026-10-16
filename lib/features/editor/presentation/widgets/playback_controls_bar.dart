@@ -135,6 +135,7 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
               const SizedBox(width: 6),
               _TempoButton(
                 icon: Icons.remove,
+                label: 'Slower',
                 disabled: disabled || _tempo <= 40,
                 onPressed: () => _adjustTempo(-1),
               ),
@@ -153,6 +154,7 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
               const SizedBox(width: 4),
               _TempoButton(
                 icon: Icons.add,
+                label: 'Faster',
                 disabled: disabled || _tempo >= 200,
                 onPressed: () => _adjustTempo(1),
               ),
@@ -258,7 +260,8 @@ class _ScrubberState extends State<_Scrubber> {
               onHorizontalDragEnd: _onDragEnd,
               onTapUp: (d) => _onTap(d, width),
               child: SizedBox(
-                height: 20,
+                // Taller than it looks, so the thumb is easy to grab.
+                height: 36,
                 width: width,
                 child: Center(
                   child: Stack(
@@ -311,11 +314,13 @@ class _ScrubberState extends State<_Scrubber> {
 class _TempoButton extends StatefulWidget {
   const _TempoButton({
     required this.icon,
+    required this.label,
     required this.onPressed,
     required this.disabled,
   });
 
   final IconData icon;
+  final String label;
   final VoidCallback onPressed;
   final bool disabled;
 
@@ -357,13 +362,19 @@ class _TempoButtonState extends State<_TempoButton> {
         ? AppColors.textSecondary.withValues(alpha: 0.3)
         : AppColors.textSecondary;
 
-    return Listener(
+    return Semantics(
+      button: true,
+      enabled: !widget.disabled,
+      label: '${widget.label} tempo',
+      onTap: widget.disabled ? null : widget.onPressed,
+      excludeSemantics: true,
+      child: Listener(
       onPointerDown: _onPointerDown,
       onPointerUp: (_) => _cancel(),
       onPointerCancel: (_) => _cancel(),
       child: SizedBox(
-        width: 28,
-        height: 28,
+        width: 32,
+        height: 32,
         child: Material(
           color: widget.disabled
               ? AppColors.border.withValues(alpha: 0.3)
@@ -371,8 +382,9 @@ class _TempoButtonState extends State<_TempoButton> {
                   ? AppColors.border
                   : AppColors.surfaceAlt,
           borderRadius: BorderRadius.circular(6),
-          child: Center(child: Icon(widget.icon, size: 14, color: color)),
+          child: Center(child: Icon(widget.icon, size: 16, color: color)),
         ),
+      ),
       ),
     );
   }
@@ -403,17 +415,17 @@ class _ControlButton extends StatelessWidget {
       return Tooltip(
         message: tooltip,
         child: SizedBox(
-          width: 34,
-          height: 34,
+          width: 40,
+          height: 40,
           child: Material(
             color: disabled
                 ? AppColors.border.withValues(alpha: 0.4)
                 : AppColors.accent.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(17),
+            borderRadius: BorderRadius.circular(20),
             child: InkWell(
-              borderRadius: BorderRadius.circular(17),
+              borderRadius: BorderRadius.circular(20),
               onTap: disabled ? null : onPressed,
-              child: Icon(icon, size: 20, color: disabled ? effectiveColor : AppColors.accent),
+              child: Icon(icon, size: 22, color: disabled ? effectiveColor : AppColors.accent),
             ),
           ),
         ),
@@ -423,11 +435,11 @@ class _ControlButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: SizedBox(
-        width: 32,
-        height: 32,
+        width: 40,
+        height: 40,
         child: IconButton(
           onPressed: disabled ? null : onPressed,
-          icon: Icon(icon, size: 18),
+          icon: Icon(icon, size: 20),
           color: effectiveColor,
           padding: EdgeInsets.zero,
           visualDensity: VisualDensity.compact,

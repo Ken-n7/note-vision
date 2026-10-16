@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:note_vision/core/theme/app_theme.dart';
 
 class UserAvatar extends StatelessWidget {
   final String? photoPath;
@@ -26,10 +27,10 @@ class UserAvatar extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: const Color(0xFF1A1A1A),
+        color: AppColors.surface,
         border: borderWidth > 0
             ? Border.all(
-                color: borderColor ?? const Color(0xFF2A2A2A),
+                color: borderColor ?? AppColors.border,
                 width: borderWidth,
               )
             : null,
@@ -61,12 +62,12 @@ class UserAvatar extends StatelessWidget {
 
   Widget _buildInitial() {
     return Container(
-      color: const Color(0xFF1A1A1A),
+      color: AppColors.surface,
       alignment: Alignment.center,
       child: Text(
         initial.isNotEmpty ? initial : '?',
         style: TextStyle(
-          color: const Color(0xFFE8C547),
+          color: AppColors.accent,
           fontSize: size * 0.42,
           fontWeight: FontWeight.w700,
           height: 1,

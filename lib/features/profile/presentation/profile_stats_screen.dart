@@ -55,6 +55,7 @@ class _ProfileStatsScreenState extends State<ProfileStatsScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
           color: AppColors.textPrimary,
+          tooltip: 'Back',
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: const Text(

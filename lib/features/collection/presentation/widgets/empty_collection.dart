@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:note_vision/core/theme/app_theme.dart';
 
 class EmptyCollection extends StatefulWidget {
   final VoidCallback onAddPressed;
@@ -22,11 +23,22 @@ class _EmptyCollectionState extends State<EmptyCollection>
   late Animation<double> _scale;
   late Animation<double> _glow;
 
-  static const _accent = Color(0xFFD4A96A);
-  static const _surface = Color(0xFF1A1A1A);
-  static const _border = Color(0xFF2C2C2C);
-  static const _textPri = Color(0xFFFFFFFF);
-  static const _textSec = Color(0xFF8A8A8A);
+  static const _accent = AppColors.accent;
+  static const _surface = AppColors.surface;
+  static const _border = AppColors.border;
+  static const _textPri = AppColors.textPrimary;
+  static const _textSec = AppColors.textSecondary;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Respect the system's "remove animations" setting.
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _pulse.stop();
+    } else if (!_pulse.isAnimating) {
+      _pulse.repeat(reverse: true);
+    }
+  }
 
   @override
   void initState() {
@@ -163,22 +175,24 @@ class _EmptyCollectionState extends State<EmptyCollection>
 
                   const SizedBox(height: 10),
 
-                  Row(
+                  const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(
-                        Icons.camera_alt_outlined,
-                        size: 13,
+                      Icon(
+                        Icons.lightbulb_outline_rounded,
+                        size: 14,
                         color: _textSec,
                       ),
-                      const SizedBox(width: 5),
-                      Text(
-                        'Camera scan, file import, or blank score',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: _textSec.withValues(alpha: 0.7),
-                          letterSpacing: 0.1,
+                      SizedBox(width: 5),
+                      Flexible(
+                        child: Text(
+                          'Scans work best on handwritten music, flat and well lit',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _textSec,
+                            letterSpacing: 0.1,
+                          ),
                         ),
                       ),
                     ],
@@ -205,27 +219,33 @@ class _PrimaryEmptyAction extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  static const _bg = Color(0xFF0D0D0D);
-  static const _accent = Color(0xFFD4A96A);
+  static const _bg = AppColors.background;
+  static const _accent = AppColors.accent;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      child: DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: _accent.withValues(alpha: 0.28),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Material(
+      color: _accent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color: _accent,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: [
-            BoxShadow(
-              color: _accent.withValues(alpha: 0.28),
-              blurRadius: 20,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -243,6 +263,9 @@ class _PrimaryEmptyAction extends StatelessWidget {
           ],
         ),
       ),
+      ),
+      ),
+      ),
     );
   }
 }
@@ -259,22 +282,26 @@ class _SecondaryEmptyAction extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  static const _surface = Color(0xFF1A1A1A);
-  static const _border = Color(0xFF2C2C2C);
-  static const _accent = Color(0xFFD4A96A);
-  static const _textPri = Color(0xFFFFFFFF);
+  static const _surface = AppColors.surface;
+  static const _border = AppColors.border;
+  static const _accent = AppColors.accent;
+  static const _textPri = AppColors.textPrimary;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return Semantics(
+      button: true,
+      child: Material(
+      color: _surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: _border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
       onTap: onTap,
-      child: Container(
+      child: SizedBox(
         height: 48,
-        decoration: BoxDecoration(
-          color: _surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: _border),
-        ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -294,6 +321,8 @@ class _SecondaryEmptyAction extends StatelessWidget {
             ),
           ],
         ),
+      ),
+      ),
       ),
     );
   }
