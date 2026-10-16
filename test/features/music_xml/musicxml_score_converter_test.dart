@@ -176,6 +176,56 @@ void main() {
       expect(rest.dots, 1);
     });
 
+    test('keeps whole-bar rests, sizing them to the bar', () {
+      const xml = '''<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1">
+  <part-list><score-part id="P1"><part-name>P</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes><divisions>2</divisions><time><beats>3</beats><beat-type>4</beat-type></time></attributes>
+      <note><rest measure="yes"/><duration>6</duration></note>
+    </measure>
+    <measure number="2">
+      <note><rest measure="yes"/><duration>6</duration><type>whole</type></note>
+    </measure>
+    <measure number="3">
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration></note>
+    </measure>
+  </part>
+</score-partwise>''';
+      final score = converter.convert(parser.parse(xml).document!);
+      final measures = score.parts.single.measures;
+      for (final m in measures.take(2)) {
+        final rest = m.symbols.single as Rest;
+        // Three beats of 3/4: a dotted half, not a four-beat whole rest.
+        expect(rest.type, 'half');
+        expect(rest.dots, 1);
+      }
+      // A note without <type> takes its value from the duration.
+      expect((measures[2].symbols.single as Note).type, 'eighth');
+    });
+
+    test('reads beams and spells a 16th the way scans do', () {
+      const xml = '''<score-partwise version="3.1">
+  <part-list><score-part id="P1"><part-name>P</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes><divisions>4</divisions></attributes>
+      <note><pitch><step>C</step><octave>5</octave></pitch><duration>2</duration><type>eighth</type><beam number="1">begin</beam></note>
+      <note><pitch><step>D</step><octave>5</octave></pitch><duration>1</duration><type>16th</type><beam number="1">end</beam><beam number="2">backward hook</beam></note>
+      <note><pitch><step>E</step><octave>5</octave></pitch><duration>2</duration><type>eighth</type></note>
+      <note><rest/><duration>1</duration><type>16th</type></note>
+    </measure>
+  </part>
+</score-partwise>''';
+      final symbols =
+          converter.convert(parser.parse(xml).document!).parts.single.measures.single.symbols;
+      final notes = symbols.whereType<Note>().toList();
+      expect(notes.map((n) => n.beamed), [true, true, false]);
+      expect(notes[1].type, 'sixteenth');
+      expect((symbols.last as Rest).type, 'sixteenth');
+    });
+
     test('marks chord notes when MusicXML note contains chord tag', () {
       const xml = '''<score-partwise>
   <part-list>

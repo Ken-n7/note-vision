@@ -144,7 +144,8 @@ void main() {
   group('measure attributes', () {
     test('first measure always has divisions element', () {
       final xml = service.toMusicXml(minimalScore());
-      expect(xml, contains('<divisions>2</divisions>'));
+      // 8 per quarter: fine enough for sixteenths and dotted eighths.
+      expect(xml, contains('<divisions>8</divisions>'));
     });
 
     test('treble clef emits sign G on line 2', () {
@@ -281,7 +282,7 @@ void main() {
       final xml = service.toMusicXml(minimalScore());
       expect(xml, contains('<step>C</step>'));
       expect(xml, contains('<octave>4</octave>'));
-      expect(xml, contains('<duration>2</duration>'));
+      expect(xml, contains('<duration>8</duration>'));
       expect(xml, contains('<type>quarter</type>'));
     });
 
@@ -414,7 +415,7 @@ void main() {
       );
       final xml = service.toMusicXml(score);
       expect('<dot/>'.allMatches(xml).length, 1);
-      expect(xml, contains('<duration>3</duration>'));
+      expect(xml, contains('<duration>12</duration>'));
     });
 
     test('chord tone emits chord tag before pitch', () {
@@ -467,7 +468,7 @@ void main() {
       );
       final xml = service.toMusicXml(score);
       expect(xml, contains('<rest/>'));
-      expect(xml, contains('<duration>2</duration>'));
+      expect(xml, contains('<duration>8</duration>'));
       expect(xml, contains('<type>quarter</type>'));
     });
 
@@ -490,7 +491,7 @@ void main() {
       expect(xml, contains('<staff>1</staff>'));
     });
 
-    test('whole rest has duration 8', () {
+    test('whole rest has duration 32', () {
       final score = Score(
         id: 'id',
         title: 'T',
@@ -505,7 +506,7 @@ void main() {
         ],
       );
       final xml = service.toMusicXml(score);
-      expect(xml, contains('<duration>8</duration>'));
+      expect(xml, contains('<duration>32</duration>'));
       expect(xml, contains('<type>whole</type>'));
     });
 
@@ -525,7 +526,7 @@ void main() {
       );
       final xml = service.toMusicXml(score);
       expect('<dot/>'.allMatches(xml).length, 1);
-      expect(xml, contains('<duration>6</duration>'));
+      expect(xml, contains('<duration>24</duration>'));
     });
   });
 
@@ -533,16 +534,21 @@ void main() {
   // Duration values
   // ---------------------------------------------------------------------------
 
-  group('duration values match DurationSpec constants', () {
+  group('durations come from the written value, 8 divisions per quarter', () {
     for (final entry in const [
-      ('breve', 16),
-      ('whole', 8),
-      ('half', 4),
-      ('quarter', 2),
-      ('eighth', 1),
+      // type, stored duration, dots, exported duration, exported type
+      ('breve', 16, 0, 64, 'breve'),
+      ('whole', 8, 0, 32, 'whole'),
+      ('half', 4, 0, 16, 'half'),
+      ('quarter', 2, 0, 8, 'quarter'),
+      ('eighth', 1, 0, 4, 'eighth'),
+      // A sixteenth is stored as 1 (2 per quarter) but lasts a quarter of
+      // a quarter; MusicXML spells it 16th.
+      ('sixteenth', 1, 0, 2, '16th'),
+      ('eighth', 2, 1, 6, 'eighth'),
     ]) {
-      final (type, divisions) = entry;
-      test('$type note has duration $divisions', () {
+      final (type, stored, dots, exported, xmlType) = entry;
+      test('$type with $dots dot(s) has duration $exported', () {
         final score = Score(
           id: 'id',
           title: 'T',
@@ -551,14 +557,22 @@ void main() {
             Part(id: 'P1', name: 'P', measures: [
               Measure(
                 number: 1,
-                symbols: [Note(step: 'C', octave: 4, duration: divisions, type: type)],
+                symbols: [
+                  Note(
+                    step: 'C',
+                    octave: 4,
+                    duration: stored,
+                    type: type,
+                    dots: dots,
+                  ),
+                ],
               ),
             ]),
           ],
         );
         final xml = service.toMusicXml(score);
-        expect(xml, contains('<duration>$divisions</duration>'));
-        expect(xml, contains('<type>$type</type>'));
+        expect(xml, contains('<duration>$exported</duration>'));
+        expect(xml, contains('<type>$xmlType</type>'));
       });
     }
   });
@@ -759,6 +773,36 @@ void main() {
       expect(xml, contains('<beam number="1">begin</beam>'));
       expect(xml, contains('<beam number="1">continue</beam>'));
       expect(xml, contains('<beam number="1">end</beam>'));
+    });
+
+    test('beams skip chord tones and leave no lone beam open', () {
+      final score = Score(
+        id: 'beam-chord',
+        title: 'Beams',
+        composer: '',
+        parts: [
+          Part(
+            id: 'P1',
+            name: 'Piano',
+            measures: const [
+              Measure(number: 1, symbols: [
+                Note(step: 'C', octave: 4, duration: 1, type: 'eighth', beamed: true),
+                Note(step: 'E', octave: 4, duration: 1, type: 'eighth', isChordTone: true),
+                Note(step: 'D', octave: 4, duration: 1, type: 'eighth', beamed: true),
+                Rest(duration: 1, type: 'eighth'),
+                Note(step: 'F', octave: 4, duration: 1, type: 'eighth', beamed: true),
+              ]),
+            ],
+          ),
+        ],
+      );
+
+      final beams = RegExp(r'<beam number="1">(\w+)</beam>')
+          .allMatches(service.toMusicXml(score))
+          .map((m) => m.group(1))
+          .toList();
+      // C begins and D ends the beam across the chord; the lone F has none.
+      expect(beams, ['begin', 'end']);
     });
 
     test('repeat barlines survive export then import', () {
