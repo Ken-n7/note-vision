@@ -52,6 +52,16 @@ class _CollectionScreenState extends State<CollectionScreen>
   late AnimationController _fadeController;
   late Animation<double> _fadeIn;
 
+  /// Decoded score and genre label per saved project, so the cards don't
+  /// decode the JSON and rerun the genre model on every rebuild. Keyed by id
+  /// and save time: every save changes [Project.updatedAt].
+  final Map<String, _CardData> _cards = {};
+
+  _CardData _cardFor(Project project) {
+    final key = '${project.id}@${project.updatedAt.microsecondsSinceEpoch}';
+    return _cards[key] ??= _CardData.of(project);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -113,8 +123,13 @@ class _CollectionScreenState extends State<CollectionScreen>
     try {
       final projects = await _storage.loadAllProjects();
       if (mounted) {
+        final live = {
+          for (final p in projects)
+            '${p.id}@${p.updatedAt.microsecondsSinceEpoch}',
+        };
         setState(() {
           _projects = projects;
+          _cards.removeWhere((key, _) => !live.contains(key));
           _isLoading = false;
         });
         _fadeController.forward(from: 0);
@@ -565,6 +580,7 @@ class _CollectionScreenState extends State<CollectionScreen>
                   horizontalPadding: horizontalPadding,
                   projects: displayedProjects,
                   formatDate: _formatDate,
+                  cardFor: _cardFor,
                   onOpen: (project) => _openProject(
                     project,
                     reviewMode:
@@ -650,6 +666,7 @@ class _CollectionScreenState extends State<CollectionScreen>
               horizontalPadding: horizontalPadding,
               projects: myScores,
               formatDate: _formatDate,
+              cardFor: _cardFor,
               onOpen: (project) => _openProject(project),
               onRename: _renameProject,
               onExport: _exportProject,
@@ -691,6 +708,7 @@ class _CollectionScreenState extends State<CollectionScreen>
                 horizontalPadding: horizontalPadding,
                 projects: entry.value,
                 formatDate: _formatDate,
+                cardFor: _cardFor,
                 onOpen: (project) => _openProject(
                   project,
                   reviewMode: true,
@@ -774,10 +792,11 @@ class _CollectionScreenState extends State<CollectionScreen>
         actions: [
           Builder(
             builder: (context) => Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: GestureDetector(
-                onTap: () => Scaffold.of(context).openEndDrawer(),
-                child: _userProfile != null
+              padding: const EdgeInsets.only(right: 4),
+              child: IconButton(
+                tooltip: 'Menu',
+                onPressed: () => Scaffold.of(context).openEndDrawer(),
+                icon: _userProfile != null
                     ? UserAvatar(
                         initial: _userProfile!.initial,
                         photoPath: _userProfile!.photoPath,
@@ -1030,6 +1049,7 @@ class _ProjectListSliver extends StatelessWidget {
     required this.horizontalPadding,
     required this.projects,
     required this.formatDate,
+    required this.cardFor,
     required this.onOpen,
     required this.onRename,
     required this.onExport,
@@ -1039,6 +1059,7 @@ class _ProjectListSliver extends StatelessWidget {
   final double horizontalPadding;
   final List<Project> projects;
   final String Function(DateTime) formatDate;
+  final _CardData Function(Project) cardFor;
   final ValueChanged<Project> onOpen;
   final ValueChanged<Project> onRename;
   final ValueChanged<Project> onExport;
@@ -1061,17 +1082,14 @@ class _ProjectListSliver extends StatelessWidget {
         ),
         delegate: SliverChildBuilderDelegate((context, index) {
           final project = projects[index];
-          final score = _decodeScore(project);
-          final scoreLabel = score == null
-              ? ScoreLabel.generalPiece
-              : ScoreClassifier.classify(score);
+          final card = cardFor(project);
 
           return ScoreCard(
             imagePath: '',
-            score: score,
+            score: card.score,
             title: project.name,
-            composer: score?.composer,
-            scoreLabel: scoreLabel.displayName,
+            composer: card.score?.composer,
+            scoreLabel: card.label,
             updatedLabel: formatDate(project.updatedAt),
             onOpen: () => onOpen(project),
             onRename: () => onRename(project),
@@ -1082,14 +1100,28 @@ class _ProjectListSliver extends StatelessWidget {
       ),
     );
   }
+}
 
-  Score? _decodeScore(Project project) {
+/// What a score card shows that costs work to get: the decoded score (null
+/// when the saved JSON is unreadable) and its genre label.
+class _CardData {
+  const _CardData(this.score, this.label);
+
+  factory _CardData.of(Project project) {
+    Score? score;
     try {
-      return project.decodeScore();
+      score = project.decodeScore();
     } catch (_) {
-      return null;
+      score = null;
     }
+    return _CardData(
+      score,
+      score == null ? null : ScoreClassifier.classify(score)?.displayName,
+    );
   }
+
+  final Score? score;
+  final String? label;
 }
 
 // ── Speed dial FAB ────────────────────────────────────────────────────────────
@@ -1274,7 +1306,7 @@ class _RenameProjectDialogState extends State<_RenameProjectDialog> {
             '$currentLength / $maxLength',
             style: TextStyle(
               color: currentLength >= maxLength
-                  ? const Color(0xFFE05252)
+                  ? AppColors.error
                   : AppColors.textSecondary,
               fontSize: 11,
             ),
@@ -1360,7 +1392,8 @@ class _NewScoreDialogState extends State<_NewScoreDialog> {
             label: 'Title',
             hint: 'Untitled',
             autofocus: true,
-            maxLength: 100,
+            // Same limit as project names: the title is the default name.
+            maxLength: 60,
           ),
           const SizedBox(height: 16),
           _DialogTextField(
@@ -1453,7 +1486,7 @@ class _DialogTextFieldState extends State<_DialogTextField> {
               '$currentLength / $maxLength',
               style: TextStyle(
                 color: currentLength >= maxLength
-                    ? const Color(0xFFE05252)
+                    ? AppColors.error
                     : AppColors.textSecondary,
                 fontSize: 11,
               ),

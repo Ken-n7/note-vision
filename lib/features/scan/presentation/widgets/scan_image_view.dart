@@ -5,7 +5,10 @@ import 'detection_overlay.dart';
 class ScanImageView extends StatelessWidget {
   final ScanResult result;
 
-  const ScanImageView({super.key, required this.result});
+  /// The scanned score's label (genre model, else the rules); null hides it.
+  final String? genre;
+
+  const ScanImageView({super.key, required this.result, this.genre});
 
   // ── Design tokens ──────────────────────────────────────────────────────────
   static const _surface = Color(0xFF1A1A1A);
@@ -54,7 +57,10 @@ class ScanImageView extends StatelessWidget {
 
           // ── Staves found ──────────────────────────────────────────────
           Text(
-            _staffSummary(result.detection.staffs.length),
+            [
+              _staffSummary(result.detection.staffs.length),
+              if (genre != null) 'Genre: $genre',
+            ].join(' · '),
             style: const TextStyle(
               fontSize: 12,
               color: _textSecondary,
