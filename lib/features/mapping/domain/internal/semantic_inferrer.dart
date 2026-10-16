@@ -345,7 +345,11 @@ class SemanticInferrer {
       duration: _effectiveDuration(SymbolClassifier.durationFor(noteType), dots),
       type: noteType,
       staff: _defaultStaff,
-      beamed: noteType == 'eighth' && hasBeam,
+      // Whole-symbol scans mark beamed notes in metadata; older models
+      // detected the beam itself.
+      beamed:
+          (noteType == 'eighth' || noteType == 'sixteenth') &&
+          (hasBeam || entry.symbol.metadata?['beamed'] == true),
       dots: dots,
       isChordTone: link.isChordTone,
     );

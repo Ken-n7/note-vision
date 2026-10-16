@@ -18,16 +18,22 @@ void main() {
     lineYs: [100.0, 110.0, 120.0, 130.0, 140.0],
   );
 
-  DetectedSymbol sym(String type, double x, {String? noteType}) =>
-      DetectedSymbol(
-        id: 's$x',
-        type: type,
-        x: x,
-        y: 115, // centre on the middle line (B4 in treble)
-        width: 10,
-        height: 10,
-        metadata: noteType == null ? null : {'noteType': noteType},
-      );
+  DetectedSymbol sym(
+    String type,
+    double x, {
+    String? noteType,
+    bool beamed = false,
+  }) => DetectedSymbol(
+    id: 's$x',
+    type: type,
+    x: x,
+    y: 115, // centre on the middle line (B4 in treble)
+    width: 10,
+    height: 10,
+    metadata: noteType == null
+        ? null
+        : {'noteType': noteType, if (beamed) 'beamed': true},
+  );
 
   test('splits measures by note value and keeps each note type', () {
     final detection = DetectionResult(
@@ -57,5 +63,28 @@ void main() {
       result.warnings.where((w) => w.contains('stem')),
       isEmpty,
     );
+  });
+
+  test('notes the detector found under a beam stay beamed', () {
+    final detection = DetectionResult(
+      staffs: const [staff],
+      symbols: [
+        sym('clefG', 10),
+        sym('noteheadBlackInSpace', 50, noteType: 'eighth', beamed: true),
+        sym('noteheadBlackInSpace', 70, noteType: 'sixteenth', beamed: true),
+        sym('noteheadBlackInSpace', 90, noteType: 'eighth'),
+      ],
+    );
+
+    final notes = const DetectionToScoreMapperService()
+        .map(detection)
+        .score
+        .parts
+        .single
+        .measures
+        .expand((m) => m.symbols)
+        .whereType<Note>();
+    // The third one has a flag of its own.
+    expect(notes.map((n) => n.beamed), [true, true, false]);
   });
 }

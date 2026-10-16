@@ -80,6 +80,7 @@ class TfliteSymbolDetector implements SymbolDetector {
 
   void dispose() {
     _interpreter?.close();
+    _interpreter = null;
   }
 
   @override
@@ -526,7 +527,11 @@ class TfliteSymbolDetector implements SymbolDetector {
     for (var (classIndex, confidence, box) in decoded) {
       var (symbol, noteType) = _classes[classIndex];
       if (symbol == MusicSymbol.beam) continue;
-      if (noteType == 'quarter') noteType = beamedNoteType(box, beams);
+      var beamed = false;
+      if (noteType == 'quarter') {
+        noteType = beamedNoteType(box, beams);
+        beamed = noteType != 'quarter';
+      }
 
       final fullBox = box;
       if (noteType != null && noteType != 'whole') {
@@ -543,6 +548,8 @@ class TfliteSymbolDetector implements SymbolDetector {
               ? null
               : {
                   'noteType': noteType,
+                  // The editor draws beamed notes with beams, not flags.
+                  if (beamed) 'beamed': true,
                   // The scan result screen shows what the model boxed.
                   if (box != fullBox)
                     DetectedSymbol.fullBoxKey: [

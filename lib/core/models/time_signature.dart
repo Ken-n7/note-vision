@@ -22,5 +22,14 @@ class TimeSignature extends ScoreSymbol {
       );
 
   @override
+  bool operator ==(Object other) =>
+      other is TimeSignature &&
+      other.beats == beats &&
+      other.beatType == beatType;
+
+  @override
+  int get hashCode => Object.hash(beats, beatType);
+
+  @override
   String toString() => 'TimeSignature($beats/$beatType)';
 }

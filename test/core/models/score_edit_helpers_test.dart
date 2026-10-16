@@ -6,6 +6,53 @@ import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 
 void main() {
+  group('Score keeps measure layout through edits', () {
+    test('editing a symbol keeps the measure\'s system break', () {
+      const score = Score(
+        id: 's',
+        title: 'T',
+        composer: '',
+        parts: [
+          Part(id: 'P1', name: 'P1', measures: [
+            Measure(number: 1, symbols: [Rest(duration: 2, type: 'quarter')]),
+            Measure(
+              number: 2,
+              startsNewSystem: true,
+              symbols: [Rest(duration: 2, type: 'quarter')],
+            ),
+          ]),
+        ],
+      );
+      final next = score.replaceSymbolAt(
+        0,
+        1,
+        0,
+        const Note(step: 'C', octave: 4, duration: 2, type: 'quarter'),
+      );
+      expect(next.parts.single.measures[1].startsNewSystem, isTrue);
+    });
+
+    test('deleting a measure skips parts too short to have it', () {
+      const score = Score(
+        id: 's',
+        title: 'T',
+        composer: '',
+        parts: [
+          Part(id: 'P1', name: 'P1', measures: [
+            Measure(number: 1, symbols: []),
+            Measure(number: 2, symbols: []),
+          ]),
+          Part(id: 'P2', name: 'P2', measures: [
+            Measure(number: 1, symbols: []),
+          ]),
+        ],
+      );
+      final next = score.deleteMeasureFromAllParts(1);
+      expect(next.parts[0].measures, hasLength(1));
+      expect(next.parts[1].measures, hasLength(1));
+    });
+  });
+
   group('Score symbol edit helpers', () {
     test('getSymbolAt returns symbol or null when out of range', () {
       final score = _buildScore();

@@ -1,6 +1,7 @@
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
+import 'package:note_vision/core/models/note_value.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
@@ -35,6 +36,10 @@ const DurationSpec wholeDuration = DurationSpec('whole', 8);
 const DurationSpec halfDuration = DurationSpec('half', 4);
 const DurationSpec quarterDuration = DurationSpec('quarter', 2);
 const DurationSpec eighthDuration = DurationSpec('eighth', 1);
+
+/// The stored duration counts 2 divisions per quarter, so a sixteenth is
+/// stored as 1; its real length comes from its type (see [quarterLength]).
+const DurationSpec sixteenthDuration = DurationSpec('sixteenth', 1);
 
 extension EditorActions on EditorState {
   bool get hasSelection => hasSymbolSelection;
@@ -97,6 +102,7 @@ extension EditorActions on EditorState {
     if (!hasSelection || selectedSymbol is! Note) return this;
     final note = selectedSymbol as Note;
     final moved = _moveNoteByScaleStep(note, 1);
+    if (identical(moved, note)) return this;
     return _replaceSelectedSymbol(
       moved,
       intent: EditorEditIntent.replaceSelection,
@@ -107,6 +113,7 @@ extension EditorActions on EditorState {
     if (!hasSelection || selectedSymbol is! Note) return this;
     final note = selectedSymbol as Note;
     final moved = _moveNoteByScaleStep(note, -1);
+    if (identical(moved, note)) return this;
     return _replaceSelectedSymbol(
       moved,
       intent: EditorEditIntent.replaceSelection,
@@ -117,14 +124,21 @@ extension EditorActions on EditorState {
     if (!hasSelection) return this;
 
     final symbol = selectedSymbol;
-    if (!_canReplaceSelectedSymbolWithDuration(durationSpec.divisions)) {
+    if (!_canReplaceSelectedSymbolWith(quarterLength(
+      durationSpec.type,
+      0,
+      durationSpec.divisions,
+    ))) {
       return this;
     }
     if (symbol is Note) {
       final isSameDuration =
           symbol.duration == durationSpec.divisions &&
-          symbol.type == durationSpec.type;
+          symbol.type == durationSpec.type &&
+          symbol.dots == 0;
       if (isSameDuration) return this;
+      final canBeam =
+          durationSpec.type == 'eighth' || durationSpec.type == 'sixteenth';
       return _replaceSelectedSymbol(
         Note(
           step: symbol.step,
@@ -134,6 +148,8 @@ extension EditorActions on EditorState {
           type: durationSpec.type,
           voice: symbol.voice,
           staff: symbol.staff,
+          beamed: canBeam && symbol.beamed,
+          isChordTone: symbol.isChordTone,
         ),
         intent: EditorEditIntent.replaceSelection,
       );
@@ -142,7 +158,8 @@ extension EditorActions on EditorState {
     if (symbol is Rest) {
       final isSameDuration =
           symbol.duration == durationSpec.divisions &&
-          symbol.type == durationSpec.type;
+          symbol.type == durationSpec.type &&
+          symbol.dots == 0;
       if (isSameDuration) return this;
       return _replaceSelectedSymbol(
         Rest(
@@ -167,18 +184,19 @@ extension EditorActions on EditorState {
         : symbol is Rest
         ? symbol.type.trim().toLowerCase()
         : null;
-    if (type == null) return this;
-
-    // Dotted eighth = 1.5 divisions — not representable with 2 divs/quarter.
-    const baseDivisions = {'whole': 8, 'half': 4, 'quarter': 2};
-    final base = baseDivisions[type];
-    if (base == null) return this;
+    if (type == null || noteValueQuarters[type] == null) return this;
 
     final currentDots = symbol is Note ? symbol.dots : (symbol as Rest).dots;
     final newDots = currentDots > 0 ? 0 : 1;
-    final newDuration = newDots == 1 ? base + base ~/ 2 : base;
+    final storedDuration = symbol is Note
+        ? symbol.duration
+        : (symbol as Rest).duration;
+    final newQuarters = quarterLength(type, newDots, storedDuration);
+    // The stored duration (2 per quarter) can't hold a dotted eighth or
+    // sixteenth exactly; timing uses the type and dots.
+    final newDuration = (newQuarters * 2).round().clamp(1, 1 << 20);
 
-    if (!_canReplaceSelectedSymbolWithDuration(newDuration)) return this;
+    if (!_canReplaceSelectedSymbolWith(newQuarters)) return this;
 
     if (symbol is Note) {
       return _replaceSelectedSymbol(
@@ -315,6 +333,8 @@ extension EditorActions on EditorState {
   /// Sets the time signature from the selected measure on, in every part.
   EditorState setTimeSignatureAtSelectedMeasure(TimeSignature timeSignature) {
     if (selectedMeasureIndex == null) return this;
+    // Already in force there: nothing to change or undo.
+    if (selectedMeasureTimeSignature == timeSignature) return this;
     final nextScore =
         score.setTimeSignatureAt(selectedMeasureIndex!, timeSignature);
     if (identical(nextScore, score)) return this;
@@ -479,6 +499,9 @@ extension EditorActions on EditorState {
         type: note.type,
         voice: note.voice,
         staff: note.staff,
+        beamed: note.beamed,
+        dots: note.dots,
+        isChordTone: note.isChordTone,
       ),
       intent: EditorEditIntent.replaceSelection,
     );
@@ -588,11 +611,6 @@ extension EditorActions on EditorState {
       partIndex: toPartIndex,
       measureIndex: toMeasureIndex,
       symbol: moved,
-      replacingSymbolDuration: sameMeasure
-          ? _symbolDuration(
-              fromMeasures[fromMeasureIndex].symbols[fromSymbolIndex],
-            )
-          : 0,
     )) {
       return this;
     }
@@ -862,20 +880,16 @@ extension EditorActions on EditorState {
     }
   }
 
-  bool _canReplaceSelectedSymbolWithDuration(int nextDuration) {
+  bool _canReplaceSelectedSymbolWith(double nextQuarters) {
     if (!hasEditableSelection) {
       return false;
     }
 
-    final partIndex = selectedPartIndex!;
-    final measureIndex = selectedMeasureIndex!;
-    final currentDuration = _symbolDuration(selectedSymbol!);
-
-    return _canMeasureAcceptDuration(
-      partIndex: partIndex,
-      measureIndex: measureIndex,
-      nextDuration: nextDuration,
-      replacingDuration: currentDuration,
+    return _canMeasureAcceptQuarters(
+      partIndex: selectedPartIndex!,
+      measureIndex: selectedMeasureIndex!,
+      nextQuarters: nextQuarters,
+      replacingQuarters: _symbolQuarters(selectedSymbol!),
     );
   }
 
@@ -883,68 +897,44 @@ extension EditorActions on EditorState {
     required int partIndex,
     required int measureIndex,
     required ScoreSymbol symbol,
-    int replacingSymbolDuration = 0,
   }) {
-    return _canMeasureAcceptDuration(
+    return _canMeasureAcceptQuarters(
       partIndex: partIndex,
       measureIndex: measureIndex,
-      nextDuration: _symbolDuration(symbol),
-      replacingDuration: replacingSymbolDuration,
+      nextQuarters: _symbolQuarters(symbol),
+      replacingQuarters: 0,
     );
   }
 
-  bool _canMeasureAcceptDuration({
+  bool _canMeasureAcceptQuarters({
     required int partIndex,
     required int measureIndex,
-    required int nextDuration,
-    required int replacingDuration,
-  }) {
-    final capacity = _measureCapacityDuration(
-      partIndex: partIndex,
-      measureIndex: measureIndex,
-    );
-    if (capacity == null || nextDuration <= 0) {
-      return true;
-    }
-
-    final used = _measureUsedDuration(
-      partIndex: partIndex,
-      measureIndex: measureIndex,
-    );
-    return used - replacingDuration + nextDuration <= capacity;
-  }
-
-  int _measureUsedDuration({
-    required int partIndex,
-    required int measureIndex,
-  }) {
-    final measure = score.parts[partIndex].measures[measureIndex];
-    return measure.symbols.fold<int>(
-      0,
-      (sum, symbol) => sum + _symbolDuration(symbol),
-    );
-  }
-
-  int? _measureCapacityDuration({
-    required int partIndex,
-    required int measureIndex,
+    required double nextQuarters,
+    required double replacingQuarters,
   }) {
     final timeSignature = _activeTimeSignatureForMeasure(
       partIndex: partIndex,
       measureIndex: measureIndex,
     );
-    if (timeSignature == null) {
-      return null;
+    if (timeSignature == null || nextQuarters <= 0) {
+      return true;
     }
 
-    return (wholeDuration.divisions * timeSignature.beats) ~/
-        timeSignature.beatType;
+    final capacity = timeSignature.beats * 4 / timeSignature.beatType;
+    final used = score.parts[partIndex].measures[measureIndex].symbols
+        .fold<double>(0, (sum, symbol) => sum + _symbolQuarters(symbol));
+    return used - replacingQuarters + nextQuarters <= capacity + 1e-9;
   }
 
-  int _symbolDuration(ScoreSymbol symbol) {
+  /// Time a symbol takes in its measure, in quarter notes. A chord tone
+  /// sounds with the note before it, so it takes none.
+  double _symbolQuarters(ScoreSymbol symbol) {
     return switch (symbol) {
-      Note(:final duration) => duration,
-      Rest(:final duration) => duration,
+      Note(isChordTone: true) => 0,
+      Note(:final type, :final dots, :final duration) =>
+        quarterLength(type, dots, duration),
+      Rest(:final type, :final dots, :final duration) =>
+        quarterLength(type, dots, duration),
       _ => 0,
     };
   }
@@ -983,13 +973,19 @@ Note _moveNoteByScaleStep(Note note, int steps) {
     nextOctave += 1;
   }
 
+  // Past the range the editor shows, the note stays where it is.
+  if (nextOctave < 1 || nextOctave > 7) return note;
+
   return Note(
     step: stepsByName[nextIndex],
-    octave: nextOctave.clamp(1, 7),
+    octave: nextOctave,
     alter: note.alter,
     duration: note.duration,
     type: note.type,
     voice: note.voice,
     staff: note.staff,
+    beamed: note.beamed,
+    dots: note.dots,
+    isChordTone: note.isChordTone,
   );
 }

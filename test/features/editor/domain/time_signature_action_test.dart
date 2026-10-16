@@ -50,6 +50,16 @@ void main() {
     final state = EditorState(score: score)
         .copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
     expect(state.setTimeSignatureAtSelectedMeasure(fourFour).undoStack, isEmpty);
+    // Inherited from measure 1, and given as a separate (saved) copy.
+    expect(
+      state
+          .copyWith(selectedMeasureIndex: 1)
+          .setTimeSignatureAtSelectedMeasure(
+            TimeSignature.fromJson(const {'beats': 4, 'beatType': 4}),
+          )
+          .undoStack,
+      isEmpty,
+    );
     expect(
       EditorState(score: score).setTimeSignatureAtSelectedMeasure(threeFour).score,
       same(score),

@@ -146,6 +146,15 @@ class ScoreNotationPainter extends CustomPainter {
         final rowStartX = padding.left;
         final contentStartX = rowStartX + rowPrefixWidth;
         final rowEndX = contentStartX + (rowMeasures.length * minMeasureWidth);
+        final timeInMeasure = [
+          for (var i = 0; i < rowMeasures.length; i++)
+            ScoreNotationMetrics.timeSignatureInMeasure(
+              partMeasures,
+              systemStartMeasure + i,
+              measureInRow: i,
+              rowPrefixWidth: rowPrefixWidth,
+            ),
+        ];
 
         rows.add(
           _RowMetrics(
@@ -159,6 +168,13 @@ class ScoreNotationPainter extends CustomPainter {
             contentStartX: contentStartX,
             rowEndX: rowEndX,
             clef: _clefForRow(rowMeasures),
+            timeInPrefix:
+                ScoreNotationMetrics.showsTimeSignature(
+                  partMeasures,
+                  systemStartMeasure,
+                ) &&
+                !timeInMeasure.first,
+            timeInMeasure: timeInMeasure,
           ),
         );
       }
@@ -197,10 +213,12 @@ class ScoreNotationPainter extends CustomPainter {
         final measureEndX = measureStartX + minMeasureWidth;
         if (measure.symbols.isEmpty) continue;
 
-        const innerPadding = ScoreNotationMetrics.measureInnerPadding;
+        final inset = row.laneInset(measureInRow);
         final drawableWidth = math.max(
           12.0,
-          (measureEndX - measureStartX) - (innerPadding * 2),
+          (measureEndX - measureStartX) -
+              inset -
+              ScoreNotationMetrics.measureInnerPadding,
         );
 
         for (
@@ -215,7 +233,7 @@ class ScoreNotationPainter extends CustomPainter {
           final visualSlot = _visualSlotForIndex(measure.symbols, symbolIndex);
           final slotCount = _visualSlotCount(measure.symbols);
           final progress = (visualSlot + 1) / (slotCount + 1);
-          final x = measureStartX + innerPadding + (drawableWidth * progress);
+          final x = measureStartX + inset + (drawableWidth * progress);
           final y = _symbolCenterY(
             symbol,
             row.staffTop,
@@ -332,8 +350,10 @@ class ScoreNotationPainter extends CustomPainter {
     _drawMeasures(canvas, row, thinBarPaint);
   }
 
+  /// The key signature starts every row, as in the PDF; the time signature
+  /// only the page's first row and a row that changes it.
   void _drawRowSignatures(Canvas canvas, _RowMetrics row) {
-    if (row.rowIndex != 0 || row.measures.isEmpty) return;
+    if (row.measures.isEmpty) return;
 
     final firstMeasure = row.measures.first;
     final timeSig = firstMeasure.timeSignature;
@@ -351,7 +371,7 @@ class ScoreNotationPainter extends CustomPainter {
       );
     }
 
-    if (timeSig != null) {
+    if (timeSig != null && row.timeInPrefix) {
       _drawTimeSignature(
         canvas,
         x: signatureX + 10,
@@ -394,11 +414,21 @@ class ScoreNotationPainter extends CustomPainter {
         );
       }
 
+      if (row.timeInMeasure[measureInRow]) {
+        _drawTimeSignature(
+          canvas,
+          x: measureX + ScoreNotationMetrics.timeSignatureInMeasureX,
+          y: row.staffTop - 2,
+          signature: measure.timeSignature!,
+        );
+      }
+
       _drawMeasureSymbols(
         canvas,
         measure,
         partIndex: row.partIndex,
         absoluteMeasureIndex: row.globalStartMeasureIndex + measureInRow,
+        laneInset: row.laneInset(measureInRow),
         measureStartX: measureX,
         measureEndX: nextMeasureX,
         staffTop: row.staffTop,
@@ -414,6 +444,7 @@ class ScoreNotationPainter extends CustomPainter {
     Measure measure, {
     required int partIndex,
     required int absoluteMeasureIndex,
+    required double laneInset,
     required double measureStartX,
     required double measureEndX,
     required double staffTop,
@@ -459,7 +490,7 @@ class ScoreNotationPainter extends CustomPainter {
     const innerPadding = ScoreNotationMetrics.measureInnerPadding;
     final drawableWidth = math.max(
       12.0,
-      (measureEndX - measureStartX) - (innerPadding * 2),
+      (measureEndX - measureStartX) - laneInset - innerPadding,
     );
     final drag = dragFeedback;
     final hasDragInMeasure =
@@ -475,7 +506,7 @@ class ScoreNotationPainter extends CustomPainter {
         : null;
     final clampedDragX = activeDrag != null
         ? activeDrag.dragX.clamp(
-            measureStartX + innerPadding,
+            measureStartX + laneInset,
             measureEndX - innerPadding,
           )
         : 0.0;
@@ -507,7 +538,7 @@ class ScoreNotationPainter extends CustomPainter {
             : compactIndex;
       }
       final progress = (visualIndex + 1) / (slotCount + 1);
-      final x = measureStartX + innerPadding + (drawableWidth * progress);
+      final x = measureStartX + laneInset + (drawableWidth * progress);
 
       if (symbol is Note) {
         final y = StaffPitchMapper.yForPitch(
@@ -538,6 +569,7 @@ class ScoreNotationPainter extends CustomPainter {
           y: y,
           middleLineY: middleLineY,
           suppressFlag: beamedIndices.contains(i),
+          drawStem: !beamedIndices.contains(i),
         );
       } else if (symbol is Rest) {
         final y = _symbolCenterY(
@@ -563,8 +595,14 @@ class ScoreNotationPainter extends CustomPainter {
       }
     }
 
-    // Draw beam bars for groups of 2+.
-    _drawBeamBars(canvas, beamGroups, notePositions, middleLineY);
+    // Draw stems and beam bars for groups of 2+.
+    _drawBeamBars(
+      canvas,
+      beamGroups,
+      notePositions,
+      middleLineY,
+      measure.symbols,
+    );
 
     if (!hasDragInMeasure || draggedSymbol == null || !drag.showGhostAtDrag) {
       return;
@@ -594,15 +632,17 @@ class ScoreNotationPainter extends CustomPainter {
     }
   }
 
-  /// Groups consecutive beamed eighth notes by symbol index.
+  /// Groups consecutive beamed eighth and sixteenth notes by symbol index.
+  /// Chord tones hang on the note before them, so they neither join nor end
+  /// a group.
   static List<List<int>> _buildBeamGroups(List<ScoreSymbol> symbols) {
     final groups = <List<int>>[];
     List<int>? current;
     for (var i = 0; i < symbols.length; i++) {
       final sym = symbols[i];
+      if (sym is Note && sym.isChordTone) continue;
       if (sym is Note &&
-          !sym.isChordTone &&
-          sym.type == 'eighth' &&
+          (sym.type == 'eighth' || isSixteenthType(sym.type)) &&
           sym.beamed) {
         current ??= [];
         current.add(i);
@@ -617,41 +657,119 @@ class ScoreNotationPainter extends CustomPainter {
     return groups;
   }
 
+  /// A sixteenth note or rest type, as written by scans ('sixteenth') or by
+  /// MusicXML ('16th').
+  static bool isSixteenthType(String type) {
+    final t = type.trim().toLowerCase();
+    return t == 'sixteenth' || t == '16th';
+  }
+
+  /// Draws the stems and beams of each beam group: one beam across the
+  /// group, a second across its sixteenths (a short stub for a lone one).
+  /// The beam follows the melody's slope a little and every stem reaches it.
   void _drawBeamBars(
     Canvas canvas,
     List<List<int>> beamGroups,
     Map<int, Offset> notePositions,
     double middleLineY,
+    List<ScoreSymbol> symbols,
   ) {
     final beamPaint = Paint()
       ..color = const Color(0xFF111827)
       ..style = PaintingStyle.fill;
+    final stemPaint = Paint()
+      ..color = const Color(0xFF111827)
+      ..strokeWidth = ScoreNotationMetrics.stemStrokeWidth;
 
     const stemLen =
         staffLineSpacing * ScoreNotationMetrics.stemLengthStaffSpaces;
-    const stemOffX = ScoreNotationMetrics.stemXOffset;
+    const thickness = ScoreNotationMetrics.beamThickness;
+    const levelStep = thickness + ScoreNotationMetrics.beamGap;
 
     for (final group in beamGroups) {
       if (group.length < 2) continue;
-      final firstPos = notePositions[group.first];
-      final lastPos = notePositions[group.last];
-      if (firstPos == null || lastPos == null) continue;
+      final heads = [
+        for (final i in group)
+          if (notePositions[i] != null) notePositions[i]!,
+      ];
+      if (heads.length != group.length) continue;
 
-      final stemUp = firstPos.dy > middleLineY;
-      final sign = stemUp ? -1.0 : 1.0;
-      final xOff = stemUp ? stemOffX : -stemOffX;
+      final averageY =
+          heads.map((p) => p.dy).reduce((a, b) => a + b) / heads.length;
+      final stemUp = averageY > middleLineY;
+      final dir = stemUp ? -1.0 : 1.0; // from the heads towards the beam
+      final xOff = stemUp
+          ? ScoreNotationMetrics.stemXOffset
+          : -ScoreNotationMetrics.stemXOffset;
+      final xs = [for (final p in heads) p.dx + xOff];
+      final run = xs.last - xs.first;
+      final slope = run <= 0
+          ? 0.0
+          : ((heads.last.dy - heads.first.dy) / run).clamp(-0.2, 0.2);
 
-      final x1 = firstPos.dx + xOff;
-      final x2 = lastPos.dx + xOff;
-      final y1 = firstPos.dy - sign * stemLen;
-      final y2 = lastPos.dy - sign * stemLen;
+      double line(double x) =>
+          heads.first.dy + dir * stemLen + slope * (x - xs.first);
+      // Move the beam away from the heads until no stem is shorter than
+      // 85 % of a normal one.
+      var shift = 0.0;
+      for (var k = 0; k < heads.length; k++) {
+        final needed = heads[k].dy + dir * stemLen * 0.85 - line(xs[k]);
+        shift = stemUp ? math.min(shift, needed) : math.max(shift, needed);
+      }
+      double beamY(double x) => line(x) + shift;
 
-      const beamThickness = ScoreNotationMetrics.beamThickness;
-      final top = math.min(y1, y2) - beamThickness / 2;
-      canvas.drawRect(
-        Rect.fromLTWH(x1, top, x2 - x1, beamThickness),
-        beamPaint,
-      );
+      for (var k = 0; k < heads.length; k++) {
+        canvas.drawLine(
+          Offset(xs[k], heads[k].dy),
+          Offset(xs[k], beamY(xs[k])),
+          stemPaint,
+        );
+      }
+
+      // Level 0 is the outer beam; inner levels sit nearer the heads.
+      void bar(double x1, double x2, int level) {
+        final y1 = beamY(x1) - dir * level * levelStep;
+        final y2 = beamY(x2) - dir * level * levelStep;
+        canvas.drawPath(
+          Path()
+            ..moveTo(x1, y1)
+            ..lineTo(x2, y2)
+            ..lineTo(x2, y2 - dir * thickness)
+            ..lineTo(x1, y1 - dir * thickness)
+            ..close(),
+          beamPaint,
+        );
+      }
+
+      bar(xs.first, xs.last, 0);
+
+      bool sixteenth(int k) {
+        final symbol = symbols[group[k]];
+        return symbol is Note && isSixteenthType(symbol.type);
+      }
+
+      var k = 0;
+      while (k < group.length) {
+        if (!sixteenth(k)) {
+          k++;
+          continue;
+        }
+        var last = k;
+        while (last + 1 < group.length && sixteenth(last + 1)) {
+          last++;
+        }
+        if (last > k) {
+          bar(xs[k], xs[last], 1);
+        } else {
+          const stub = 9.0;
+          if (k > 0) {
+            bar(xs[k] - stub, xs[k], 1);
+          } else {
+            bar(xs[k], xs[k] + stub, 1);
+          }
+        }
+        k = last + 1;
+      }
     }
   }
 
@@ -725,8 +843,9 @@ class ScoreNotationPainter extends CustomPainter {
 
     const ip = ScoreNotationMetrics.measureInnerPadding;
     final measureStartX = currentRow.contentStartX + measureRelIdx * minMeasureWidth;
-    final dw = math.max(12.0, minMeasureWidth - ip * 2);
-    final laneStartX = measureStartX + ip;
+    final inset = currentRow.laneInset(measureRelIdx);
+    final dw = math.max(12.0, minMeasureWidth - inset - ip);
+    final laneStartX = measureStartX + inset;
 
     final symbols = measure.symbols;
     final slotCount = _visualSlotCount(symbols);
@@ -753,10 +872,12 @@ class ScoreNotationPainter extends CustomPainter {
       final nextMeasure = currentRow.measures[measureRelIdx + 1];
       final nextMeasureStartX =
           currentRow.contentStartX + (measureRelIdx + 1) * minMeasureWidth;
-      final nextLaneStartX = nextMeasureStartX + ip;
+      final nextInset = currentRow.laneInset(measureRelIdx + 1);
+      final nextLaneStartX = nextMeasureStartX + nextInset;
+      final nextDw = math.max(12.0, minMeasureWidth - nextInset - ip);
       final nextSlotCount = _visualSlotCount(nextMeasure.symbols);
       nextX = nextSlotCount > 0
-          ? nextLaneStartX + dw * 1 / (nextSlotCount + 1)
+          ? nextLaneStartX + nextDw * 1 / (nextSlotCount + 1)
           : nextMeasureStartX + minMeasureWidth;
     } else {
       nextX = currentRow.contentStartX + currentRow.measures.length * minMeasureWidth;
@@ -803,7 +924,9 @@ class ScoreNotationPainter extends CustomPainter {
         staffTop +
             (staffLineSpacing * ScoreNotationMetrics.halfRestLineIndex) +
             ScoreNotationMetrics.halfRestCenterYOffset,
-      NotationPreviewGlyph.quarterRest =>
+      NotationPreviewGlyph.quarterRest ||
+      NotationPreviewGlyph.eighthRest ||
+      NotationPreviewGlyph.sixteenthRest =>
         staffTop +
             (staffLineSpacing * ScoreNotationMetrics.quarterRestLineIndex) +
             ScoreNotationMetrics.quarterRestCenterYOffset,
@@ -851,6 +974,14 @@ class ScoreNotationPainter extends CustomPainter {
           y: y,
           middleLineY: middleLineY,
         );
+      case NotationPreviewGlyph.sixteenthNote:
+        _drawNote(
+          canvas,
+          const Note(step: 'B', octave: 4, duration: 1, type: 'sixteenth'),
+          x: x,
+          y: y,
+          middleLineY: middleLineY,
+        );
       case NotationPreviewGlyph.wholeRest:
         _drawRest(
           canvas,
@@ -872,6 +1003,20 @@ class ScoreNotationPainter extends CustomPainter {
           x: x,
           staffTop: staffTop,
         );
+      case NotationPreviewGlyph.eighthRest:
+        _drawRest(
+          canvas,
+          const Rest(duration: 1, type: 'eighth'),
+          x: x,
+          staffTop: staffTop,
+        );
+      case NotationPreviewGlyph.sixteenthRest:
+        _drawRest(
+          canvas,
+          const Rest(duration: 1, type: 'sixteenth'),
+          x: x,
+          staffTop: staffTop,
+        );
     }
   }
 
@@ -882,6 +1027,7 @@ class ScoreNotationPainter extends CustomPainter {
     required double y,
     required double middleLineY,
     bool suppressFlag = false,
+    bool drawStem = true,
   }) {
     final normalizedType = note.type.trim().toLowerCase();
     final isBreve = normalizedType == 'breve';
@@ -932,10 +1078,12 @@ class ScoreNotationPainter extends CustomPainter {
           ),
           textDirection: TextDirection.ltr,
         )..layout();
+        // x is the head's centre: the accidental ends a gap before its left
+        // edge.
         tp.paint(
           canvas,
           Offset(
-            x - tp.width - ScoreNotationMetrics.accidentalGap,
+            x - headWidth / 2 - tp.width - ScoreNotationMetrics.accidentalGap,
             y - tp.height * 0.6,
           ),
         );
@@ -996,14 +1144,22 @@ class ScoreNotationPainter extends CustomPainter {
       return;
     }
 
-    final stemUp = y > middleLineY;
-    _drawStemAndFlag(
-      canvas,
-      x: x,
-      y: y,
-      stemUp: stemUp,
-      drawFlag: isEighth && !suppressFlag,
-    );
+    if (drawStem) {
+      final flags = suppressFlag
+          ? 0
+          : isEighth
+          ? 1
+          : isSixteenthType(normalizedType)
+          ? 2
+          : 0;
+      _drawStemAndFlag(
+        canvas,
+        x: x,
+        y: y,
+        stemUp: y > middleLineY,
+        flags: flags,
+      );
+    }
     _drawAugmentationDots(
       canvas,
       x: x + headWidth * ScoreNotationMetrics.breveSideLineOffsetFactor,
@@ -1017,7 +1173,7 @@ class ScoreNotationPainter extends CustomPainter {
     required double x,
     required double y,
     required bool stemUp,
-    required bool drawFlag,
+    required int flags,
   }) {
     final stemPaint = Paint()
       ..color = const Color(0xFF111827)
@@ -1031,24 +1187,37 @@ class ScoreNotationPainter extends CustomPainter {
 
     canvas.drawLine(Offset(stemX, y), Offset(stemX, endY), stemPaint);
 
-    if (!drawFlag) return;
-
-    final path = Path();
-    if (stemUp) {
-      path.moveTo(stemX, endY + 0.5);
-      path.quadraticBezierTo(stemX + 10, endY + 2, stemX + 6, endY + 12);
-      path.quadraticBezierTo(stemX + 8, endY + 8, stemX + 1, endY + 6);
-    } else {
-      path.moveTo(stemX, endY - 0.5);
-      path.quadraticBezierTo(stemX - 10, endY - 2, stemX - 6, endY - 12);
-      path.quadraticBezierTo(stemX - 8, endY - 8, stemX - 1, endY - 6);
-    }
-
+    // Filled and outlined, so one flag reads as one solid hook (an outline
+    // alone looks like two strokes, i.e. like a sixteenth's two flags).
     final flagPaint = Paint()
+      ..color = const Color(0xFF111827)
+      ..style = PaintingStyle.fill
+      ..strokeWidth = ScoreNotationMetrics.flagStrokeWidth;
+    final flagOutline = Paint()
       ..color = const Color(0xFF111827)
       ..style = PaintingStyle.stroke
       ..strokeWidth = ScoreNotationMetrics.flagStrokeWidth;
-    canvas.drawPath(path, flagPaint);
+    // Each further flag sits a little nearer the notehead.
+    for (var f = 0; f < flags; f++) {
+      final fy = stemUp
+          ? endY + f * ScoreNotationMetrics.flagSpacing
+          : endY - f * ScoreNotationMetrics.flagSpacing;
+      final path = Path();
+      if (stemUp) {
+        path.moveTo(stemX, fy + 0.5);
+        path.quadraticBezierTo(stemX + 10, fy + 2, stemX + 6, fy + 12);
+        path.quadraticBezierTo(stemX + 8, fy + 8, stemX + 1, fy + 6);
+      } else {
+        // Flags point right on a down stem too, curving up towards the head.
+        path.moveTo(stemX, fy - 0.5);
+        path.quadraticBezierTo(stemX + 10, fy - 2, stemX + 6, fy - 12);
+        path.quadraticBezierTo(stemX + 8, fy - 8, stemX + 1, fy - 6);
+      }
+      path.close();
+      canvas
+        ..drawPath(path, flagPaint)
+        ..drawPath(path, flagOutline);
+    }
   }
 
   void _drawRest(
@@ -1095,6 +1264,42 @@ class ScoreNotationPainter extends CustomPainter {
         canvas,
         x: x + ScoreNotationMetrics.restDotXOffset,
         y: line3Y + ScoreNotationMetrics.halfRestCenterYOffset,
+        dots: rest.dots,
+      );
+      return;
+    }
+
+    if (type == 'eighth' || isSixteenthType(type)) {
+      final glyph = TextPainter(
+        text: TextSpan(
+          text: type == 'eighth'
+              ? ScoreNotationMetrics.eighthRestGlyph
+              : ScoreNotationMetrics.sixteenthRestGlyph,
+          style: const TextStyle(
+            fontSize: ScoreNotationMetrics.restGlyphFontSize,
+            fontFamily: ScoreNotationMetrics.musicFontFamily,
+            color: Color(0xFF111827),
+            height: 1,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final middleY = staffTop + staffLineSpacing * 2;
+      glyph.paint(
+        canvas,
+        Offset(
+          x - glyph.width / 2,
+          middleY -
+              glyph.height / 2 +
+              (type == 'eighth'
+                  ? 0
+                  : ScoreNotationMetrics.sixteenthRestYOffset),
+        ),
+      );
+      _drawAugmentationDots(
+        canvas,
+        x: x + ScoreNotationMetrics.quarterRestDotXOffset,
+        y: middleY - staffLineSpacing / 2,
         dots: rest.dots,
       );
       return;
@@ -1454,15 +1659,15 @@ class ScoreNotationPainter extends CustomPainter {
             fontFamily: ScoreNotationMetrics.musicFontFamily,
             color: Color(0xFF111827),
             fontWeight: FontWeight.w500,
+            // The music font's own line box is tall and would hang the
+            // glyph two steps low; placed like a note's accidental instead.
+            height: 1,
           ),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
 
-      textPainter.paint(
-        canvas,
-        Offset(x, y - ScoreNotationMetrics.keySignatureYOffset),
-      );
+      textPainter.paint(canvas, Offset(x, y - textPainter.height * 0.6));
       x += ScoreNotationMetrics.keySignatureSpacing;
     }
 
@@ -1549,9 +1754,12 @@ enum NotationPreviewGlyph {
   halfNote,
   quarterNote,
   eighthNote,
+  sixteenthNote,
   wholeRest,
   halfRest,
   quarterRest,
+  eighthRest,
+  sixteenthRest,
 }
 
 class NotationSymbolTarget {
@@ -1656,6 +1864,8 @@ class _RowMetrics {
     required this.contentStartX,
     required this.rowEndX,
     required this.clef,
+    required this.timeInPrefix,
+    required this.timeInMeasure,
   });
 
   final int rowIndex;
@@ -1668,6 +1878,17 @@ class _RowMetrics {
   final double contentStartX;
   final double rowEndX;
   final Clef? clef;
+
+  /// The row's time signature goes before its opening barline.
+  final bool timeInPrefix;
+
+  /// Per measure: its time signature goes inside it, after its barline.
+  final List<bool> timeInMeasure;
+
+  /// Gap before the first symbol of the measure at [measureInRow].
+  double laneInset(int measureInRow) => ScoreNotationMetrics.laneInset(
+    timeInMeasure: timeInMeasure[measureInRow],
+  );
 
   String get clefSign => clef?.sign ?? 'G';
   int get clefLine => clef?.line ?? 2;

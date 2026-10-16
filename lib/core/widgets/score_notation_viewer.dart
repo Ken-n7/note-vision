@@ -4,9 +4,11 @@ import 'package:flutter/services.dart';
 import '../models/clef.dart';
 import '../models/key_signature.dart';
 import '../models/measure.dart';
+import '../models/note.dart';
 import '../models/score.dart';
 import '../models/time_signature.dart';
 import 'score_notation/notation_layout.dart';
+import 'score_notation/score_notation_metrics.dart';
 import 'score_notation/score_notation_painter.dart';
 import 'score_notation/staff_pitch_mapper.dart';
 
@@ -44,6 +46,7 @@ List<Measure> sliceMeasuresWithInheritedMetadata({
       keySignature: measure.keySignature ?? activeKeySignature,
       symbols: measure.symbols,
       startsNewPage: measure.startsNewPage,
+      startsNewSystem: measure.startsNewSystem,
       leftBarlineType: measure.leftBarlineType,
       rightBarlineType: measure.rightBarlineType,
     );
@@ -624,28 +627,47 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
           }
 
           final measure = measures[absoluteMeasureIndex];
+          final inset = ScoreNotationMetrics.laneInset(
+            timeInMeasure: ScoreNotationMetrics.timeSignatureInMeasure(
+              measures,
+              absoluteMeasureIndex,
+              measureInRow: measureInRow,
+              rowPrefixWidth: layout.rowPrefixWidth,
+            ),
+          );
           final drawableWidth =
-              ((measureEndX - measureStartX) - (innerPadding * 2))
+              ((measureEndX - measureStartX) - inset - innerPadding)
                   .clamp(12.0, double.infinity)
                   .toDouble();
           final clampedX = position.dx
-              .clamp(measureStartX + innerPadding, measureEndX - innerPadding)
+              .clamp(measureStartX + inset, measureEndX - innerPadding)
               .toDouble();
-          final symbolCount = measure.symbols.length;
+          // Symbols sit where the painter draws them: chord tones share the
+          // slot of the note before them, and an insert never splits a chord.
+          final symbols = measure.symbols;
+          final slotCount = symbols
+              .where((s) => !(s is Note && s.isChordTone))
+              .length;
           var insertIndex = 0;
-
-          for (var i = 0; i < symbolCount; i++) {
-            final progress = (i + 1) / (symbolCount + 1);
-            final symbolX =
-                measureStartX + innerPadding + (drawableWidth * progress);
-            if (clampedX > symbolX) insertIndex++;
+          var insertSlot = 0;
+          var slot = 0;
+          for (var i = 0; i < symbols.length; i++) {
+            final symbol = symbols[i];
+            if (symbol is Note && symbol.isChordTone) {
+              if (insertIndex == i) insertIndex = i + 1;
+              continue;
+            }
+            final progress = (slot + 1) / (slotCount + 1);
+            slot++;
+            if (clampedX > measureStartX + inset + drawableWidth * progress) {
+              insertIndex = i + 1;
+              insertSlot = slot;
+            }
           }
 
-          final indicatorProgress = (insertIndex + 1) / (symbolCount + 2);
+          final indicatorProgress = (insertSlot + 1) / (slotCount + 2);
           final indicatorX =
-              measureStartX +
-              innerPadding +
-              (drawableWidth * indicatorProgress);
+              measureStartX + inset + (drawableWidth * indicatorProgress);
           final clefSign = measure.clef?.sign ?? 'G';
           final pitch = StaffPitchMapper.pitchForY(
             y: position.dy,

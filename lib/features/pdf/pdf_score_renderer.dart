@@ -340,6 +340,8 @@ class PdfScoreRenderer {
           font,
           fontBold,
           musicFont,
+          pageMeasures: partMeasures,
+          rowStart: startM,
           rowMeasures: rowMeasures,
           staffTop: staffTop,
           clefSign: _clefSign(rowMeasures),
@@ -394,11 +396,15 @@ class PdfScoreRenderer {
 
   // ── Staff row ──────────────────────────────────────────────────────────────
 
+  /// [rowMeasures] are [pageMeasures] (one part's measures on the page) from
+  /// [rowStart] on.
   void _drawStaffRow(
     PdfGraphics g,
     PdfFont font,
     PdfFont fontBold,
     PdfFont musicFont, {
+    required List<Measure> pageMeasures,
+    required int rowStart,
     required List<Measure> rowMeasures,
     required double staffTop,
     required String clefSign,
@@ -410,6 +416,16 @@ class PdfScoreRenderer {
     final rowStartX = _pageX0 + _padX;
     final contentStartX = rowStartX + _prefixW;
     final staffEndX = contentStartX + rowMeasures.length * _mw;
+    // Where time signatures go: as in the editor (ScoreNotationMetrics).
+    final timeInMeasure = [
+      for (var mi = 0; mi < rowMeasures.length; mi++)
+        ScoreNotationMetrics.timeSignatureInMeasure(
+          pageMeasures,
+          rowStart + mi,
+          measureInRow: mi,
+          rowPrefixWidth: _editorPrefixW,
+        ),
+    ];
 
     // 5 staff lines
     for (var i = 0; i < ScoreNotationMetrics.staffLineCount; i++) {
@@ -463,7 +479,8 @@ class PdfScoreRenderer {
       );
     }
 
-    // Key + time signature at the start of every visible system.
+    // Key signature at the start of every system; the time signature on the
+    // page's first system and where it changes.
     var sigX = rowStartX + ScoreNotationMetrics.rowSignatureStartX * _scale;
     if (rowMeasures.isNotEmpty) {
       final first = rowMeasures.first;
@@ -478,7 +495,8 @@ class PdfScoreRenderer {
           clefLine: clefLine,
         );
       }
-      if (first.timeSignature != null) {
+      if (ScoreNotationMetrics.showsTimeSignature(pageMeasures, rowStart) &&
+          !timeInMeasure.first) {
         _drawTimeSig(
           g,
           fontBold,
@@ -508,6 +526,17 @@ class PdfScoreRenderer {
         );
       }
 
+      if (timeInMeasure[mi]) {
+        _drawTimeSig(
+          g,
+          fontBold,
+          measureStartX + ScoreNotationMetrics.timeSignatureInMeasureX * _scale,
+          staffTop,
+          measure.timeSignature!.beats,
+          measure.timeSignature!.beatType,
+        );
+      }
+
       // Measure number
       _text(
         g,
@@ -522,6 +551,9 @@ class PdfScoreRenderer {
         g,
         musicFont,
         measure,
+        laneInset:
+            ScoreNotationMetrics.laneInset(timeInMeasure: timeInMeasure[mi]) *
+            _scale,
         measureStartX: measureStartX,
         measureEndX: measureEndX,
         staffTop: staffTop,
@@ -534,10 +566,12 @@ class PdfScoreRenderer {
 
   // ── Measure symbols ────────────────────────────────────────────────────────
 
+  /// [laneInset] is the gap before the first symbol, already scaled.
   void _drawMeasureSymbols(
     PdfGraphics g,
     PdfFont musicFont,
     Measure measure, {
+    required double laneInset,
     required double measureStartX,
     required double measureEndX,
     required double staffTop,
@@ -550,7 +584,7 @@ class PdfScoreRenderer {
     final innerPad = ScoreNotationMetrics.measureInnerPadding * _scale;
     final drawableW = math.max(
       12.0,
-      (measureEndX - measureStartX) - innerPad * 2,
+      (measureEndX - measureStartX) - laneInset - innerPad,
     );
     final count = measure.symbols.length;
     final slotCount = _visualSlotCount(measure.symbols);
@@ -562,7 +596,7 @@ class PdfScoreRenderer {
       count,
       (i) =>
           measureStartX +
-          innerPad +
+          laneInset +
           drawableW *
               (_visualSlotForIndex(measure.symbols, i) + 1) /
               (slotCount + 1),
@@ -609,55 +643,116 @@ class PdfScoreRenderer {
           y: y,
           middleLineY: middleLineY,
           suppressFlag: beamedIndices.contains(i),
-        ); // suppressFlag hides individual flag when note is part of a beam group
+          // A beamed note's stem is drawn with its beam, to reach it.
+          drawStem: !beamedIndices.contains(i),
+        );
       } else if (symbol is Rest) {
-        _drawRest(g, symbol, x: x, staffTop: staffTop);
+        _drawRest(g, musicFont, symbol, x: x, staffTop: staffTop);
       }
     }
 
-    // Draw beam bars for groups of 2+.
+    // Stems and beams for groups of 2+, as in the editor (PDF y points up).
+    final stemLen = ScoreNotationMetrics.stemLengthFor(_ls);
+    final thickness = ScoreNotationMetrics.beamThickness * _scale;
+    final levelStep =
+        (ScoreNotationMetrics.beamThickness + ScoreNotationMetrics.beamGap) *
+        _scale;
     for (final group in beamGroups) {
       if (group.length < 2) continue;
-      final first = group.first;
-      final last = group.last;
-      final firstY = ys[first];
-      final lastY = ys[last];
-      final stemUp = firstY < middleLineY;
-      final stemLen = ScoreNotationMetrics.stemLengthFor(_ls);
-      final stemOffX =
+      final headYs = [for (final i in group) ys[i]];
+      final averageY = headYs.reduce((a, b) => a + b) / headYs.length;
+      final stemUp = averageY < middleLineY;
+      final dir = stemUp ? 1.0 : -1.0; // from the heads towards the beam
+      final xOff =
           (stemUp
               ? ScoreNotationMetrics.stemXOffset
               : -ScoreNotationMetrics.stemXOffset) *
           _scale;
+      final stemXs = [for (final i in group) xs[i] + xOff];
+      final run = stemXs.last - stemXs.first;
+      final slope = run <= 0
+          ? 0.0
+          : ((headYs.last - headYs.first) / run).clamp(-0.2, 0.2);
 
-      // Beam connects the stem tips of all notes in the group.
-      final x1 = xs[first] + stemOffX;
-      final x2 = xs[last] + stemOffX;
-      final y1 = stemUp ? firstY + stemLen : firstY - stemLen;
-      final y2 = stemUp ? lastY + stemLen : lastY - stemLen;
+      double line(double x) =>
+          headYs.first + dir * stemLen + slope * (x - stemXs.first);
+      // Move the beam away from the heads until no stem is shorter than
+      // 85 % of a normal one.
+      var shift = 0.0;
+      for (var k = 0; k < group.length; k++) {
+        final needed = headYs[k] + dir * stemLen * 0.85 - line(stemXs[k]);
+        shift = stemUp ? math.max(shift, needed) : math.min(shift, needed);
+      }
+      double beamY(double x) => line(x) + shift;
 
-      final beamThickness = ScoreNotationMetrics.beamThickness * _scale;
-      g.setColor(_ink);
-      g.drawRect(
-        x1,
-        math.min(y1, y2) - beamThickness / 2,
-        x2 - x1,
-        beamThickness,
-      );
-      g.fillPath();
+      for (var k = 0; k < group.length; k++) {
+        _line(
+          g,
+          stemXs[k],
+          headYs[k],
+          stemXs[k],
+          beamY(stemXs[k]),
+          ScoreNotationMetrics.stemStrokeWidth * _scale,
+        );
+      }
+
+      // Level 0 is the outer beam; inner levels sit nearer the heads.
+      void bar(double x1, double x2, int level) {
+        final y1 = beamY(x1) - dir * level * levelStep;
+        final y2 = beamY(x2) - dir * level * levelStep;
+        g.setColor(_ink);
+        g.moveTo(x1, y1);
+        g.lineTo(x2, y2);
+        g.lineTo(x2, y2 - dir * thickness);
+        g.lineTo(x1, y1 - dir * thickness);
+        g.closePath();
+        g.fillPath();
+      }
+
+      bar(stemXs.first, stemXs.last, 0);
+
+      bool sixteenth(int k) {
+        final symbol = measure.symbols[group[k]];
+        return symbol is Note && _isSixteenth(symbol.type);
+      }
+
+      var k = 0;
+      while (k < group.length) {
+        if (!sixteenth(k)) {
+          k++;
+          continue;
+        }
+        var last = k;
+        while (last + 1 < group.length && sixteenth(last + 1)) {
+          last++;
+        }
+        if (last > k) {
+          bar(stemXs[k], stemXs[last], 1);
+        } else {
+          final stub = 9.0 * _scale;
+          if (k > 0) {
+            bar(stemXs[k] - stub, stemXs[k], 1);
+          } else {
+            bar(stemXs[k], stemXs[k] + stub, 1);
+          }
+        }
+        k = last + 1;
+      }
     }
   }
 
-  /// Groups indices of consecutive beamed eighth notes.
+  /// Groups indices of consecutive beamed eighth and sixteenth notes.
+  /// Chord tones hang on the note before them, so they neither join nor end
+  /// a group.
   List<List<int>> _buildBeamGroups(List<dynamic> symbols) {
     final groups = <List<int>>[];
     List<int>? current;
 
     for (var i = 0; i < symbols.length; i++) {
       final sym = symbols[i];
+      if (sym is Note && sym.isChordTone) continue;
       if (sym is Note &&
-          !sym.isChordTone &&
-          _isEighth(sym.type) &&
+          (_isEighth(sym.type) || _isSixteenth(sym.type)) &&
           sym.beamed) {
         current ??= [];
         current.add(i);
@@ -699,6 +794,7 @@ class PdfScoreRenderer {
     required double y,
     required double middleLineY,
     bool suppressFlag = false,
+    bool drawStem = true,
   }) {
     final type = note.type.trim().toLowerCase();
     final isBreve = type == 'breve';
@@ -771,15 +867,26 @@ class PdfScoreRenderer {
       return;
     }
 
-    // Stem
+    if (!drawStem) return;
     final stemUp = y < middleLineY;
     _drawStem(
       g,
       x: x,
       y: y,
       stemUp: stemUp,
-      isEighth: isEighth && !suppressFlag,
+      flags: suppressFlag
+          ? 0
+          : isEighth
+          ? 1
+          : _isSixteenth(type)
+          ? 2
+          : 0,
     );
+  }
+
+  static bool _isSixteenth(String type) {
+    final normalized = type.trim().toLowerCase();
+    return normalized == 'sixteenth' || normalized == '16th';
   }
 
   static bool _isEighth(String type) {
@@ -805,7 +912,7 @@ class PdfScoreRenderer {
     required double x,
     required double y,
     required bool stemUp,
-    required bool isEighth,
+    required int flags,
   }) {
     final stemLen = ScoreNotationMetrics.stemLengthFor(_ls);
     final stemX = stemUp
@@ -823,60 +930,68 @@ class PdfScoreRenderer {
       ScoreNotationMetrics.stemStrokeWidth * _scale,
     );
 
-    if (!isEighth) return;
-
-    g.setLineWidth(ScoreNotationMetrics.flagStrokeWidth * _scale);
-    g.setColor(_ink);
-    if (stemUp) {
-      final start = _pdfOffset(stemX, endY, 0, 0.5);
-      g.moveTo(start.x, start.y);
-      _quadraticCurveTo(
-        g,
-        fromX: start.x,
-        fromY: start.y,
-        controlX: stemX + 10 * _scale,
-        controlY: endY - 2 * _scale,
-        endX: stemX + 6 * _scale,
-        endY: endY - 12 * _scale,
-      );
-      _quadraticCurveTo(
-        g,
-        fromX: stemX + 6 * _scale,
-        fromY: endY - 12 * _scale,
-        controlX: stemX + 8 * _scale,
-        controlY: endY - 8 * _scale,
-        endX: stemX + 1 * _scale,
-        endY: endY - 6 * _scale,
-      );
-    } else {
-      final start = _pdfOffset(stemX, endY, 0, -0.5);
-      g.moveTo(start.x, start.y);
-      _quadraticCurveTo(
-        g,
-        fromX: start.x,
-        fromY: start.y,
-        controlX: stemX - 10 * _scale,
-        controlY: endY + 2 * _scale,
-        endX: stemX - 6 * _scale,
-        endY: endY + 12 * _scale,
-      );
-      _quadraticCurveTo(
-        g,
-        fromX: stemX - 6 * _scale,
-        fromY: endY + 12 * _scale,
-        controlX: stemX - 8 * _scale,
-        controlY: endY + 8 * _scale,
-        endX: stemX - 1 * _scale,
-        endY: endY + 6 * _scale,
-      );
+    final stemTip = endY;
+    // Each further flag sits a little nearer the notehead.
+    for (var f = 0; f < flags; f++) {
+      final endY = stemUp
+          ? stemTip - f * ScoreNotationMetrics.flagSpacing * _scale
+          : stemTip + f * ScoreNotationMetrics.flagSpacing * _scale;
+      g.setLineWidth(ScoreNotationMetrics.flagStrokeWidth * _scale);
+      g.setColor(_ink);
+      if (stemUp) {
+        final start = _pdfOffset(stemX, endY, 0, 0.5);
+        g.moveTo(start.x, start.y);
+        _quadraticCurveTo(
+          g,
+          fromX: start.x,
+          fromY: start.y,
+          controlX: stemX + 10 * _scale,
+          controlY: endY - 2 * _scale,
+          endX: stemX + 6 * _scale,
+          endY: endY - 12 * _scale,
+        );
+        _quadraticCurveTo(
+          g,
+          fromX: stemX + 6 * _scale,
+          fromY: endY - 12 * _scale,
+          controlX: stemX + 8 * _scale,
+          controlY: endY - 8 * _scale,
+          endX: stemX + 1 * _scale,
+          endY: endY - 6 * _scale,
+        );
+      } else {
+        final start = _pdfOffset(stemX, endY, 0, -0.5);
+        g.moveTo(start.x, start.y);
+        // Flags point right on a down stem too, curving up towards the head.
+        _quadraticCurveTo(
+          g,
+          fromX: start.x,
+          fromY: start.y,
+          controlX: stemX + 10 * _scale,
+          controlY: endY + 2 * _scale,
+          endX: stemX + 6 * _scale,
+          endY: endY + 12 * _scale,
+        );
+        _quadraticCurveTo(
+          g,
+          fromX: stemX + 6 * _scale,
+          fromY: endY + 12 * _scale,
+          controlX: stemX + 8 * _scale,
+          controlY: endY + 8 * _scale,
+          endX: stemX + 1 * _scale,
+          endY: endY + 6 * _scale,
+        );
+      }
+      // Solid, as in the editor.
+      g.fillAndStrokePath(close: true);
     }
-    g.strokePath();
   }
 
   // ── Rest ──────────────────────────────────────────────────────────────────
 
   void _drawRest(
     PdfGraphics g,
+    PdfFont musicFont,
     Rest rest, {
     required double x,
     required double staffTop,
@@ -928,41 +1043,32 @@ class PdfScoreRenderer {
       return;
     }
 
-    if (_isEighth(type)) {
-      final y = staffTop - _ls * ScoreNotationMetrics.quarterRestLineIndex;
-      final start = _pdfOffset(x, y, 4, -8);
-      final stemEnd = _pdfOffset(x, y, -3, 16);
-      final flagEnd = _pdfOffset(x, y, 3, 4);
-
-      g.setColor(_ink);
-      g.setLineWidth(ScoreNotationMetrics.flagStrokeWidth * _scale);
-      g.moveTo(start.x, start.y);
-      g.lineTo(stemEnd.x, stemEnd.y);
-      g.strokePath();
-
-      g.setLineWidth(ScoreNotationMetrics.flagStrokeWidth * _scale);
-      g.moveTo(start.x, start.y);
-      _quadraticCurveTo(
+    if (_isEighth(type) || _isSixteenth(type)) {
+      // The music font's rest glyphs, placed as the editor places them: the
+      // line box centred on the middle line (a sixteenth one space lower).
+      final glyph = _isEighth(type)
+          ? ScoreNotationMetrics.eighthRestGlyph
+          : ScoreNotationMetrics.sixteenthRestGlyph;
+      final size = ScoreNotationMetrics.restGlyphFontSize * _scale;
+      final ascentShare =
+          musicFont.ascent / (musicFont.ascent - musicFont.descent);
+      final middleY = staffTop - _ls * 2;
+      final lineCentre = _isEighth(type)
+          ? middleY
+          : middleY - ScoreNotationMetrics.sixteenthRestYOffset * _scale;
+      final width = musicFont.stringMetrics(glyph).advanceWidth * size;
+      _text(
         g,
-        fromX: start.x,
-        fromY: start.y,
-        controlX: x + 13 * _scale,
-        controlY: y + 1 * _scale,
-        endX: flagEnd.x,
-        endY: flagEnd.y,
+        musicFont,
+        size,
+        glyph,
+        x - width / 2,
+        lineCentre - size * (ascentShare - 0.5),
       );
-      g.strokePath();
-      g.drawEllipse(
-        x - 1.5 * _scale,
-        y + 13 * _scale,
-        3.6 * _scale,
-        3.6 * _scale,
-      );
-      g.fillPath();
       _drawAugmentationDots(
         g,
         x: x + ScoreNotationMetrics.quarterRestDotXOffset * _scale,
-        y: y - ScoreNotationMetrics.quarterRestDotYOffset * _scale,
+        y: middleY + _ls / 2,
         dots: rest.dots,
       );
       return;
@@ -1326,6 +1432,10 @@ class PdfScoreRenderer {
               ? flatOrderTenor
               : flatOrderTreble);
 
+    // Baseline where the editor puts it: a line-height-1 box whose top is
+    // 0.6 of the font size above the pitch.
+    final size = ScoreNotationMetrics.keySignatureFontSize * _scale;
+    final ascentShare = font.ascent / (font.ascent - font.descent);
     for (var i = 0; i < count; i++) {
       final pitch = order[i];
       final y = _yForPitch(
@@ -1338,12 +1448,12 @@ class PdfScoreRenderer {
       _text(
         g,
         font,
-        ScoreNotationMetrics.keySignatureFontSize * _scale,
+        size,
         isSharp
             ? ScoreNotationMetrics.sharpGlyph
             : ScoreNotationMetrics.flatGlyph,
         x,
-        y - ScoreNotationMetrics.keySignatureYOffset * _scale,
+        y - size * (ascentShare - 0.6),
       );
       x += ScoreNotationMetrics.keySignatureSpacing * _scale;
     }

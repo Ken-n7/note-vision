@@ -1,4 +1,5 @@
 import '../models/note.dart';
+import '../models/note_value.dart';
 import '../models/rest.dart';
 import '../models/score.dart';
 import 'accidentals.dart';
@@ -106,6 +107,17 @@ class PlaybackConverter {
   int durationMs(int divisions) =>
       (divisions * 30000 ~/ defaultTempo).clamp(50, 16000);
 
+  /// Milliseconds at [defaultTempo] BPM for a length in quarter notes,
+  /// clamped like [durationMs].
+  int quarterMs(double quarters) =>
+      (quarters * 60000 / defaultTempo).round().clamp(50, 16000);
+
+  /// How long a note or rest written as [type] with [dots] sounds at
+  /// [defaultTempo]; sixteenths and dotted eighths included. [divisions] is
+  /// the stored duration, used only for an unknown type.
+  int symbolMs(String type, int dots, int divisions) =>
+      quarterMs(quarterLength(type, dots, divisions));
+
   /// Scales a [baseDurationMs] (computed at [defaultTempo]) to [actualTempo].
   int scaledDuration(int baseDurationMs, int actualTempo) =>
       (baseDurationMs * defaultTempo / actualTempo).round();
@@ -144,7 +156,8 @@ class PlaybackConverter {
               measureIndex: mi,
               symbolIndex: si,
               midiNote: midi,
-              baseDurationMs: durationMs(symbol.duration),
+              baseDurationMs:
+                  symbolMs(symbol.type, symbol.dots, symbol.duration),
               isChordTone: symbol.isChordTone,
             ));
           } else if (symbol is Rest) {
@@ -153,7 +166,8 @@ class PlaybackConverter {
               measureIndex: mi,
               symbolIndex: si,
               midiNote: -1,
-              baseDurationMs: durationMs(symbol.duration),
+              baseDurationMs:
+                  symbolMs(symbol.type, symbol.dots, symbol.duration),
             ));
           }
         }

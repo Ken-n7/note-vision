@@ -184,14 +184,16 @@ class Score {
   }
 
   /// Removes the measure at [measureIndex] from every part and renumbers.
-  /// The caller is responsible for ensuring more than one measure exists —
-  /// this method does no safety checks.
+  /// The caller is responsible for ensuring more than one measure exists.
+  /// A part too short to have that measure (imported parts can differ in
+  /// length) is left as it is.
   Score deleteMeasureFromAllParts(int measureIndex) {
     if (parts.isEmpty) return this;
 
     final updatedParts = List<Part>.from(parts);
     for (int pi = 0; pi < updatedParts.length; pi++) {
       final part = updatedParts[pi];
+      if (measureIndex < 0 || measureIndex >= part.measures.length) continue;
       final measures = List<Measure>.from(part.measures)
         ..removeAt(measureIndex);
 
@@ -278,6 +280,7 @@ class Score {
     Object? timeSignature = _keep,
     List<ScoreSymbol>? symbols,
     bool? startsNewPage,
+    bool? startsNewSystem,
     Object? leftBarlineType = _keep,
     Object? rightBarlineType = _keep,
   }) {
@@ -290,6 +293,7 @@ class Score {
       keySignature: measure.keySignature,
       symbols: symbols ?? measure.symbols,
       startsNewPage: startsNewPage ?? measure.startsNewPage,
+      startsNewSystem: startsNewSystem ?? measure.startsNewSystem,
       leftBarlineType: identical(leftBarlineType, _keep)
           ? measure.leftBarlineType
           : leftBarlineType as BarlineType?,
