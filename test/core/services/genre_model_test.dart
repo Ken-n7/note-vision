@@ -76,6 +76,21 @@ void main() {
     expect(f[2][3], 0.5);
     expect(f[0][5], 1); // 3 beats
     expect(f[3][8], 1); // 5 beats: "other"
+    // Key: B minor (genre_train.py key_of), so C4 is degree 1, G4 8, B5 0,
+    // F#4 7; the rest has no degree; every row carries the minor flag.
+    expect(GenreModel.keyOf(GenreModel.melody(score)), (tonic: 11, minor: true));
+    List<int> degrees(List<double> row) => [
+      for (var i = 9; i < 21; i++)
+        if (row[i] == 1) i - 9,
+    ];
+    expect([for (final row in f) degrees(row)], [
+      [1],
+      <int>[],
+      [8],
+      [0],
+      [7],
+    ]);
+    expect([for (final row in f) row[21]], everyElement(1));
     final padded = GenreModel.pad(f);
     expect(padded.length, GenreModel.window);
     expect(padded.first, everyElement(0));
