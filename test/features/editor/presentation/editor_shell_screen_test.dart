@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/services/playback_service.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
@@ -229,6 +231,63 @@ void main() {
       expect(find.text('Export PDF…'), findsOneWidget);
     },
   );
+
+  for (final size in const [Size(1600, 900), Size(390, 844)]) {
+    testWidgets('notation check lists a short bar and fills it on accept '
+        '(${size.width.toInt()} wide)', (tester) async {
+      const quarter = Note(step: 'C', octave: 4, duration: 2, type: 'quarter');
+      final score = Score(
+        id: 'score-1',
+        title: 'Test Score',
+        composer: '',
+        parts: [
+          Part(
+            id: 'P1',
+            name: 'Part 1',
+            measures: [
+              const Measure(
+                number: 1,
+                clef: Clef(sign: 'G', line: 2),
+                timeSignature: TimeSignature(beats: 4, beatType: 4),
+                symbols: [quarter, quarter, quarter, quarter],
+              ),
+              const Measure(number: 2, symbols: [quarter, quarter]),
+              const Measure(
+                number: 3,
+                symbols: [quarter, quarter, quarter, quarter],
+              ),
+            ],
+          ),
+        ],
+      );
+
+      await pumpEditorShell(tester, score: score, surfaceSize: size);
+      await tester.tap(find.byTooltip('More'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Check Notation'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('1 issue'), findsOneWidget);
+      expect(
+        find.text('Bar 2 has 2 beats; a bar of 4/4 needs 4 beats.'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Fill with rests'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('No issues found'), findsOneWidget);
+      expect(find.text('Notation check: no issues'), findsOneWidget);
+      // Accepting a fix is an ordinary edit, so it can be undone.
+      final undo = tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byIcon(Icons.undo_rounded),
+          matching: find.byType(IconButton),
+        ),
+      );
+      expect(undo.onPressed, isNotNull);
+    });
+  }
 
   testWidgets('keeps measure actions enabled with default measure context', (
     tester,

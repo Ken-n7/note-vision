@@ -115,6 +115,7 @@ class SemanticInferrer {
               final rest = _buildRest(
                 type: type,
                 dots: symbolDots[entry.symbol.id] ?? 0,
+                confidence: entry.symbol.confidence,
               );
               ordered.add(
                 OrderedScoreSymbol(x: entry.symbolCenterX, symbol: rest),
@@ -352,10 +353,15 @@ class SemanticInferrer {
           (hasBeam || entry.symbol.metadata?['beamed'] == true),
       dots: dots,
       isChordTone: link.isChordTone,
+      confidence: entry.symbol.confidence,
     );
   }
 
-  Rest _buildRest({required String type, required int dots}) {
+  Rest _buildRest({
+    required String type,
+    required int dots,
+    double? confidence,
+  }) {
     final restType = switch (type) {
       'restWhole' => 'whole',
       'restHalf' => 'half',
@@ -368,6 +374,7 @@ class SemanticInferrer {
       type: restType,
       staff: _defaultStaff,
       dots: dots,
+      confidence: confidence,
     );
   }
 

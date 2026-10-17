@@ -17,6 +17,7 @@ import 'package:note_vision/core/services/playback_display_preferences_service.d
 import 'package:note_vision/core/services/playback_service.dart';
 import 'package:note_vision/core/services/project_storage_service.dart';
 import 'package:note_vision/core/services/nvscore_export_service.dart';
+import 'package:note_vision/core/services/notation_checker.dart';
 import 'package:note_vision/core/services/score_classifier.dart';
 import 'package:note_vision/core/services/user_profile_service.dart';
 import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
@@ -28,6 +29,7 @@ import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/model/editor_state_history.dart';
 import 'package:note_vision/features/editor/presentation/editor_layout_policy.dart';
+import 'package:note_vision/features/editor/presentation/widgets/notation_check_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/playback_controls_bar.dart';
 import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.dart';
 import 'package:note_vision/core/services/usage_stats_service.dart';
@@ -106,6 +108,14 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   bool _isSubmitting = false;
   String? _role;
   _EditorBannerData? _banner;
+
+  // Notation check, turned on by the user from the header menu. While it is
+  // on, the issues are worked out again after every edit (a few ms).
+  bool _notationCheckOn = false;
+  final Set<String> _dismissedIssues = {};
+  Score? _checkedScore;
+  List<NotationIssue> _checkedIssues = const [];
+  int _checkMicros = 0;
   Timer? _bannerTimer;
 
   /// Genre shown in the header. Worked out again shortly after the edits
@@ -570,6 +580,139 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         fileName: NvscoreExportService.feedbackFileName(project),
       ),
       successMessage: 'Reviewed score exported',
+    );
+  }
+
+  // ── Notation check ─────────────────────────────────────────────────────────
+
+  List<NotationIssue> get _notationIssues {
+    if (!_notationCheckOn) return const [];
+    final score = _editorState.score;
+    if (!identical(score, _checkedScore)) {
+      final watch = Stopwatch()..start();
+      _checkedIssues = NotationChecker.check(score);
+      _checkMicros = watch.elapsedMicroseconds;
+      _checkedScore = score;
+    }
+    return [
+      for (final issue in _checkedIssues)
+        if (!_dismissedIssues.contains(issue.key)) issue,
+    ];
+  }
+
+  /// Highlights for the canvas, keyed 'part:measure[:symbol]'.
+  Map<String, Color> get _issueMarks => {
+        for (final issue in _notationIssues)
+          [
+            issue.partIndex,
+            issue.measureIndex,
+            ?issue.symbolIndex,
+          ].join(':'): notationIssueColor(issue.kind),
+      };
+
+  void _startNotationCheck() {
+    setState(() {
+      _notationCheckOn = true;
+      _checkedScore = null;
+    });
+    unawaited(_openNotationCheckSheet());
+  }
+
+  void _stopNotationCheck() {
+    setState(() {
+      _notationCheckOn = false;
+      _dismissedIssues.clear();
+    });
+  }
+
+  bool get _canApplyIssueFix =>
+      !_isReviewMode && _playbackStatus != PlaybackStatus.playing;
+
+  void _fixIssue(NotationIssue issue) {
+    if (!issue.hasFix || !_canApplyIssueFix) return;
+    final fixed = issue.fix!(_editorState.score);
+    if (identical(fixed, _editorState.score)) return;
+    _updateState(
+      (s) => s.applyEditWithMeasureContext(
+        score: fixed,
+        partIndex: issue.partIndex,
+        measureIndex: issue.measureIndex
+            .clamp(0, fixed.parts[issue.partIndex].measures.length - 1),
+      ),
+    );
+  }
+
+  /// Accepts every fix as one edit (one undo step). Fixes are applied one
+  /// at a time, checking again after each, since one fix can settle another
+  /// issue (an early barline makes one bar short and the next one long).
+  void _fixAllIssues() {
+    if (!_canApplyIssueFix) return;
+    var score = _editorState.score;
+    final skipped = <String>{..._dismissedIssues};
+    for (var guard = 0; guard < 500; guard++) {
+      final next = NotationChecker.check(score)
+          .where((i) => i.hasFix && !skipped.contains(i.key))
+          .firstOrNull;
+      if (next == null) break;
+      final fixed = next.fix!(score);
+      if (identical(fixed, score)) {
+        skipped.add(next.key);
+      } else {
+        score = fixed;
+      }
+    }
+    if (identical(score, _editorState.score)) return;
+    _updateState((s) => s.applyEdit(score: score, clearSelection: true));
+  }
+
+  void _ignoreIssue(NotationIssue issue) =>
+      setState(() => _dismissedIssues.add(issue.key));
+
+  void _ignoreAllIssues() => setState(
+        () => _dismissedIssues.addAll(_notationIssues.map((i) => i.key)),
+      );
+
+  /// Selects the issue's symbol (or bar) and turns to its page, so it can
+  /// be corrected by hand.
+  void _showIssue(NotationIssue issue) {
+    setState(() {
+      _editorState = issue.symbolIndex == null
+          ? _editorState.copyWith(
+              selectedPartIndex: issue.partIndex,
+              selectedMeasureIndex: issue.measureIndex,
+              selectedSymbolIndex: null,
+              selectedSymbol: null,
+            )
+          : _editorState.selectSymbolAt(
+              partIndex: issue.partIndex,
+              measureIndex: issue.measureIndex,
+              symbolIndex: issue.symbolIndex!,
+            );
+      _syncPageToEditorState(_editorState);
+    });
+  }
+
+  Future<void> _openNotationCheckSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      barrierColor: Colors.black26,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => NotationCheckSheet(
+        issues: () => _notationIssues,
+        checkMicros: () => _checkMicros,
+        onFix: _fixIssue,
+        onIgnore: _ignoreIssue,
+        onFixAll: _fixAllIssues,
+        onIgnoreAll: _ignoreAllIssues,
+        onShow: (issue) {
+          Navigator.of(ctx).pop();
+          _showIssue(issue);
+        },
+      ),
     );
   }
 
@@ -1039,6 +1182,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               final isLandscape = constraints.maxWidth > constraints.maxHeight;
 
               final notationArea = _NotationArea(
+                issueMarks: _issueMarks,
                 // In portrait the selection card floats over the top of the
                 // canvas; the zoom controls float over its bottom edge.
                 fitInsets: EdgeInsets.only(
@@ -1271,6 +1415,13 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 dragGlobal: _dragGlobal,
                 trashZoneKey: _trashZoneKey,
                 banner: _banner,
+                checkBar: _notationCheckOn
+                    ? NotationCheckBar(
+                        issueCount: _notationIssues.length,
+                        onReview: () => unawaited(_openNotationCheckSheet()),
+                        onClose: _stopNotationCheck,
+                      )
+                    : null,
                 header: _EditorHeader(
                   title:
                       _currentProject?.name ??
@@ -1317,6 +1468,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   onScanPage: isPlaybackActive || isReadOnly
                       ? null
                       : _onScanPage,
+                  onCheckNotation:
+                      isPlaybackActive || isReadOnly || scoreIsEmpty
+                      ? null
+                      : _startNotationCheck,
                 ),
                 notationArea: notationArea,
                 inspectorPanel: inspectorPanel,
@@ -1366,6 +1521,7 @@ class _EditorWorkspace extends StatelessWidget {
     required this.dragGlobal,
     required this.trashZoneKey,
     required this.banner,
+    this.checkBar,
     required this.header,
     required this.notationArea,
     required this.inspectorPanel,
@@ -1377,6 +1533,7 @@ class _EditorWorkspace extends StatelessWidget {
   final Offset dragGlobal;
   final GlobalKey trashZoneKey;
   final _EditorBannerData? banner;
+  final Widget? checkBar;
   final Widget header;
   final Widget notationArea;
   final Widget inspectorPanel;
@@ -1391,6 +1548,7 @@ class _EditorWorkspace extends StatelessWidget {
             Column(
               children: [
                 header,
+                ?checkBar,
                 Expanded(
                   child: isLandscape
                       ? Row(
@@ -1607,7 +1765,7 @@ class _EditorBannerData {
   final VoidCallback? onAction;
 }
 
-enum _HeaderMenuAction { scanPage, exportXml, exportPdf }
+enum _HeaderMenuAction { scanPage, checkNotation, exportXml, exportPdf }
 
 class _HeaderMenuItem extends StatelessWidget {
   const _HeaderMenuItem({required this.icon, required this.label});
@@ -1651,6 +1809,7 @@ class _EditorHeader extends StatelessWidget {
     this.showSubmitButton = false,
     this.onSubmit,
     this.onScanPage,
+    this.onCheckNotation,
   });
 
   final String title;
@@ -1672,6 +1831,7 @@ class _EditorHeader extends StatelessWidget {
   final bool showSubmitButton;
   final VoidCallback? onSubmit;
   final VoidCallback? onScanPage;
+  final VoidCallback? onCheckNotation;
 
   static final ButtonStyle _compactIconButtonStyle = IconButton.styleFrom(
     visualDensity: VisualDensity.compact,
@@ -1830,6 +1990,8 @@ class _EditorHeader extends StatelessWidget {
             onSelected: (action) {
               if (action == _HeaderMenuAction.scanPage) {
                 onScanPage?.call();
+              } else if (action == _HeaderMenuAction.checkNotation) {
+                onCheckNotation?.call();
               } else if (action == _HeaderMenuAction.exportXml) {
                 onExportXml();
               } else if (action == _HeaderMenuAction.exportPdf) {
@@ -1847,6 +2009,14 @@ class _EditorHeader extends StatelessWidget {
                 child: const _HeaderMenuItem(
                   icon: Icons.add_photo_alternate_rounded,
                   label: 'Scan New Page',
+                ),
+              ),
+              PopupMenuItem(
+                value: _HeaderMenuAction.checkNotation,
+                enabled: onCheckNotation != null,
+                child: const _HeaderMenuItem(
+                  icon: Icons.fact_check_rounded,
+                  label: 'Check Notation',
                 ),
               ),
               const PopupMenuItem(
@@ -1889,6 +2059,7 @@ const double _kFloatingControlsReserve = 46.0;
 class _NotationArea extends StatefulWidget {
   const _NotationArea({
     this.fitInsets = EdgeInsets.zero,
+    this.issueMarks = const {},
     required this.editorState,
     required this.layoutPolicy,
     required this.pageFirstMeasure,
@@ -1932,6 +2103,9 @@ class _NotationArea extends StatefulWidget {
   final int playheadEpoch;
   final int playheadSymbolIndex;
   final int playheadNoteDurationMs;
+
+  /// Notation-check highlights keyed with absolute measure indices.
+  final Map<String, Color> issueMarks;
   final bool showPlaybackSymbolHighlight;
   final bool isDraggingNote;
   final Offset dragGlobal;
@@ -2006,6 +2180,15 @@ class _NotationAreaState extends State<_NotationArea>
 
   // Converts an absolute measure index to page-relative; returns null when
   // the index is outside the current page so the viewer shows no highlight.
+  /// [key] ('part:measure[:symbol]') with a page-relative measure, or null
+  /// when the measure is not on this page.
+  String? _relMark(String key) {
+    final parts = key.split(':');
+    final rel = _rel(int.parse(parts[1]));
+    if (rel == null) return null;
+    return [parts[0], rel, ...parts.skip(2)].join(':');
+  }
+
   int? _rel(int? abs) {
     if (abs == null) return null;
     final rel = abs - widget.pageFirstMeasure;
@@ -2151,6 +2334,10 @@ class _NotationAreaState extends State<_NotationArea>
       playheadSymbolIndex: pos.isNone ? null : widget.playheadSymbolIndex,
       playbackProgress: playbackT,
       showPlaybackSymbolHighlight: widget.showPlaybackSymbolHighlight,
+      issueMarks: {
+        for (final MapEntry(:key, :value) in widget.issueMarks.entries)
+          ?_relMark(key): value,
+      },
       insertMode: widget.insertMode,
       canAcceptExternalDrop: canEdit ? (data) => data is PaletteDragData : null,
       externalPreviewResolver: _previewGlyphForDragData,

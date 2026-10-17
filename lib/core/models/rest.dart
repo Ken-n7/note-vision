@@ -7,12 +7,16 @@ class Rest extends ScoreSymbol {
   final int? staff;
   final int dots;
 
+  /// The detector's confidence for a scanned rest; null otherwise.
+  final double? confidence;
+
   const Rest({
     required this.duration,
     required this.type,
     this.voice,
     this.staff,
     this.dots = 0,
+    this.confidence,
   });
 
   @override
@@ -23,6 +27,7 @@ class Rest extends ScoreSymbol {
         if (voice != null) 'voice': voice,
         if (staff != null) 'staff': staff,
         if (dots > 0) 'dots': dots,
+        if (confidence != null) 'confidence': confidence,
       };
 
   factory Rest.fromJson(Map<String, dynamic> json) => Rest(
@@ -31,6 +36,7 @@ class Rest extends ScoreSymbol {
         voice: json['voice'] as int?,
         staff: json['staff'] as int?,
         dots: json['dots'] as int? ?? 0,
+        confidence: (json['confidence'] as num?)?.toDouble(),
       );
 
   @override

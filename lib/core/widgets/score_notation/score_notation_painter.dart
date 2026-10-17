@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/material.dart';
 
 import '../../models/clef.dart';
@@ -37,7 +38,13 @@ class ScoreNotationPainter extends CustomPainter {
     this.dragFeedback,
     this.insertionTarget,
     this.insertionPreviewGlyph,
+    this.issueMarks = const {},
   });
+
+  /// Notation-check highlights: 'part:measure' tints a bar and
+  /// 'part:measure:symbol' rings a symbol, in the given colour. Measure
+  /// indices are relative to [parts], like [selectedMeasureIndex].
+  final Map<String, Color> issueMarks;
 
   /// All parts — one inner list per part, each containing that part's measures.
   final List<List<Measure>> parts;
@@ -454,6 +461,14 @@ class ScoreNotationPainter extends CustomPainter {
   }) {
     final middleLineY =
         staffTop + staffLineSpacing * ScoreNotationMetrics.middleStaffLineIndex;
+    final barMark = issueMarks['$partIndex:$absoluteMeasureIndex'];
+    if (barMark != null) {
+      canvas.drawRect(
+        Rect.fromLTRB(measureStartX + 1, staffTop - 10, measureEndX - 1,
+            staffBottom + 10),
+        Paint()..color = barMark.withValues(alpha: 0.12),
+      );
+    }
     final insertTarget = insertionTarget;
     if (insertTarget != null &&
         insertTarget.measureIndex == absoluteMeasureIndex) {
@@ -562,6 +577,7 @@ class ScoreNotationPainter extends CustomPainter {
           _drawPlaybackHighlight(canvas, Offset(x, y));
         }
         if (isSelected) _drawSelectionHighlight(canvas, Offset(x, y));
+        _drawIssueMark(canvas, partIndex, absoluteMeasureIndex, i, Offset(x, y));
         _drawNote(
           canvas,
           symbol,
@@ -591,6 +607,7 @@ class ScoreNotationPainter extends CustomPainter {
           _drawPlaybackHighlight(canvas, Offset(x, y));
         }
         if (isSelected) _drawSelectionHighlight(canvas, Offset(x, y));
+        _drawIssueMark(canvas, partIndex, absoluteMeasureIndex, i, Offset(x, y));
         _drawRest(canvas, symbol, x: x, staffTop: staffTop);
       }
     }
@@ -771,6 +788,25 @@ class ScoreNotationPainter extends CustomPainter {
         k = last + 1;
       }
     }
+  }
+
+  void _drawIssueMark(
+    Canvas canvas,
+    int partIndex,
+    int measureIndex,
+    int symbolIndex,
+    Offset center,
+  ) {
+    final color = issueMarks['$partIndex:$measureIndex:$symbolIndex'];
+    if (color == null) return;
+    canvas.drawCircle(
+      center,
+      15,
+      Paint()
+        ..color = color.withValues(alpha: 0.9)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
   }
 
   void _drawSelectionHighlight(
@@ -1745,7 +1781,8 @@ class ScoreNotationPainter extends CustomPainter {
             showPlaybackSymbolHighlight ||
         oldDelegate.dragFeedback != dragFeedback ||
         oldDelegate.insertionTarget != insertionTarget ||
-        oldDelegate.insertionPreviewGlyph != insertionPreviewGlyph;
+        oldDelegate.insertionPreviewGlyph != insertionPreviewGlyph ||
+        !mapEquals(oldDelegate.issueMarks, issueMarks);
   }
 }
 

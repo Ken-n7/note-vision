@@ -126,6 +126,7 @@ class ScoreNotationViewer extends StatefulWidget {
     this.playheadSymbolIndex,
     this.playbackProgress = 0,
     this.showPlaybackSymbolHighlight = true,
+    this.issueMarks = const {},
     this.insertMode = false,
     this.onSymbolTap,
     this.onMeasureTap,
@@ -168,6 +169,10 @@ class ScoreNotationViewer extends StatefulWidget {
   final int? playheadSymbolIndex;
   final double playbackProgress;
   final bool showPlaybackSymbolHighlight;
+
+  /// Notation-check highlights, keyed as in [ScoreNotationPainter.issueMarks]
+  /// with page-relative measure indices.
+  final Map<String, Color> issueMarks;
 
   final bool insertMode;
   final ValueChanged<NotationSymbolTarget?>? onSymbolTap;
@@ -345,6 +350,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
         playheadSymbolIndex: widget.playheadSymbolIndex,
         playbackProgress: widget.playbackProgress,
         showPlaybackSymbolHighlight: widget.showPlaybackSymbolHighlight,
+        issueMarks: widget.issueMarks,
         dragFeedback:
             _dragSession == null ||
                 _dragSession!.toPartIndex != _dragSession!.fromPartIndex ||

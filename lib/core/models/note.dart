@@ -12,6 +12,10 @@ class Note extends ScoreSymbol {
   final int dots; // number of augmentation dots
   final bool isChordTone; // true when this note starts with the preceding note
 
+  /// The detector's confidence for a scanned note; null when the note was
+  /// typed, imported or edited, so an edited note no longer counts as unsure.
+  final double? confidence;
+
   const Note({
     required this.step,
     required this.octave,
@@ -23,6 +27,7 @@ class Note extends ScoreSymbol {
     this.beamed = false,
     this.dots = 0,
     this.isChordTone = false,
+    this.confidence,
   });
 
   @override
@@ -38,6 +43,7 @@ class Note extends ScoreSymbol {
         if (beamed) 'beamed': true,
         if (dots > 0) 'dots': dots,
         if (isChordTone) 'isChordTone': true,
+        if (confidence != null) 'confidence': confidence,
       };
 
   factory Note.fromJson(Map<String, dynamic> json) => Note(
@@ -51,6 +57,7 @@ class Note extends ScoreSymbol {
         beamed: json['beamed'] as bool? ?? false,
         dots: json['dots'] as int? ?? 0,
         isChordTone: json['isChordTone'] as bool? ?? false,
+        confidence: (json['confidence'] as num?)?.toDouble(),
       );
 
   String get pitch {
