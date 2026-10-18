@@ -274,6 +274,7 @@ class _PaletteDraggableItem extends StatelessWidget {
         selected: isSelected,
         label: '${item.label} ${item.type.isRest ? 'rest' : 'note'}',
         hint: 'Tap to place on the staff, or hold and drag',
+        onTap: onTap,
         excludeSemantics: true,
         child: GestureDetector(onTap: onTap, child: core),
       ),

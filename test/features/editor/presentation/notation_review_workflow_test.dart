@@ -40,6 +40,8 @@ class _ReviewPlayback implements PlaybackService {
   @override
   int get tempo => 120;
   @override
+  PlaybackPosition get position => PlaybackPosition.none;
+  @override
   Future<void> init() async {}
   @override
   Future<void> play(

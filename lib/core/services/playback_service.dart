@@ -162,6 +162,8 @@ class PlaybackService {
   Completer<bool>? _waitCompleter;
 
   List<PlaybackEvent> _events = const [];
+  Score? _playingScore;
+  PlaybackPosition _position = PlaybackPosition.none;
   int _currentEventIndex = 0;
 
   /// Counts playback loops. A loop that wakes up after a newer one started
@@ -180,6 +182,7 @@ class PlaybackService {
 
   PlaybackStatus get status => _status;
   int get tempo => _tempo;
+  PlaybackPosition get position => _position;
 
   // Emit a state directly — used only in tests to simulate playback transitions.
   @visibleForTesting
@@ -190,7 +193,7 @@ class PlaybackService {
 
   @visibleForTesting
   void emitPositionForTesting(PlaybackPosition position) {
-    _positionController.add(position);
+    _emitPosition(position);
   }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────
@@ -222,6 +225,7 @@ class PlaybackService {
         program: _program,
       );
       _initialized = true;
+      if (_status == PlaybackStatus.error) _emitState(PlaybackStatus.stopped);
     } catch (e) {
       _initialized = false;
       _sfId = null;
@@ -270,6 +274,7 @@ class PlaybackService {
     if (!_initialized) await init();
     if (request != _playRequest || _status == PlaybackStatus.error) return;
 
+    _playingScore = score;
     _events = _converter.buildEvents(score);
     if (throughMeasureIndex != null) {
       _events = _events
@@ -303,8 +308,79 @@ class PlaybackService {
     _emitState(PlaybackStatus.paused);
   }
 
-  void resume() {
+  /// Cue a measure without starting audio when stopped or paused.
+  Future<void> seek(
+    Score score, {
+    int fromMeasureIndex = 0,
+    int fromPartIndex = 0,
+  }) async {
+    if (_status == PlaybackStatus.playing) {
+      await play(
+        score,
+        fromMeasureIndex: fromMeasureIndex,
+        fromPartIndex: fromPartIndex,
+      );
+      return;
+    }
+    _playRequest++;
+    _loopRun++;
+    _playingScore = score;
+    _events = _converter.buildEvents(score);
+    if (_events.isEmpty) {
+      stop();
+      return;
+    }
+    _currentEventIndex = startIndex(
+      _events,
+      partIndex: fromPartIndex,
+      measureIndex: fromMeasureIndex,
+    );
+    _emitPosition(_positionAt(_currentEventIndex));
+  }
+
+  void resume({Score? score}) {
     if (_status != PlaybackStatus.paused) return;
+    if (score != null && _currentEventIndex < _events.length) {
+      final previous = _events[_currentEventIndex];
+      final symbolId = _playingScore
+          ?.getSymbolAt(
+            previous.partIndex,
+            previous.measureIndex,
+            previous.symbolIndex,
+          )
+          ?.toJson()['reviewId'];
+      final events = _converter.buildEvents(score);
+      var index = symbolId == null
+          ? -1
+          : events.indexWhere(
+              (event) =>
+                  score
+                      .getSymbolAt(
+                        event.partIndex,
+                        event.measureIndex,
+                        event.symbolIndex,
+                      )
+                      ?.toJson()['reviewId'] ==
+                  symbolId,
+            );
+      if (index < 0) {
+        index = events.indexWhere(
+          (event) =>
+              event.partIndex > previous.partIndex ||
+              (event.partIndex == previous.partIndex &&
+                  (event.measureIndex > previous.measureIndex ||
+                      (event.measureIndex == previous.measureIndex &&
+                          event.symbolIndex >= previous.symbolIndex))),
+        );
+      }
+      if (index < 0) {
+        stop();
+        return;
+      }
+      _events = events;
+      _currentEventIndex = index;
+      _playingScore = score;
+    }
     _shouldPlay = true;
     _emitState(PlaybackStatus.playing);
     _runLoop();
@@ -312,13 +388,13 @@ class PlaybackService {
 
   void stop() {
     _playRequest++;
-    if (_status == PlaybackStatus.stopped) return;
+    if (_status == PlaybackStatus.stopped && _position.isNone) return;
     _shouldPlay = false;
     _interruptWait();
     _stopCurrentNote();
     _currentEventIndex = 0;
     _emitState(PlaybackStatus.stopped);
-    _positionController.add(PlaybackPosition.none);
+    _emitPosition(PlaybackPosition.none);
   }
 
   /// Updates playback tempo in BPM. Takes effect on the next note boundary.
@@ -344,31 +420,8 @@ class PlaybackService {
     while (_shouldPlay && _currentEventIndex < _events.length) {
       final event = _events[_currentEventIndex];
       final groupEnd = _eventGroupEnd(_currentEventIndex);
-      final nextEvent = groupEnd < _events.length ? _events[groupEnd] : null;
       final ms = _converter.scaledDuration(event.baseDurationMs, _tempo);
-      final measureElapsedMs = _converter.scaledDuration(
-        _measureElapsedBaseDuration(_currentEventIndex),
-        _tempo,
-      );
-      final measureDurationMs = _converter.scaledDuration(
-        _measureBaseDuration(_currentEventIndex),
-        _tempo,
-      );
-
-      // Emit current score position for the viewer highlight.
-      _positionController.add(
-        PlaybackPosition(
-          partIndex: event.partIndex,
-          measureIndex: event.measureIndex,
-          symbolIndex: event.symbolIndex,
-          durationMs: ms,
-          measureElapsedMs: measureElapsedMs,
-          measureDurationMs: measureDurationMs,
-          nextPartIndex: nextEvent?.partIndex,
-          nextMeasureIndex: nextEvent?.measureIndex,
-          nextSymbolIndex: nextEvent?.symbolIndex,
-        ),
-      );
+      _emitPosition(_positionAt(_currentEventIndex));
 
       _activeMidiNotes.clear();
 
@@ -411,8 +464,36 @@ class PlaybackService {
       _shouldPlay = false;
       _currentEventIndex = 0;
       _emitState(PlaybackStatus.stopped);
-      _positionController.add(PlaybackPosition.none);
+      _emitPosition(PlaybackPosition.none);
     }
+  }
+
+  void _emitPosition(PlaybackPosition position) {
+    _position = position;
+    _positionController.add(position);
+  }
+
+  PlaybackPosition _positionAt(int index) {
+    final event = _events[index];
+    final end = _eventGroupEnd(index);
+    final next = end < _events.length ? _events[end] : null;
+    return PlaybackPosition(
+      partIndex: event.partIndex,
+      measureIndex: event.measureIndex,
+      symbolIndex: event.symbolIndex,
+      durationMs: _converter.scaledDuration(event.baseDurationMs, _tempo),
+      measureElapsedMs: _converter.scaledDuration(
+        _measureElapsedBaseDuration(index),
+        _tempo,
+      ),
+      measureDurationMs: _converter.scaledDuration(
+        _measureBaseDuration(index),
+        _tempo,
+      ),
+      nextPartIndex: next?.partIndex,
+      nextMeasureIndex: next?.measureIndex,
+      nextSymbolIndex: next?.symbolIndex,
+    );
   }
 
   // ── Timer helpers ──────────────────────────────────────────────────────

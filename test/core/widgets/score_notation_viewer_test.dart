@@ -241,7 +241,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('taps resolve note and rest targets with 24dp hit areas', (
+    testWidgets('symbol hit areas work alongside blank-measure selection', (
       tester,
     ) async {
       final score = Score(
@@ -266,6 +266,7 @@ void main() {
       );
 
       final taps = <(int, int)>[];
+      final measureTaps = <(int, int)>[];
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -274,6 +275,10 @@ void main() {
               onSymbolTap: (target) {
                 if (target == null) return;
                 taps.add((target.measureIndex, target.symbolIndex));
+              },
+              onMeasureTap: (target) {
+                if (target == null) return;
+                measureTaps.add((target.partIndex, target.measureIndex));
               },
             ),
           ),
@@ -290,6 +295,14 @@ void main() {
       await tester.pump();
 
       expect(taps, equals([(0, 0), (0, 1)]));
+      expect(measureTaps, isEmpty);
+      await tester.tapAt(
+        origin +
+            _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 0) +
+            const Offset(0, -50),
+      );
+      await tester.pump();
+      expect(measureTaps, [(0, 0)]);
     });
 
     testWidgets('long-press drag reorders symbols within the same measure', (

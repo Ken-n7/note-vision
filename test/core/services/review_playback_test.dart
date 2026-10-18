@@ -11,13 +11,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class _Midi extends MidiPro {
   Completer<int>? loading;
+  bool failLoad = false;
   final keys = <int>[];
   @override
   Future<int> loadSoundfontAsset({
     required String assetPath,
     int bank = 0,
     int program = 0,
-  }) async => loading == null ? 1 : loading!.future;
+  }) async {
+    if (failLoad) throw StateError('Soundfont unavailable');
+    return loading == null ? 1 : loading!.future;
+  }
+
   @override
   Future<void> selectInstrument({
     required int sfId,
@@ -74,6 +79,61 @@ Score _score() => Score(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('seeking cues silently and resume starts at the cued measure', () async {
+    SharedPreferences.setMockInitialValues({});
+    final midi = _Midi();
+    final playback = PlaybackService.forTesting(midi);
+    await playback.seek(_score(), fromPartIndex: 1, fromMeasureIndex: 1);
+    expect(playback.status, PlaybackStatus.stopped);
+    expect(playback.position.partIndex, 1);
+    expect(playback.position.measureIndex, 1);
+    expect(midi.keys, isEmpty);
+    playback.stop();
+    expect(playback.position.isNone, isTrue);
+
+    await playback.play(_score());
+    playback.pause();
+    final heard = midi.keys.length;
+    await playback.seek(_score(), fromPartIndex: 1, fromMeasureIndex: 1);
+    expect(playback.status, PlaybackStatus.paused);
+    expect(midi.keys, hasLength(heard));
+    playback.resume();
+    expect(midi.keys.last, 74);
+    await playback.dispose();
+  });
+
+  test('resume uses note edits made while paused', () async {
+    SharedPreferences.setMockInitialValues({});
+    final midi = _Midi();
+    final playback = PlaybackService.forTesting(midi);
+    final original = _score();
+    await playback.play(original);
+    playback.pause();
+    final edited = original.replaceSymbolAt(
+      0,
+      0,
+      0,
+      const Note(step: 'G', octave: 4, duration: 1, type: 'sixteenth'),
+    );
+    playback.resume(score: edited);
+    expect(midi.keys, [60, 67]);
+    await playback.dispose();
+  });
+
+  test('playback can retry after a soundfont-loading failure', () async {
+    SharedPreferences.setMockInitialValues({});
+    final midi = _Midi()..failLoad = true;
+    final playback = PlaybackService.forTesting(midi);
+    await playback.play(_score());
+    expect(playback.status, PlaybackStatus.error);
+    expect(midi.keys, isEmpty);
+    midi.failLoad = false;
+    await playback.play(_score());
+    expect(playback.status, PlaybackStatus.playing);
+    expect(midi.keys, [60]);
+    await playback.dispose();
+  });
   test(
     'audition stops at the requested measure and keeps original score positions',
     () async {

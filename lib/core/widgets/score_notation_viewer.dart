@@ -286,14 +286,6 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
                   position: position,
                 );
                 widget.onInsertTap?.call(target);
-              } else if (widget.onMeasureTap != null) {
-                widget.onMeasureTap?.call(
-                  _resolveMeasureTarget(
-                    allParts: allParts,
-                    layout: layout,
-                    position: position,
-                  ),
-                );
               } else {
                 final targets = ScoreNotationPainter.buildSymbolTargets(
                   parts: allParts,
@@ -305,6 +297,15 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
                 );
                 final tapped = _nearestTarget(position, targets);
                 widget.onSymbolTap?.call(tapped);
+                if (tapped == null || widget.onSymbolTap == null) {
+                  widget.onMeasureTap?.call(
+                    _resolveMeasureTarget(
+                      allParts: allParts,
+                      layout: layout,
+                      position: position,
+                    ),
+                  );
+                }
               }
             },
       onLongPressStart: widget.onDragCompleted == null

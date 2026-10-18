@@ -120,13 +120,34 @@ extension EditorActions on EditorState {
     );
   }
 
+  bool canSetSelectedDuration(DurationSpec spec) =>
+      hasEditableSelection &&
+      _canReplaceSelectedSymbolWith(
+        selectedSymbol is Note && (selectedSymbol as Note).isChordTone
+            ? 0
+            : quarterLength(spec.type, 0, spec.divisions),
+      );
+
+  bool get canToggleSelectedDot {
+    final symbol = selectedEditableSymbol;
+    if (symbol == null) return false;
+    if (symbol is Note && symbol.isChordTone) return true;
+    final (type, dots, duration) = switch (symbol) {
+      Note(:final type, :final dots, :final duration) ||
+      Rest(:final type, :final dots, :final duration) => (type, dots, duration),
+      _ => ('', 0, 0),
+    };
+    return noteValueQuarters.containsKey(type) &&
+        _canReplaceSelectedSymbolWith(
+          quarterLength(type, dots > 0 ? 0 : 1, duration),
+        );
+  }
+
   EditorState setSelectedDuration(DurationSpec durationSpec) {
     if (!hasSelection) return this;
 
     final symbol = selectedSymbol;
-    if (!_canReplaceSelectedSymbolWith(
-      quarterLength(durationSpec.type, 0, durationSpec.divisions),
-    )) {
+    if (!canSetSelectedDuration(durationSpec)) {
       return this;
     }
     if (symbol is Note) {
@@ -198,7 +219,7 @@ extension EditorActions on EditorState {
     // sixteenth exactly; timing uses the type and dots.
     final newDuration = (newQuarters * 2).round().clamp(1, 1 << 20);
 
-    if (!_canReplaceSelectedSymbolWith(newQuarters)) return this;
+    if (!canToggleSelectedDot) return this;
 
     if (symbol is Note) {
       return _replaceSelectedSymbol(
