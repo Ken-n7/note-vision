@@ -42,39 +42,60 @@ class ScoreClassifier {
   /// Below this the genre model is not sure enough and the rules decide.
   static const minConfidence = 0.7;
 
+  /// When the rules fall back to "triple time in a minor key = Kundiman",
+  /// the genre model must still give Kundiman at least this much, else the
+  /// piece is shown as a Waltz. Without it most minor-key waltzes the model
+  /// was unsure about came out as Kundiman: across the data project's
+  /// cross-validation, non-kundiman songs called Kundiman fell from 3.7% to
+  /// 0.5% (6.1% to 1.5% on 40-note pieces) with no real kundiman lost.
+  /// Chosen on validation songs (genre_app_eval.py).
+  static const minRuleKundiman = 0.4;
+
   /// Labels already worked out, per Score (an edit makes a new Score).
   static final _labels = Expando<ScoreLabel>();
 
   /// The genre the app shows for [score]: Waltz, Kundiman or Jazz, or null
-  /// when the score has no notes.
-  ///
-  /// The genre model decides when it is at least [minConfidence] sure of one
-  /// of the three. Otherwise (it says "other", is unsure, is not loaded, or
-  /// the melody is short) [classifyByRules] picks one of the three.
+  /// when the score has no notes. See [decide].
   static ScoreLabel? classify(Score score) {
     if (AppFeatures.legacyScoreLabels) return classifyByLegacyRules(score);
     final cached = _labels[score];
     if (cached != null) return cached;
+    final label = decide(GenreModel.predict(score), score);
+    // A model run costs a few ms and cards rebuild often, so keep the answer.
+    if (label != null) _labels[score] = label;
+    return label;
+  }
 
-    ScoreLabel? label;
-    final probs = GenreModel.predict(score);
+  /// The label for [score] given the genre model's [probs] (null when the
+  /// model is not loaded or the melody is short).
+  ///
+  /// The genre model decides when it is at least [minConfidence] sure of one
+  /// of the three. Otherwise (it says "other" or is unsure) [classifyByRules]
+  /// picks one of the three, and a Kundiman from the rules needs the model's
+  /// Kundiman to reach [minRuleKundiman].
+  @visibleForTesting
+  static ScoreLabel? decide(List<double>? probs, Score score) {
     if (probs != null) {
       var best = 0;
       for (var i = 1; i < probs.length; i++) {
         if (probs[i] > probs[best]) best = i;
       }
       if (probs[best] >= minConfidence) {
-        label = switch (GenreModel.genres[best]) {
+        final label = switch (GenreModel.genres[best]) {
           'waltz' => ScoreLabel.waltz,
           'kundiman' => ScoreLabel.kundiman,
           'jazz' => ScoreLabel.jazz,
           _ => null,
         };
+        if (label != null) return label;
       }
     }
-    label ??= classifyByRules(score);
-    // A model run costs a few ms and cards rebuild often, so keep the answer.
-    if (label != null) _labels[score] = label;
+    final label = classifyByRules(score);
+    if (label == ScoreLabel.kundiman &&
+        probs != null &&
+        probs[GenreModel.genres.indexOf('kundiman')] < minRuleKundiman) {
+      return ScoreLabel.waltz;
+    }
     return label;
   }
 
@@ -114,10 +135,9 @@ class ScoreClassifier {
   /// Shown only when [AppFeatures.legacyScoreLabels] is on.
   static ScoreLabel classifyByLegacyRules(Score score) {
     final primaryPart = score.parts.isNotEmpty ? score.parts.first : null;
-    final firstMeasure =
-        primaryPart != null && primaryPart.measures.isNotEmpty
-            ? primaryPart.measures.first
-            : null;
+    final firstMeasure = primaryPart != null && primaryPart.measures.isNotEmpty
+        ? primaryPart.measures.first
+        : null;
     final keySignature = firstMeasure?.keySignature;
     final timeSignature = firstMeasure?.timeSignature;
     final notes = _allNotes(score);
@@ -125,8 +145,10 @@ class ScoreClassifier {
     final basicNoteRatio = _basicNoteRatio(notes);
     final averageNotesPerMeasure = _averageNotesPerMeasure(primaryPart);
     final hasSimpleKey = keySignature == null || keySignature.fifths.abs() <= 1;
-    final hasTwoFour = timeSignature?.beats == 2 && timeSignature?.beatType == 4;
-    final hasThreeFour = timeSignature?.beats == 3 && timeSignature?.beatType == 4;
+    final hasTwoFour =
+        timeSignature?.beats == 2 && timeSignature?.beatType == 4;
+    final hasThreeFour =
+        timeSignature?.beats == 3 && timeSignature?.beatType == 4;
     final hasSixteenthOrBeamedNotes = notes.any(
       (note) => note.type == 'sixteenth' || note.beamed,
     );
@@ -168,8 +190,7 @@ class ScoreClassifier {
   static List<Note> _allNotes(Score score) {
     return [
       for (final part in score.parts)
-        for (final measure in part.measures)
-          ...measure.notes,
+        for (final measure in part.measures) ...measure.notes,
     ];
   }
 
