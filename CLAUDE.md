@@ -36,7 +36,7 @@ mistakes in an editor, then exports or plays back the result. No internet. No se
 | Framework | Flutter (Dart) |
 | ML inference | tflite_flutter 0.12.1 |
 | ML model | YOLO26n at 960×960 — 24 handwritten symbol classes (model B6): clefs, 5 note values, 5 rests, beam, sharp/flat/natural, time-sig digits 2/3/4/6/8, C, cut time, augmentation dot |
-| Genre model | LSTM (`assets/models/genre_lstm.tflite`, 2.4 MB, 4-seed average): waltz / kundiman / jazz / other from the melody of all parts in reading order (first 320 notes); input [1,64,22]: step, rest, length, place in bar, meter, plus scale degree (12) and minor flag from Krumhansl–Schmuckler (`GenreModel.keyOf`); trained in the data project (`scripts/genre_train.py`, v3: + Weimar Jazz DB solos, Essen folk songs, PDMX jazz/waltz/other) |
+| Genre model | LSTM (`assets/models/genre_lstm.tflite`, 2.4 MB, 4-seed average): waltz / kundiman / jazz / other from the melody of all parts in reading order (first 320 notes); input [1,64,22]: step, rest, length, place in bar, meter, plus scale degree (12) and minor flag from Krumhansl–Schmuckler (`GenreModel.keyOf`); trained in the data project (`scripts/genre_train.py`, v3: + Weimar Jazz DB solos, Essen folk songs, PDMX jazz/waltz/other; kundiman learned only from synthetic melodies (`kundiman_gen.py` + `trait_kundiman`, from published descriptions of the genre), all 18 real transcribed kundiman held out: 13/14 test songs right) |
 | Image processing | image 4.8.0 |
 | XML parsing | xml 6.5.0 |
 | File picking | file_picker 8.1.2 |
