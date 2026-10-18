@@ -1,3 +1,4 @@
+import '../models/beam_grouping.dart';
 import '../models/clef.dart';
 import '../models/key_signature.dart';
 import '../models/measure.dart';
@@ -646,24 +647,8 @@ class NotationChecker {
     return left.abs() <= _eps ? rests : null;
   }
 
-  static List<List<int>> _beamGroups(List<ScoreSymbol> symbols) {
-    final groups = <List<int>>[];
-    List<int>? current;
-    for (var i = 0; i < symbols.length; i++) {
-      final s = symbols[i];
-      if (s is Note && s.isChordTone) continue;
-      if (s is Note &&
-          s.beamed &&
-          (s.type == 'eighth' || s.type == 'sixteenth' || s.type == '16th')) {
-        (current ??= []).add(i);
-      } else if (current != null) {
-        groups.add(current);
-        current = null;
-      }
-    }
-    if (current != null) groups.add(current);
-    return groups;
-  }
+  static List<List<int>> _beamGroups(List<ScoreSymbol> symbols) =>
+      BeamGrouping.groups(symbols);
 
   // ---------------------------------------------------------------------------
   // Fixes
@@ -724,6 +709,7 @@ class NotationChecker {
     voice: n.voice,
     staff: n.staff,
     beamed: beamed ?? n.beamed,
+    beams: beamed == false ? const {} : n.beams,
     dots: dots ?? n.dots,
     isChordTone: n.isChordTone,
     confidence: n.confidence,

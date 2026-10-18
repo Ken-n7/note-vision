@@ -14,7 +14,7 @@ import 'score_notation/staff_pitch_mapper.dart';
 
 export 'score_notation/staff_pitch_mapper.dart';
 
-@visibleForTesting
+/// A page slice with the active clef, key, and meter carried into each measure.
 List<Measure> sliceMeasuresWithInheritedMetadata({
   required List<Measure> measures,
   required int firstMeasureIndex,
@@ -115,6 +115,7 @@ class ScoreNotationViewer extends StatefulWidget {
     this.pageMeasureCount,
     this.selectedMeasureIndex,
     this.selectedSymbolIndex,
+    this.selectedSymbolIndices = const {},
     this.playbackPartIndex,
     this.playbackMeasureIndex,
     this.playbackSymbolIndex,
@@ -157,6 +158,7 @@ class ScoreNotationViewer extends StatefulWidget {
 
   final int? selectedMeasureIndex;
   final int? selectedSymbolIndex;
+  final Set<int> selectedSymbolIndices;
 
   final int? playbackPartIndex;
   final int? playbackMeasureIndex;
@@ -340,6 +342,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
         selectedPartIndex: widget.selectedPartIndex,
         selectedMeasureIndex: widget.selectedMeasureIndex,
         selectedSymbolIndex: widget.selectedSymbolIndex,
+        selectedSymbolIndices: widget.selectedSymbolIndices,
         playbackPartIndex: widget.playbackPartIndex,
         playbackMeasureIndex: widget.playbackMeasureIndex,
         playbackSymbolIndex: widget.playbackSymbolIndex,

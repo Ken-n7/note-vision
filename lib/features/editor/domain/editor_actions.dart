@@ -1,3 +1,4 @@
+import 'package:note_vision/core/models/beam_grouping.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
@@ -170,6 +171,13 @@ extension EditorActions on EditorState {
           voice: symbol.voice,
           staff: symbol.staff,
           beamed: canBeam && symbol.beamed,
+          beams: canBeam
+              ? {
+                  for (final entry in symbol.beams.entries)
+                    if (entry.key <= (durationSpec.type == 'eighth' ? 1 : 2))
+                      entry.key: entry.value,
+                }
+              : const {},
           isChordTone: symbol.isChordTone,
         ),
         intent: EditorEditIntent.replaceSelection,
@@ -196,6 +204,36 @@ extension EditorActions on EditorState {
     }
 
     return this;
+  }
+
+  EditorState applyBeamEdits(List<ScoreSymbol> symbols) {
+    if (!hasMeasureContext) return this;
+    final p = selectedPartIndex!;
+    final m = selectedMeasureIndex!;
+    final current = score.parts[p].measures[m].symbols;
+    if (current.length != symbols.length) return this;
+    var next = score;
+    for (var i = 0; i < symbols.length; i++) {
+      if (!identical(current[i], symbols[i])) {
+        next = next.replaceSymbolAt(p, m, i, symbols[i]);
+      }
+    }
+    if (identical(next, score)) return this;
+    final index = selectedSymbolIndex;
+    if (index != null) {
+      return applyEditWithSymbolSelection(
+        score: next,
+        partIndex: p,
+        measureIndex: m,
+        symbolIndex: index,
+        symbol: next.getSymbolAt(p, m, index)!,
+      );
+    }
+    return applyEditWithMeasureContext(
+      score: next,
+      partIndex: p,
+      measureIndex: m,
+    );
   }
 
   EditorState toggleSelectedDot() {
@@ -234,6 +272,7 @@ extension EditorActions on EditorState {
           voice: symbol.voice,
           staff: symbol.staff,
           beamed: symbol.beamed,
+          beams: symbol.beams,
           dots: newDots,
           isChordTone: symbol.isChordTone,
         ),
@@ -431,6 +470,7 @@ extension EditorActions on EditorState {
           voice: symbol.voice,
           staff: symbol.staff,
           beamed: symbol.beamed,
+          beams: symbol.beams,
           dots: symbol.dots,
           isChordTone: symbol.isChordTone,
         );
@@ -525,6 +565,7 @@ extension EditorActions on EditorState {
         voice: note.voice,
         staff: note.staff,
         beamed: note.beamed,
+        beams: note.beams,
         dots: note.dots,
         isChordTone: note.isChordTone,
       ),
@@ -837,13 +878,16 @@ extension EditorActions on EditorState {
     required int partIndex,
     required int measureIndex,
   }) {
+    final next = intent == EditorEditIntent.deleteSelection
+        ? _repairEditedBeams(score)
+        : score;
     switch (intent) {
       case EditorEditIntent.deleteMeasure:
       case EditorEditIntent.createMeasure:
       case EditorEditIntent.createPage:
       case EditorEditIntent.deleteSelection:
         return applyEditWithMeasureContext(
-          score: score,
+          score: next,
           partIndex: partIndex,
           measureIndex: measureIndex,
         );
@@ -864,6 +908,14 @@ extension EditorActions on EditorState {
     required int symbolIndex,
     required ScoreSymbol symbol,
   }) {
+    final changedValue =
+        selectedSymbol is Note &&
+        symbol is Note &&
+        BeamGrouping.levels(selectedSymbol as Note) !=
+            BeamGrouping.levels(symbol);
+    final next = intent != EditorEditIntent.replaceSelection || changedValue
+        ? _repairEditedBeams(score)
+        : score;
     switch (intent) {
       case EditorEditIntent.replaceSelection:
       case EditorEditIntent.appendToMeasure:
@@ -873,11 +925,12 @@ extension EditorActions on EditorState {
       case EditorEditIntent.reorderWithinMeasure:
       case EditorEditIntent.deleteSelection:
         return applyEditWithSymbolSelection(
-          score: score,
+          score: next,
           partIndex: partIndex,
           measureIndex: measureIndex,
           symbolIndex: symbolIndex,
-          symbol: symbol,
+          symbol:
+              next.getSymbolAt(partIndex, measureIndex, symbolIndex) ?? symbol,
         );
       default:
         throw ArgumentError.value(
@@ -892,10 +945,25 @@ extension EditorActions on EditorState {
     required EditorEditIntent intent,
     required Score score,
   }) {
+    final next = intent == EditorEditIntent.reorderWithinMeasure
+        ? _repairEditedBeams(score)
+        : score;
     switch (intent) {
       case EditorEditIntent.updateMeasureMetadata:
       case EditorEditIntent.reorderWithinMeasure:
-        return applyEditPreservingSelection(score: score);
+        return applyEdit(
+          score: next,
+          selectedPartIndex: selectedPartIndex,
+          selectedMeasureIndex: selectedMeasureIndex,
+          selectedSymbolIndex: selectedSymbolIndex,
+          selectedSymbol: hasSymbolSelection
+              ? next.getSymbolAt(
+                  selectedPartIndex!,
+                  selectedMeasureIndex!,
+                  selectedSymbolIndex!,
+                )
+              : null,
+        );
       default:
         throw ArgumentError.value(
           intent,
@@ -903,6 +971,28 @@ extension EditorActions on EditorState {
           'Intent does not preserve existing selection.',
         );
     }
+  }
+
+  Score _repairEditedBeams(Score candidate) {
+    var next = candidate;
+    for (var p = 0; p < candidate.parts.length; p++) {
+      for (var m = 0; m < candidate.parts[p].measures.length; m++) {
+        final symbols = candidate.parts[p].measures[m].symbols;
+        final oldSymbols =
+            p < score.parts.length && m < score.parts[p].measures.length
+            ? score.parts[p].measures[m].symbols
+            : null;
+        if (identical(symbols, oldSymbols)) continue;
+        final repaired = BeamGrouping.repairExplicit(symbols);
+        if (identical(repaired, symbols)) continue;
+        for (var i = 0; i < symbols.length; i++) {
+          if (!identical(symbols[i], repaired[i])) {
+            next = next.replaceSymbolAt(p, m, i, repaired[i]);
+          }
+        }
+      }
+    }
+    return next;
   }
 
   bool _canReplaceSelectedSymbolWith(double nextQuarters) {
@@ -1018,6 +1108,7 @@ Note _moveNoteByScaleStep(Note note, int steps) {
     voice: note.voice,
     staff: note.staff,
     beamed: note.beamed,
+    beams: note.beams,
     dots: note.dots,
     isChordTone: note.isChordTone,
   );

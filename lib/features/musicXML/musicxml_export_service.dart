@@ -3,13 +3,13 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:note_vision/core/models/barline_type.dart';
+import 'package:note_vision/core/models/beam_grouping.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/note_value.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
-import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/utils/export_file_name.dart';
 import 'package:note_vision/core/services/accidentals.dart';
 import 'package:xml/xml.dart';
@@ -187,7 +187,7 @@ class MusicXmlExportService {
               b,
               symbol,
               soundingAlter: accidentals.sounding(symbol),
-              beamValue: _beamValue(symbols, i),
+              beamValues: BeamGrouping.valuesFor(symbols, i),
             );
           } else if (symbol is Rest) {
             _buildRest(b, symbol);
@@ -211,7 +211,7 @@ class MusicXmlExportService {
     XmlBuilder b,
     Note note, {
     required int soundingAlter,
-    String? beamValue,
+    Map<int, BeamValue> beamValues = const {},
   }) {
     b.element('note', nest: () {
       if (note.isChordTone) {
@@ -240,33 +240,14 @@ class MusicXmlExportService {
       if (note.staff != null) {
         b.element('staff', nest: note.staff.toString());
       }
-      if (beamValue != null) {
-        b.element('beam', attributes: {'number': '1'}, nest: beamValue);
+      for (final entry in beamValues.entries) {
+        b.element(
+          'beam',
+          attributes: {'number': '${entry.key}'},
+          nest: entry.value.xmlValue,
+        );
       }
     });
-  }
-
-  /// `<beam>` value of the note at [index] within its run of beamed notes,
-  /// as the editor draws them: chord tones are skipped, and a lone beamed
-  /// note (drawn with a flag) gets none, so no beam is left open.
-  String? _beamValue(List<ScoreSymbol> symbols, int index) {
-    final note = symbols[index];
-    if (note is! Note || !note.beamed || note.isChordTone) return null;
-    bool beamedNeighbour(int step) {
-      for (var i = index + step; i >= 0 && i < symbols.length; i += step) {
-        final symbol = symbols[i];
-        if (symbol is Note && symbol.isChordTone) continue;
-        return symbol is Note && symbol.beamed;
-      }
-      return false;
-    }
-
-    final prevBeamed = beamedNeighbour(-1);
-    final nextBeamed = beamedNeighbour(1);
-    if (prevBeamed && nextBeamed) return 'continue';
-    if (nextBeamed) return 'begin';
-    if (prevBeamed) return 'end';
-    return null;
   }
 
   void _buildRest(XmlBuilder b, Rest rest) {

@@ -1,8 +1,9 @@
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show mapEquals;
+import 'package:flutter/foundation.dart' show mapEquals, setEquals;
 import 'package:flutter/material.dart';
 
+import '../../models/beam_grouping.dart';
 import '../../models/clef.dart';
 import '../../models/key_signature.dart';
 import '../../models/measure.dart';
@@ -24,6 +25,7 @@ class ScoreNotationPainter extends CustomPainter {
     this.selectedPartIndex,
     this.selectedMeasureIndex,
     this.selectedSymbolIndex,
+    this.selectedSymbolIndices = const {},
     this.playbackPartIndex,
     this.playbackMeasureIndex,
     this.playbackSymbolIndex,
@@ -56,6 +58,7 @@ class ScoreNotationPainter extends CustomPainter {
   final int? selectedPartIndex;
   final int? selectedMeasureIndex;
   final int? selectedSymbolIndex;
+  final Set<int> selectedSymbolIndices;
 
   /// Currently playing symbol position emitted by PlaybackService.
   /// All three must be non-null for the playback highlight to render.
@@ -568,7 +571,7 @@ class ScoreNotationPainter extends CustomPainter {
         final isSelected =
             selectedPartIndex == partIndex &&
             selectedMeasureIndex == absoluteMeasureIndex &&
-            selectedSymbolIndex == i;
+            (selectedSymbolIndex == i || selectedSymbolIndices.contains(i));
         final isPlaying =
             playbackPartIndex == partIndex &&
             playbackMeasureIndex == absoluteMeasureIndex &&
@@ -598,7 +601,7 @@ class ScoreNotationPainter extends CustomPainter {
         final isSelected =
             selectedPartIndex == partIndex &&
             selectedMeasureIndex == absoluteMeasureIndex &&
-            selectedSymbolIndex == i;
+            (selectedSymbolIndex == i || selectedSymbolIndices.contains(i));
         final isPlaying =
             playbackPartIndex == partIndex &&
             playbackMeasureIndex == absoluteMeasureIndex &&
@@ -649,30 +652,8 @@ class ScoreNotationPainter extends CustomPainter {
     }
   }
 
-  /// Groups consecutive beamed eighth and sixteenth notes by symbol index.
-  /// Chord tones hang on the note before them, so they neither join nor end
-  /// a group.
-  static List<List<int>> _buildBeamGroups(List<ScoreSymbol> symbols) {
-    final groups = <List<int>>[];
-    List<int>? current;
-    for (var i = 0; i < symbols.length; i++) {
-      final sym = symbols[i];
-      if (sym is Note && sym.isChordTone) continue;
-      if (sym is Note &&
-          (sym.type == 'eighth' || isSixteenthType(sym.type)) &&
-          sym.beamed) {
-        current ??= [];
-        current.add(i);
-      } else {
-        if (current != null) {
-          groups.add(current);
-          current = null;
-        }
-      }
-    }
-    if (current != null) groups.add(current);
-    return groups;
-  }
+  static List<List<int>> _buildBeamGroups(List<ScoreSymbol> symbols) =>
+      BeamGrouping.groups(symbols);
 
   /// A sixteenth note or rest type, as written by scans ('sixteenth') or by
   /// MusicXML ('16th').
@@ -760,32 +741,26 @@ class ScoreNotationPainter extends CustomPainter {
 
       bar(xs.first, xs.last, 0);
 
-      bool sixteenth(int k) {
-        final symbol = symbols[group[k]];
-        return symbol is Note && isSixteenthType(symbol.type);
-      }
-
-      var k = 0;
-      while (k < group.length) {
-        if (!sixteenth(k)) {
-          k++;
-          continue;
-        }
-        var last = k;
-        while (last + 1 < group.length && sixteenth(last + 1)) {
-          last++;
-        }
-        if (last > k) {
-          bar(xs[k], xs[last], 1);
+      for (final secondary in BeamGrouping.groups(
+        symbols,
+        level: 2,
+        within: group,
+      )) {
+        final first = group.indexOf(secondary.first);
+        final last = group.indexOf(secondary.last);
+        if (secondary.length > 1) {
+          bar(xs[first], xs[last], 1);
         } else {
+          final backwards =
+              BeamGrouping.valuesFor(symbols, secondary.first)[2] ==
+              BeamValue.backwardHook;
           const stub = 9.0;
-          if (k > 0) {
-            bar(xs[k] - stub, xs[k], 1);
-          } else {
-            bar(xs[k], xs[k] + stub, 1);
-          }
+          bar(
+            xs[first] - (backwards ? stub : 0),
+            xs[first] + (backwards ? 0 : stub),
+            1,
+          );
         }
-        k = last + 1;
       }
     }
   }
@@ -1767,6 +1742,7 @@ class ScoreNotationPainter extends CustomPainter {
         oldDelegate.selectedPartIndex != selectedPartIndex ||
         oldDelegate.selectedMeasureIndex != selectedMeasureIndex ||
         oldDelegate.selectedSymbolIndex != selectedSymbolIndex ||
+        !setEquals(oldDelegate.selectedSymbolIndices, selectedSymbolIndices) ||
         oldDelegate.playbackPartIndex != playbackPartIndex ||
         oldDelegate.playbackMeasureIndex != playbackMeasureIndex ||
         oldDelegate.playbackSymbolIndex != playbackSymbolIndex ||

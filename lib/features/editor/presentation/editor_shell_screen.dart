@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/config/app_features.dart';
 import 'package:note_vision/core/models/clef.dart';
+import 'package:note_vision/core/models/beam_grouping.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/project.dart';
 import 'package:note_vision/core/models/rest.dart';
@@ -34,6 +35,7 @@ import 'package:note_vision/features/editor/model/editor_state_history.dart';
 import 'package:note_vision/features/editor/presentation/editor_layout_policy.dart';
 import 'package:note_vision/features/editor/presentation/widgets/notation_check_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/notation_review_panel.dart';
+import 'package:note_vision/features/editor/presentation/widgets/beam_editor_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/playback_controls_bar.dart';
 import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.dart';
 import 'package:note_vision/core/services/usage_stats_service.dart';
@@ -1285,6 +1287,51 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     return state.copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
   }
 
+  Future<void> _showBeamEditor() async {
+    if (_isReviewMode ||
+        _playbackPending ||
+        _playbackStatus == PlaybackStatus.playing ||
+        !_editorState.hasMeasureContext) {
+      return;
+    }
+    final original = _editorState.score;
+    final part = _editorState.selectedPartIndex!;
+    final measure = _editorState.selectedMeasureIndex!;
+    final preview = sliceMeasuresWithInheritedMetadata(
+      measures: original.parts[part].measures,
+      firstMeasureIndex: measure,
+      pageMeasureCount: 1,
+    ).first;
+    final time =
+        preview.timeSignature ?? const TimeSignature(beats: 4, beatType: 4);
+    final pickup =
+        measure == 0 &&
+        original.parts[part].measures.length > 1 &&
+        BeamGrouping.quarters(preview.symbols) <
+            time.beats * 4.0 / time.beatType - 1e-7;
+    final symbols = await showModalBottomSheet<List<ScoreSymbol>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      constraints: const BoxConstraints(maxWidth: 760),
+      builder: (_) => BeamEditorSheet(
+        measure: preview,
+        selectedSymbolIndex: _editorState.selectedSymbolIndex,
+        isPickup: pickup,
+      ),
+    );
+    if (!mounted ||
+        symbols == null ||
+        !identical(_editorState.score, original) ||
+        _playbackPending ||
+        _playbackStatus == PlaybackStatus.playing) {
+      return;
+    }
+    _updateState((state) => state.applyBeamEdits(symbols));
+  }
+
   void _onPaletteTypeTap(PaletteSymbolType type) {
     setState(() {
       if (!_insertMode) {
@@ -1592,6 +1639,16 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                             spec.type,
                       },
                       canToggleDot: _editorState.canToggleSelectedDot,
+                      onBeams:
+                          hasMeasureContext &&
+                              _editorState
+                                  .score
+                                  .parts[selectedPartIndex]
+                                  .measures[selectedMeasureIndex]
+                                  .symbols
+                                  .any(BeamGrouping.eligible)
+                          ? _showBeamEditor
+                          : null,
                       currentMeasureClef: currentMeasureClef,
                       currentTimeSignature:
                           _editorState.selectedMeasureTimeSignature,
@@ -3652,6 +3709,7 @@ class _InspectorPanel extends StatefulWidget {
     required this.onToggleDot,
     required this.allowedDurations,
     required this.canToggleDot,
+    required this.onBeams,
   });
 
   final bool isLandscape;
@@ -3687,6 +3745,7 @@ class _InspectorPanel extends StatefulWidget {
   final VoidCallback onToggleDot;
   final Set<String> allowedDurations;
   final bool canToggleDot;
+  final VoidCallback? onBeams;
 
   @override
   State<_InspectorPanel> createState() => _InspectorPanelState();
@@ -3879,6 +3938,11 @@ class _InspectorPanelState extends State<_InspectorPanel> {
       _ActionGroup(
         label: 'DURATION',
         children: [
+          _ActionTile(
+            icon: Icons.linear_scale_rounded,
+            label: 'Beams',
+            onPressed: _wrapAction(widget.onBeams),
+          ),
           _DurTile(
             label: 'W',
             sublabel: 'Whole',
@@ -4019,44 +4083,56 @@ class _InspectorPanelState extends State<_InspectorPanel> {
     }
 
     // ── Portrait: bottom inspector bar ────────────────────────────────────
-    return Stack(
-      children: [
-        // Barrier — tapping canvas dismisses the open popup
-        if (_activeGroupIndex != null)
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: () => setState(() => _activeGroupIndex = null),
+    return LayoutBuilder(
+      builder: (context, constraints) => Stack(
+        children: [
+          // Barrier — tapping canvas dismisses the open popup
+          if (_activeGroupIndex != null)
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: () => setState(() => _activeGroupIndex = null),
+              ),
             ),
-          ),
-        // Selection card — top of canvas
-        Positioned(top: 8, left: 8, right: 8, child: selectionCard),
-        // Active group popup — floats above the bottom bar
-        if (_activeGroupIndex != null && !widget.isPlaybackActive)
+          // Selection card — top of canvas
+          Positioned(top: 8, left: 8, right: 8, child: selectionCard),
+          // Active group popup — floats above the bottom bar
+          if (_activeGroupIndex != null && !widget.isPlaybackActive)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: _kInspectorBarHeight + 8,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: math.max(
+                      0,
+                      constraints.maxHeight - _kInspectorBarHeight - 16,
+                    ),
+                  ),
+                  child: SingleChildScrollView(
+                    child: _ToolGroupPopup(group: groups[_activeGroupIndex!]),
+                  ),
+                ),
+              ),
+            ),
+          // Bottom inspector bar
           Positioned(
             left: 0,
             right: 0,
-            bottom: _kInspectorBarHeight + 8,
-            child: Center(
-              child: _ToolGroupPopup(group: groups[_activeGroupIndex!]),
+            bottom: 0,
+            child: _BottomInspectorBar(
+              groups: groups,
+              icons: _groupIcons,
+              activeIndex: _activeGroupIndex,
+              disabled: widget.isPlaybackActive,
+              onGroupTap: (i) => setState(() {
+                _activeGroupIndex = _activeGroupIndex == i ? null : i;
+              }),
             ),
           ),
-        // Bottom inspector bar
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: _BottomInspectorBar(
-            groups: groups,
-            icons: _groupIcons,
-            activeIndex: _activeGroupIndex,
-            disabled: widget.isPlaybackActive,
-            onGroupTap: (i) => setState(() {
-              _activeGroupIndex = _activeGroupIndex == i ? null : i;
-            }),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

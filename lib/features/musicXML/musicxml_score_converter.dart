@@ -255,12 +255,23 @@ class MusicXmlScoreConverter {
       type: type,
       voice: voice,
       staff: staff,
-      // ponytail: `beamed` is one bool per note, so beam groups that touch
-      // are drawn as one; store where each group begins if that matters.
       beamed: noteElement.findElements('beam').isNotEmpty,
+      beams: _readBeams(noteElement),
       dots: dots,
       isChordTone: isChordTone,
     );
+  }
+
+  Map<int, BeamValue> _readBeams(XmlElement note) {
+    final values = <int, BeamValue>{};
+    for (final beam in note.findElements('beam')) {
+      final level = int.tryParse(beam.getAttribute('number') ?? '1');
+      final value = BeamValue.parse(beam.innerText);
+      if (level != null && level >= 1 && level <= 8 && value != null) {
+        values[level] = value;
+      }
+    }
+    return Map.unmodifiable(values);
   }
 
   /// The written value (type and dots) that lasts [quarters] quarter notes,

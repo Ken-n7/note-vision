@@ -1,12 +1,14 @@
 import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
+import 'package:note_vision/core/models/beam_grouping.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/widgets/score_notation/score_notation_metrics.dart';
 import 'package:note_vision/core/widgets/score_notation/staff_pitch_mapper.dart';
@@ -711,61 +713,32 @@ class PdfScoreRenderer {
 
       bar(stemXs.first, stemXs.last, 0);
 
-      bool sixteenth(int k) {
-        final symbol = measure.symbols[group[k]];
-        return symbol is Note && _isSixteenth(symbol.type);
-      }
-
-      var k = 0;
-      while (k < group.length) {
-        if (!sixteenth(k)) {
-          k++;
-          continue;
-        }
-        var last = k;
-        while (last + 1 < group.length && sixteenth(last + 1)) {
-          last++;
-        }
-        if (last > k) {
-          bar(stemXs[k], stemXs[last], 1);
+      for (final secondary in BeamGrouping.groups(
+        measure.symbols,
+        level: 2,
+        within: group,
+      )) {
+        final first = group.indexOf(secondary.first);
+        final last = group.indexOf(secondary.last);
+        if (secondary.length > 1) {
+          bar(stemXs[first], stemXs[last], 1);
         } else {
+          final backwards =
+              BeamGrouping.valuesFor(measure.symbols, secondary.first)[2] ==
+              BeamValue.backwardHook;
           final stub = 9.0 * _scale;
-          if (k > 0) {
-            bar(stemXs[k] - stub, stemXs[k], 1);
-          } else {
-            bar(stemXs[k], stemXs[k] + stub, 1);
-          }
+          bar(
+            stemXs[first] - (backwards ? stub : 0),
+            stemXs[first] + (backwards ? 0 : stub),
+            1,
+          );
         }
-        k = last + 1;
       }
     }
   }
 
-  /// Groups indices of consecutive beamed eighth and sixteenth notes.
-  /// Chord tones hang on the note before them, so they neither join nor end
-  /// a group.
-  List<List<int>> _buildBeamGroups(List<dynamic> symbols) {
-    final groups = <List<int>>[];
-    List<int>? current;
-
-    for (var i = 0; i < symbols.length; i++) {
-      final sym = symbols[i];
-      if (sym is Note && sym.isChordTone) continue;
-      if (sym is Note &&
-          (_isEighth(sym.type) || _isSixteenth(sym.type)) &&
-          sym.beamed) {
-        current ??= [];
-        current.add(i);
-      } else {
-        if (current != null) {
-          groups.add(current);
-          current = null;
-        }
-      }
-    }
-    if (current != null) groups.add(current);
-    return groups;
-  }
+  List<List<int>> _buildBeamGroups(List<ScoreSymbol> symbols) =>
+      BeamGrouping.groups(symbols);
 
   double _yForPitch({
     required String step,

@@ -85,6 +85,7 @@ class Accidentals {
                           voice: s.voice,
                           staff: s.staff,
                           beamed: s.beamed,
+                          beams: s.beams,
                           dots: s.dots,
                           isChordTone: s.isChordTone,
                         )
