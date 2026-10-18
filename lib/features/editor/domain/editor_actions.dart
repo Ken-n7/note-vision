@@ -124,11 +124,9 @@ extension EditorActions on EditorState {
     if (!hasSelection) return this;
 
     final symbol = selectedSymbol;
-    if (!_canReplaceSelectedSymbolWith(quarterLength(
-      durationSpec.type,
-      0,
-      durationSpec.divisions,
-    ))) {
+    if (!_canReplaceSelectedSymbolWith(
+      quarterLength(durationSpec.type, 0, durationSpec.divisions),
+    )) {
       return this;
     }
     if (symbol is Note) {
@@ -141,6 +139,8 @@ extension EditorActions on EditorState {
           durationSpec.type == 'eighth' || durationSpec.type == 'sixteenth';
       return _replaceSelectedSymbol(
         Note(
+          source: symbol.source,
+          reviewId: symbol.reviewId,
           step: symbol.step,
           octave: symbol.octave,
           alter: symbol.alter,
@@ -163,6 +163,8 @@ extension EditorActions on EditorState {
       if (isSameDuration) return this;
       return _replaceSelectedSymbol(
         Rest(
+          source: symbol.source,
+          reviewId: symbol.reviewId,
           duration: durationSpec.divisions,
           type: durationSpec.type,
           voice: symbol.voice,
@@ -201,6 +203,8 @@ extension EditorActions on EditorState {
     if (symbol is Note) {
       return _replaceSelectedSymbol(
         Note(
+          source: symbol.source,
+          reviewId: symbol.reviewId,
           step: symbol.step,
           octave: symbol.octave,
           alter: symbol.alter,
@@ -219,6 +223,8 @@ extension EditorActions on EditorState {
     if (symbol is Rest) {
       return _replaceSelectedSymbol(
         Rest(
+          source: symbol.source,
+          reviewId: symbol.reviewId,
           duration: newDuration,
           type: symbol.type,
           voice: symbol.voice,
@@ -319,12 +325,7 @@ extension EditorActions on EditorState {
         : score.parts.first.measures.length;
     return _applyMeasureContextEdit(
       intent: EditorEditIntent.createPage,
-      score: Score(
-        id: score.id,
-        title: score.title,
-        composer: score.composer,
-        parts: updatedParts,
-      ),
+      score: score.copyWith(parts: updatedParts),
       partIndex: selectedPartIndex ?? 0,
       measureIndex: newMeasureIndex,
     );
@@ -335,8 +336,10 @@ extension EditorActions on EditorState {
     if (selectedMeasureIndex == null) return this;
     // Already in force there: nothing to change or undo.
     if (selectedMeasureTimeSignature == timeSignature) return this;
-    final nextScore =
-        score.setTimeSignatureAt(selectedMeasureIndex!, timeSignature);
+    final nextScore = score.setTimeSignatureAt(
+      selectedMeasureIndex!,
+      timeSignature,
+    );
     if (identical(nextScore, score)) return this;
     return _applySelectionPreservingEdit(
       intent: EditorEditIntent.updateMeasureMetadata,
@@ -397,6 +400,8 @@ extension EditorActions on EditorState {
           newClefLine: newClef.line,
         );
         return Note(
+          source: symbol.source,
+          reviewId: symbol.reviewId,
           step: newPitch.step,
           octave: newPitch.octave,
           alter: symbol.alter,
@@ -412,6 +417,8 @@ extension EditorActions on EditorState {
 
       return Measure(
         number: measure.number,
+        reviewId: measure.reviewId,
+        source: measure.source,
         clef: i == 0 ? newClef : null,
         timeSignature: measure.timeSignature,
         keySignature: measure.keySignature,
@@ -430,12 +437,7 @@ extension EditorActions on EditorState {
         measures: updatedMeasures,
       );
 
-    final nextScore = Score(
-      id: score.id,
-      title: score.title,
-      composer: score.composer,
-      parts: updatedParts,
-    );
+    final nextScore = score.copyWith(parts: updatedParts);
 
     return _applySelectionPreservingEdit(
       intent: EditorEditIntent.updateMeasureMetadata,
@@ -492,6 +494,8 @@ extension EditorActions on EditorState {
     if (note.alter == alter) return this;
     return _replaceSelectedSymbol(
       Note(
+        source: note.source,
+        reviewId: note.reviewId,
         step: note.step,
         octave: note.octave,
         alter: alter,
@@ -931,10 +935,16 @@ extension EditorActions on EditorState {
   double _symbolQuarters(ScoreSymbol symbol) {
     return switch (symbol) {
       Note(isChordTone: true) => 0,
-      Note(:final type, :final dots, :final duration) =>
-        quarterLength(type, dots, duration),
-      Rest(:final type, :final dots, :final duration) =>
-        quarterLength(type, dots, duration),
+      Note(:final type, :final dots, :final duration) => quarterLength(
+        type,
+        dots,
+        duration,
+      ),
+      Rest(:final type, :final dots, :final duration) => quarterLength(
+        type,
+        dots,
+        duration,
+      ),
       _ => 0,
     };
   }
@@ -977,6 +987,8 @@ Note _moveNoteByScaleStep(Note note, int steps) {
   if (nextOctave < 1 || nextOctave > 7) return note;
 
   return Note(
+    source: note.source,
+    reviewId: note.reviewId,
     step: stepsByName[nextIndex],
     octave: nextOctave,
     alter: note.alter,

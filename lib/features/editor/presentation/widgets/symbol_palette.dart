@@ -32,11 +32,7 @@ class PaletteDragData {
 }
 
 class SymbolPalette extends StatefulWidget {
-  const SymbolPalette({
-    super.key,
-    this.selectedType,
-    this.onTypeTap,
-  });
+  const SymbolPalette({super.key, this.selectedType, this.onTypeTap});
 
   final PaletteSymbolType? selectedType;
   final ValueChanged<PaletteSymbolType>? onTypeTap;
@@ -68,7 +64,9 @@ class _SymbolPaletteState extends State<SymbolPalette> {
   void initState() {
     super.initState();
     _scrollController.addListener(_updateArrowVisibility);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _updateArrowVisibility());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _updateArrowVisibility(),
+    );
   }
 
   @override
@@ -109,7 +107,7 @@ class _SymbolPaletteState extends State<SymbolPalette> {
   Widget build(BuildContext context) {
     return Container(
       key: const ValueKey('symbol-palette'),
-      height: 88,
+      height: 88 + (MediaQuery.textScalerOf(context).scale(11) - 11) * 1.5,
       decoration: const BoxDecoration(
         color: AppColors.surfaceAlt,
         border: Border(top: BorderSide(color: AppColors.border)),
@@ -208,10 +206,7 @@ class _PaletteArrow extends StatelessWidget {
                   end: alignment == Alignment.centerLeft
                       ? Alignment.centerRight
                       : Alignment.centerLeft,
-                  colors: const [
-                    Color(0xF2242428),
-                    Color(0xD9242428),
-                  ],
+                  colors: const [Color(0xF2242428), Color(0xD9242428)],
                 ),
                 border: Border.all(
                   color: AppColors.border.withValues(alpha: 0.85),

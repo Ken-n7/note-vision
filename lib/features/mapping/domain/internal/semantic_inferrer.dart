@@ -1,3 +1,4 @@
+import 'package:note_vision/core/models/score_review.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/rest.dart';
@@ -32,8 +33,7 @@ class SemanticInferrer {
         .map((measure) {
           final signatureSymbols = _signatureInferrer
               .collectLeadingSignatureSymbols(measure.symbols);
-          final signatureIds =
-              signatureSymbols.map((e) => e.symbol.id).toSet();
+          final signatureIds = signatureSymbols.map((e) => e.symbol.id).toSet();
 
           final inferredClef = _signatureInferrer.inferClef(
             signatureSymbols,
@@ -80,16 +80,12 @@ class SemanticInferrer {
             measure.symbols,
           );
 
-          final musicalCount = measure.symbols
-              .where(
-                (e) {
-                  if (signatureIds.contains(e.symbol.id)) return false;
-                  if (SymbolClassifier.isSupportedRest(e.symbol.type)) return true;
-                  if (!SymbolClassifier.isNotehead(e.symbol.type)) return false;
-                  return !(stemLinks[e.symbol.id]?.isChordTone ?? false);
-                },
-              )
-              .length;
+          final musicalCount = measure.symbols.where((e) {
+            if (signatureIds.contains(e.symbol.id)) return false;
+            if (SymbolClassifier.isSupportedRest(e.symbol.type)) return true;
+            if (!SymbolClassifier.isNotehead(e.symbol.type)) return false;
+            return !(stemLinks[e.symbol.id]?.isChordTone ?? false);
+          }).length;
           final beatsPerMeasure = timeSignature?.beats ?? 4;
           var beatsUsed = 0.0;
           var musicalIndex = 0;
@@ -114,6 +110,8 @@ class SemanticInferrer {
             if (SymbolClassifier.isSupportedRest(type)) {
               final rest = _buildRest(
                 type: type,
+                source: _source(entry.symbol),
+                reviewId: entry.symbol.id,
                 dots: symbolDots[entry.symbol.id] ?? 0,
                 confidence: entry.symbol.confidence,
               );
@@ -158,7 +156,9 @@ class SemanticInferrer {
             // Known-but-unhandled classes (articulations, dynamics, ornaments,
             // ties, slurs, tuplets, etc.) are silently skipped.
             if (entry.symbol.musicSymbol == null) {
-              warnings.add('Unknown symbol type "$type" was ignored during mapping.');
+              warnings.add(
+                'Unknown symbol type "$type" was ignored during mapping.',
+              );
             }
           }
 
@@ -187,10 +187,11 @@ class SemanticInferrer {
   ) {
     if (accidentals.isEmpty) return const {};
 
-    final noteheads = allSymbols
-        .where((e) => SymbolClassifier.isNotehead(e.symbol.type))
-        .toList()
-      ..sort((a, b) => a.symbolCenterX.compareTo(b.symbolCenterX));
+    final noteheads =
+        allSymbols
+            .where((e) => SymbolClassifier.isNotehead(e.symbol.type))
+            .toList()
+          ..sort((a, b) => a.symbolCenterX.compareTo(b.symbolCenterX));
 
     final result = <String, int>{};
 
@@ -206,8 +207,7 @@ class SemanticInferrer {
       for (final notehead in noteheads) {
         final dist = notehead.symbol.x - accRight;
         if (dist < 0) continue; // accidental must be to the left
-        final threshold =
-            (notehead.symbol.width ?? 12.0) * 2 + 20;
+        final threshold = (notehead.symbol.width ?? 12.0) * 2 + 20;
         if (dist > threshold) continue;
 
         if (nearestDist == null || dist < nearestDist) {
@@ -230,14 +230,15 @@ class SemanticInferrer {
   ) {
     if (dots.isEmpty) return const {};
 
-    final candidates = allSymbols
-        .where(
-          (e) =>
-              SymbolClassifier.isNotehead(e.symbol.type) ||
-              SymbolClassifier.isSupportedRest(e.symbol.type),
-        )
-        .toList()
-      ..sort((a, b) => a.symbolCenterX.compareTo(b.symbolCenterX));
+    final candidates =
+        allSymbols
+            .where(
+              (e) =>
+                  SymbolClassifier.isNotehead(e.symbol.type) ||
+                  SymbolClassifier.isSupportedRest(e.symbol.type),
+            )
+            .toList()
+          ..sort((a, b) => a.symbolCenterX.compareTo(b.symbolCenterX));
 
     final result = <String, int>{};
 
@@ -247,7 +248,8 @@ class SemanticInferrer {
       double? nearestScore;
 
       for (final candidate in candidates) {
-        final candidateRight = candidate.symbol.x + (candidate.symbol.width ?? 12.0);
+        final candidateRight =
+            candidate.symbol.x + (candidate.symbol.width ?? 12.0);
         final horizontalDistance = dot.symbol.x - candidateRight;
         if (horizontalDistance < -4) continue;
 
@@ -258,7 +260,9 @@ class SemanticInferrer {
             candidate.symbol.y + ((candidate.symbol.height ?? 0) / 2);
         final verticalDistance = (candidateCenterY - dotCenterY).abs();
         final maxVerticalDistance =
-            ((candidate.symbol.height ?? 10.0) + (dot.symbol.height ?? 6.0)) * 1.5 + 10;
+            ((candidate.symbol.height ?? 10.0) + (dot.symbol.height ?? 6.0)) *
+                1.5 +
+            10;
         if (verticalDistance > maxVerticalDistance) continue;
 
         final score = horizontalDistance + (verticalDistance * 0.6);
@@ -269,7 +273,11 @@ class SemanticInferrer {
       }
 
       if (nearest != null) {
-        result.update(nearest.symbol.id, (value) => value + 1, ifAbsent: () => 1);
+        result.update(
+          nearest.symbol.id,
+          (value) => value + 1,
+          ifAbsent: () => 1,
+        );
       }
     }
 
@@ -295,29 +303,34 @@ class SemanticInferrer {
     final hasBeam = link.hasBeam;
 
     // Whole-symbol models (one box per note) report the value directly.
-    final noteType = entry.symbol.metadata?['noteType'] as String? ??
+    final noteType =
+        entry.symbol.metadata?['noteType'] as String? ??
         switch (type) {
-      'noteheadDoubleWholeInSpace' || 'noteheadDoubleWholeOnLine' => 'breve',
-      'noteheadWholeInSpace' || 'noteheadWholeOnLine' => 'whole',
-      'noteheadHalfInSpace' || 'noteheadHalfOnLine' when hasStem => 'half',
-      // Flag OR beam both indicate an eighth note.
-      'noteheadBlackInSpace' || 'noteheadBlackOnLine'
-          when hasStem && (hasFlag || hasBeam) =>
-        'eighth',
-      'noteheadBlackInSpace' || 'noteheadBlackOnLine' when hasStem => 'quarter',
-      // Beam detected even without a stem — beams are thicker and easier for
-      // the model to detect than thin stems; trust the beam evidence.
-      'noteheadBlackInSpace' || 'noteheadBlackOnLine' when hasBeam => 'eighth',
-      // No stem and no beam — use remaining-beat context to infer duration.
-      // Falls back to quarter when context is ambiguous.
-      'noteheadBlackInSpace' || 'noteheadBlackOnLine' => _stemlessNoteDuration(
-          beatsUsed: beatsUsed,
-          beatsPerMeasure: beatsPerMeasure,
-          isLastMusical: isLastMusical,
-          isOnlyMusical: isOnlyMusical,
-        ),
-      _ => null,
-    };
+          'noteheadDoubleWholeInSpace' ||
+          'noteheadDoubleWholeOnLine' => 'breve',
+          'noteheadWholeInSpace' || 'noteheadWholeOnLine' => 'whole',
+          'noteheadHalfInSpace' || 'noteheadHalfOnLine' when hasStem => 'half',
+          // Flag OR beam both indicate an eighth note.
+          'noteheadBlackInSpace' || 'noteheadBlackOnLine'
+              when hasStem && (hasFlag || hasBeam) =>
+            'eighth',
+          'noteheadBlackInSpace' ||
+          'noteheadBlackOnLine' when hasStem => 'quarter',
+          // Beam detected even without a stem — beams are thicker and easier for
+          // the model to detect than thin stems; trust the beam evidence.
+          'noteheadBlackInSpace' ||
+          'noteheadBlackOnLine' when hasBeam => 'eighth',
+          // No stem and no beam — use remaining-beat context to infer duration.
+          // Falls back to quarter when context is ambiguous.
+          'noteheadBlackInSpace' ||
+          'noteheadBlackOnLine' => _stemlessNoteDuration(
+            beatsUsed: beatsUsed,
+            beatsPerMeasure: beatsPerMeasure,
+            isLastMusical: isLastMusical,
+            isOnlyMusical: isOnlyMusical,
+          ),
+          _ => null,
+        };
 
     if (noteType == null) {
       warnings.add(
@@ -343,7 +356,10 @@ class SemanticInferrer {
       step: pitch.step,
       octave: pitch.octave,
       alter: alter,
-      duration: _effectiveDuration(SymbolClassifier.durationFor(noteType), dots),
+      duration: _effectiveDuration(
+        SymbolClassifier.durationFor(noteType),
+        dots,
+      ),
       type: noteType,
       staff: _defaultStaff,
       // Whole-symbol scans mark beamed notes in metadata; older models
@@ -354,6 +370,8 @@ class SemanticInferrer {
       dots: dots,
       isChordTone: link.isChordTone,
       confidence: entry.symbol.confidence,
+      reviewId: entry.symbol.id,
+      source: _source(entry.symbol),
     );
   }
 
@@ -361,6 +379,8 @@ class SemanticInferrer {
     required String type,
     required int dots,
     double? confidence,
+    SourceRegion? source,
+    String? reviewId,
   }) {
     final restType = switch (type) {
       'restWhole' => 'whole',
@@ -370,11 +390,37 @@ class SemanticInferrer {
       _ => 'quarter',
     };
     return Rest(
-      duration: _effectiveDuration(SymbolClassifier.durationFor(restType), dots),
+      duration: _effectiveDuration(
+        SymbolClassifier.durationFor(restType),
+        dots,
+      ),
       type: restType,
       staff: _defaultStaff,
       dots: dots,
       confidence: confidence,
+      source: source,
+      reviewId: reviewId,
+    );
+  }
+
+  static SourceRegion _source(DetectedSymbol symbol) {
+    final full = symbol.metadata?[DetectedSymbol.fullBoxKey];
+    if (full is List && full.length == 4) {
+      final v = full.map((e) => (e as num).toDouble()).toList();
+      return SourceRegion(
+        pageId: '',
+        x: v[0],
+        y: v[1],
+        width: v[2] - v[0],
+        height: v[3] - v[1],
+      );
+    }
+    return SourceRegion(
+      pageId: '',
+      x: symbol.x,
+      y: symbol.y,
+      width: symbol.width ?? 1,
+      height: symbol.height ?? 1,
     );
   }
 
@@ -410,7 +456,11 @@ class SemanticInferrer {
     return total.round();
   }
 
-  void _warnAboutClef(Clef? clef, MeasureSymbols measure, List<String> warnings) {
+  void _warnAboutClef(
+    Clef? clef,
+    MeasureSymbols measure,
+    List<String> warnings,
+  ) {
     final hasNoteheads = measure.symbols.any(
       (e) => SymbolClassifier.isNotehead(e.symbol.type),
     );

@@ -386,8 +386,14 @@ class NotationChecker {
     for (var i = 1; i < symbols.length && fix == null; i++) {
       if (_length(symbols[i]) <= 0 ||
           (_length(symbols[i]) - over).abs() > _eps ||
-          symbols[i].toJson().toString() !=
-              symbols[i - 1].toJson().toString()) {
+          (symbols[i].toJson()
+                    ..remove('reviewId')
+                    ..remove('source'))
+                  .toString() !=
+              (symbols[i - 1].toJson()
+                    ..remove('reviewId')
+                    ..remove('source'))
+                  .toString()) {
         continue;
       }
       label = 'Remove the repeated ${_symbolName(symbols[i])}';
@@ -693,6 +699,8 @@ class NotationChecker {
         staff: old.staff,
         dots: dots,
         confidence: old.confidence,
+        reviewId: old.reviewId,
+        source: old.source,
       ),
       _ => old,
     };
@@ -719,6 +727,8 @@ class NotationChecker {
     dots: dots ?? n.dots,
     isChordTone: n.isChordTone,
     confidence: n.confidence,
+    reviewId: n.reviewId,
+    source: n.source,
   );
 
   static Measure _measureWith(
@@ -727,6 +737,8 @@ class NotationChecker {
     int? number,
   }) => Measure(
     number: number ?? m.number,
+    reviewId: m.reviewId,
+    source: m.source,
     clef: m.clef,
     timeSignature: m.timeSignature,
     keySignature: m.keySignature,
@@ -738,7 +750,7 @@ class NotationChecker {
   );
 
   static Score _withParts(Score s, List<Part> parts) =>
-      Score(id: s.id, title: s.title, composer: s.composer, parts: parts);
+      s.copyWith(parts: parts);
 
   static Score _withMeasureSymbols(
     Score s,

@@ -1,3 +1,6 @@
+import 'package:note_vision/core/models/score_review.dart';
+import 'package:note_vision/core/services/notation_review_service.dart';
+import 'package:note_vision/features/editor/presentation/widgets/notation_review_panel.dart';
 import 'dart:async' show StreamSubscription, Timer, unawaited;
 import 'dart:math' as math;
 
@@ -112,10 +115,17 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   // Notation check, turned on by the user from the header menu. While it is
   // on, the issues are worked out again after every edit (a few ms).
   bool _notationCheckOn = false;
-  final Set<String> _dismissedIssues = {};
+  bool _reviewOpen = false;
+  bool _reviewPreview = false;
+  bool _reviewListening = false;
+  bool _reviewStarting = false;
+  int _reviewListenRequest = 0;
+  double _reviewPanelFraction = .62;
+  String? _focusedIssueKey;
+  NotationReviewPlan? _reviewPlan;
+  final GlobalKey<_NotationAreaState> _notationAreaKey = GlobalKey();
   Score? _checkedScore;
   List<NotationIssue> _checkedIssues = const [];
-  int _checkMicros = 0;
   Timer? _bannerTimer;
 
   /// Genre shown in the header. Worked out again shortly after the edits
@@ -164,8 +174,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     _storage = widget.projectStorageService ?? ProjectStorageService();
     _currentProject = widget.args.existingProject;
     _editorState = _withDefaultMeasureContext(
-      widget.args.initialState.copyWith(score: widget.args.score),
+      widget.args.initialState.copyWith(
+        score: NotationReviewService.ensureIdentity(widget.args.score),
+      ),
     );
+    _notationCheckOn = _editorState.score.sourcePages.isNotEmpty;
     _initPlayback();
     PlaybackDisplayPreferencesService.showSymbolGlowNotifier.addListener(
       _onPlaybackDisplayPreferencesChanged,
@@ -229,6 +242,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       if (!mounted) return;
       setState(() {
         _playbackStatus = state.status;
+        if (!_reviewStarting &&
+            (state.status == PlaybackStatus.stopped ||
+                state.status == PlaybackStatus.error)) {
+          _reviewListening = false;
+        }
         if (state.status == PlaybackStatus.stopped ||
             state.status == PlaybackStatus.error) {
           _playheadEpoch = 0;
@@ -423,22 +441,27 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               autofocus: true,
               maxLength: 60,
               inputFormatters: [
-                EmojiBlockingFormatter(onBlocked: () {
-                  setDialogState(() => errorText = 'Emoji not allowed');
-                }),
+                EmojiBlockingFormatter(
+                  onBlocked: () {
+                    setDialogState(() => errorText = 'Emoji not allowed');
+                  },
+                ),
               ],
-              buildCounter: (_, {required currentLength, required isFocused, maxLength}) {
-                if (maxLength == null || currentLength <= maxLength - 20) return null;
-                return Text(
-                  '$currentLength / $maxLength',
-                  style: TextStyle(
-                    color: currentLength >= maxLength
-                        ? const Color(0xFFE05252)
-                        : AppColors.textSecondary,
-                    fontSize: 11,
-                  ),
-                );
-              },
+              buildCounter:
+                  (_, {required currentLength, required isFocused, maxLength}) {
+                    if (maxLength == null || currentLength <= maxLength - 20) {
+                      return null;
+                    }
+                    return Text(
+                      '$currentLength / $maxLength',
+                      style: TextStyle(
+                        color: currentLength >= maxLength
+                            ? const Color(0xFFE05252)
+                            : AppColors.textSecondary,
+                        fontSize: 11,
+                      ),
+                    );
+                  },
               style: const TextStyle(color: AppColors.textPrimary),
               decoration: InputDecoration(
                 hintText: 'Project name',
@@ -586,96 +609,145 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   // ── Notation check ─────────────────────────────────────────────────────────
 
   List<NotationIssue> get _notationIssues {
-    if (!_notationCheckOn) return const [];
     final score = _editorState.score;
     if (!identical(score, _checkedScore)) {
-      final watch = Stopwatch()..start();
-      _checkedIssues = NotationChecker.check(score);
-      _checkMicros = watch.elapsedMicroseconds;
+      _checkedIssues = NotationReviewService.issues(score);
       _checkedScore = score;
     }
-    return [
-      for (final issue in _checkedIssues)
-        if (!_dismissedIssues.contains(issue.key)) issue,
-    ];
+    return _checkedIssues;
   }
 
-  /// Highlights for the canvas, keyed 'part:measure[:symbol]'.
-  Map<String, Color> get _issueMarks => {
-        for (final issue in _notationIssues)
-          [
-            issue.partIndex,
-            issue.measureIndex,
-            ?issue.symbolIndex,
-          ].join(':'): notationIssueColor(issue.kind),
+  NotationIssue? get _focusedIssue =>
+      _notationIssues
+          .where(
+            (i) =>
+                NotationReviewService.key(_editorState.score, i) ==
+                _focusedIssueKey,
+          )
+          .firstOrNull ??
+      _notationIssues.firstOrNull;
+
+  Map<String, Color> get _issueMarks {
+    if (!_notationCheckOn) return const {};
+    if (_reviewPreview && _reviewPlan != null) {
+      return {
+        for (final change in _reviewPlan!.changes)
+          '${change.partIndex}:${change.measureIndex}': AppColors.accent,
       };
+    }
+    return {
+      for (final issue in _notationIssues)
+        [issue.partIndex, issue.measureIndex, ?issue.symbolIndex].join(':'):
+            notationIssueColor(issue.kind),
+    };
+  }
 
   void _startNotationCheck() {
+    if (_reviewOpen) return;
     setState(() {
       _notationCheckOn = true;
-      _checkedScore = null;
+      _reviewOpen = true;
     });
-    unawaited(_openNotationCheckSheet());
+    final issue = _focusedIssue;
+    if (issue != null) _showIssue(issue);
   }
 
   void _stopNotationCheck() {
+    _stopReviewListening();
     setState(() {
+      _reviewOpen = false;
       _notationCheckOn = false;
-      _dismissedIssues.clear();
+      _reviewPlan = null;
+      _reviewPreview = false;
     });
   }
 
   bool get _canApplyIssueFix =>
-      !_isReviewMode && _playbackStatus != PlaybackStatus.playing;
+      !_isReviewMode &&
+      !_reviewListening &&
+      _playbackStatus != PlaybackStatus.playing;
 
-  void _fixIssue(NotationIssue issue) {
-    if (!issue.hasFix || !_canApplyIssueFix) return;
-    final fixed = issue.fix!(_editorState.score);
-    if (identical(fixed, _editorState.score)) return;
-    _updateState(
-      (s) => s.applyEditWithMeasureContext(
-        score: fixed,
-        partIndex: issue.partIndex,
-        measureIndex: issue.measureIndex
-            .clamp(0, fixed.parts[issue.partIndex].measures.length - 1),
+  void _applyReviewPlan(NotationReviewPlan plan) {
+    if (!_canApplyIssueFix) return;
+    final next = plan.applyTo(_editorState.score);
+    if (next == null) {
+      _showEditorBanner(
+        const _EditorBannerData.error(
+          'The score changed. Preview these suggestions again.',
+        ),
+      );
+      return;
+    }
+    final index = _focusedIssue == null
+        ? 0
+        : _notationIssues.indexOf(_focusedIssue!);
+    _updateState((s) => s.applyEdit(score: next, clearSelection: true));
+    _advanceReview(preferredIndex: index);
+    final appliedScore = _editorState.score;
+    _showEditorBanner(
+      _EditorBannerData(
+        message:
+            '${plan.entries.length} ${plan.entries.length == 1 ? 'change' : 'changes'} applied',
+        backgroundColor: AppColors.surfaceAlt,
+        duration: const Duration(seconds: 5),
+        actionLabel: 'Undo',
+        onAction: () {
+          if (identical(_editorState.score, appliedScore) &&
+              _canApplyIssueFix) {
+            _updateState((s) => s.applyUndo());
+            _advanceReview();
+          }
+        },
       ),
     );
   }
 
-  /// Accepts every fix as one edit (one undo step). Fixes are applied one
-  /// at a time, checking again after each, since one fix can settle another
-  /// issue (an early barline makes one bar short and the next one long).
-  void _fixAllIssues() {
+  void _keepIssue(NotationIssue issue) {
     if (!_canApplyIssueFix) return;
-    var score = _editorState.score;
-    final skipped = <String>{..._dismissedIssues};
-    for (var guard = 0; guard < 500; guard++) {
-      final next = NotationChecker.check(score)
-          .where((i) => i.hasFix && !skipped.contains(i.key))
-          .firstOrNull;
-      if (next == null) break;
-      final fixed = next.fix!(score);
-      if (identical(fixed, score)) {
-        skipped.add(next.key);
-      } else {
-        score = fixed;
-      }
-    }
-    if (identical(score, _editorState.score)) return;
-    _updateState((s) => s.applyEdit(score: score, clearSelection: true));
+    final index = _notationIssues.indexOf(issue);
+    _updateState(
+      (s) => s.applyEdit(
+        score: NotationReviewService.keep(s.score, issue),
+        clearSelection: true,
+      ),
+    );
+    _advanceReview(preferredIndex: index);
   }
 
-  void _ignoreIssue(NotationIssue issue) =>
-      setState(() => _dismissedIssues.add(issue.key));
+  void _restoreReview(ScoreReviewEntry entry) {
+    if (!_canApplyIssueFix) return;
+    final restored = NotationReviewService.restore(_editorState.score, entry);
+    if (restored == null) return;
+    _updateState((s) => s.applyEdit(score: restored, clearSelection: true));
+    final issue = _notationIssues
+        .where(
+          (i) =>
+              NotationReviewService.key(_editorState.score, i) ==
+              entry.issueKey,
+        )
+        .firstOrNull;
+    if (issue != null) {
+      _showIssue(issue);
+    } else {
+      _advanceReview();
+    }
+  }
 
-  void _ignoreAllIssues() => setState(
-        () => _dismissedIssues.addAll(_notationIssues.map((i) => i.key)),
-      );
+  void _advanceReview({int? preferredIndex}) {
+    final issues = _notationIssues;
+    if (issues.isEmpty) return;
+    final next = preferredIndex == null
+        ? _focusedIssue
+        : issues[preferredIndex.clamp(0, issues.length) % issues.length];
+    if (next != null) _showIssue(next);
+  }
 
-  /// Selects the issue's symbol (or bar) and turns to its page, so it can
-  /// be corrected by hand.
   void _showIssue(NotationIssue issue) {
+    _stopReviewListening();
     setState(() {
+      _focusedIssueKey = NotationReviewService.key(_editorState.score, issue);
+      _reviewPlan = null;
+      _reviewPreview = false;
       _editorState = issue.symbolIndex == null
           ? _editorState.copyWith(
               selectedPartIndex: issue.partIndex,
@@ -690,30 +762,68 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
             );
       _syncPageToEditorState(_editorState);
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _notationAreaKey.currentState?.focusMeasure(
+          issue.partIndex,
+          issue.measureIndex,
+        );
+      }
+    });
   }
 
-  Future<void> _openNotationCheckSheet() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: AppColors.surface,
-      barrierColor: Colors.black26,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (ctx) => NotationCheckSheet(
-        issues: () => _notationIssues,
-        checkMicros: () => _checkMicros,
-        onFix: _fixIssue,
-        onIgnore: _ignoreIssue,
-        onFixAll: _fixAllIssues,
-        onIgnoreAll: _ignoreAllIssues,
-        onShow: (issue) {
-          Navigator.of(ctx).pop();
-          _showIssue(issue);
-        },
-      ),
-    );
+  void _editReviewManually() {
+    final issue = _focusedIssue;
+    if (issue != null) _showIssue(issue);
+    setState(() {
+      _reviewOpen = false;
+      _reviewPreview = false;
+      _reviewPlan = null;
+    });
+  }
+
+  Future<void> _listenReview(Score score, int part, int first, int last) async {
+    if (_isReviewMode) return;
+    _playback.stop();
+    final request = ++_reviewListenRequest;
+    setState(() {
+      _reviewListening = true;
+      _reviewStarting = true;
+    });
+    try {
+      await _playback.play(
+        score,
+        fromPartIndex: part,
+        fromMeasureIndex: first,
+        throughMeasureIndex: last,
+      );
+      if (!mounted || request != _reviewListenRequest) return;
+      _reviewStarting = false;
+      if (_playback.status != PlaybackStatus.playing) {
+        setState(() => _reviewListening = false);
+        _showEditorBanner(
+          const _EditorBannerData.error(
+            'Could not play this passage. Try again.',
+          ),
+        );
+      }
+    } catch (_) {
+      if (!mounted || request != _reviewListenRequest) return;
+      _reviewStarting = false;
+      setState(() => _reviewListening = false);
+      _showEditorBanner(
+        const _EditorBannerData.error(
+          'Could not play this passage. Try again.',
+        ),
+      );
+    }
+  }
+
+  void _stopReviewListening() {
+    _reviewListenRequest++;
+    if (_reviewListening) _playback.stop();
+    _reviewStarting = false;
+    _reviewListening = false;
   }
 
   void _showEditorBanner(_EditorBannerData banner) {
@@ -802,6 +912,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     setState(() {
       final prev = _editorState;
       final merged = prev.score.appendScore(scanned);
+      _notationCheckOn = true;
+      _reviewOpen = false;
+      _reviewPlan = null;
+      _reviewPreview = false;
       _editorState = prev.applyEdit(score: merged, clearSelection: true);
       if (_editorState.undoStack.length > prev.undoStack.length) {
         _scoreEditCount++;
@@ -923,7 +1037,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     setState(() => _setCurrentPageIndex(selectedPageIndex));
   }
 
-  Future<void> _playFromMeasure(int fromMeasureIndex, {int partIndex = 0}) async {
+  Future<void> _playFromMeasure(
+    int fromMeasureIndex, {
+    int partIndex = 0,
+  }) async {
     await _playback.play(
       _editorState.score,
       fromMeasureIndex: fromMeasureIndex,
@@ -975,12 +1092,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     if (result == null || !mounted) return;
     _updateState(
       (s) => s.copyWith(
-        score: Score(
-          id: s.score.id,
-          title: result.title,
-          composer: result.composer,
-          parts: s.score.parts,
-        ),
+        score: s.score.copyWith(title: result.title, composer: result.composer),
         hasUnsavedChanges: true,
       ),
     );
@@ -993,7 +1105,13 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     setState(() {
       final prev = _editorState;
       final nextState = updater(_editorState);
-      _editorState = nextState;
+      _editorState = nextState.copyWith(
+        score: NotationReviewService.ensureIdentity(nextState.score),
+      );
+      if (!identical(prevScore, _editorState.score)) {
+        _reviewPlan = null;
+        _reviewPreview = false;
+      }
       _syncPageToEditorState(nextState);
       if (_editorState.undoStack.length > prev.undoStack.length) {
         _scoreEditCount++;
@@ -1134,7 +1252,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isPlaybackActive = _playbackStatus == PlaybackStatus.playing;
+    final isPlaybackActive =
+        _playbackStatus == PlaybackStatus.playing || _reviewListening;
     final isReadOnly = _isReviewMode;
     final selected = _editorState.selectedSymbol;
     final hasSelection = _editorState.hasSelection;
@@ -1181,15 +1300,29 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
             builder: (context, constraints) {
               final isLandscape = constraints.maxWidth > constraints.maxHeight;
 
+              final shownScore = _reviewPreview && _reviewPlan != null
+                  ? _reviewPlan!.preview
+                  : _editorState.score;
               final notationArea = _NotationArea(
+                key: _notationAreaKey,
                 issueMarks: _issueMarks,
+                reviewFocusMeasure: _reviewOpen
+                    ? _focusedIssue?.measureIndex
+                    : null,
+                reviewFocusPart: _focusedIssue?.partIndex ?? 0,
                 // In portrait the selection card floats over the top of the
                 // canvas; the zoom controls float over its bottom edge.
                 fitInsets: EdgeInsets.only(
                   top: isLandscape ? 0 : _kSelectionCardReserve,
                   bottom: _kFloatingControlsReserve,
                 ),
-                editorState: _editorState,
+                editorState: identical(shownScore, _editorState.score)
+                    ? _editorState
+                    : EditorState(
+                        score: shownScore,
+                        selectedPartIndex: _editorState.selectedPartIndex,
+                        selectedMeasureIndex: _editorState.selectedMeasureIndex,
+                      ),
                 layoutPolicy: _pageMetrics.layoutPolicy,
                 pageFirstMeasure: _pageMetrics.pageFirstMeasure,
                 pageMeasureCount: _pageMetrics.pageMeasureCount,
@@ -1205,11 +1338,31 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 trashZoneKey: _trashZoneKey,
                 showTrashZone: isLandscape,
                 isPlaybackActive: isPlaybackActive,
-                isReadOnly: isReadOnly,
+                isReadOnly: isReadOnly || _reviewOpen,
                 suppressCanvasDragGhost: _dragSymbolType != null,
                 onToggleInsertMode: _toggleInsertMode,
                 onPaletteTypeTap: _onPaletteTypeTap,
-                onMeasureTap: _selectMeasureForReview,
+                onMeasureTap: (target) {
+                  if (_reviewOpen &&
+                      target != null &&
+                      !_reviewPreview &&
+                      !isPlaybackActive) {
+                    final issue = _notationIssues
+                        .where(
+                          (i) =>
+                              i.partIndex == target.partIndex &&
+                              i.measureIndex == target.measureIndex,
+                        )
+                        .firstOrNull;
+                    if (issue != null &&
+                        NotationReviewService.key(_editorState.score, issue) !=
+                            _focusedIssueKey) {
+                      _showIssue(issue);
+                    }
+                  } else {
+                    _selectMeasureForReview(target);
+                  }
+                },
                 onSymbolTap: (target) {
                   if (target == null) {
                     _updateState(
@@ -1373,7 +1526,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       currentTimeSignature:
                           _editorState.selectedMeasureTimeSignature,
                       onSetTimeSignature: (timeSignature) => _updateState(
-                        (s) => s.setTimeSignatureAtSelectedMeasure(timeSignature),
+                        (s) =>
+                            s.setTimeSignatureAtSelectedMeasure(timeSignature),
                       ),
                       onSetClef: (clef) {
                         if (clef != null) {
@@ -1415,10 +1569,49 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 dragGlobal: _dragGlobal,
                 trashZoneKey: _trashZoneKey,
                 banner: _banner,
-                checkBar: _notationCheckOn
+                reviewPanelFraction: _reviewPanelFraction,
+                onReviewResize: (fraction) =>
+                    setState(() => _reviewPanelFraction = fraction),
+                reviewPanel: !_reviewOpen
+                    ? null
+                    : NotationReviewPanel(
+                        score: _editorState.score,
+                        issues: _notationIssues,
+                        focusedKey: _focusedIssueKey,
+                        onFocus: _showIssue,
+                        onApply: _applyReviewPlan,
+                        onKeep: _keepIssue,
+                        onPlanChanged: (plan) =>
+                            setState(() => _reviewPlan = plan),
+                        onPreviewChanged: (preview) =>
+                            setState(() => _reviewPreview = preview),
+                        onClose: _stopNotationCheck,
+                        onEditManually: _editReviewManually,
+                        onListen: (score, part, first, last) =>
+                            unawaited(_listenReview(score, part, first, last)),
+                        onRestore: _restoreReview,
+                        previewing: _reviewPreview,
+                        canEdit: _canApplyIssueFix,
+                        listening: _reviewListening,
+                        onStopListening: () {
+                          _stopReviewListening();
+                          setState(() {});
+                        },
+                      ),
+                checkBar: _notationCheckOn && !_reviewOpen
                     ? NotationCheckBar(
                         issueCount: _notationIssues.length,
-                        onReview: () => unawaited(_openNotationCheckSheet()),
+                        appliedCount: _editorState.score.reviewHistory
+                            .where(
+                              (e) => e.disposition == ReviewDisposition.applied,
+                            )
+                            .length,
+                        keptCount: _editorState.score.reviewHistory
+                            .where(
+                              (e) => e.disposition == ReviewDisposition.kept,
+                            )
+                            .length,
+                        onReview: _startNotationCheck,
                         onClose: _stopNotationCheck,
                       )
                     : null,
@@ -1469,7 +1662,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       ? null
                       : _onScanPage,
                   onCheckNotation:
-                      isPlaybackActive || isReadOnly || scoreIsEmpty
+                      isPlaybackActive ||
+                          isReadOnly ||
+                          (scoreIsEmpty &&
+                              _editorState.score.reviewHistory.isEmpty)
                       ? null
                       : _startNotationCheck,
                 ),
@@ -1522,6 +1718,9 @@ class _EditorWorkspace extends StatelessWidget {
     required this.trashZoneKey,
     required this.banner,
     this.checkBar,
+    this.reviewPanel,
+    this.reviewPanelFraction = .62,
+    this.onReviewResize,
     required this.header,
     required this.notationArea,
     required this.inspectorPanel,
@@ -1534,6 +1733,9 @@ class _EditorWorkspace extends StatelessWidget {
   final GlobalKey trashZoneKey;
   final _EditorBannerData? banner;
   final Widget? checkBar;
+  final Widget? reviewPanel;
+  final double reviewPanelFraction;
+  final ValueChanged<double>? onReviewResize;
   final Widget header;
   final Widget notationArea;
   final Widget inspectorPanel;
@@ -1550,7 +1752,93 @@ class _EditorWorkspace extends StatelessWidget {
                 header,
                 ?checkBar,
                 Expanded(
-                  child: isLandscape
+                  child: reviewPanel != null
+                      ? LayoutBuilder(
+                          builder: (context, area) {
+                            final wide =
+                                area.maxWidth >= 720 ||
+                                area.maxWidth > area.maxHeight;
+                            final canvas = Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: notationArea,
+                            );
+                            if (wide) {
+                              return Row(
+                                children: [
+                                  Expanded(child: canvas),
+                                  SizedBox(
+                                    width: (area.maxWidth * .38).clamp(
+                                      320.0,
+                                      440.0,
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        0,
+                                        8,
+                                        8,
+                                        8,
+                                      ),
+                                      child: reviewPanel,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }
+                            return Column(
+                              children: [
+                                Expanded(child: canvas),
+                                Semantics(
+                                  label: 'Resize review panel',
+                                  onIncrease: () => onReviewResize?.call(
+                                    (reviewPanelFraction + .1).clamp(.35, .8),
+                                  ),
+                                  onDecrease: () => onReviewResize?.call(
+                                    (reviewPanelFraction - .1).clamp(.35, .8),
+                                  ),
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onVerticalDragUpdate: (details) =>
+                                        onReviewResize?.call(
+                                          (reviewPanelFraction -
+                                                  details.delta.dy /
+                                                      area.maxHeight)
+                                              .clamp(.35, .8),
+                                        ),
+                                    child: SizedBox(
+                                      height: 20,
+                                      child: Center(
+                                        child: Container(
+                                          width: 40,
+                                          height: 4,
+                                          decoration: BoxDecoration(
+                                            color: AppColors.textSecondary,
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(
+                                  height: (area.maxHeight * reviewPanelFraction)
+                                      .clamp(0.0, area.maxHeight - 20),
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      8,
+                                      0,
+                                      8,
+                                      8,
+                                    ),
+                                    child: reviewPanel,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        )
+                      : isLandscape
                       ? Row(
                           children: [
                             Expanded(
@@ -1566,8 +1854,8 @@ class _EditorWorkspace extends StatelessWidget {
                             ),
                             SizedBox(
                               width: (constraints.maxWidth * 0.3).clamp(
-                                260.0,
                                 320.0,
+                                360.0,
                               ),
                               child: Padding(
                                 padding: const EdgeInsets.fromLTRB(
@@ -1623,7 +1911,7 @@ class _EditorWorkspace extends StatelessWidget {
                           ],
                         ),
                 ),
-                playbackControls,
+                if (reviewPanel == null) playbackControls,
               ],
             ),
             Positioned(
@@ -1679,49 +1967,49 @@ class _TransientEditorBanner extends StatelessWidget {
     return Semantics(
       liveRegion: true,
       child: Material(
-      color: Colors.transparent,
-      child: Container(
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x40000000),
-              blurRadius: 18,
-              offset: Offset(0, 8),
-            ),
-          ],
-          border: Border.all(color: Colors.white12),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            if (actionLabel != null && onAction != null) ...[
-              const SizedBox(width: 12),
-              TextButton(
-                onPressed: onAction,
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.textPrimary,
-                  minimumSize: const Size(0, 32),
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Text(actionLabel!),
+        color: Colors.transparent,
+        child: Container(
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x40000000),
+                blurRadius: 18,
+                offset: Offset(0, 8),
               ),
             ],
-          ],
+            border: Border.all(color: Colors.white12),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (actionLabel != null && onAction != null) ...[
+                const SizedBox(width: 12),
+                TextButton(
+                  onPressed: onAction,
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.textPrimary,
+                    minimumSize: const Size(0, 32),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(actionLabel!),
+                ),
+              ],
+            ],
+          ),
         ),
-      ),
       ),
     );
   }
@@ -1843,7 +2131,10 @@ class _EditorHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 56,
+      height:
+          56 +
+          (MediaQuery.textScalerOf(context).scale(15) - 15) +
+          (MediaQuery.textScalerOf(context).scale(10) - 10),
       decoration: const BoxDecoration(
         color: AppColors.surface,
         border: Border(bottom: BorderSide(color: AppColors.border)),
@@ -1944,6 +2235,13 @@ class _EditorHeader extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+          IconButton(
+            onPressed: onCheckNotation,
+            icon: const Icon(Icons.fact_check_outlined, size: 18),
+            color: AppColors.accent,
+            tooltip: 'Review & Correct',
+            style: _compactIconButtonStyle,
           ),
           IconButton(
             onPressed: canUndo ? onUndo : null,
@@ -2058,8 +2356,11 @@ const double _kFloatingControlsReserve = 46.0;
 
 class _NotationArea extends StatefulWidget {
   const _NotationArea({
+    super.key,
     this.fitInsets = EdgeInsets.zero,
     this.issueMarks = const {},
+    this.reviewFocusMeasure,
+    this.reviewFocusPart = 0,
     required this.editorState,
     required this.layoutPolicy,
     required this.pageFirstMeasure,
@@ -2093,6 +2394,8 @@ class _NotationArea extends StatefulWidget {
   /// Strips of the viewport covered by floating UI; fit-to-screen keeps the
   /// page out of them.
   final EdgeInsets fitInsets;
+  final int? reviewFocusMeasure;
+  final int reviewFocusPart;
   final EditorState editorState;
   final EditorLayoutPolicy layoutPolicy;
   final int pageFirstMeasure;
@@ -2157,7 +2460,9 @@ class _NotationAreaState extends State<_NotationArea>
   @override
   void didUpdateWidget(_NotationArea oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.playbackPosition.isNone && !widget.playbackPosition.isNone) {
+    if (widget.reviewFocusMeasure == null &&
+        oldWidget.playbackPosition.isNone &&
+        !widget.playbackPosition.isNone) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _fitToScreen();
       });
@@ -2196,7 +2501,6 @@ class _NotationAreaState extends State<_NotationArea>
     return rel;
   }
 
-
   void _fitToScreen() {
     final viewport = _viewportSize;
     final content = _contentSize;
@@ -2220,6 +2524,43 @@ class _NotationAreaState extends State<_NotationArea>
       ..setEntry(1, 1, scale)
       ..setEntry(0, 3, tx)
       ..setEntry(1, 3, ty);
+  }
+
+  void focusMeasure(int partIndex, int absoluteMeasure) {
+    final viewport = _viewportSize;
+    if (viewport == null || viewport.isEmpty) return;
+    final relative = absoluteMeasure - widget.pageFirstMeasure;
+    if (relative < 0 || relative >= widget.pageMeasureCount) return;
+    final policy = widget.layoutPolicy;
+    final row = relative ~/ policy.measuresPerRow;
+    final column = relative % policy.measuresPerRow;
+    final x =
+        policy.horizontalPadding +
+        policy.rowPrefixWidth +
+        column * policy.minMeasureWidth;
+    final y =
+        policy.verticalPadding +
+        (row * widget.editorState.score.parts.length + partIndex) *
+            policy.rowHeight;
+    final scale = math
+        .min(
+          viewport.width / (policy.minMeasureWidth * 1.7),
+          viewport.height / (policy.rowHeight * 1.6),
+        )
+        .clamp(.2, 2.5);
+    _transformController.value = Matrix4.identity()
+      ..setEntry(0, 0, scale)
+      ..setEntry(1, 1, scale)
+      ..setEntry(
+        0,
+        3,
+        viewport.width / 2 - (x + policy.minMeasureWidth / 2) * scale,
+      )
+      ..setEntry(
+        1,
+        3,
+        viewport.height / 2 - (y + policy.rowHeight / 2) * scale,
+      );
   }
 
   void _zoomIn() => _applyScaleDelta(1.15);
@@ -2250,7 +2591,6 @@ class _NotationAreaState extends State<_NotationArea>
   // The page is scaled evenly in x and y. getMaxScaleOnAxis also looks at the
   // untouched z axis, so it reads 1.0 for any zoom below 100 %.
   double get _scale => _transformController.value.entry(0, 0);
-
 
   Size _computeContentSize() {
     final score = widget.editorState.score;
@@ -2430,15 +2770,35 @@ class _NotationAreaState extends State<_NotationArea>
               Positioned.fill(
                 child: LayoutBuilder(
                   builder: (ctx, constraints) {
+                    final viewportChanged =
+                        _viewportSize != constraints.biggest;
                     _viewportSize = constraints.biggest;
                     _contentSize = _computeContentSize();
+                    if (viewportChanged && widget.reviewFocusMeasure != null) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted && widget.reviewFocusMeasure != null) {
+                          focusMeasure(
+                            widget.reviewFocusPart,
+                            widget.reviewFocusMeasure!,
+                          );
+                        }
+                      });
+                    }
 
                     if (!_fittedOnce &&
                         _viewportSize!.shortestSide > 0 &&
                         _contentSize!.width > 0) {
                       _fittedOnce = true;
                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (mounted) _fitToScreen();
+                        if (!mounted) return;
+                        if (widget.reviewFocusMeasure != null) {
+                          focusMeasure(
+                            widget.reviewFocusPart,
+                            widget.reviewFocusMeasure!,
+                          );
+                        } else {
+                          _fitToScreen();
+                        }
                       });
                     }
 
@@ -2565,16 +2925,16 @@ class _NotationAreaState extends State<_NotationArea>
                 child: ValueListenableBuilder<Matrix4>(
                   valueListenable: _transformController,
                   builder: (context, transform, _) => _FloatingControls(
-                  zoomPercent: (transform.entry(0, 0) * 100).round(),
-                  insertMode: widget.insertMode && !widget.isPlaybackActive,
-                  showInsertToggle: !widget.isReadOnly,
-                  onZoomIn: _zoomIn,
-                  onZoomOut: _zoomOut,
-                  onFitToScreen: _fitToScreen,
-                  onToggleInsertMode: widget.isPlaybackActive
-                      ? () {}
-                      : widget.onToggleInsertMode,
-                ),
+                    zoomPercent: (transform.entry(0, 0) * 100).round(),
+                    insertMode: widget.insertMode && !widget.isPlaybackActive,
+                    showInsertToggle: !widget.isReadOnly,
+                    onZoomIn: _zoomIn,
+                    onZoomOut: _zoomOut,
+                    onFitToScreen: _fitToScreen,
+                    onToggleInsertMode: widget.isPlaybackActive
+                        ? () {}
+                        : widget.onToggleInsertMode,
+                  ),
                 ),
               ),
             ],
@@ -2657,44 +3017,47 @@ class _FloatingControls extends StatelessWidget {
                 : 'Select mode. Tap to switch to insert mode',
             excludeSemantics: true,
             child: GestureDetector(
-            onTap: onToggleInsertMode,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: insertMode
-                    ? AppColors.accent.withValues(alpha: 0.2)
-                    : AppColors.surface.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: insertMode ? AppColors.accent : AppColors.border,
+              onTap: onToggleInsertMode,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
                 ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    insertMode ? Icons.edit_rounded : Icons.touch_app_rounded,
-                    size: 13,
-                    color: insertMode
-                        ? AppColors.accent
-                        : AppColors.textSecondary,
+                decoration: BoxDecoration(
+                  color: insertMode
+                      ? AppColors.accent.withValues(alpha: 0.2)
+                      : AppColors.surface.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: insertMode ? AppColors.accent : AppColors.border,
                   ),
-                  const SizedBox(width: 5),
-                  Text(
-                    insertMode ? 'Insert' : 'Select',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      insertMode ? Icons.edit_rounded : Icons.touch_app_rounded,
+                      size: 13,
                       color: insertMode
                           ? AppColors.accent
                           : AppColors.textSecondary,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 5),
+                    Text(
+                      insertMode ? 'Insert' : 'Select',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: insertMode
+                            ? AppColors.accent
+                            : AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
           ),
           const SizedBox(width: 6),
         ],
@@ -3290,26 +3653,26 @@ class _InspectorPanelState extends State<_InspectorPanel> {
             ),
           ),
           if (AppFeatures.cClefs) ...[
-          _ClefTile(
-            shortLabel: 'C3',
-            label: 'Alto',
-            isActive: currentClef?.sign == 'C' && currentClef?.line == 3,
-            onPressed: _wrapAction(
-              hasMeasureContext
-                  ? () => widget.onSetClef(const Clef(sign: 'C', line: 3))
-                  : null,
+            _ClefTile(
+              shortLabel: 'C3',
+              label: 'Alto',
+              isActive: currentClef?.sign == 'C' && currentClef?.line == 3,
+              onPressed: _wrapAction(
+                hasMeasureContext
+                    ? () => widget.onSetClef(const Clef(sign: 'C', line: 3))
+                    : null,
+              ),
             ),
-          ),
-          _ClefTile(
-            shortLabel: 'C4',
-            label: 'Tenor',
-            isActive: currentClef?.sign == 'C' && currentClef?.line == 4,
-            onPressed: _wrapAction(
-              hasMeasureContext
-                  ? () => widget.onSetClef(const Clef(sign: 'C', line: 4))
-                  : null,
+            _ClefTile(
+              shortLabel: 'C4',
+              label: 'Tenor',
+              isActive: currentClef?.sign == 'C' && currentClef?.line == 4,
+              onPressed: _wrapAction(
+                hasMeasureContext
+                    ? () => widget.onSetClef(const Clef(sign: 'C', line: 4))
+                    : null,
+              ),
             ),
-          ),
           ],
         ],
       ),
@@ -3327,13 +3690,14 @@ class _InspectorPanelState extends State<_InspectorPanel> {
             _ClefTile(
               shortLabel: '$beats/$beatType',
               label: name,
-              isActive: widget.currentTimeSignature?.beats == beats &&
+              isActive:
+                  widget.currentTimeSignature?.beats == beats &&
                   widget.currentTimeSignature?.beatType == beatType,
               onPressed: _wrapAction(
                 hasMeasureContext
                     ? () => widget.onSetTimeSignature(
-                          TimeSignature(beats: beats, beatType: beatType),
-                        )
+                        TimeSignature(beats: beats, beatType: beatType),
+                      )
                     : null,
               ),
             ),
@@ -3602,42 +3966,42 @@ class _BottomInspectorBar extends StatelessWidget {
               label: '${label[0]}${label.substring(1).toLowerCase()} tools',
               excludeSemantics: true,
               child: GestureDetector(
-              onTap: disabled ? null : () => onGroupTap(i),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                decoration: BoxDecoration(
-                  color: isActive && !disabled
-                      ? AppColors.accent.withValues(alpha: 0.10)
-                      : Colors.transparent,
-                  border: Border(
-                    top: BorderSide(
-                      color: isActive && !disabled
-                          ? AppColors.accent
-                          : Colors.transparent,
-                      width: 2,
-                    ),
-                  ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(icons[i], size: 20, color: iconColor),
-                    const SizedBox(height: 2),
-                    Text(
-                      // Title case fits the narrow tabs at a readable size.
-                      '${label[0]}${label.substring(1).toLowerCase()}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: iconColor,
+                onTap: disabled ? null : () => onGroupTap(i),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  decoration: BoxDecoration(
+                    color: isActive && !disabled
+                        ? AppColors.accent.withValues(alpha: 0.10)
+                        : Colors.transparent,
+                    border: Border(
+                      top: BorderSide(
+                        color: isActive && !disabled
+                            ? AppColors.accent
+                            : Colors.transparent,
+                        width: 2,
                       ),
                     ),
-                  ],
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(icons[i], size: 20, color: iconColor),
+                      const SizedBox(height: 2),
+                      Text(
+                        // Title case fits the narrow tabs at a readable size.
+                        '${label[0]}${label.substring(1).toLowerCase()}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: iconColor,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
             ),
           );
         }),
@@ -4469,9 +4833,17 @@ class _MetadataSheetState extends State<_MetadataSheet> {
             ],
           ),
           const SizedBox(height: 16),
-          _MetadataField(label: 'Title', controller: _titleCtrl, maxLength: 100),
+          _MetadataField(
+            label: 'Title',
+            controller: _titleCtrl,
+            maxLength: 100,
+          ),
           const SizedBox(height: 12),
-          _MetadataField(label: 'Composer', controller: _composerCtrl, maxLength: 100),
+          _MetadataField(
+            label: 'Composer',
+            controller: _composerCtrl,
+            maxLength: 100,
+          ),
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
@@ -4490,7 +4862,11 @@ class _MetadataSheetState extends State<_MetadataSheet> {
 }
 
 class _MetadataField extends StatefulWidget {
-  const _MetadataField({required this.label, required this.controller, this.maxLength});
+  const _MetadataField({
+    required this.label,
+    required this.controller,
+    this.maxLength,
+  });
 
   final String label;
   final TextEditingController controller;
@@ -4535,21 +4911,22 @@ class _MetadataFieldState extends State<_MetadataField> {
         TextField(
           controller: widget.controller,
           maxLength: widget.maxLength,
-          inputFormatters: [
-            EmojiBlockingFormatter(onBlocked: _onEmojiBlocked),
-          ],
-          buildCounter: (_, {required currentLength, required isFocused, maxLength}) {
-            if (maxLength == null || currentLength <= maxLength - 20) return null;
-            return Text(
-              '$currentLength / $maxLength',
-              style: TextStyle(
-                color: currentLength >= maxLength
-                    ? const Color(0xFFE05252)
-                    : AppColors.textSecondary,
-                fontSize: 11,
-              ),
-            );
-          },
+          inputFormatters: [EmojiBlockingFormatter(onBlocked: _onEmojiBlocked)],
+          buildCounter:
+              (_, {required currentLength, required isFocused, maxLength}) {
+                if (maxLength == null || currentLength <= maxLength - 20) {
+                  return null;
+                }
+                return Text(
+                  '$currentLength / $maxLength',
+                  style: TextStyle(
+                    color: currentLength >= maxLength
+                        ? const Color(0xFFE05252)
+                        : AppColors.textSecondary,
+                    fontSize: 11,
+                  ),
+                );
+              },
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
           cursorColor: AppColors.accent,
           decoration: InputDecoration(

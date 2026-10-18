@@ -1,3 +1,4 @@
+import 'score_review.dart';
 import 'dart:math' as math;
 
 import 'barline_type.dart';
@@ -14,12 +15,16 @@ class Score {
   final String title;
   final String composer;
   final List<Part> parts;
+  final List<ScoreSourcePage> sourcePages;
+  final List<ScoreReviewEntry> reviewHistory;
 
   const Score({
     required this.id,
     required this.title,
     required this.composer,
     required this.parts,
+    this.sourcePages = const [],
+    this.reviewHistory = const [],
   });
 
   Map<String, dynamic> toJson() => {
@@ -27,15 +32,44 @@ class Score {
     'title': title,
     'composer': composer,
     'parts': parts.map((p) => p.toJson()).toList(),
+    if (sourcePages.isNotEmpty)
+      'sourcePages': sourcePages.map((p) => p.toJson()).toList(),
+    if (reviewHistory.isNotEmpty)
+      'reviewHistory': reviewHistory.map((e) => e.toJson()).toList(),
   };
 
   factory Score.fromJson(Map<String, dynamic> json) => Score(
     id: json['id'] as String,
     title: json['title'] as String,
     composer: (json['composer'] as String?) ?? '',
+    sourcePages: (json['sourcePages'] as List? ?? [])
+        .map(
+          (p) => ScoreSourcePage.fromJson(Map<String, dynamic>.from(p as Map)),
+        )
+        .toList(),
+    reviewHistory: (json['reviewHistory'] as List? ?? [])
+        .map(
+          (e) => ScoreReviewEntry.fromJson(Map<String, dynamic>.from(e as Map)),
+        )
+        .toList(),
     parts: (json['parts'] as List<dynamic>)
         .map((p) => Part.fromJson(p as Map<String, dynamic>))
         .toList(),
+  );
+
+  Score copyWith({
+    String? title,
+    String? composer,
+    List<Part>? parts,
+    List<ScoreSourcePage>? sourcePages,
+    List<ScoreReviewEntry>? reviewHistory,
+  }) => Score(
+    id: id,
+    title: title ?? this.title,
+    composer: composer ?? this.composer,
+    parts: parts ?? this.parts,
+    sourcePages: sourcePages ?? this.sourcePages,
+    reviewHistory: reviewHistory ?? this.reviewHistory,
   );
 
   int get partCount => parts.length;
@@ -152,7 +186,15 @@ class Score {
         ),
       );
     }
-    return Score(id: id, title: title, composer: composer, parts: updatedParts);
+    return copyWith(
+      parts: updatedParts,
+      sourcePages: [
+        ...sourcePages,
+        ...other.sourcePages.where(
+          (p) => !sourcePages.any((own) => own.id == p.id),
+        ),
+      ],
+    );
   }
 
   /// Inserts a new empty measure immediately after [measureIndex] in every
@@ -180,7 +222,7 @@ class Score {
       );
     }
 
-    return Score(id: id, title: title, composer: composer, parts: updatedParts);
+    return copyWith(parts: updatedParts);
   }
 
   /// Removes the measure at [measureIndex] from every part and renumbers.
@@ -204,7 +246,7 @@ class Score {
       );
     }
 
-    return Score(id: id, title: title, composer: composer, parts: updatedParts);
+    return copyWith(parts: updatedParts);
   }
 
   Score reorderSymbol(
@@ -263,7 +305,7 @@ class Score {
       measures: updatedMeasures,
     );
 
-    return Score(id: id, title: title, composer: composer, parts: updatedParts);
+    return copyWith(parts: updatedParts);
   }
 
   List<Measure> _renumberMeasures(List<Measure> measures) {
@@ -286,6 +328,8 @@ class Score {
   }) {
     return Measure(
       number: number ?? measure.number,
+      reviewId: measure.reviewId,
+      source: measure.source,
       clef: identical(clef, _keep) ? measure.clef : clef as Clef?,
       timeSignature: identical(timeSignature, _keep)
           ? measure.timeSignature

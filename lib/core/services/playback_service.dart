@@ -128,7 +128,11 @@ class PlaybackPosition {
 ///   • TimGM6mb.sf2          – from MuseScore / Timidity++ project
 ///   • GeneralUser GS v1.471.sf2  – schristiancollins.com
 class PlaybackService {
-  PlaybackService._();
+  PlaybackService._({MidiPro? midi}) : _midi = midi ?? MidiPro();
+
+  @visibleForTesting
+  factory PlaybackService.forTesting(MidiPro midi) =>
+      PlaybackService._(midi: midi);
 
   static final PlaybackService instance = PlaybackService._();
 
@@ -140,7 +144,7 @@ class PlaybackService {
   static const int _velocity = 90;
 
   // ── Dependencies ────────────────────────────────────────────────────────
-  final MidiPro _midi = MidiPro();
+  final MidiPro _midi;
   final _converter = const PlaybackConverter();
   int? _sfId;
   bool _initialized = false;
@@ -164,6 +168,7 @@ class PlaybackService {
   /// (play() while playing, as when seeking) must leave the notes and the
   /// state to the newer loop.
   int _loopRun = 0;
+  int _playRequest = 0;
   final List<int> _activeMidiNotes = <int>[];
 
   // ── Streams ────────────────────────────────────────────────────────────
@@ -256,12 +261,26 @@ class PlaybackService {
     Score score, {
     int fromMeasureIndex = 0,
     int fromPartIndex = 0,
+    int? throughMeasureIndex,
   }) async {
-    if (_status == PlaybackStatus.playing) stop();
+    if (_status == PlaybackStatus.playing || _status == PlaybackStatus.paused) {
+      stop();
+    }
+    final request = ++_playRequest;
     if (!_initialized) await init();
-    if (_status == PlaybackStatus.error) return;
+    if (request != _playRequest || _status == PlaybackStatus.error) return;
 
     _events = _converter.buildEvents(score);
+    if (throughMeasureIndex != null) {
+      _events = _events
+          .where(
+            (event) =>
+                event.partIndex == fromPartIndex &&
+                event.measureIndex >= fromMeasureIndex &&
+                event.measureIndex <= throughMeasureIndex,
+          )
+          .toList();
+    }
     if (_events.isEmpty) return;
 
     _currentEventIndex = startIndex(
@@ -292,6 +311,7 @@ class PlaybackService {
   }
 
   void stop() {
+    _playRequest++;
     if (_status == PlaybackStatus.stopped) return;
     _shouldPlay = false;
     _interruptWait();
@@ -361,12 +381,14 @@ class PlaybackService {
         for (var i = _currentEventIndex; i < groupEnd; i++) {
           final groupedEvent = _events[i];
           if (groupedEvent.isRest) continue;
-          unawaited(_midi.playNote(
-            sfId: _sfId!,
-            channel: _midiChannel,
-            key: groupedEvent.midiNote,
-            velocity: _velocity,
-          ));
+          unawaited(
+            _midi.playNote(
+              sfId: _sfId!,
+              channel: _midiChannel,
+              key: groupedEvent.midiNote,
+              velocity: _velocity,
+            ),
+          );
           _activeMidiNotes.add(groupedEvent.midiNote);
         }
       }

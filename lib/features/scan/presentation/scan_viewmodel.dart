@@ -1,3 +1,4 @@
+import 'package:note_vision/core/services/score_source_service.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:note_vision/features/detection/data/tflite_symbol_detector.dart';
@@ -68,8 +69,9 @@ class ScanViewModel extends ChangeNotifier {
       state = ScanState.detectingStaves;
       notifyListeners();
 
-      final List<DetectedStaff> staves =
-          _staffDetector.detect(preprocessed.bytes);
+      final List<DetectedStaff> staves = _staffDetector.detect(
+        preprocessed.bytes,
+      );
 
       // Step 3 — symbol detection (stave-tiled or full-image fallback)
       state = ScanState.detecting;
@@ -78,7 +80,22 @@ class ScanViewModel extends ChangeNotifier {
       final detection = await _detector.detect(preprocessed, staves);
 
       result = ScanResult(preprocessed: preprocessed, detection: detection);
-      mappingResult = _mapper?.map(detection);
+      final mapped = _mapper?.map(detection);
+      if (mapped != null) {
+        final score = await ScoreSourceService.attach(
+          mapped.score,
+          preprocessed.bytes,
+          width: preprocessed.width,
+          height: preprocessed.height,
+        );
+        mappingResult = MappingResult(
+          score: score,
+          warnings: mapped.warnings,
+          errors: mapped.errors,
+          confidenceSummary: mapped.confidenceSummary,
+          staffSource: mapped.staffSource,
+        );
+      }
       state = ScanState.done;
     } catch (e, stack) {
       debugPrint('Scan failed: $e\n$stack');
