@@ -3,11 +3,13 @@ import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
+import 'package:note_vision/core/models/note_value.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/models/time_signature.dart';
+import 'package:note_vision/core/services/accidentals.dart';
 import 'package:xml/xml.dart';
 
 /// Converts a validated MusicXML document into internal score models.
@@ -28,7 +30,8 @@ class MusicXmlScoreConverter {
       id: root.getAttribute('id') ?? root.name.local,
       title: title,
       composer: composer,
-      parts: parts,
+      // <alter> is the pitch heard; notes store the accidental written.
+      parts: parts.map(Accidentals.writtenFromSounding).toList(),
     );
   }
 
@@ -195,12 +198,27 @@ class MusicXmlScoreConverter {
   ScoreSymbol? _buildSymbol(XmlElement noteElement, {int divisionsPerQuarter = 2}) {
     final rawDuration = int.tryParse(_firstInnerText(noteElement, 'duration') ?? '');
     final duration = rawDuration == null ? null : (rawDuration * 2 / divisionsPerQuarter).round();
-    final type = _firstInnerText(noteElement, 'type')?.trim();
-    final dots = noteElement.findElements('dot').length;
+    var type = _firstInnerText(noteElement, 'type')?.trim();
+    var dots = noteElement.findElements('dot').length;
+    if (duration == null) return null;
 
-    if (duration == null || type == null || type.isEmpty) {
-      return null;
+    // A whole-bar rest (<rest measure="yes"/>) often has no <type>, or says
+    // "whole" in any time signature; and some files leave <type> out. Take
+    // the value from the duration then, so the bar keeps its length.
+    final rest = _firstOrNull(noteElement.findElements('rest'));
+    final isBarRest = rest?.getAttribute('measure') == 'yes';
+    if (type == null || type.isEmpty || isBarRest) {
+      final value = _valueForQuarters(rawDuration! / divisionsPerQuarter);
+      if (value != null) {
+        (type, dots) = value;
+      } else if (isBarRest || rest != null) {
+        (type, dots) = ('whole', 0);
+      } else {
+        return null;
+      }
     }
+    // The app calls a sixteenth 'sixteenth', as scans do; export writes 16th.
+    if (type.toLowerCase() == '16th') type = 'sixteenth';
 
     final voice = int.tryParse(_firstInnerText(noteElement, 'voice') ?? '');
     final staff = int.tryParse(_firstInnerText(noteElement, 'staff') ?? '');
@@ -237,9 +255,36 @@ class MusicXmlScoreConverter {
       type: type,
       voice: voice,
       staff: staff,
+      beamed: noteElement.findElements('beam').isNotEmpty,
+      beams: _readBeams(noteElement),
       dots: dots,
       isChordTone: isChordTone,
     );
+  }
+
+  Map<int, BeamValue> _readBeams(XmlElement note) {
+    final values = <int, BeamValue>{};
+    for (final beam in note.findElements('beam')) {
+      final level = int.tryParse(beam.getAttribute('number') ?? '1');
+      final value = BeamValue.parse(beam.innerText);
+      if (level != null && level >= 1 && level <= 8 && value != null) {
+        values[level] = value;
+      }
+    }
+    return Map.unmodifiable(values);
+  }
+
+  /// The written value (type and dots) that lasts [quarters] quarter notes,
+  /// or null when no single note value does.
+  (String, int)? _valueForQuarters(double quarters) {
+    for (final type in const ['whole', 'half', 'quarter', 'eighth', 'sixteenth']) {
+      for (var dots = 0; dots <= 2; dots++) {
+        if ((quarterLength(type, dots, 0) - quarters).abs() < 1e-6) {
+          return (type, dots);
+        }
+      }
+    }
+    return null;
   }
 
   Clef? _buildClef(XmlElement? attributes) {

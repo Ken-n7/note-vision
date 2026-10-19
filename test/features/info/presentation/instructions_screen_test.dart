@@ -21,20 +21,30 @@ void main() {
     expect(find.text('How to Use'), findsOneWidget);
   });
 
-  testWidgets('renders all five step titles', (tester) async {
+  const titles = [
+    'Scan',
+    'What the scanner reads',
+    'Review Detections',
+    'Edit the Score',
+    'Genre',
+    'Play Back',
+    'Export',
+  ];
+
+  testWidgets('renders every step title, in order', (tester) async {
     await tester.pumpWidget(wrap(const InstructionsScreen()));
 
-    expect(find.text('Scan'), findsOneWidget);
-    expect(find.text('Review Detections'), findsOneWidget);
-    expect(find.text('Edit the Score'), findsOneWidget);
-    expect(find.text('Play Back'), findsOneWidget);
-    expect(find.text('Export'), findsOneWidget);
+    for (final title in titles) {
+      await tester.scrollUntilVisible(find.text(title), 120);
+      expect(find.text(title), findsOneWidget);
+    }
   });
 
-  testWidgets('renders step numbers 1 through 5', (tester) async {
+  testWidgets('numbers the steps 1 to ${titles.length}', (tester) async {
     await tester.pumpWidget(wrap(const InstructionsScreen()));
 
-    for (var i = 1; i <= 5; i++) {
+    for (var i = 1; i <= titles.length; i++) {
+      await tester.scrollUntilVisible(find.text('$i'), 120);
       expect(find.text('$i'), findsOneWidget);
     }
   });
@@ -53,6 +63,7 @@ void main() {
       wrapWithTextScale(const InstructionsScreen(), 1.35),
     );
 
+    await tester.scrollUntilVisible(find.text('Review Detections'), 120);
     expect(find.text('Review Detections'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

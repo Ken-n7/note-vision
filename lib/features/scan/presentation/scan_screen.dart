@@ -6,6 +6,7 @@ import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/services/scan_preferences_service.dart';
+import 'package:note_vision/core/services/score_classifier.dart';
 import 'package:note_vision/core/services/usage_stats_service.dart';
 import 'package:note_vision/core/widgets/tappable_button.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
@@ -63,6 +64,7 @@ class _ScanScreenState extends State<ScanScreen> {
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+          tooltip: 'Back',
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
@@ -132,6 +134,10 @@ class _ScanScreenState extends State<ScanScreen> {
 
   Widget _buildDone(BuildContext context, ScanViewModel vm) {
     final hasMusicSymbols = vm.result?.detection.symbols.isNotEmpty ?? false;
+    final score = vm.mappingResult?.score;
+    final genre = hasMusicSymbols && score != null
+        ? ScoreClassifier.classify(score)?.displayName
+        : null;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!context.mounted) return;
@@ -152,7 +158,8 @@ class _ScanScreenState extends State<ScanScreen> {
           padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
           child: ScanActions(
             onRedo: () => Navigator.pop(context),
-            redoLabel: hasMusicSymbols ? 'Redo' : 'Retake',
+            // "Redo" means redo an edit in the editor; here it is a new photo.
+            redoLabel: 'Retake',
             onImport: hasMusicSymbols ? null : _goToImport,
             canContinue: hasMusicSymbols,
             onContinue: () => _navigateContinue(context, vm),
@@ -173,7 +180,7 @@ class _ScanScreenState extends State<ScanScreen> {
         if (!isLandscape) {
           return Column(
             children: [
-              Expanded(child: ScanImageView(result: vm.result!)),
+              Expanded(child: ScanImageView(result: vm.result!, genre: genre)),
               noDetectionsPanel,
               actions,
             ],
@@ -182,7 +189,7 @@ class _ScanScreenState extends State<ScanScreen> {
 
         return Row(
           children: [
-            Expanded(flex: 3, child: ScanImageView(result: vm.result!)),
+            Expanded(flex: 3, child: ScanImageView(result: vm.result!, genre: genre)),
             Expanded(
               flex: 2,
               child: Center(
@@ -220,23 +227,23 @@ class _ScanScreenState extends State<ScanScreen> {
               width: 72,
               height: 72,
               decoration: BoxDecoration(
-                color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+                color: AppColors.error.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: const Color(0xFFEF4444).withValues(alpha: 0.3),
+                  color: AppColors.error.withValues(alpha: 0.3),
                 ),
               ),
               child: const Icon(
                 Icons.error_outline,
                 size: 32,
-                color: Color(0xFFEF4444),
+                color: AppColors.error,
               ),
             ),
 
             const SizedBox(height: 24),
 
             const Text(
-              'Something went wrong',
+              'Scan failed',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,

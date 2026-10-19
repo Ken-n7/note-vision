@@ -11,8 +11,7 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Camera / image input
-  camera: ^0.12.0
+  # Image input (camera and gallery through the system pickers)
   image_picker: ^1.1.2
   file_picker: ^8.1.2
 
@@ -39,8 +38,7 @@ dependencies:
   path_provider: ^2.1.5
   path: ^1.9.0
 
-  # File sharing
-  share_plus: ^12.0.2
+  # .mxl and .zip archives
   archive: ^4.0.7
 
   cupertino_icons: ^1.0.8
@@ -60,8 +58,9 @@ flutter:
   assets:
     - assets/images/
     - assets/fonts/
-    - assets/models/best_int8.tflite
-    - assets/models/deepscores_int8.tflite
+    # best_int8.tflite (an older quantised model) stays in the repo, unbundled.
+    - assets/models/best.tflite
+    - assets/models/genre_lstm.tflite
     - assets/soundfonts/
     - assets/samples/
 

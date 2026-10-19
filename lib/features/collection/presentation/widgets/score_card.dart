@@ -81,8 +81,8 @@ class ScoreCard extends StatelessWidget {
               ),
               if (_hasMenu)
                 Positioned(
-                  top: 8,
-                  right: 8,
+                  top: 3,
+                  right: 3,
                   child: _ScoreCardMenu(
                     onRename: onRename,
                     onExport: onExport,
@@ -125,6 +125,7 @@ class ScoreCard extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
+      useSafeArea: true,
       builder: (_) => _DeleteConfirmSheet(onConfirm: onDelete!),
     );
   }
@@ -287,25 +288,32 @@ class _ScoreCardMenu extends StatelessWidget {
             child: _ScoreCardActionRow(
               icon: Icons.delete_outline_rounded,
               label: 'Delete',
-              color: Color(0xFFE05252),
+              color: AppColors.error,
             ),
           ),
       ],
-      child: Container(
-        width: 34,
-        height: 34,
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.56),
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.15),
-            width: 0.5,
+      // A 44 px touch area around the small round button.
+      child: SizedBox(
+        width: 44,
+        height: 44,
+        child: Center(
+          child: Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.56),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.15),
+                width: 0.5,
+              ),
+            ),
+            child: const Icon(
+              Icons.more_vert_rounded,
+              size: 18,
+              color: Colors.white,
+            ),
           ),
-        ),
-        child: const Icon(
-          Icons.more_vert_rounded,
-          size: 18,
-          color: Colors.white,
         ),
       ),
     );
@@ -436,12 +444,12 @@ class _DeleteConfirmSheet extends StatelessWidget {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: const Color(0xFFFF4444).withValues(alpha: 0.12),
+              color: AppColors.error.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
             child: const Icon(
               Icons.delete_outline_rounded,
-              color: Color(0xFFFF4444),
+              color: AppColors.error,
               size: 22,
             ),
           ),
@@ -469,54 +477,46 @@ class _DeleteConfirmSheet extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: GestureDetector(
-                    onTap: () => Navigator.pop(context),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2C2C2C),
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: TextButton.styleFrom(
+                      foregroundColor: _textPri,
+                      backgroundColor: AppColors.border,
+                      minimumSize: const Size.fromHeight(48),
+                      shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Center(
-                        child: Text(
-                          'Cancel',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: _textPri,
-                          ),
-                        ),
+                      textStyle: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
+                    child: const Text('Cancel'),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: GestureDetector(
-                    onTap: () {
+                  child: TextButton(
+                    onPressed: () {
                       Navigator.pop(context);
                       onConfirm();
                     },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFF4444).withValues(alpha: 0.15),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.error,
+                      backgroundColor: AppColors.error.withValues(alpha: 0.15),
+                      minimumSize: const Size.fromHeight(48),
+                      shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: const Color(0xFFFF4444).withValues(alpha: 0.4),
+                        side: BorderSide(
+                          color: AppColors.error.withValues(alpha: 0.4),
                         ),
                       ),
-                      child: const Center(
-                        child: Text(
-                          'Delete',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFFFF4444),
-                          ),
-                        ),
+                      textStyle: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
+                    child: const Text('Delete'),
                   ),
                 ),
               ],

@@ -37,7 +37,8 @@ class StemAssociator {
 
         if (stem == null) {
           result[notehead.symbol.id] = const StemLink();
-          if (!SymbolClassifier.isWholeNotehead(notehead.symbol.type)) {
+          if (!SymbolClassifier.isWholeNotehead(notehead.symbol.type) &&
+              notehead.symbol.metadata?['noteType'] == null) {
             warnings.add(
               'Could not confidently pair notehead ${notehead.symbol.id} with a nearby stem.',
             );

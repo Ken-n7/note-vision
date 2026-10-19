@@ -139,17 +139,63 @@ void main() {
     });
 
     test(
-      'falls back to FileType.any when custom picker returns null',
+      'opens a single picker showing every file; cancel opens no second one',
       () async {
         final path = await _writeTempFile('happy_birthday.xml', _validXml);
         stubPicker(first: null, second: _fakeResult(path));
 
         final result = await importer.pickAndRead();
 
-        expect(result, isNotNull);
-        expect(result!.fileName, 'happy_birthday.xml');
+        expect(result, isNull);
+        verify(
+          () => mockPicker.pickFiles(
+            type: FileType.any,
+            allowedExtensions: any(named: 'allowedExtensions'),
+            allowMultiple: any(named: 'allowMultiple'),
+            withData: any(named: 'withData'),
+          ),
+        ).called(1);
       },
     );
+
+    test('reads the score an .mxl container.xml points to', () async {
+      final archive = Archive();
+      const container = '''<?xml version="1.0" encoding="UTF-8"?>
+<container><rootfiles><rootfile full-path="music/piece.musicxml"/></rootfiles></container>''';
+      final containerBytes = utf8.encode(container);
+      archive.addFile(
+        ArchiveFile('META-INF/container.xml', containerBytes.length, containerBytes),
+      );
+      final real = utf8.encode(_validXml);
+      archive.addFile(ArchiveFile('music/piece.musicxml', real.length, real));
+      final dir = Directory.systemTemp.createTempSync('mxl_container_test_');
+      final file = File('${dir.path}/piece.mxl')
+        ..writeAsBytesSync(ZipEncoder().encode(archive));
+
+      stubPicker(first: _fakeResult(file.path));
+      final result = await importer.pickAndRead();
+
+      expect(result!.parseResult.success, isTrue);
+      expect(result.xmlContent, contains('<score-partwise'));
+    });
+
+    test('reads a UTF-16 file (byte order mark first)', () async {
+      final units = _validXml.replaceFirst('UTF-8', 'UTF-16').codeUnits;
+      final bytes = <int>[0xFF, 0xFE];
+      for (final unit in units) {
+        bytes
+          ..add(unit & 0xFF)
+          ..add(unit >> 8);
+      }
+      final dir = Directory.systemTemp.createTempSync('utf16_test_');
+      final file = File('${dir.path}/score.xml')..writeAsBytesSync(bytes);
+
+      stubPicker(first: _fakeResult(file.path));
+      final result = await importer.pickAndRead();
+
+      expect(result!.xmlContent, contains('<score-partwise'));
+      expect(result.parseResult.success, isTrue);
+    });
 
     test('reads Latin-1 encoded file without throwing', () async {
       final latin1Content = latin1.encode(_validXml);
@@ -217,7 +263,7 @@ void main() {
   // ══════════════════════════════════════════════════════════════════════════
 
   group('pickAndRead — cancel flow', () {
-    test('returns null when user cancels both pickers', () async {
+    test('returns null when the user cancels', () async {
       stubPicker(first: null, second: null);
 
       final result = await importer.pickAndRead();
@@ -275,7 +321,7 @@ void main() {
 
     test('throws MusicXmlImportException for unsupported extension', () async {
       final path = await _writeTempFile('document.pdf', '<pdf/>');
-      stubPicker(first: null, second: _fakeResult(path));
+      stubPicker(first: _fakeResult(path));
 
       await expectLater(
         importer.pickAndRead(),

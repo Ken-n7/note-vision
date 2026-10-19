@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -83,13 +84,18 @@ class ProjectStorageService {
   }
 
   /// Returns all saved projects, sorted by [Project.updatedAt] descending
-  /// (most-recently-saved first). Projects whose files are missing are skipped.
+  /// (most-recently-saved first). Projects whose files are missing or
+  /// unreadable are skipped, so one damaged file can't hide the rest.
   Future<List<Project>> loadAllProjects() async {
     final index = await _readIndex();
     final projects = <Project>[];
     for (final entry in index) {
-      final project = await loadProject(entry['id']!);
-      if (project != null) projects.add(project);
+      try {
+        final project = await loadProject(entry['id']!);
+        if (project != null) projects.add(project);
+      } catch (e) {
+        debugPrint('Skipping unreadable project ${entry['id']}: $e');
+      }
     }
     projects.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     return projects;

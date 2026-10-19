@@ -23,6 +23,14 @@ class _AboutScreenState extends State<AboutScreen> {
     _Tech(label: 'Flutter', detail: 'Cross-platform UI framework'),
     _Tech(label: 'TFLite', detail: 'On-device ML inference'),
     _Tech(
+      label: 'YOLO26n detector',
+      detail: 'Reads 24 handwritten symbol types from the photo',
+    ),
+    _Tech(
+      label: 'LSTM genre model',
+      detail: 'Labels each score Waltz, Kundiman or Jazz',
+    ),
+    _Tech(
       label: 'MIDI / FluidSynth',
       detail: 'Score playback via SF2 soundfonts',
     ),
@@ -300,7 +308,7 @@ class _AppHeader extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           const Text(
-            'NoteVision turns photos of sheet music into editable, playable scores — scan, correct, play back, and export, all from your phone.',
+            'Note Vision turns photos of handwritten sheet music into editable, playable scores — scan, correct, play back, and export, all on your phone, offline.',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: AppColors.textSecondary,

@@ -53,8 +53,12 @@ class SignatureInferrer {
     }
 
     final midpoint = (staff.topY + staff.bottomY) / 2;
+    // Level with the staff where the digit stands, so a sloped staff still
+    // splits its digits into upper and lower.
     double centerY(StaffOwnedSymbol symbol) =>
-        symbol.symbol.y + ((symbol.symbol.height ?? 0) / 2);
+        symbol.symbol.y +
+        ((symbol.symbol.height ?? 0) / 2) -
+        staff.offsetAt(symbol.symbolCenterX);
 
     final top = digits
         .where((e) => centerY(e) <= midpoint)

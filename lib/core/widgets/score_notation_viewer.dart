@@ -4,15 +4,17 @@ import 'package:flutter/services.dart';
 import '../models/clef.dart';
 import '../models/key_signature.dart';
 import '../models/measure.dart';
+import '../models/note.dart';
 import '../models/score.dart';
 import '../models/time_signature.dart';
 import 'score_notation/notation_layout.dart';
+import 'score_notation/score_notation_metrics.dart';
 import 'score_notation/score_notation_painter.dart';
 import 'score_notation/staff_pitch_mapper.dart';
 
 export 'score_notation/staff_pitch_mapper.dart';
 
-@visibleForTesting
+/// A page slice with the active clef, key, and meter carried into each measure.
 List<Measure> sliceMeasuresWithInheritedMetadata({
   required List<Measure> measures,
   required int firstMeasureIndex,
@@ -44,6 +46,7 @@ List<Measure> sliceMeasuresWithInheritedMetadata({
       keySignature: measure.keySignature ?? activeKeySignature,
       symbols: measure.symbols,
       startsNewPage: measure.startsNewPage,
+      startsNewSystem: measure.startsNewSystem,
       leftBarlineType: measure.leftBarlineType,
       rightBarlineType: measure.rightBarlineType,
     );
@@ -112,6 +115,7 @@ class ScoreNotationViewer extends StatefulWidget {
     this.pageMeasureCount,
     this.selectedMeasureIndex,
     this.selectedSymbolIndex,
+    this.selectedSymbolIndices = const {},
     this.playbackPartIndex,
     this.playbackMeasureIndex,
     this.playbackSymbolIndex,
@@ -123,6 +127,7 @@ class ScoreNotationViewer extends StatefulWidget {
     this.playheadSymbolIndex,
     this.playbackProgress = 0,
     this.showPlaybackSymbolHighlight = true,
+    this.issueMarks = const {},
     this.insertMode = false,
     this.onSymbolTap,
     this.onMeasureTap,
@@ -153,6 +158,7 @@ class ScoreNotationViewer extends StatefulWidget {
 
   final int? selectedMeasureIndex;
   final int? selectedSymbolIndex;
+  final Set<int> selectedSymbolIndices;
 
   final int? playbackPartIndex;
   final int? playbackMeasureIndex;
@@ -165,6 +171,10 @@ class ScoreNotationViewer extends StatefulWidget {
   final int? playheadSymbolIndex;
   final double playbackProgress;
   final bool showPlaybackSymbolHighlight;
+
+  /// Notation-check highlights, keyed as in [ScoreNotationPainter.issueMarks]
+  /// with page-relative measure indices.
+  final Map<String, Color> issueMarks;
 
   final bool insertMode;
   final ValueChanged<NotationSymbolTarget?>? onSymbolTap;
@@ -278,14 +288,6 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
                   position: position,
                 );
                 widget.onInsertTap?.call(target);
-              } else if (widget.onMeasureTap != null) {
-                widget.onMeasureTap?.call(
-                  _resolveMeasureTarget(
-                    allParts: allParts,
-                    layout: layout,
-                    position: position,
-                  ),
-                );
               } else {
                 final targets = ScoreNotationPainter.buildSymbolTargets(
                   parts: allParts,
@@ -297,6 +299,15 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
                 );
                 final tapped = _nearestTarget(position, targets);
                 widget.onSymbolTap?.call(tapped);
+                if (tapped == null || widget.onSymbolTap == null) {
+                  widget.onMeasureTap?.call(
+                    _resolveMeasureTarget(
+                      allParts: allParts,
+                      layout: layout,
+                      position: position,
+                    ),
+                  );
+                }
               }
             },
       onLongPressStart: widget.onDragCompleted == null
@@ -331,6 +342,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
         selectedPartIndex: widget.selectedPartIndex,
         selectedMeasureIndex: widget.selectedMeasureIndex,
         selectedSymbolIndex: widget.selectedSymbolIndex,
+        selectedSymbolIndices: widget.selectedSymbolIndices,
         playbackPartIndex: widget.playbackPartIndex,
         playbackMeasureIndex: widget.playbackMeasureIndex,
         playbackSymbolIndex: widget.playbackSymbolIndex,
@@ -342,6 +354,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
         playheadSymbolIndex: widget.playheadSymbolIndex,
         playbackProgress: widget.playbackProgress,
         showPlaybackSymbolHighlight: widget.showPlaybackSymbolHighlight,
+        issueMarks: widget.issueMarks,
         dragFeedback:
             _dragSession == null ||
                 _dragSession!.toPartIndex != _dragSession!.fromPartIndex ||
@@ -624,28 +637,47 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
           }
 
           final measure = measures[absoluteMeasureIndex];
+          final inset = ScoreNotationMetrics.laneInset(
+            timeInMeasure: ScoreNotationMetrics.timeSignatureInMeasure(
+              measures,
+              absoluteMeasureIndex,
+              measureInRow: measureInRow,
+              rowPrefixWidth: layout.rowPrefixWidth,
+            ),
+          );
           final drawableWidth =
-              ((measureEndX - measureStartX) - (innerPadding * 2))
+              ((measureEndX - measureStartX) - inset - innerPadding)
                   .clamp(12.0, double.infinity)
                   .toDouble();
           final clampedX = position.dx
-              .clamp(measureStartX + innerPadding, measureEndX - innerPadding)
+              .clamp(measureStartX + inset, measureEndX - innerPadding)
               .toDouble();
-          final symbolCount = measure.symbols.length;
+          // Symbols sit where the painter draws them: chord tones share the
+          // slot of the note before them, and an insert never splits a chord.
+          final symbols = measure.symbols;
+          final slotCount = symbols
+              .where((s) => !(s is Note && s.isChordTone))
+              .length;
           var insertIndex = 0;
-
-          for (var i = 0; i < symbolCount; i++) {
-            final progress = (i + 1) / (symbolCount + 1);
-            final symbolX =
-                measureStartX + innerPadding + (drawableWidth * progress);
-            if (clampedX > symbolX) insertIndex++;
+          var insertSlot = 0;
+          var slot = 0;
+          for (var i = 0; i < symbols.length; i++) {
+            final symbol = symbols[i];
+            if (symbol is Note && symbol.isChordTone) {
+              if (insertIndex == i) insertIndex = i + 1;
+              continue;
+            }
+            final progress = (slot + 1) / (slotCount + 1);
+            slot++;
+            if (clampedX > measureStartX + inset + drawableWidth * progress) {
+              insertIndex = i + 1;
+              insertSlot = slot;
+            }
           }
 
-          final indicatorProgress = (insertIndex + 1) / (symbolCount + 2);
+          final indicatorProgress = (insertSlot + 1) / (slotCount + 2);
           final indicatorX =
-              measureStartX +
-              innerPadding +
-              (drawableWidth * indicatorProgress);
+              measureStartX + inset + (drawableWidth * indicatorProgress);
           final clefSign = measure.clef?.sign ?? 'G';
           final pitch = StaffPitchMapper.pitchForY(
             y: position.dy,

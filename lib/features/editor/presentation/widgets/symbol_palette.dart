@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
+import 'package:note_vision/core/widgets/score_notation/score_notation_metrics.dart';
 
 const Color _paletteSymbolColor = Color(0xFFE6E6E6);
 const Color _paletteSymbolSelected = Color(0xFFD4A96A);
@@ -7,14 +8,21 @@ const double _kPaletteArrowInset = 6;
 const double _kPaletteArrowWidth = 34;
 const double _kPaletteScrollPadding = 12 + _kPaletteArrowWidth + 6;
 
+/// The notes and rests the editor can insert: the same ten values the
+/// scanner reads (whole to sixteenth, notes and rests).
 enum PaletteSymbolType {
   wholeNote,
   halfNote,
   quarterNote,
   eighthNote,
+  sixteenthNote,
   wholeRest,
   halfRest,
   quarterRest,
+  eighthRest,
+  sixteenthRest;
+
+  bool get isRest => index >= wholeRest.index;
 }
 
 class PaletteDragData {
@@ -24,11 +32,7 @@ class PaletteDragData {
 }
 
 class SymbolPalette extends StatefulWidget {
-  const SymbolPalette({
-    super.key,
-    this.selectedType,
-    this.onTypeTap,
-  });
+  const SymbolPalette({super.key, this.selectedType, this.onTypeTap});
 
   final PaletteSymbolType? selectedType;
   final ValueChanged<PaletteSymbolType>? onTypeTap;
@@ -38,9 +42,12 @@ class SymbolPalette extends StatefulWidget {
     _PaletteItemData(type: PaletteSymbolType.halfNote, label: 'Half'),
     _PaletteItemData(type: PaletteSymbolType.quarterNote, label: 'Quarter'),
     _PaletteItemData(type: PaletteSymbolType.eighthNote, label: 'Eighth'),
-    _PaletteItemData(type: PaletteSymbolType.wholeRest, label: 'W Rest'),
-    _PaletteItemData(type: PaletteSymbolType.halfRest, label: 'H Rest'),
-    _PaletteItemData(type: PaletteSymbolType.quarterRest, label: 'Q Rest'),
+    _PaletteItemData(type: PaletteSymbolType.sixteenthNote, label: '16th'),
+    _PaletteItemData(type: PaletteSymbolType.wholeRest, label: 'Whole'),
+    _PaletteItemData(type: PaletteSymbolType.halfRest, label: 'Half'),
+    _PaletteItemData(type: PaletteSymbolType.quarterRest, label: 'Quarter'),
+    _PaletteItemData(type: PaletteSymbolType.eighthRest, label: 'Eighth'),
+    _PaletteItemData(type: PaletteSymbolType.sixteenthRest, label: '16th'),
   ];
 
   @override
@@ -57,7 +64,9 @@ class _SymbolPaletteState extends State<SymbolPalette> {
   void initState() {
     super.initState();
     _scrollController.addListener(_updateArrowVisibility);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _updateArrowVisibility());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _updateArrowVisibility(),
+    );
   }
 
   @override
@@ -98,7 +107,7 @@ class _SymbolPaletteState extends State<SymbolPalette> {
   Widget build(BuildContext context) {
     return Container(
       key: const ValueKey('symbol-palette'),
-      height: 88,
+      height: 88 + (MediaQuery.textScalerOf(context).scale(11) - 11) * 1.5,
       decoration: const BoxDecoration(
         color: AppColors.surfaceAlt,
         border: Border(top: BorderSide(color: AppColors.border)),
@@ -116,20 +125,28 @@ class _SymbolPaletteState extends State<SymbolPalette> {
                   vertical: 8,
                 ),
                 child: Row(
-                  children: SymbolPalette._items
-                      .map(
-                        (item) => Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: _PaletteDraggableItem(
-                            item: item,
-                            isSelected: widget.selectedType == item.type,
-                            onTap: widget.onTypeTap != null
-                                ? () => widget.onTypeTap!(item.type)
-                                : null,
-                          ),
+                  children: [
+                    for (final item in SymbolPalette._items) ...[
+                      // Notes first, then the rests after a divider.
+                      if (item.type == PaletteSymbolType.wholeRest)
+                        Container(
+                          width: 1,
+                          height: 52,
+                          margin: const EdgeInsets.only(right: 8),
+                          color: AppColors.border,
                         ),
-                      )
-                      .toList(growable: false),
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: _PaletteDraggableItem(
+                          item: item,
+                          isSelected: widget.selectedType == item.type,
+                          onTap: widget.onTypeTap != null
+                              ? () => widget.onTypeTap!(item.type)
+                              : null,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               _PaletteArrow(
@@ -189,10 +206,7 @@ class _PaletteArrow extends StatelessWidget {
                   end: alignment == Alignment.centerLeft
                       ? Alignment.centerRight
                       : Alignment.centerLeft,
-                  colors: const [
-                    Color(0xF2242428),
-                    Color(0xD9242428),
-                  ],
+                  colors: const [Color(0xF2242428), Color(0xD9242428)],
                 ),
                 border: Border.all(
                   color: AppColors.border.withValues(alpha: 0.85),
@@ -255,7 +269,15 @@ class _PaletteDraggableItem extends StatelessWidget {
         child: Transform.scale(scale: 1.7, child: dragFeedback),
       ),
       childWhenDragging: Opacity(opacity: 0.28, child: core),
-      child: GestureDetector(onTap: onTap, child: core),
+      child: Semantics(
+        button: true,
+        selected: isSelected,
+        label: '${item.label} ${item.type.isRest ? 'rest' : 'note'}',
+        hint: 'Tap to place on the staff, or hold and drag',
+        onTap: onTap,
+        excludeSemantics: true,
+        child: GestureDetector(onTap: onTap, child: core),
+      ),
     );
   }
 }
@@ -296,7 +318,7 @@ class _PaletteVisual extends StatelessWidget {
           Text(
             item.label,
             style: TextStyle(
-              fontSize: 9,
+              fontSize: 10,
               color: isSelected ? AppColors.accent : AppColors.textSecondary,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
             ),
@@ -360,12 +382,26 @@ class PaletteSymbolPainter extends CustomPainter {
           withStem: true,
           withFlag: true,
         );
+      case PaletteSymbolType.sixteenthNote:
+        _drawNote(
+          canvas,
+          paint,
+          size,
+          filled: true,
+          withStem: true,
+          withFlag: true,
+          flags: 2,
+        );
       case PaletteSymbolType.wholeRest:
         _drawWholeRest(canvas, paint, size);
       case PaletteSymbolType.halfRest:
         _drawHalfRest(canvas, paint, size);
       case PaletteSymbolType.quarterRest:
         _drawQuarterRest(canvas, paint, size);
+      case PaletteSymbolType.eighthRest:
+        _drawRestGlyph(canvas, size, ScoreNotationMetrics.eighthRestGlyph);
+      case PaletteSymbolType.sixteenthRest:
+        _drawRestGlyph(canvas, size, ScoreNotationMetrics.sixteenthRestGlyph);
     }
   }
 
@@ -376,6 +412,7 @@ class PaletteSymbolPainter extends CustomPainter {
     required bool filled,
     required bool withStem,
     required bool withFlag,
+    int flags = 1,
   }) {
     final headRect = Rect.fromCenter(
       center: Offset(size.width * 0.44, size.height * 0.68),
@@ -401,16 +438,41 @@ class PaletteSymbolPainter extends CustomPainter {
     canvas.drawLine(stemStart, stemEnd, paint);
 
     if (withFlag) {
-      final path = Path()
-        ..moveTo(stemEnd.dx, stemEnd.dy)
-        ..quadraticBezierTo(
-          stemEnd.dx + 8,
-          stemEnd.dy + 3,
-          stemEnd.dx + 5,
-          stemEnd.dy + 11,
-        );
-      canvas.drawPath(path, paint);
+      for (var f = 0; f < flags; f++) {
+        final top = stemEnd.dy + f * 6;
+        final path = Path()
+          ..moveTo(stemEnd.dx, top)
+          ..quadraticBezierTo(
+            stemEnd.dx + 8,
+            top + 3,
+            stemEnd.dx + 5,
+            top + 11,
+          );
+        canvas.drawPath(path, paint);
+      }
     }
+  }
+
+  void _drawRestGlyph(Canvas canvas, Size size, String glyph) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: glyph,
+        style: TextStyle(
+          fontFamily: ScoreNotationMetrics.musicFontFamily,
+          fontSize: size.height * 1.15,
+          color: color,
+          height: 1,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    painter.paint(
+      canvas,
+      Offset(
+        (size.width - painter.width) / 2,
+        (size.height - painter.height) / 2 + size.height * 0.12,
+      ),
+    );
   }
 
   void _drawWholeRest(Canvas canvas, Paint paint, Size size) {

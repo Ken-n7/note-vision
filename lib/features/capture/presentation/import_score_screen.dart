@@ -1,15 +1,15 @@
-import 'dart:convert';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/models/score.dart';
-import 'package:note_vision/core/widgets/score_notation_viewer.dart';
+import 'package:note_vision/core/theme/app_theme.dart';
+import 'package:note_vision/core/widgets/score_page_thumbnail.dart';
 import 'package:note_vision/core/widgets/tappable_button.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
+import 'package:note_vision/features/editor/presentation/editor_layout_policy.dart';
 import 'package:note_vision/features/editor/presentation/editor_shell_screen.dart';
-import 'package:note_vision/features/musicXML/musicxml_parser_service.dart';
+import 'package:note_vision/features/musicXML/musicxml_import_exception.dart';
+import 'package:note_vision/features/musicXML/musicxml_import_result.dart';
+import 'package:note_vision/features/musicXML/musicxml_importer.dart';
 import 'package:note_vision/features/musicXML/musicxml_score_converter.dart';
-import 'package:note_vision/features/musicXML/musicxml_validator_service.dart';
 
 class ImportScoreScreen extends StatefulWidget {
   const ImportScoreScreen({super.key});
@@ -19,9 +19,8 @@ class ImportScoreScreen extends StatefulWidget {
 }
 
 class _ImportScoreScreenState extends State<ImportScoreScreen> {
-  static const _xmlParser = MusicXmlParserService();
   static const _xmlConverter = MusicXmlScoreConverter();
-  static const _xmlValidator = MusicXmlValidatorService();
+  final _importer = MusicXmlImporter();
 
   static const _bg = Color(0xFF0D0D0D);
   static const _surface = Color(0xFF1A1A1A);
@@ -46,6 +45,7 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, size: 20, color: _textPrimary),
+          tooltip: 'Back',
           onPressed: _goToCollection,
         ),
         title: const Text(
@@ -88,7 +88,7 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
         ),
         const SizedBox(height: 6),
         const Text(
-          'Import a MusicXML file, preview it, then continue to the editor.',
+          'Import a MusicXML file (.xml, .musicxml or .mxl), preview it, then continue to the editor.',
           style: TextStyle(
             fontSize: 14,
             color: _textSecondary,
@@ -125,7 +125,7 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Import a MusicXML file, preview it, then continue to the editor.',
+                'Import a MusicXML file (.xml, .musicxml or .mxl), preview it, then continue to the editor.',
                 style: TextStyle(
                   fontSize: 13,
                   color: _textSecondary,
@@ -175,7 +175,7 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
           _buildMessageCard(
             title: 'Import Issues',
             icon: Icons.error_outline,
-            color: const Color(0xFFFF6B6B),
+            color: AppColors.error,
             messages: _errors,
           ),
           const SizedBox(height: 10),
@@ -195,11 +195,18 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
       ),
       clipBehavior: Clip.antiAlias,
       child: AspectRatio(
-        aspectRatio: 3 / 4,
+        aspectRatio:
+            EditorLayoutPolicy.standard.pageWidth /
+            EditorLayoutPolicy.standard.pageHeight,
+        // The first page as the editor lays it out, scaled to fit.
         child: _importedScore != null
-            ? ScoreNotationViewer(
-                score: _importedScore,
-                backgroundColor: const Color(0xFFF9FAFB),
+            ? LayoutBuilder(
+                builder: (context, box) => ScorePageThumbnail(
+                  score: _importedScore!,
+                  pageIndex: 0,
+                  cardWidth: box.maxWidth,
+                  height: box.maxHeight,
+                ),
               )
             : _buildEmptyPreview(),
       ),
@@ -237,9 +244,9 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
           _selectedFileName == null
               ? 'Import a MusicXML file below'
               : 'Selected: $_selectedFileName',
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 12,
-            color: _textSecondary.withValues(alpha: 0.6),
+            color: _textSecondary,
           ),
         ),
       ],
@@ -423,65 +430,51 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
       _importedScore = null;
     });
 
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowMultiple: false,
-      withData: true,
-      allowedExtensions: const ['xml', 'musicxml'],
-    );
+    // Reads .xml, .musicxml and compressed .mxl files.
+    final MusicXmlImportResult? imported;
+    try {
+      imported = await _importer.pickAndRead();
+    } on MusicXmlImportException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errors = [e.message];
+        _isLoading = false;
+      });
+      return;
+    }
 
     if (!mounted) return;
-    if (result == null || result.files.isEmpty) {
+    if (imported == null) {
       setState(() => _isLoading = false);
       return;
     }
 
-    final file = result.files.single;
-    final bytes = file.bytes;
-    if (bytes == null) {
+    final parsed = imported.parseResult;
+    if (!parsed.success || parsed.document == null) {
       setState(() {
+        _selectedFileName = imported!.fileName;
+        _errors = parsed.validationErrors.isNotEmpty
+            ? parsed.validationErrors
+            : [parsed.errorMessage ?? 'Invalid MusicXML content.'];
+        _warnings = parsed.warnings;
         _isLoading = false;
-        _selectedFileName = file.name;
-        _errors = const ['Unable to read file bytes.'];
       });
       return;
     }
 
     try {
-      final parsed = _xmlParser.parse(utf8.decode(bytes));
-      if (!parsed.success || parsed.document == null) {
-        setState(() {
-          _selectedFileName = file.name;
-          _errors = [parsed.errorMessage ?? 'Invalid MusicXML content.'];
-          _warnings = const [];
-          _importedScore = null;
-          _isLoading = false;
-        });
-        return;
-      }
-
-      final validation = _xmlValidator.validate(parsed.document!);
-      if (!validation.isValid) {
-        setState(() {
-          _selectedFileName = file.name;
-          _errors = validation.validationErrors;
-          _warnings = validation.warnings;
-          _importedScore = null;
-          _isLoading = false;
-        });
-        return;
-      }
-
+      final score = _xmlConverter.convert(parsed.document!);
       setState(() {
-        _selectedFileName = file.name;
+        _selectedFileName = imported!.fileName;
         _errors = const [];
-        _warnings = validation.warnings;
-        _importedScore = _xmlConverter.convert(parsed.document!);
+        _warnings = parsed.warnings;
+        _importedScore = score;
         _isLoading = false;
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Import failed: $e');
       setState(() {
-        _selectedFileName = file.name;
+        _selectedFileName = imported!.fileName;
         _errors = const ['Could not import MusicXML file.'];
         _warnings = const [];
         _importedScore = null;

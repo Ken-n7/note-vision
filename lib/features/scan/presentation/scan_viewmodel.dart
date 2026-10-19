@@ -1,5 +1,7 @@
+import 'package:note_vision/core/services/score_source_service.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:note_vision/features/detection/data/tflite_symbol_detector.dart';
 import 'package:note_vision/features/preprocessing/domain/image_preprocessor.dart';
 import 'package:note_vision/features/detection/domain/detected_staff.dart';
 import 'package:note_vision/features/detection/domain/symbol_detector.dart';
@@ -25,12 +27,39 @@ class ScanViewModel extends ChangeNotifier {
   ScanState state = ScanState.idle;
   ScanResult? result;
   MappingResult? mappingResult;
+
+  /// What went wrong, in words for the user.
   String? errorMessage;
+
+  /// The underlying error, for debugging.
+  String? errorDetail;
+
+  bool _disposed = false;
+
+  static const scanFailedMessage =
+      'The photo could not be read. Try another photo of the page, flat and '
+      'well lit.';
+
+  @override
+  void notifyListeners() {
+    // The user can leave the scan screen while a scan is still running.
+    if (!_disposed) super.notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    // The detector holds the model in native memory; free it with the screen.
+    final detector = _detector;
+    if (detector is TfliteSymbolDetector) detector.dispose();
+    super.dispose();
+  }
 
   Future<void> run(Uint8List bytes) async {
     // Step 1 — preprocessing
     state = ScanState.preprocessing;
     errorMessage = null;
+    errorDetail = null;
     notifyListeners();
 
     try {
@@ -40,8 +69,9 @@ class ScanViewModel extends ChangeNotifier {
       state = ScanState.detectingStaves;
       notifyListeners();
 
-      final List<DetectedStaff> staves =
-          _staffDetector.detect(preprocessed.bytes);
+      final List<DetectedStaff> staves = _staffDetector.detect(
+        preprocessed.bytes,
+      );
 
       // Step 3 — symbol detection (stave-tiled or full-image fallback)
       state = ScanState.detecting;
@@ -50,10 +80,27 @@ class ScanViewModel extends ChangeNotifier {
       final detection = await _detector.detect(preprocessed, staves);
 
       result = ScanResult(preprocessed: preprocessed, detection: detection);
-      mappingResult = _mapper?.map(detection);
+      final mapped = _mapper?.map(detection);
+      if (mapped != null) {
+        final score = await ScoreSourceService.attach(
+          mapped.score,
+          preprocessed.bytes,
+          width: preprocessed.width,
+          height: preprocessed.height,
+        );
+        mappingResult = MappingResult(
+          score: score,
+          warnings: mapped.warnings,
+          errors: mapped.errors,
+          confidenceSummary: mapped.confidenceSummary,
+          staffSource: mapped.staffSource,
+        );
+      }
       state = ScanState.done;
-    } catch (e) {
-      errorMessage = e.toString();
+    } catch (e, stack) {
+      debugPrint('Scan failed: $e\n$stack');
+      errorMessage = scanFailedMessage;
+      errorDetail = e.toString();
       state = ScanState.error;
     }
 
@@ -65,6 +112,7 @@ class ScanViewModel extends ChangeNotifier {
     mappingResult = null;
     state = ScanState.idle;
     errorMessage = null;
+    errorDetail = null;
     notifyListeners();
   }
 }

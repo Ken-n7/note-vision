@@ -1,13 +1,17 @@
 import 'dart:async' show StreamSubscription, Timer, unawaited;
+import 'dart:convert' show jsonEncode;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/config/app_features.dart';
 import 'package:note_vision/core/models/clef.dart';
+import 'package:note_vision/core/models/beam_grouping.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/project.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/models/score_review.dart';
+import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/utils/emoji_blocking_formatter.dart';
 import 'package:note_vision/core/utils/image_picker_helper.dart';
@@ -16,6 +20,8 @@ import 'package:note_vision/core/services/playback_display_preferences_service.d
 import 'package:note_vision/core/services/playback_service.dart';
 import 'package:note_vision/core/services/project_storage_service.dart';
 import 'package:note_vision/core/services/nvscore_export_service.dart';
+import 'package:note_vision/core/services/notation_checker.dart';
+import 'package:note_vision/core/services/notation_review_service.dart';
 import 'package:note_vision/core/services/score_classifier.dart';
 import 'package:note_vision/core/services/user_profile_service.dart';
 import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
@@ -27,6 +33,9 @@ import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/model/editor_state_history.dart';
 import 'package:note_vision/features/editor/presentation/editor_layout_policy.dart';
+import 'package:note_vision/features/editor/presentation/widgets/notation_check_sheet.dart';
+import 'package:note_vision/features/editor/presentation/widgets/notation_review_panel.dart';
+import 'package:note_vision/features/editor/presentation/widgets/beam_editor_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/playback_controls_bar.dart';
 import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.dart';
 import 'package:note_vision/core/services/usage_stats_service.dart';
@@ -102,10 +111,34 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   Project? _currentProject;
   int _scoreEditCount = 0;
   bool _isSaving = false;
+  bool _playbackPending = false;
+  int _transportRequest = 0;
+  late String _savedScoreJson;
   bool _isSubmitting = false;
   String? _role;
   _EditorBannerData? _banner;
+  Score? _clearSymbolsUndoScore;
+
+  // Notation check, turned on by the user from the header menu. While it is
+  // on, the issues are worked out again after every edit (a few ms).
+  bool _notationCheckOn = false;
+  bool _reviewOpen = false;
+  bool _reviewPreview = false;
+  bool _reviewListening = false;
+  bool _reviewStarting = false;
+  int _reviewListenRequest = 0;
+  double _reviewPanelFraction = .62;
+  String? _focusedIssueKey;
+  NotationReviewPlan? _reviewPlan;
+  final GlobalKey<_NotationAreaState> _notationAreaKey = GlobalKey();
+  Score? _checkedScore;
+  List<NotationIssue> _checkedIssues = const [];
   Timer? _bannerTimer;
+
+  /// Genre shown in the header. Worked out again shortly after the edits
+  /// stop, so pressing keys stays quick while the genre model runs.
+  ScoreLabel? _scoreLabel;
+  Timer? _scoreLabelTimer;
 
   int _currentPageIndex = 0;
 
@@ -148,8 +181,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     _storage = widget.projectStorageService ?? ProjectStorageService();
     _currentProject = widget.args.existingProject;
     _editorState = _withDefaultMeasureContext(
-      widget.args.initialState.copyWith(score: widget.args.score),
+      widget.args.initialState.copyWith(
+        score: NotationReviewService.ensureIdentity(widget.args.score),
+      ),
     );
+    _savedScoreJson = jsonEncode(_editorState.score.toJson());
+    _notationCheckOn = _editorState.score.sourcePages.isNotEmpty;
     _initPlayback();
     PlaybackDisplayPreferencesService.showSymbolGlowNotifier.addListener(
       _onPlaybackDisplayPreferencesChanged,
@@ -157,6 +194,16 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     _loadPlaybackDisplayPreferences();
     _loadScoreEditCount();
     _loadRole();
+    _scoreLabel = ScoreClassifier.classify(_editorState.score);
+  }
+
+  void _scheduleScoreLabelUpdate() {
+    _scoreLabelTimer?.cancel();
+    _scoreLabelTimer = Timer(const Duration(milliseconds: 600), () {
+      if (!mounted) return;
+      final label = ScoreClassifier.classify(_editorState.score);
+      if (label != _scoreLabel) setState(() => _scoreLabel = label);
+    });
   }
 
   Future<void> _loadRole() async {
@@ -203,6 +250,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       if (!mounted) return;
       setState(() {
         _playbackStatus = state.status;
+        if (!_reviewStarting &&
+            (state.status == PlaybackStatus.stopped ||
+                state.status == PlaybackStatus.error)) {
+          _reviewListening = false;
+        }
         if (state.status == PlaybackStatus.stopped ||
             state.status == PlaybackStatus.error) {
           _playheadEpoch = 0;
@@ -222,6 +274,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       _onPlaybackDisplayPreferencesChanged,
     );
     _bannerTimer?.cancel();
+    _scoreLabelTimer?.cancel();
     _playback.stop();
     _dragGhostEntry?.remove();
     _ghostPosition.dispose();
@@ -235,6 +288,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         'half' => PaletteSymbolType.halfNote,
         'quarter' => PaletteSymbolType.quarterNote,
         'eighth' => PaletteSymbolType.eighthNote,
+        'sixteenth' || '16th' => PaletteSymbolType.sixteenthNote,
         _ => null,
       };
     }
@@ -242,7 +296,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       return switch (symbol.type.trim().toLowerCase()) {
         'whole' => PaletteSymbolType.wholeRest,
         'half' => PaletteSymbolType.halfRest,
-        'quarter' || 'eighth' => PaletteSymbolType.quarterRest,
+        'quarter' => PaletteSymbolType.quarterRest,
+        'eighth' => PaletteSymbolType.eighthRest,
+        'sixteenth' || '16th' => PaletteSymbolType.sixteenthRest,
         _ => null,
       };
     }
@@ -256,9 +312,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       await _storage.saveProject(project);
       return true;
     } catch (e) {
+      debugPrint('Save failed: $e');
       _showEditorBanner(
         _EditorBannerData.error(
-          'Save failed: $e',
+          'Could not save. Check the phone has free space, then retry.',
           duration: const Duration(seconds: 6),
           actionLabel: 'Retry',
           onAction: _onSave,
@@ -280,10 +337,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       if (!context.mounted) return;
       _showEditorBanner(_EditorBannerData.success(successMessage));
     } catch (e) {
+      debugPrint('Export failed: $e');
       _showEditorBanner(
-        _EditorBannerData.error(
-          'Export failed: $e',
-          duration: const Duration(seconds: 6),
+        const _EditorBannerData.error(
+          'Could not export the score. Try again.',
+          duration: Duration(seconds: 6),
         ),
       );
     }
@@ -352,7 +410,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         if (!mounted) return;
         setState(() {
           _currentProject = project;
-          _editorState = _editorState.copyWith(hasUnsavedChanges: false);
+          _savedScoreJson = project.scoreJson;
+          _editorState = _editorState.copyWith(
+            hasUnsavedChanges:
+                jsonEncode(_editorState.score.toJson()) != _savedScoreJson,
+          );
         });
         _showSavedBanner(name);
       } else {
@@ -364,7 +426,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         if (!mounted) return;
         setState(() {
           _currentProject = updated;
-          _editorState = _editorState.copyWith(hasUnsavedChanges: false);
+          _savedScoreJson = updated.scoreJson;
+          _editorState = _editorState.copyWith(
+            hasUnsavedChanges:
+                jsonEncode(_editorState.score.toJson()) != _savedScoreJson,
+          );
         });
         _showSavedBanner(updated.name);
       }
@@ -391,22 +457,27 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               autofocus: true,
               maxLength: 60,
               inputFormatters: [
-                EmojiBlockingFormatter(onBlocked: () {
-                  setDialogState(() => errorText = 'Emoji not allowed');
-                }),
+                EmojiBlockingFormatter(
+                  onBlocked: () {
+                    setDialogState(() => errorText = 'Emoji not allowed');
+                  },
+                ),
               ],
-              buildCounter: (_, {required currentLength, required isFocused, maxLength}) {
-                if (maxLength == null || currentLength <= maxLength - 20) return null;
-                return Text(
-                  '$currentLength / $maxLength',
-                  style: TextStyle(
-                    color: currentLength >= maxLength
-                        ? const Color(0xFFE05252)
-                        : AppColors.textSecondary,
-                    fontSize: 11,
-                  ),
-                );
-              },
+              buildCounter:
+                  (_, {required currentLength, required isFocused, maxLength}) {
+                    if (maxLength == null || currentLength <= maxLength - 20) {
+                      return null;
+                    }
+                    return Text(
+                      '$currentLength / $maxLength',
+                      style: TextStyle(
+                        color: currentLength >= maxLength
+                            ? const Color(0xFFE05252)
+                            : AppColors.textSecondary,
+                        fontSize: 11,
+                      ),
+                    );
+                  },
               style: const TextStyle(color: AppColors.textPrimary),
               decoration: InputDecoration(
                 hintText: 'Project name',
@@ -463,7 +534,13 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   }
 
   void _showSavedBanner(String name) {
-    _showEditorBanner(_EditorBannerData.success('Saved as $name'));
+    _showEditorBanner(
+      _EditorBannerData.success(
+        _editorState.hasUnsavedChanges
+            ? 'Saved $name. Newer edits still need saving.'
+            : 'Saved as $name',
+      ),
+    );
   }
 
   String? _commentForSelectedMeasure() {
@@ -551,10 +628,234 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     );
   }
 
+  // ── Notation check ─────────────────────────────────────────────────────────
+
+  List<NotationIssue> get _notationIssues {
+    final score = _editorState.score;
+    if (!identical(score, _checkedScore)) {
+      _checkedIssues = NotationReviewService.issues(score);
+      _checkedScore = score;
+    }
+    return _checkedIssues;
+  }
+
+  NotationIssue? get _focusedIssue =>
+      _notationIssues
+          .where(
+            (i) =>
+                NotationReviewService.key(_editorState.score, i) ==
+                _focusedIssueKey,
+          )
+          .firstOrNull ??
+      _notationIssues.firstOrNull;
+
+  Map<String, Color> get _issueMarks {
+    if (!_notationCheckOn) return const {};
+    if (_reviewPreview && _reviewPlan != null) {
+      return {
+        for (final change in _reviewPlan!.changes)
+          '${change.partIndex}:${change.measureIndex}': AppColors.accent,
+      };
+    }
+    return {
+      for (final issue in _notationIssues)
+        [issue.partIndex, issue.measureIndex, ?issue.symbolIndex].join(':'):
+            notationIssueColor(issue.kind),
+    };
+  }
+
+  void _startNotationCheck() {
+    if (_reviewOpen) return;
+    setState(() {
+      _notationCheckOn = true;
+      _reviewOpen = true;
+    });
+    final issue = _focusedIssue;
+    if (issue != null) _showIssue(issue);
+  }
+
+  void _stopNotationCheck() {
+    _stopReviewListening();
+    setState(() {
+      _reviewOpen = false;
+      _notationCheckOn = false;
+      _reviewPlan = null;
+      _reviewPreview = false;
+    });
+  }
+
+  bool get _canApplyIssueFix =>
+      !_isReviewMode &&
+      !_playbackPending &&
+      !_reviewListening &&
+      _playbackStatus != PlaybackStatus.playing;
+
+  void _applyReviewPlan(NotationReviewPlan plan) {
+    if (!_canApplyIssueFix) return;
+    final next = plan.applyTo(_editorState.score);
+    if (next == null) {
+      _showEditorBanner(
+        const _EditorBannerData.error(
+          'The score changed. Preview these suggestions again.',
+        ),
+      );
+      return;
+    }
+    final index = _focusedIssue == null
+        ? 0
+        : _notationIssues.indexOf(_focusedIssue!);
+    _updateState((s) => s.applyEdit(score: next, clearSelection: true));
+    _advanceReview(preferredIndex: index);
+    final appliedScore = _editorState.score;
+    _showEditorBanner(
+      _EditorBannerData(
+        message:
+            '${plan.entries.length} ${plan.entries.length == 1 ? 'change' : 'changes'} applied',
+        backgroundColor: AppColors.surfaceAlt,
+        duration: const Duration(seconds: 5),
+        actionLabel: 'Undo',
+        onAction: () {
+          if (identical(_editorState.score, appliedScore) &&
+              _canApplyIssueFix) {
+            _updateState((s) => s.applyUndo());
+            _advanceReview();
+          }
+        },
+      ),
+    );
+  }
+
+  void _keepIssue(NotationIssue issue) {
+    if (!_canApplyIssueFix) return;
+    final index = _notationIssues.indexOf(issue);
+    _updateState(
+      (s) => s.applyEdit(
+        score: NotationReviewService.keep(s.score, issue),
+        clearSelection: true,
+      ),
+    );
+    _advanceReview(preferredIndex: index);
+  }
+
+  void _restoreReview(ScoreReviewEntry entry) {
+    if (!_canApplyIssueFix) return;
+    final restored = NotationReviewService.restore(_editorState.score, entry);
+    if (restored == null) return;
+    _updateState((s) => s.applyEdit(score: restored, clearSelection: true));
+    final issue = _notationIssues
+        .where(
+          (i) =>
+              NotationReviewService.key(_editorState.score, i) ==
+              entry.issueKey,
+        )
+        .firstOrNull;
+    if (issue != null) {
+      _showIssue(issue);
+    } else {
+      _advanceReview();
+    }
+  }
+
+  void _advanceReview({int? preferredIndex}) {
+    final issues = _notationIssues;
+    if (issues.isEmpty) return;
+    final next = preferredIndex == null
+        ? _focusedIssue
+        : issues[preferredIndex.clamp(0, issues.length) % issues.length];
+    if (next != null) _showIssue(next);
+  }
+
+  void _showIssue(NotationIssue issue) {
+    _stopReviewListening();
+    setState(() {
+      _focusedIssueKey = NotationReviewService.key(_editorState.score, issue);
+      _reviewPlan = null;
+      _reviewPreview = false;
+      _editorState = issue.symbolIndex == null
+          ? _editorState.copyWith(
+              selectedPartIndex: issue.partIndex,
+              selectedMeasureIndex: issue.measureIndex,
+              selectedSymbolIndex: null,
+              selectedSymbol: null,
+            )
+          : _editorState.selectSymbolAt(
+              partIndex: issue.partIndex,
+              measureIndex: issue.measureIndex,
+              symbolIndex: issue.symbolIndex!,
+            );
+      _syncPageToEditorState(_editorState);
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _notationAreaKey.currentState?.focusMeasure(
+          issue.partIndex,
+          issue.measureIndex,
+        );
+      }
+    });
+  }
+
+  void _editReviewManually() {
+    final issue = _focusedIssue;
+    if (issue != null) _showIssue(issue);
+    setState(() {
+      _reviewOpen = false;
+      _reviewPreview = false;
+      _reviewPlan = null;
+    });
+  }
+
+  Future<void> _listenReview(Score score, int part, int first, int last) async {
+    if (_isReviewMode) return;
+    _playback.stop();
+    final request = ++_reviewListenRequest;
+    setState(() {
+      _reviewListening = true;
+      _reviewStarting = true;
+    });
+    try {
+      await _playback.play(
+        score,
+        fromPartIndex: part,
+        fromMeasureIndex: first,
+        throughMeasureIndex: last,
+      );
+      if (!mounted || request != _reviewListenRequest) return;
+      _reviewStarting = false;
+      if (_playback.status != PlaybackStatus.playing) {
+        setState(() => _reviewListening = false);
+        _showEditorBanner(
+          const _EditorBannerData.error(
+            'Could not play this passage. Try again.',
+          ),
+        );
+      }
+    } catch (_) {
+      if (!mounted || request != _reviewListenRequest) return;
+      _reviewStarting = false;
+      setState(() => _reviewListening = false);
+      _showEditorBanner(
+        const _EditorBannerData.error(
+          'Could not play this passage. Try again.',
+        ),
+      );
+    }
+  }
+
+  void _stopReviewListening() {
+    _reviewListenRequest++;
+    if (_reviewListening) _playback.stop();
+    _reviewStarting = false;
+    _reviewListening = false;
+  }
+
   void _showEditorBanner(_EditorBannerData banner) {
     _bannerTimer?.cancel();
     if (!mounted) return;
-    setState(() => _banner = banner);
+    setState(() {
+      _banner = banner;
+      _clearSymbolsUndoScore = null;
+    });
     _bannerTimer = Timer(banner.duration, () {
       if (!mounted) return;
       setState(() => _banner = null);
@@ -637,6 +938,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     setState(() {
       final prev = _editorState;
       final merged = prev.score.appendScore(scanned);
+      _notationCheckOn = true;
+      _reviewOpen = false;
+      _reviewPlan = null;
+      _reviewPreview = false;
       _editorState = prev.applyEdit(score: merged, clearSelection: true);
       if (_editorState.undoStack.length > prev.undoStack.length) {
         _scoreEditCount++;
@@ -644,6 +949,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       }
       _jumpToLastPage();
     });
+    _scheduleScoreLabelUpdate();
   }
 
   Future<void> _handlePopAttempt() async {
@@ -757,23 +1063,59 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     setState(() => _setCurrentPageIndex(selectedPageIndex));
   }
 
-  Future<void> _playFromMeasure(int fromMeasureIndex) async {
-    await _playback.play(
-      _editorState.score,
-      fromMeasureIndex: fromMeasureIndex,
-    );
-    if (!mounted) return;
-    if (_playback.status != PlaybackStatus.playing) {
-      setState(() {
-        _playheadEpoch = 0;
-        _playheadSymbolIndex = 0;
-        _playheadNoteDurationMs = 0;
-      });
+  Future<void> _playFromMeasure(
+    int fromMeasureIndex, {
+    int partIndex = 0,
+  }) async {
+    final request = ++_transportRequest;
+    setState(() => _playbackPending = true);
+    try {
+      await _playback.play(
+        _editorState.score,
+        fromMeasureIndex: fromMeasureIndex,
+        fromPartIndex: partIndex,
+      );
+    } catch (_) {
+      if (mounted && request == _transportRequest) {
+        _showEditorBanner(
+          const _EditorBannerData.error('Playback is unavailable. Try again.'),
+        );
+      }
+    } finally {
+      if (mounted && request == _transportRequest) {
+        setState(() => _playbackPending = false);
+      }
+    }
+  }
+
+  Future<void> _seekPlayback(int step) async {
+    var remaining = step;
+    for (var part = 0; part < _editorState.score.parts.length; part++) {
+      final count = _editorState.score.parts[part].measures.length;
+      if (remaining >= count) {
+        remaining -= count;
+        continue;
+      }
+      if (_playbackStatus == PlaybackStatus.playing) {
+        await _playFromMeasure(remaining, partIndex: part);
+      } else {
+        _selectMeasureForReview(
+          NotationMeasureTarget(partIndex: part, measureIndex: remaining),
+        );
+        await _playback.seek(
+          _editorState.score,
+          fromMeasureIndex: remaining,
+          fromPartIndex: part,
+        );
+      }
+      return;
     }
   }
 
   void _stopVisualPlayback() {
+    _transportRequest++;
     setState(() {
+      _playbackPending = false;
       _playheadEpoch = 0;
       _playheadSymbolIndex = 0;
       _playheadNoteDurationMs = 0;
@@ -808,12 +1150,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     if (result == null || !mounted) return;
     _updateState(
       (s) => s.copyWith(
-        score: Score(
-          id: s.score.id,
-          title: result.title,
-          composer: result.composer,
-          parts: s.score.parts,
-        ),
+        score: s.score.copyWith(title: result.title, composer: result.composer),
         hasUnsavedChanges: true,
       ),
     );
@@ -822,16 +1159,118 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
   void _updateState(EditorState Function(EditorState state) updater) {
     if (_isReviewMode) return;
+    final prevScore = _editorState.score;
     setState(() {
       final prev = _editorState;
       final nextState = updater(_editorState);
-      _editorState = nextState;
+      _editorState = nextState.copyWith(
+        score: NotationReviewService.ensureIdentity(nextState.score),
+      );
+      if (!identical(prevScore, _editorState.score)) {
+        if (_clearSymbolsUndoScore != null &&
+            !identical(_clearSymbolsUndoScore, _editorState.score)) {
+          _bannerTimer?.cancel();
+          _banner = null;
+          _clearSymbolsUndoScore = null;
+        }
+        _editorState = _editorState.copyWith(
+          hasUnsavedChanges:
+              jsonEncode(_editorState.score.toJson()) != _savedScoreJson,
+        );
+        _reviewPlan = null;
+        _reviewPreview = false;
+      }
       _syncPageToEditorState(nextState);
       if (_editorState.undoStack.length > prev.undoStack.length) {
         _scoreEditCount++;
         unawaited(UsageStatsService.incrementScoreEdits(_editorState.score.id));
       }
     });
+    if (!identical(_editorState.score, prevScore)) _scheduleScoreLabelUpdate();
+  }
+
+  bool get _canClearAllSymbols =>
+      _canApplyIssueFix &&
+      !_isDraggingNote &&
+      _editorState.musicSymbolCount > 0;
+
+  Future<void> _confirmClearAllSymbols() async {
+    if (!_canClearAllSymbols) return;
+    final originalScore = _editorState.score;
+    final count = _editorState.musicSymbolCount;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        scrollable: true,
+        title: const Text('Clear all symbols?'),
+        content: Text(
+          'Remove all $count ${count == 1 ? 'note or rest' : 'notes and rests'} '
+          'from every page and staff.\n\n'
+          'Measures, clefs, key and time signatures, and score details will stay. '
+          'You can undo this in one step.',
+        ),
+        actions: [
+          TextButton(
+            autofocus: true,
+            style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(48, 48),
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Clear all symbols'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true || !_canClearAllSymbols) return;
+    if (!identical(originalScore, _editorState.score)) {
+      _showEditorBanner(
+        const _EditorBannerData.error(
+          'The score changed. Choose Clear all symbols again.',
+        ),
+      );
+      return;
+    }
+
+    _stopReviewListening();
+    _playback.stop();
+    _stopVisualPlayback();
+    _updateState((state) => state.clearAllSymbols());
+    final clearedScore = _editorState.score;
+    setState(() {
+      _playbackPosition = PlaybackPosition.none;
+      _focusedIssueKey = null;
+      _reviewOpen = false;
+      _insertMode = false;
+      _insertSymbolType = null;
+      _scoreLabelTimer?.cancel();
+      _scoreLabel = null;
+    });
+    _showEditorBanner(
+      _EditorBannerData(
+        message: 'All notes and rests cleared',
+        backgroundColor: AppColors.surfaceAlt,
+        duration: const Duration(seconds: 8),
+        actionLabel: 'Undo',
+        onAction: () {
+          if (!identical(_editorState.score, clearedScore) ||
+              !_canApplyIssueFix) {
+            return;
+          }
+          _updateState((state) => state.applyUndo());
+          _bannerTimer?.cancel();
+          setState(() => _banner = null);
+        },
+      ),
+    );
+    _clearSymbolsUndoScore = clearedScore;
   }
 
   void _onNotationSymbolTap(int partIndex, int measureIndex, int symbolIndex) {
@@ -909,12 +1348,26 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           duration: 1,
           type: 'eighth',
         );
+      case PaletteSymbolType.sixteenthNote:
+        return Note(
+          step: target.step,
+          octave: target.octave.clamp(1, 7).toInt(),
+          duration: sixteenthDuration.divisions,
+          type: sixteenthDuration.type,
+        );
       case PaletteSymbolType.wholeRest:
         return const Rest(duration: 8, type: 'whole');
       case PaletteSymbolType.halfRest:
         return const Rest(duration: 4, type: 'half');
       case PaletteSymbolType.quarterRest:
         return const Rest(duration: 2, type: 'quarter');
+      case PaletteSymbolType.eighthRest:
+        return const Rest(duration: 1, type: 'eighth');
+      case PaletteSymbolType.sixteenthRest:
+        return Rest(
+          duration: sixteenthDuration.divisions,
+          type: sixteenthDuration.type,
+        );
     }
   }
 
@@ -926,6 +1379,51 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       return state;
     }
     return state.copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
+  }
+
+  Future<void> _showBeamEditor() async {
+    if (_isReviewMode ||
+        _playbackPending ||
+        _playbackStatus == PlaybackStatus.playing ||
+        !_editorState.hasMeasureContext) {
+      return;
+    }
+    final original = _editorState.score;
+    final part = _editorState.selectedPartIndex!;
+    final measure = _editorState.selectedMeasureIndex!;
+    final preview = sliceMeasuresWithInheritedMetadata(
+      measures: original.parts[part].measures,
+      firstMeasureIndex: measure,
+      pageMeasureCount: 1,
+    ).first;
+    final time =
+        preview.timeSignature ?? const TimeSignature(beats: 4, beatType: 4);
+    final pickup =
+        measure == 0 &&
+        original.parts[part].measures.length > 1 &&
+        BeamGrouping.quarters(preview.symbols) <
+            time.beats * 4.0 / time.beatType - 1e-7;
+    final symbols = await showModalBottomSheet<List<ScoreSymbol>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      constraints: const BoxConstraints(maxWidth: 760),
+      builder: (_) => BeamEditorSheet(
+        measure: preview,
+        selectedSymbolIndex: _editorState.selectedSymbolIndex,
+        isPickup: pickup,
+      ),
+    );
+    if (!mounted ||
+        symbols == null ||
+        !identical(_editorState.score, original) ||
+        _playbackPending ||
+        _playbackStatus == PlaybackStatus.playing) {
+      return;
+    }
+    _updateState((state) => state.applyBeamEdits(symbols));
   }
 
   void _onPaletteTypeTap(PaletteSymbolType type) {
@@ -951,7 +1449,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isPlaybackActive = _playbackStatus == PlaybackStatus.playing;
+    final isPlaybackActive =
+        _playbackStatus == PlaybackStatus.playing ||
+        _reviewListening ||
+        _playbackPending;
     final isReadOnly = _isReviewMode;
     final selected = _editorState.selectedSymbol;
     final hasSelection = _editorState.hasSelection;
@@ -966,6 +1467,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         ? 0
         : _editorState.score.parts[selectedPartIndex].measures.length;
     final canDeleteMeasure = hasMeasureContext && measureCount > 1;
+    final measuresPerPart = _editorState.score.parts.isEmpty
+        ? 1
+        : _editorState.score.parts
+              .map((p) => p.measures.length)
+              .reduce((a, b) => a > b ? a : b)
+              .clamp(1, 1 << 30);
     final currentMeasureClef =
         _editorState.score.parts.isNotEmpty &&
             selectedPartIndex < _editorState.score.parts.length &&
@@ -992,8 +1499,29 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
             builder: (context, constraints) {
               final isLandscape = constraints.maxWidth > constraints.maxHeight;
 
+              final shownScore = _reviewPreview && _reviewPlan != null
+                  ? _reviewPlan!.preview
+                  : _editorState.score;
               final notationArea = _NotationArea(
-                editorState: _editorState,
+                key: _notationAreaKey,
+                issueMarks: _issueMarks,
+                reviewFocusMeasure: _reviewOpen
+                    ? _focusedIssue?.measureIndex
+                    : null,
+                reviewFocusPart: _focusedIssue?.partIndex ?? 0,
+                // In portrait the selection card floats over the top of the
+                // canvas; the zoom controls float over its bottom edge.
+                fitInsets: EdgeInsets.only(
+                  top: isLandscape || _reviewOpen ? 0 : _kSelectionCardReserve,
+                  bottom: _kFloatingControlsReserve,
+                ),
+                editorState: identical(shownScore, _editorState.score)
+                    ? _editorState
+                    : EditorState(
+                        score: shownScore,
+                        selectedPartIndex: _editorState.selectedPartIndex,
+                        selectedMeasureIndex: _editorState.selectedMeasureIndex,
+                      ),
                 layoutPolicy: _pageMetrics.layoutPolicy,
                 pageFirstMeasure: _pageMetrics.pageFirstMeasure,
                 pageMeasureCount: _pageMetrics.pageMeasureCount,
@@ -1009,11 +1537,31 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 trashZoneKey: _trashZoneKey,
                 showTrashZone: isLandscape,
                 isPlaybackActive: isPlaybackActive,
-                isReadOnly: isReadOnly,
+                isReadOnly: isReadOnly || _reviewOpen,
                 suppressCanvasDragGhost: _dragSymbolType != null,
                 onToggleInsertMode: _toggleInsertMode,
                 onPaletteTypeTap: _onPaletteTypeTap,
-                onMeasureTap: _selectMeasureForReview,
+                onMeasureTap: (target) {
+                  if (_reviewOpen &&
+                      target != null &&
+                      !_reviewPreview &&
+                      !isPlaybackActive) {
+                    final issue = _notationIssues
+                        .where(
+                          (i) =>
+                              i.partIndex == target.partIndex &&
+                              i.measureIndex == target.measureIndex,
+                        )
+                        .firstOrNull;
+                    if (issue != null &&
+                        NotationReviewService.key(_editorState.score, issue) !=
+                            _focusedIssueKey) {
+                      _showIssue(issue);
+                    }
+                  } else {
+                    _selectMeasureForReview(target);
+                  }
+                },
                 onSymbolTap: (target) {
                   if (target == null) {
                     _updateState(
@@ -1167,10 +1715,41 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       onEighth: () => _updateState(
                         (s) => s.setSelectedDuration(eighthDuration),
                       ),
+                      onSixteenth: () => _updateState(
+                        (s) => s.setSelectedDuration(sixteenthDuration),
+                      ),
                       onSetAccidental: (alter) => _updateState(
                         (s) => s.setSelectedNoteAccidental(alter),
                       ),
+                      allowedDurations: {
+                        for (final spec in [
+                          wholeDuration,
+                          halfDuration,
+                          quarterDuration,
+                          eighthDuration,
+                          sixteenthDuration,
+                        ])
+                          if (_editorState.canSetSelectedDuration(spec))
+                            spec.type,
+                      },
+                      canToggleDot: _editorState.canToggleSelectedDot,
+                      onBeams:
+                          hasMeasureContext &&
+                              _editorState
+                                  .score
+                                  .parts[selectedPartIndex]
+                                  .measures[selectedMeasureIndex]
+                                  .symbols
+                                  .any(BeamGrouping.eligible)
+                          ? _showBeamEditor
+                          : null,
                       currentMeasureClef: currentMeasureClef,
+                      currentTimeSignature:
+                          _editorState.selectedMeasureTimeSignature,
+                      onSetTimeSignature: (timeSignature) => _updateState(
+                        (s) =>
+                            s.setTimeSignatureAtSelectedMeasure(timeSignature),
+                      ),
                       onSetClef: (clef) {
                         if (clef != null) {
                           _updateState((s) => s.setPartClef(clef));
@@ -1211,6 +1790,52 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 dragGlobal: _dragGlobal,
                 trashZoneKey: _trashZoneKey,
                 banner: _banner,
+                reviewPanelFraction: _reviewPanelFraction,
+                onReviewResize: (fraction) =>
+                    setState(() => _reviewPanelFraction = fraction),
+                reviewPanel: !_reviewOpen
+                    ? null
+                    : NotationReviewPanel(
+                        score: _editorState.score,
+                        issues: _notationIssues,
+                        focusedKey: _focusedIssueKey,
+                        onFocus: _showIssue,
+                        onApply: _applyReviewPlan,
+                        onKeep: _keepIssue,
+                        onPlanChanged: (plan) =>
+                            setState(() => _reviewPlan = plan),
+                        onPreviewChanged: (preview) =>
+                            setState(() => _reviewPreview = preview),
+                        onClose: _stopNotationCheck,
+                        onEditManually: _editReviewManually,
+                        onListen: (score, part, first, last) =>
+                            unawaited(_listenReview(score, part, first, last)),
+                        onRestore: _restoreReview,
+                        previewing: _reviewPreview,
+                        canEdit: _canApplyIssueFix,
+                        listening: _reviewListening,
+                        onStopListening: () {
+                          _stopReviewListening();
+                          setState(() {});
+                        },
+                      ),
+                checkBar: _notationCheckOn && !_reviewOpen
+                    ? NotationCheckBar(
+                        issueCount: _notationIssues.length,
+                        appliedCount: _editorState.score.reviewHistory
+                            .where(
+                              (e) => e.disposition == ReviewDisposition.applied,
+                            )
+                            .length,
+                        keptCount: _editorState.score.reviewHistory
+                            .where(
+                              (e) => e.disposition == ReviewDisposition.kept,
+                            )
+                            .length,
+                        onReview: _startNotationCheck,
+                        onClose: _stopNotationCheck,
+                      )
+                    : null,
                 header: _EditorHeader(
                   title:
                       _currentProject?.name ??
@@ -1219,7 +1844,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                           : _editorState.score.title),
                   hasUnsavedChanges: _editorState.hasUnsavedChanges,
                   editCount: _scoreEditCount,
-                  scoreLabel: ScoreClassifier.classify(_editorState.score),
+                  scoreLabel: _scoreLabel,
                   isReviewMode: isReadOnly,
                   reviewModeLabel: _canEditTeacherComments
                       ? 'Review Mode'
@@ -1231,7 +1856,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   onBack: () => Navigator.of(context).maybePop(),
                   onUndo: () => _updateState((s) => s.applyUndo()),
                   onRedo: () => _updateState((s) => s.applyRedo()),
+                  onClearAllSymbols: _canClearAllSymbols
+                      ? _confirmClearAllSymbols
+                      : null,
                   onSave: isReadOnly ? null : _onSave,
+                  isSaving: _isSaving,
                   showSubmitButton: _isStudent && !isReadOnly,
                   onSubmit:
                       _isStudent &&
@@ -1240,7 +1869,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                           !_isSubmitting
                       ? _onSubmit
                       : null,
-                  onMetadataTap: isReadOnly ? null : _showMetadataSheet,
+                  onMetadataTap: isReadOnly || isPlaybackActive
+                      ? null
+                      : _showMetadataSheet,
                   onExportXml: () => _runExport(
                     export: () => const MusicXmlExportService().exportToDevice(
                       _editorState.score,
@@ -1257,21 +1888,40 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   onScanPage: isPlaybackActive || isReadOnly
                       ? null
                       : _onScanPage,
+                  onCheckNotation:
+                      isPlaybackActive ||
+                          isReadOnly ||
+                          (scoreIsEmpty &&
+                              _editorState.score.reviewHistory.isEmpty)
+                      ? null
+                      : _startNotationCheck,
                 ),
                 notationArea: notationArea,
                 inspectorPanel: inspectorPanel,
                 playbackControls: PlaybackControlsBar(
+                  playbackService: _playback,
+                  isLoading: _playbackPending,
+                  initialMeasure:
+                      _editorState.score.parts
+                          .take(selectedPartIndex)
+                          .fold(0, (sum, part) => sum + part.measures.length) +
+                      selectedMeasureIndex,
+                  measureCounts: [
+                    for (final part in _editorState.score.parts)
+                      part.measures.length,
+                  ],
                   isEmpty: scoreIsEmpty,
-                  totalMeasures: _editorState.score.parts.isEmpty
-                      ? 0
-                      : _editorState.score.parts
-                            .map((p) => p.measures.length)
-                            .reduce((a, b) => a > b ? a : b),
+                  // The scrubber covers every staff in reading order.
+                  measuresPerPart: measuresPerPart,
+                  totalMeasures: _editorState.score.totalMeasures,
                   onPlay: () => unawaited(
-                    _playFromMeasure(_editorState.selectedMeasureIndex ?? 0),
+                    _playFromMeasure(
+                      _editorState.selectedMeasureIndex ?? 0,
+                      partIndex: _editorState.selectedPartIndex ?? 0,
+                    ),
                   ),
                   onResume: () {
-                    _playback.resume();
+                    _playback.resume(score: _editorState.score);
                   },
                   onPause: () {
                     _playback.pause();
@@ -1281,7 +1931,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                     _playback.stop();
                   },
                   onTempoChanged: _setPlaybackTempo,
-                  onSeek: (measure) => unawaited(_playFromMeasure(measure)),
+                  onSeek: (step) => unawaited(_seekPlayback(step)),
                 ),
               );
             },
@@ -1299,6 +1949,10 @@ class _EditorWorkspace extends StatelessWidget {
     required this.dragGlobal,
     required this.trashZoneKey,
     required this.banner,
+    this.checkBar,
+    this.reviewPanel,
+    this.reviewPanelFraction = .62,
+    this.onReviewResize,
     required this.header,
     required this.notationArea,
     required this.inspectorPanel,
@@ -1310,6 +1964,10 @@ class _EditorWorkspace extends StatelessWidget {
   final Offset dragGlobal;
   final GlobalKey trashZoneKey;
   final _EditorBannerData? banner;
+  final Widget? checkBar;
+  final Widget? reviewPanel;
+  final double reviewPanelFraction;
+  final ValueChanged<double>? onReviewResize;
   final Widget header;
   final Widget notationArea;
   final Widget inspectorPanel;
@@ -1324,8 +1982,95 @@ class _EditorWorkspace extends StatelessWidget {
             Column(
               children: [
                 header,
+                ?checkBar,
                 Expanded(
-                  child: isLandscape
+                  child: reviewPanel != null
+                      ? LayoutBuilder(
+                          builder: (context, area) {
+                            final wide =
+                                area.maxWidth >= 720 ||
+                                area.maxWidth > area.maxHeight;
+                            final canvas = Padding(
+                              padding: const EdgeInsets.all(8),
+                              child: notationArea,
+                            );
+                            if (wide) {
+                              return Row(
+                                children: [
+                                  Expanded(child: canvas),
+                                  SizedBox(
+                                    width: (area.maxWidth * .38).clamp(
+                                      320.0,
+                                      440.0,
+                                    ),
+                                    child: Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        0,
+                                        8,
+                                        8,
+                                        8,
+                                      ),
+                                      child: reviewPanel,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            }
+                            return Column(
+                              children: [
+                                Expanded(child: canvas),
+                                Semantics(
+                                  label: 'Resize review panel',
+                                  onIncrease: () => onReviewResize?.call(
+                                    (reviewPanelFraction + .1).clamp(.35, .8),
+                                  ),
+                                  onDecrease: () => onReviewResize?.call(
+                                    (reviewPanelFraction - .1).clamp(.35, .8),
+                                  ),
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onVerticalDragUpdate: (details) =>
+                                        onReviewResize?.call(
+                                          (reviewPanelFraction -
+                                                  details.delta.dy /
+                                                      area.maxHeight)
+                                              .clamp(.35, .8),
+                                        ),
+                                    child: SizedBox(
+                                      height: 20,
+                                      child: Center(
+                                        child: Container(
+                                          width: 40,
+                                          height: 4,
+                                          decoration: BoxDecoration(
+                                            color: AppColors.textSecondary,
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(
+                                  height: (area.maxHeight * reviewPanelFraction)
+                                      .clamp(0.0, area.maxHeight - 20),
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      8,
+                                      0,
+                                      8,
+                                      8,
+                                    ),
+                                    child: reviewPanel,
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
+                        )
+                      : isLandscape
                       ? Row(
                           children: [
                             Expanded(
@@ -1341,8 +2086,8 @@ class _EditorWorkspace extends StatelessWidget {
                             ),
                             SizedBox(
                               width: (constraints.maxWidth * 0.3).clamp(
-                                260.0,
                                 320.0,
+                                360.0,
                               ),
                               child: Padding(
                                 padding: const EdgeInsets.fromLTRB(
@@ -1398,11 +2143,11 @@ class _EditorWorkspace extends StatelessWidget {
                           ],
                         ),
                 ),
-                playbackControls,
+                if (reviewPanel == null) playbackControls,
               ],
             ),
             Positioned(
-              top: 64,
+              top: _EditorHeader.heightFor(context, constraints.maxWidth) + 8,
               left: 12,
               right: 12,
               child: IgnorePointer(
@@ -1451,48 +2196,51 @@ class _TransientEditorBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x40000000),
-              blurRadius: 18,
-              offset: Offset(0, 8),
-            ),
-          ],
-          border: Border.all(color: Colors.white12),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            if (actionLabel != null && onAction != null) ...[
-              const SizedBox(width: 12),
-              TextButton(
-                onPressed: onAction,
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.textPrimary,
-                  minimumSize: const Size(0, 32),
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: Text(actionLabel!),
+    return Semantics(
+      liveRegion: true,
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x40000000),
+                blurRadius: 18,
+                offset: Offset(0, 8),
               ),
             ],
-          ],
+            border: Border.all(color: Colors.white12),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (actionLabel != null && onAction != null) ...[
+                const SizedBox(width: 12),
+                TextButton(
+                  onPressed: onAction,
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.textPrimary,
+                    minimumSize: const Size(0, 32),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(actionLabel!),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -1537,23 +2285,33 @@ class _EditorBannerData {
   final VoidCallback? onAction;
 }
 
-enum _HeaderMenuAction { scanPage, exportXml, exportPdf }
+enum _HeaderMenuAction {
+  scanPage,
+  checkNotation,
+  exportXml,
+  exportPdf,
+  clearAllSymbols,
+}
 
 class _HeaderMenuItem extends StatelessWidget {
-  const _HeaderMenuItem({required this.icon, required this.label});
+  const _HeaderMenuItem({
+    required this.icon,
+    required this.label,
+    this.color = AppColors.textPrimary,
+  });
 
   final IconData icon;
   final String label;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 16, color: AppColors.textPrimary),
+        Icon(icon, size: 16, color: color),
         const SizedBox(width: 10),
-        Text(
-          label,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+        Flexible(
+          child: Text(label, style: TextStyle(color: color, fontSize: 13)),
         ),
       ],
     );
@@ -1581,12 +2339,15 @@ class _EditorHeader extends StatelessWidget {
     this.showSubmitButton = false,
     this.onSubmit,
     this.onScanPage,
+    this.onCheckNotation,
+    this.onClearAllSymbols,
+    this.isSaving = false,
   });
 
   final String title;
   final bool hasUnsavedChanges;
   final int editCount;
-  final ScoreLabel scoreLabel;
+  final ScoreLabel? scoreLabel;
   final bool isReviewMode;
   final String reviewModeLabel;
   final bool canUndo;
@@ -1602,200 +2363,283 @@ class _EditorHeader extends StatelessWidget {
   final bool showSubmitButton;
   final VoidCallback? onSubmit;
   final VoidCallback? onScanPage;
+  final VoidCallback? onCheckNotation;
+  final VoidCallback? onClearAllSymbols;
+  final bool isSaving;
 
   static final ButtonStyle _compactIconButtonStyle = IconButton.styleFrom(
     visualDensity: VisualDensity.compact,
     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    minimumSize: const Size(36, 36),
+    minimumSize: const Size(44, 44),
     padding: const EdgeInsets.all(6),
   );
 
+  static bool _isStacked(BuildContext context, double width) =>
+      width < 500 ||
+      (width < 700 && MediaQuery.textScalerOf(context).scale(14) > 21);
+
+  static double heightFor(BuildContext context, double width) =>
+      56 +
+      (MediaQuery.textScalerOf(context).scale(15) - 15) +
+      (MediaQuery.textScalerOf(context).scale(10) - 10) +
+      (_isStacked(context, width) ? 52 : 0);
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 56,
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(bottom: BorderSide(color: AppColors.border)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: Row(
-        children: [
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = _isStacked(context, constraints.maxWidth);
+        final actions = <Widget>[
           IconButton(
-            onPressed: onBack,
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
-            color: AppColors.textPrimary,
-            tooltip: 'Back',
+            onPressed: onCheckNotation,
+            icon: const Icon(Icons.fact_check_outlined, size: 18),
+            color: AppColors.accent,
+            tooltip: 'Review & Correct',
             style: _compactIconButtonStyle,
-          ),
-          const SizedBox(width: 2),
-          Flexible(
-            fit: FlexFit.tight,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minWidth: 120),
-              child: GestureDetector(
-                onTap: onMetadataTap,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                        if (hasUnsavedChanges) ...[
-                          const SizedBox(width: 5),
-                          Flexible(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 5,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: AppColors.accent.withValues(alpha: 0.18),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: const Text(
-                                'Unsaved',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: AppColors.accent,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            '${isReviewMode ? reviewModeLabel : 'Score Editor'} · ${scoreLabel.displayName}',
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ),
-                        if (editCount > 0) ...[
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              '· $editCount ${editCount == 1 ? 'edit' : 'edits'}',
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppColors.textSecondary,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
           ),
           IconButton(
             onPressed: canUndo ? onUndo : null,
             icon: const Icon(Icons.undo_rounded, size: 18),
-            color: canUndo
-                ? AppColors.textPrimary
-                : AppColors.textSecondary.withValues(alpha: 0.3),
+            color: AppColors.textPrimary,
             tooltip: 'Undo',
             style: _compactIconButtonStyle,
           ),
           IconButton(
             onPressed: canRedo ? onRedo : null,
             icon: const Icon(Icons.redo_rounded, size: 18),
-            color: canRedo
-                ? AppColors.textPrimary
-                : AppColors.textSecondary.withValues(alpha: 0.3),
+            color: AppColors.textPrimary,
             tooltip: 'Redo',
             style: _compactIconButtonStyle,
           ),
-          const SizedBox(width: 4),
+          if (stacked) const Spacer(),
           if (showSubmitButton)
             IconButton(
               onPressed: onSubmit,
               icon: const Icon(Icons.upload_rounded, size: 18),
-              color: onSubmit == null
-                  ? AppColors.textSecondary.withValues(alpha: 0.35)
-                  : AppColors.accent,
+              color: AppColors.accent,
               tooltip: 'Submit',
               style: _compactIconButtonStyle,
             ),
           if (onSave != null)
             FilledButton.icon(
-              onPressed: onSave,
-              icon: const Icon(Icons.save_rounded, size: 15),
-              label: const Text('Save', style: TextStyle(fontSize: 13)),
+              onPressed: isSaving ? null : onSave,
+              icon: isSaving
+                  ? const SizedBox.square(
+                      dimension: 15,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.save_rounded, size: 15),
+              label: Text(
+                isSaving ? 'Saving…' : 'Save',
+                style: const TextStyle(fontSize: 13),
+              ),
               style: FilledButton.styleFrom(
-                minimumSize: const Size(60, 34),
+                minimumSize: const Size(76, 44),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
               ),
             ),
-          const SizedBox(width: 2),
-          PopupMenuButton<_HeaderMenuAction>(
-            onSelected: (action) {
-              if (action == _HeaderMenuAction.scanPage) {
-                onScanPage?.call();
-              } else if (action == _HeaderMenuAction.exportXml) {
-                onExportXml();
-              } else if (action == _HeaderMenuAction.exportPdf) {
-                onExportPdf();
-              }
-            },
-            tooltip: 'More',
-            icon: const Icon(Icons.more_vert_rounded, size: 18),
-            style: _compactIconButtonStyle,
+        ];
+        return Container(
+          height: heightFor(context, constraints.maxWidth),
+          decoration: const BoxDecoration(
             color: AppColors.surface,
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: _HeaderMenuAction.scanPage,
-                enabled: onScanPage != null,
-                child: const _HeaderMenuItem(
-                  icon: Icons.add_photo_alternate_rounded,
-                  label: 'Scan New Page',
+            border: Border(bottom: BorderSide(color: AppColors.border)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: Column(
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    IconButton(
+                      onPressed: onBack,
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        size: 16,
+                      ),
+                      color: AppColors.textPrimary,
+                      tooltip: 'Back',
+                      style: _compactIconButtonStyle,
+                    ),
+                    const SizedBox(width: 2),
+                    Expanded(
+                      child: Tooltip(
+                        message: title,
+                        child: Semantics(
+                          label: 'Score details: $title',
+                          value: hasUnsavedChanges ? 'Unsaved changes' : null,
+                          button: onMetadataTap != null,
+                          onTap: onMetadataTap,
+                          excludeSemantics: true,
+                          child: GestureDetector(
+                            onTap: onMetadataTap,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: AppColors.textPrimary,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                    ),
+                                    if (hasUnsavedChanges) ...[
+                                      const SizedBox(width: 5),
+                                      Flexible(
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 5,
+                                            vertical: 2,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.accent.withValues(
+                                              alpha: 0.18,
+                                            ),
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                          ),
+                                          child: const Text(
+                                            'Unsaved',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: AppColors.accent,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        [
+                                          isReviewMode
+                                              ? reviewModeLabel
+                                              : 'Score Editor',
+                                          if (scoreLabel != null)
+                                            scoreLabel!.displayName,
+                                        ].join(' · '),
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                          color: AppColors.textSecondary,
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                    ),
+                                    if (editCount > 0) ...[
+                                      const SizedBox(width: 6),
+                                      Flexible(
+                                        child: Text(
+                                          '· $editCount ${editCount == 1 ? 'edit' : 'edits'}',
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: AppColors.textSecondary,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (!stacked) ...actions,
+                    const SizedBox(width: 2),
+                    PopupMenuButton<_HeaderMenuAction>(
+                      onSelected: (action) {
+                        if (action == _HeaderMenuAction.scanPage) {
+                          onScanPage?.call();
+                        } else if (action == _HeaderMenuAction.checkNotation) {
+                          onCheckNotation?.call();
+                        } else if (action == _HeaderMenuAction.exportXml) {
+                          onExportXml();
+                        } else if (action == _HeaderMenuAction.exportPdf) {
+                          onExportPdf();
+                        } else if (action ==
+                            _HeaderMenuAction.clearAllSymbols) {
+                          onClearAllSymbols?.call();
+                        }
+                      },
+                      tooltip: 'More',
+                      icon: const Icon(Icons.more_vert_rounded, size: 18),
+                      style: _compactIconButtonStyle,
+                      color: AppColors.surface,
+                      itemBuilder: (_) => [
+                        PopupMenuItem(
+                          value: _HeaderMenuAction.scanPage,
+                          enabled: onScanPage != null,
+                          child: const _HeaderMenuItem(
+                            icon: Icons.add_photo_alternate_rounded,
+                            label: 'Scan New Page',
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: _HeaderMenuAction.checkNotation,
+                          enabled: onCheckNotation != null,
+                          child: const _HeaderMenuItem(
+                            icon: Icons.fact_check_rounded,
+                            label: 'Check Notation',
+                          ),
+                        ),
+                        const PopupMenuItem(
+                          value: _HeaderMenuAction.exportXml,
+                          child: _HeaderMenuItem(
+                            icon: Icons.download_rounded,
+                            label: 'Export MusicXML…',
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: _HeaderMenuAction.exportPdf,
+                          enabled: !scoreIsEmpty,
+                          child: _HeaderMenuItem(
+                            icon: Icons.picture_as_pdf_rounded,
+                            label: 'Export PDF…',
+                          ),
+                        ),
+                        if (!isReviewMode) ...[
+                          const PopupMenuDivider(),
+                          PopupMenuItem(
+                            value: _HeaderMenuAction.clearAllSymbols,
+                            enabled: onClearAllSymbols != null,
+                            child: _HeaderMenuItem(
+                              icon: Icons.delete_sweep_rounded,
+                              label: 'Clear all symbols…',
+                              color: onClearAllSymbols != null
+                                  ? AppColors.error
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(width: 2),
+                  ],
                 ),
               ),
-              const PopupMenuItem(
-                value: _HeaderMenuAction.exportXml,
-                child: _HeaderMenuItem(
-                  icon: Icons.download_rounded,
-                  label: 'Export MusicXML…',
-                ),
-              ),
-              PopupMenuItem(
-                value: _HeaderMenuAction.exportPdf,
-                enabled: !scoreIsEmpty,
-                child: _HeaderMenuItem(
-                  icon: Icons.picture_as_pdf_rounded,
-                  label: 'Export PDF…',
-                ),
-              ),
+              if (stacked) SizedBox(height: 52, child: Row(children: actions)),
             ],
           ),
-          const SizedBox(width: 2),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -1807,8 +2651,19 @@ class _EditorHeader extends StatelessWidget {
 // Inspector bar height (portrait bottom action bar, sits above PlaybackControlsBar).
 const double _kInspectorBarHeight = 56.0;
 
+/// Canvas height hidden by the selection card in portrait (8 px gap, the
+/// compact card, 8 px gap) and by the floating zoom controls at the bottom.
+/// The page is fitted between them so its first and last staves show.
+const double _kSelectionCardReserve = 64.0;
+const double _kFloatingControlsReserve = 54.0;
+
 class _NotationArea extends StatefulWidget {
   const _NotationArea({
+    super.key,
+    this.fitInsets = EdgeInsets.zero,
+    this.issueMarks = const {},
+    this.reviewFocusMeasure,
+    this.reviewFocusPart = 0,
     required this.editorState,
     required this.layoutPolicy,
     required this.pageFirstMeasure,
@@ -1839,6 +2694,11 @@ class _NotationArea extends StatefulWidget {
     required this.onExternalDrop,
   });
 
+  /// Strips of the viewport covered by floating UI; fit-to-screen keeps the
+  /// page out of them.
+  final EdgeInsets fitInsets;
+  final int? reviewFocusMeasure;
+  final int reviewFocusPart;
   final EditorState editorState;
   final EditorLayoutPolicy layoutPolicy;
   final int pageFirstMeasure;
@@ -1849,6 +2709,9 @@ class _NotationArea extends StatefulWidget {
   final int playheadEpoch;
   final int playheadSymbolIndex;
   final int playheadNoteDurationMs;
+
+  /// Notation-check highlights keyed with absolute measure indices.
+  final Map<String, Color> issueMarks;
   final bool showPlaybackSymbolHighlight;
   final bool isDraggingNote;
   final Offset dragGlobal;
@@ -1888,12 +2751,10 @@ class _NotationAreaState extends State<_NotationArea>
       vsync: this,
       duration: const Duration(seconds: 1),
     );
-    _transformController.addListener(_onTransformChanged);
   }
 
   @override
   void dispose() {
-    _transformController.removeListener(_onTransformChanged);
     _transformController.dispose();
     _playheadController.dispose();
     super.dispose();
@@ -1902,7 +2763,9 @@ class _NotationAreaState extends State<_NotationArea>
   @override
   void didUpdateWidget(_NotationArea oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.playbackPosition.isNone && !widget.playbackPosition.isNone) {
+    if (widget.reviewFocusMeasure == null &&
+        oldWidget.playbackPosition.isNone &&
+        !widget.playbackPosition.isNone) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _fitToScreen();
       });
@@ -1925,6 +2788,15 @@ class _NotationAreaState extends State<_NotationArea>
 
   // Converts an absolute measure index to page-relative; returns null when
   // the index is outside the current page so the viewer shows no highlight.
+  /// [key] ('part:measure[:symbol]') with a page-relative measure, or null
+  /// when the measure is not on this page.
+  String? _relMark(String key) {
+    final parts = key.split(':');
+    final rel = _rel(int.parse(parts[1]));
+    if (rel == null) return null;
+    return [parts[0], rel, ...parts.skip(2)].join(':');
+  }
+
   int? _rel(int? abs) {
     if (abs == null) return null;
     final rel = abs - widget.pageFirstMeasure;
@@ -1932,29 +2804,72 @@ class _NotationAreaState extends State<_NotationArea>
     return rel;
   }
 
-  void _onTransformChanged() => setState(() {});
-
   void _fitToScreen() {
     final viewport = _viewportSize;
     final content = _contentSize;
     if (viewport == null || content == null) return;
     if (viewport.width <= 0 || viewport.height <= 0) return;
 
+    final freeHeight = viewport.height - widget.fitInsets.vertical;
+    if (freeHeight <= 0) return;
+
     final scale =
-        math.min(
-          viewport.width / content.width,
-          viewport.height / content.height,
-        ) *
+        math.min(viewport.width / content.width, freeHeight / content.height) *
         0.90;
 
     final tx = (viewport.width - content.width * scale) / 2;
-    final ty = math.max(8.0, (viewport.height - content.height * scale) / 2);
+    final ty =
+        widget.fitInsets.top +
+        math.max(8.0, (freeHeight - content.height * scale) / 2);
 
     _transformController.value = Matrix4.identity()
       ..setEntry(0, 0, scale)
       ..setEntry(1, 1, scale)
       ..setEntry(0, 3, tx)
       ..setEntry(1, 3, ty);
+  }
+
+  void focusMeasure(int partIndex, int absoluteMeasure) {
+    final viewport = _viewportSize;
+    if (viewport == null || viewport.isEmpty) return;
+    final relative = absoluteMeasure - widget.pageFirstMeasure;
+    if (relative < 0 || relative >= widget.pageMeasureCount) return;
+    final policy = widget.layoutPolicy;
+    final row = relative ~/ policy.measuresPerRow;
+    final column = relative % policy.measuresPerRow;
+    final x =
+        policy.horizontalPadding +
+        policy.rowPrefixWidth +
+        column * policy.minMeasureWidth;
+    final y =
+        policy.verticalPadding +
+        (row * widget.editorState.score.parts.length + partIndex) *
+            policy.rowHeight;
+    final freeHeight = math.max(
+      20.0,
+      viewport.height - widget.fitInsets.vertical,
+    );
+    final scale = math
+        .min(
+          viewport.width / (policy.minMeasureWidth * 1.7),
+          freeHeight / (policy.rowHeight * 1.3),
+        )
+        .clamp(.15, 2.5);
+    _transformController.value = Matrix4.identity()
+      ..setEntry(0, 0, scale)
+      ..setEntry(1, 1, scale)
+      ..setEntry(
+        0,
+        3,
+        viewport.width / 2 - (x + policy.minMeasureWidth / 2) * scale,
+      )
+      ..setEntry(
+        1,
+        3,
+        widget.fitInsets.top +
+            freeHeight / 2 -
+            (y + policy.rowHeight / 2) * scale,
+      );
   }
 
   void _zoomIn() => _applyScaleDelta(1.15);
@@ -1967,13 +2882,14 @@ class _NotationAreaState extends State<_NotationArea>
     final cy = viewport.height / 2;
 
     final current = _transformController.value;
-    final currentScale = current.getMaxScaleOnAxis();
+    final currentScale = _scale;
     final translation = current.getTranslation();
 
     // Scale around the viewport centre.
-    final newScale = currentScale * delta;
-    final newTx = cx + delta * (translation.x - cx);
-    final newTy = cy + delta * (translation.y - cy);
+    final newScale = (currentScale * delta).clamp(.15, 5.0);
+    final effectiveDelta = newScale / currentScale;
+    final newTx = cx + effectiveDelta * (translation.x - cx);
+    final newTy = cy + effectiveDelta * (translation.y - cy);
 
     _transformController.value = Matrix4.identity()
       ..setEntry(0, 0, newScale)
@@ -1982,8 +2898,9 @@ class _NotationAreaState extends State<_NotationArea>
       ..setEntry(1, 3, newTy);
   }
 
-  int get _zoomPercent =>
-      (_transformController.value.getMaxScaleOnAxis() * 100).round();
+  // The page is scaled evenly in x and y. getMaxScaleOnAxis also looks at the
+  // untouched z axis, so it reads 1.0 for any zoom below 100 %.
+  double get _scale => _transformController.value.entry(0, 0);
 
   Size _computeContentSize() {
     final score = widget.editorState.score;
@@ -2012,10 +2929,7 @@ class _NotationAreaState extends State<_NotationArea>
       rowPrefixWidth: widget.layoutPolicy.rowPrefixWidth,
       partCount: score.parts.length,
     );
-    return Size(
-      widget.layoutPolicy.pageWidth,
-      math.max(widget.layoutPolicy.pageHeight, layout.size.height),
-    );
+    return Size(widget.layoutPolicy.pageWidth, layout.size.height);
   }
 
   ScoreNotationViewer _buildScoreNotationViewer() {
@@ -2067,6 +2981,10 @@ class _NotationAreaState extends State<_NotationArea>
       playheadSymbolIndex: pos.isNone ? null : widget.playheadSymbolIndex,
       playbackProgress: playbackT,
       showPlaybackSymbolHighlight: widget.showPlaybackSymbolHighlight,
+      issueMarks: {
+        for (final MapEntry(:key, :value) in widget.issueMarks.entries)
+          ?_relMark(key): value,
+      },
       insertMode: widget.insertMode,
       canAcceptExternalDrop: canEdit ? (data) => data is PaletteDragData : null,
       externalPreviewResolver: _previewGlyphForDragData,
@@ -2083,7 +3001,7 @@ class _NotationAreaState extends State<_NotationArea>
               ),
               data,
             ),
-      onMeasureTap: widget.isReadOnly && !widget.isPlaybackActive
+      onMeasureTap: !widget.insertMode && !widget.isPlaybackActive
           ? widget.onMeasureTap
           : null,
       onSymbolTap: (widget.insertMode || !canEdit)
@@ -2159,15 +3077,48 @@ class _NotationAreaState extends State<_NotationArea>
               Positioned.fill(
                 child: LayoutBuilder(
                   builder: (ctx, constraints) {
+                    final viewportChanged =
+                        _viewportSize != constraints.biggest;
                     _viewportSize = constraints.biggest;
                     _contentSize = _computeContentSize();
+                    if (viewportChanged && !widget.isPlaybackActive) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!mounted) return;
+                        if (widget.reviewFocusMeasure != null) {
+                          focusMeasure(
+                            widget.reviewFocusPart,
+                            widget.reviewFocusMeasure!,
+                          );
+                        } else if (widget.editorState.hasSymbolSelection) {
+                          focusMeasure(
+                            widget.editorState.selectedPartIndex!,
+                            widget.editorState.selectedMeasureIndex!,
+                          );
+                        } else {
+                          _fitToScreen();
+                        }
+                      });
+                    }
 
                     if (!_fittedOnce &&
                         _viewportSize!.shortestSide > 0 &&
                         _contentSize!.width > 0) {
                       _fittedOnce = true;
                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (mounted) _fitToScreen();
+                        if (!mounted) return;
+                        if (widget.reviewFocusMeasure != null) {
+                          focusMeasure(
+                            widget.reviewFocusPart,
+                            widget.reviewFocusMeasure!,
+                          );
+                        } else if (widget.editorState.hasSymbolSelection) {
+                          focusMeasure(
+                            widget.editorState.selectedPartIndex!,
+                            widget.editorState.selectedMeasureIndex!,
+                          );
+                        } else {
+                          _fitToScreen();
+                        }
                       });
                     }
 
@@ -2245,14 +3196,17 @@ class _NotationAreaState extends State<_NotationArea>
                             color: AppColors.accent,
                           ),
                           const SizedBox(width: 5),
-                          Text(
-                            widget.insertSymbolType != null
-                                ? 'Insert mode — tap to place ${_typeLabel(widget.insertSymbolType!)}'
-                                : 'Insert mode — select a symbol below',
-                            style: const TextStyle(
-                              color: AppColors.accent,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
+                          Flexible(
+                            child: Text(
+                              widget.insertSymbolType != null
+                                  ? 'Tap the staff to place a ${_typeLabel(widget.insertSymbolType!)}'
+                                  : 'Choose a symbol, then tap the staff',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: AppColors.accent,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ],
@@ -2287,31 +3241,40 @@ class _NotationAreaState extends State<_NotationArea>
 
               // Floating controls
               Positioned(
+                left: 8,
                 right: 8,
                 bottom: 8,
-                child: _FloatingControls(
-                  zoomPercent: _zoomPercent,
-                  insertMode: widget.insertMode && !widget.isPlaybackActive,
-                  showInsertToggle: !widget.isReadOnly,
-                  onZoomIn: _zoomIn,
-                  onZoomOut: _zoomOut,
-                  onFitToScreen: _fitToScreen,
-                  onToggleInsertMode: widget.isPlaybackActive
-                      ? () {}
-                      : widget.onToggleInsertMode,
+                // Only the zoom readout follows pan and zoom; rebuilding the
+                // page on every frame would repaint the whole score.
+                child: ValueListenableBuilder<Matrix4>(
+                  valueListenable: _transformController,
+                  builder: (context, transform, _) => _FloatingControls(
+                    zoomPercent: (transform.entry(0, 0) * 100).round(),
+                    insertMode: widget.insertMode && !widget.isPlaybackActive,
+                    showInsertToggle: !widget.isReadOnly,
+                    onZoomIn: transform.entry(0, 0) >= 5 ? null : _zoomIn,
+                    onZoomOut: transform.entry(0, 0) <= .15 ? null : _zoomOut,
+                    onFitToScreen: _fitToScreen,
+                    onToggleInsertMode: widget.isPlaybackActive
+                        ? null
+                        : widget.onToggleInsertMode,
+                  ),
                 ),
               ),
             ],
           ),
         ),
-        if (!widget.isReadOnly)
+        if (!widget.isReadOnly &&
+            (widget.insertMode || !widget.editorState.hasSymbolSelection))
           IgnorePointer(
             ignoring: widget.isPlaybackActive,
             child: SymbolPalette(
               selectedType: widget.insertMode && !widget.isPlaybackActive
                   ? widget.insertSymbolType
                   : null,
-              onTypeTap: widget.onPaletteTypeTap,
+              onTypeTap: widget.isPlaybackActive
+                  ? null
+                  : widget.onPaletteTypeTap,
             ),
           ),
       ],
@@ -2323,9 +3286,12 @@ class _NotationAreaState extends State<_NotationArea>
     PaletteSymbolType.halfNote => 'half note',
     PaletteSymbolType.quarterNote => 'quarter note',
     PaletteSymbolType.eighthNote => 'eighth note',
+    PaletteSymbolType.sixteenthNote => 'sixteenth note',
     PaletteSymbolType.wholeRest => 'whole rest',
     PaletteSymbolType.halfRest => 'half rest',
     PaletteSymbolType.quarterRest => 'quarter rest',
+    PaletteSymbolType.eighthRest => 'eighth rest',
+    PaletteSymbolType.sixteenthRest => 'sixteenth rest',
   };
 
   NotationPreviewGlyph? _previewGlyphForDragData(Object data) {
@@ -2335,9 +3301,12 @@ class _NotationAreaState extends State<_NotationArea>
       PaletteSymbolType.halfNote => NotationPreviewGlyph.halfNote,
       PaletteSymbolType.quarterNote => NotationPreviewGlyph.quarterNote,
       PaletteSymbolType.eighthNote => NotationPreviewGlyph.eighthNote,
+      PaletteSymbolType.sixteenthNote => NotationPreviewGlyph.sixteenthNote,
       PaletteSymbolType.wholeRest => NotationPreviewGlyph.wholeRest,
       PaletteSymbolType.halfRest => NotationPreviewGlyph.halfRest,
       PaletteSymbolType.quarterRest => NotationPreviewGlyph.quarterRest,
+      PaletteSymbolType.eighthRest => NotationPreviewGlyph.eighthRest,
+      PaletteSymbolType.sixteenthRest => NotationPreviewGlyph.sixteenthRest,
     };
   }
 }
@@ -2356,58 +3325,97 @@ class _FloatingControls extends StatelessWidget {
   final int zoomPercent;
   final bool insertMode;
   final bool showInsertToggle;
-  final VoidCallback onZoomIn;
-  final VoidCallback onZoomOut;
+  final VoidCallback? onZoomIn;
+  final VoidCallback? onZoomOut;
   final VoidCallback onFitToScreen;
-  final VoidCallback onToggleInsertMode;
+  final VoidCallback? onToggleInsertMode;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
+    final compactInsert =
+        MediaQuery.sizeOf(context).width < 360 &&
+        MediaQuery.textScalerOf(context).scale(11) > 15;
+    return Wrap(
+      alignment: WrapAlignment.end,
+      spacing: 6,
+      runSpacing: 6,
       children: [
         if (showInsertToggle) ...[
-          GestureDetector(
+          Semantics(
+            button: true,
+            toggled: insertMode,
+            enabled: onToggleInsertMode != null,
+            label: insertMode ? 'Finish inserting symbols' : 'Insert symbols',
             onTap: onToggleInsertMode,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: insertMode
-                    ? AppColors.accent.withValues(alpha: 0.2)
-                    : AppColors.surface.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: insertMode ? AppColors.accent : AppColors.border,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    insertMode ? Icons.edit_rounded : Icons.touch_app_rounded,
-                    size: 13,
-                    color: insertMode
-                        ? AppColors.accent
-                        : AppColors.textSecondary,
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    insertMode ? 'Insert' : 'Select',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: insertMode
-                          ? AppColors.accent
-                          : AppColors.textSecondary,
+            excludeSemantics: true,
+            child: Tooltip(
+              message: onToggleInsertMode == null
+                  ? 'Pause playback to insert symbols'
+                  : insertMode
+                  ? 'Finish inserting symbols'
+                  : 'Insert symbols',
+              child: compactInsert
+                  ? IconButton(
+                      onPressed: onToggleInsertMode,
+                      constraints: const BoxConstraints(
+                        minWidth: 44,
+                        minHeight: 44,
+                      ),
+                      icon: Icon(
+                        insertMode ? Icons.check_rounded : Icons.add_rounded,
+                      ),
+                      color: AppColors.accent,
+                      style: IconButton.styleFrom(
+                        backgroundColor: AppColors.surface.withValues(
+                          alpha: .9,
+                        ),
+                        side: const BorderSide(color: AppColors.border),
+                      ),
+                    )
+                  : TextButton(
+                      onPressed: onToggleInsertMode,
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(76, 44),
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        shape: StadiumBorder(
+                          side: BorderSide(
+                            color: insertMode
+                                ? AppColors.accent
+                                : AppColors.border,
+                          ),
+                        ),
+                        backgroundColor: insertMode
+                            ? AppColors.accent.withValues(alpha: 0.2)
+                            : AppColors.surface.withValues(alpha: 0.9),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            insertMode
+                                ? Icons.check_rounded
+                                : Icons.add_rounded,
+                            size: 13,
+                            color: insertMode
+                                ? AppColors.accent
+                                : AppColors.textSecondary,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            insertMode ? 'Done' : 'Insert',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: insertMode
+                                  ? AppColors.accent
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
             ),
           ),
-          const SizedBox(height: 6),
         ],
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
@@ -2419,7 +3427,11 @@ class _FloatingControls extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _ZoomBtn(icon: Icons.remove_rounded, onPressed: onZoomOut),
+              _ZoomBtn(
+                icon: Icons.remove_rounded,
+                tooltip: 'Zoom out',
+                onPressed: onZoomOut,
+              ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: Text(
@@ -2431,10 +3443,15 @@ class _FloatingControls extends StatelessWidget {
                   ),
                 ),
               ),
-              _ZoomBtn(icon: Icons.add_rounded, onPressed: onZoomIn),
+              _ZoomBtn(
+                icon: Icons.add_rounded,
+                tooltip: 'Zoom in',
+                onPressed: onZoomIn,
+              ),
               const SizedBox(width: 2),
               _ZoomBtn(
                 icon: Icons.fit_screen_rounded,
+                tooltip: 'Fit page',
                 onPressed: onFitToScreen,
               ),
             ],
@@ -2446,19 +3463,25 @@ class _FloatingControls extends StatelessWidget {
 }
 
 class _ZoomBtn extends StatelessWidget {
-  const _ZoomBtn({required this.icon, required this.onPressed});
+  const _ZoomBtn({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
 
   final IconData icon;
+  final String tooltip;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 28,
-      height: 28,
+      width: 44,
+      height: 44,
       child: IconButton(
         onPressed: onPressed,
-        icon: Icon(icon, size: 14),
+        tooltip: tooltip,
+        icon: Icon(icon, size: 16),
         color: onPressed != null
             ? AppColors.textPrimary
             : AppColors.textSecondary.withValues(alpha: 0.4),
@@ -2796,8 +3819,11 @@ class _InspectorPanel extends StatefulWidget {
     required this.onHalf,
     required this.onQuarter,
     required this.onEighth,
+    required this.onSixteenth,
     required this.onSetAccidental,
     required this.currentMeasureClef,
+    required this.currentTimeSignature,
+    required this.onSetTimeSignature,
     required this.onSetClef,
     required this.onMoveToPrev,
     required this.onMoveToNext,
@@ -2807,6 +3833,9 @@ class _InspectorPanel extends StatefulWidget {
     required this.onDeleteMeasure,
     required this.onDeleteSymbol,
     required this.onToggleDot,
+    required this.allowedDurations,
+    required this.canToggleDot,
+    required this.onBeams,
   });
 
   final bool isLandscape;
@@ -2826,8 +3855,11 @@ class _InspectorPanel extends StatefulWidget {
   final VoidCallback onHalf;
   final VoidCallback onQuarter;
   final VoidCallback onEighth;
+  final VoidCallback onSixteenth;
   final void Function(int? alter) onSetAccidental;
   final Clef? currentMeasureClef;
+  final TimeSignature? currentTimeSignature;
+  final ValueChanged<TimeSignature> onSetTimeSignature;
   final ValueChanged<Clef?> onSetClef;
   final VoidCallback onMoveToPrev;
   final VoidCallback onMoveToNext;
@@ -2837,6 +3869,9 @@ class _InspectorPanel extends StatefulWidget {
   final VoidCallback onDeleteMeasure;
   final VoidCallback onDeleteSymbol;
   final VoidCallback onToggleDot;
+  final Set<String> allowedDurations;
+  final bool canToggleDot;
+  final VoidCallback? onBeams;
 
   @override
   State<_InspectorPanel> createState() => _InspectorPanelState();
@@ -2849,6 +3884,7 @@ class _InspectorPanelState extends State<_InspectorPanel> {
     Icons.unfold_more_rounded,
     Icons.tag_rounded,
     Icons.music_note_rounded,
+    Icons.av_timer_rounded,
     Icons.hourglass_empty_rounded,
     Icons.grid_on_rounded,
   ];
@@ -2887,10 +3923,7 @@ class _InspectorPanelState extends State<_InspectorPanel> {
         : widget.selected is Rest
         ? (widget.selected as Rest).dots
         : 0;
-    final canDot =
-        currentType != null &&
-        currentType != 'eighth' &&
-        currentType != 'sixteenth';
+    final canDot = currentType != null;
     final isDotted = currentDots > 0;
 
     return [
@@ -2900,16 +3933,12 @@ class _InspectorPanelState extends State<_InspectorPanel> {
           _ActionTile(
             icon: Icons.keyboard_arrow_up_rounded,
             label: 'Up',
-            onPressed: _wrapAction(
-              widget.hasSelection ? widget.onMoveUp : null,
-            ),
+            onPressed: _wrapAction(isNoteSelected ? widget.onMoveUp : null),
           ),
           _ActionTile(
             icon: Icons.keyboard_arrow_down_rounded,
             label: 'Down',
-            onPressed: _wrapAction(
-              widget.hasSelection ? widget.onMoveDown : null,
-            ),
+            onPressed: _wrapAction(isNoteSelected ? widget.onMoveDown : null),
           ),
           _ActionTile(
             icon: Icons.delete_rounded,
@@ -2981,49 +4010,89 @@ class _InspectorPanelState extends State<_InspectorPanel> {
                   : null,
             ),
           ),
-          _ClefTile(
-            shortLabel: 'C3',
-            label: 'Alto',
-            isActive: currentClef?.sign == 'C' && currentClef?.line == 3,
-            onPressed: _wrapAction(
-              hasMeasureContext
-                  ? () => widget.onSetClef(const Clef(sign: 'C', line: 3))
-                  : null,
+          if (AppFeatures.cClefs) ...[
+            _ClefTile(
+              shortLabel: 'C3',
+              label: 'Alto',
+              isActive: currentClef?.sign == 'C' && currentClef?.line == 3,
+              onPressed: _wrapAction(
+                hasMeasureContext
+                    ? () => widget.onSetClef(const Clef(sign: 'C', line: 3))
+                    : null,
+              ),
             ),
-          ),
-          _ClefTile(
-            shortLabel: 'C4',
-            label: 'Tenor',
-            isActive: currentClef?.sign == 'C' && currentClef?.line == 4,
-            onPressed: _wrapAction(
-              hasMeasureContext
-                  ? () => widget.onSetClef(const Clef(sign: 'C', line: 4))
-                  : null,
+            _ClefTile(
+              shortLabel: 'C4',
+              label: 'Tenor',
+              isActive: currentClef?.sign == 'C' && currentClef?.line == 4,
+              onPressed: _wrapAction(
+                hasMeasureContext
+                    ? () => widget.onSetClef(const Clef(sign: 'C', line: 4))
+                    : null,
+              ),
             ),
-          ),
+          ],
+        ],
+      ),
+      _ActionGroup(
+        label: 'TIME',
+        children: [
+          for (final (beats, beatType, name) in const [
+            (2, 4, 'Two'),
+            (3, 4, 'Three'),
+            (4, 4, 'Common'),
+            (2, 2, 'Cut'),
+            (3, 8, 'Three'),
+            (6, 8, 'Six'),
+          ])
+            _ClefTile(
+              shortLabel: '$beats/$beatType',
+              label: name,
+              isActive:
+                  widget.currentTimeSignature?.beats == beats &&
+                  widget.currentTimeSignature?.beatType == beatType,
+              onPressed: _wrapAction(
+                hasMeasureContext
+                    ? () => widget.onSetTimeSignature(
+                        TimeSignature(beats: beats, beatType: beatType),
+                      )
+                    : null,
+              ),
+            ),
         ],
       ),
       _ActionGroup(
         label: 'DURATION',
         children: [
+          _ActionTile(
+            icon: Icons.linear_scale_rounded,
+            label: 'Beams',
+            onPressed: _wrapAction(widget.onBeams),
+          ),
           _DurTile(
             label: 'W',
             sublabel: 'Whole',
             isActive: currentType == 'whole',
-            onPressed: _wrapAction(widget.hasSelection ? widget.onWhole : null),
+            onPressed: _wrapAction(
+              widget.allowedDurations.contains('whole') ? widget.onWhole : null,
+            ),
           ),
           _DurTile(
             label: 'H',
             sublabel: 'Half',
             isActive: currentType == 'half',
-            onPressed: _wrapAction(widget.hasSelection ? widget.onHalf : null),
+            onPressed: _wrapAction(
+              widget.allowedDurations.contains('half') ? widget.onHalf : null,
+            ),
           ),
           _DurTile(
             label: '♩',
             sublabel: 'Qtr',
             isActive: currentType == 'quarter',
             onPressed: _wrapAction(
-              widget.hasSelection ? widget.onQuarter : null,
+              widget.allowedDurations.contains('quarter')
+                  ? widget.onQuarter
+                  : null,
             ),
           ),
           _DurTile(
@@ -3031,7 +4100,19 @@ class _InspectorPanelState extends State<_InspectorPanel> {
             sublabel: '8th',
             isActive: currentType == 'eighth',
             onPressed: _wrapAction(
-              widget.hasSelection ? widget.onEighth : null,
+              widget.allowedDurations.contains('eighth')
+                  ? widget.onEighth
+                  : null,
+            ),
+          ),
+          _DurTile(
+            label: '♬',
+            sublabel: '16th',
+            isActive: currentType == 'sixteenth' || currentType == '16th',
+            onPressed: _wrapAction(
+              widget.allowedDurations.contains('sixteenth')
+                  ? widget.onSixteenth
+                  : null,
             ),
           ),
           _DurTile(
@@ -3039,7 +4120,7 @@ class _InspectorPanelState extends State<_InspectorPanel> {
             sublabel: 'Dot',
             isActive: isDotted,
             onPressed: _wrapAction(
-              canDot && widget.hasSelection ? widget.onToggleDot : null,
+              canDot && widget.canToggleDot ? widget.onToggleDot : null,
             ),
           ),
         ],
@@ -3128,44 +4209,56 @@ class _InspectorPanelState extends State<_InspectorPanel> {
     }
 
     // ── Portrait: bottom inspector bar ────────────────────────────────────
-    return Stack(
-      children: [
-        // Barrier — tapping canvas dismisses the open popup
-        if (_activeGroupIndex != null)
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: () => setState(() => _activeGroupIndex = null),
+    return LayoutBuilder(
+      builder: (context, constraints) => Stack(
+        children: [
+          // Barrier — tapping canvas dismisses the open popup
+          if (_activeGroupIndex != null)
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: () => setState(() => _activeGroupIndex = null),
+              ),
             ),
-          ),
-        // Selection card — top of canvas
-        Positioned(top: 8, left: 8, right: 8, child: selectionCard),
-        // Active group popup — floats above the bottom bar
-        if (_activeGroupIndex != null && !widget.isPlaybackActive)
+          // Selection card — top of canvas
+          Positioned(top: 8, left: 8, right: 8, child: selectionCard),
+          // Active group popup — floats above the bottom bar
+          if (_activeGroupIndex != null && !widget.isPlaybackActive)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: _kInspectorBarHeight + 8,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: math.max(
+                      0,
+                      constraints.maxHeight - _kInspectorBarHeight - 16,
+                    ),
+                  ),
+                  child: SingleChildScrollView(
+                    child: _ToolGroupPopup(group: groups[_activeGroupIndex!]),
+                  ),
+                ),
+              ),
+            ),
+          // Bottom inspector bar
           Positioned(
             left: 0,
             right: 0,
-            bottom: _kInspectorBarHeight + 8,
-            child: Center(
-              child: _ToolGroupPopup(group: groups[_activeGroupIndex!]),
+            bottom: 0,
+            child: _BottomInspectorBar(
+              groups: groups,
+              icons: _groupIcons,
+              activeIndex: _activeGroupIndex,
+              disabled: widget.isPlaybackActive,
+              onGroupTap: (i) => setState(() {
+                _activeGroupIndex = _activeGroupIndex == i ? null : i;
+              }),
             ),
           ),
-        // Bottom inspector bar
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: _BottomInspectorBar(
-            groups: groups,
-            icons: _groupIcons,
-            activeIndex: _activeGroupIndex,
-            disabled: widget.isPlaybackActive,
-            onGroupTap: (i) => setState(() {
-              _activeGroupIndex = _activeGroupIndex == i ? null : i;
-            }),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -3249,41 +4342,68 @@ class _BottomInspectorBar extends StatelessWidget {
               : isActive
               ? AppColors.accent
               : AppColors.textSecondary;
+          final label = groups[i].label;
+          final title = '${label[0]}${label.substring(1).toLowerCase()}';
+          final shortLabel = MediaQuery.textScalerOf(context).scale(10) > 14
+              ? switch (label) {
+                  'ACCIDENTAL' => 'Acc.',
+                  'DURATION' => 'Dur.',
+                  'MEASURE' => 'Bar',
+                  _ => title,
+                }
+              : title;
           return Expanded(
-            child: GestureDetector(
+            child: Semantics(
+              button: true,
+              selected: isActive,
+              enabled: !disabled,
+              label: '$title tools',
               onTap: disabled ? null : () => onGroupTap(i),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                decoration: BoxDecoration(
-                  color: isActive && !disabled
-                      ? AppColors.accent.withValues(alpha: 0.10)
-                      : Colors.transparent,
-                  border: Border(
-                    top: BorderSide(
-                      color: isActive && !disabled
-                          ? AppColors.accent
-                          : Colors.transparent,
-                      width: 2,
-                    ),
+              excludeSemantics: true,
+              child: Tooltip(
+                message: '$title tools',
+                child: TextButton(
+                  onPressed: disabled ? null : () => onGroupTap(i),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(48, _kInspectorBarHeight),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: const RoundedRectangleBorder(),
                   ),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(icons[i], size: 20, color: iconColor),
-                    const SizedBox(height: 2),
-                    Text(
-                      groups[i].label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 8,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.2,
-                        color: iconColor,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    decoration: BoxDecoration(
+                      color: isActive && !disabled
+                          ? AppColors.accent.withValues(alpha: 0.10)
+                          : Colors.transparent,
+                      border: Border(
+                        top: BorderSide(
+                          color: isActive && !disabled
+                              ? AppColors.accent
+                              : Colors.transparent,
+                          width: 2,
+                        ),
                       ),
                     ),
-                  ],
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(icons[i], size: 20, color: iconColor),
+                        const SizedBox(height: 2),
+                        Text(
+                          // Title case fits the narrow tabs at a readable size.
+                          shortLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: iconColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -3323,7 +4443,7 @@ class _ToolGroupPopup extends StatelessWidget {
           Text(
             group.label,
             style: const TextStyle(
-              fontSize: 9,
+              fontSize: 10,
               color: AppColors.textSecondary,
               letterSpacing: 1.0,
               fontWeight: FontWeight.w600,
@@ -3512,16 +4632,19 @@ class _SelectionCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Text(
-                'SELECTION',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: AppColors.textSecondary,
-                  letterSpacing: 1.0,
-                  fontWeight: FontWeight.w600,
+              const Expanded(
+                child: Text(
+                  'SELECTION',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textSecondary,
+                    letterSpacing: 1.0,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-              const Spacer(),
               pageNav,
             ],
           ),
@@ -3819,6 +4942,25 @@ class _NavBtn extends StatelessWidget {
 // Action tiles
 // ---------------------------------------------------------------------------
 
+double _toolTileWidth(
+  BuildContext context,
+  String label, {
+  double minimum = 48,
+  double fontSize = 10,
+}) {
+  final painter = TextPainter(
+    text: TextSpan(
+      text: label,
+      style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w600),
+    ),
+    textScaler: MediaQuery.textScalerOf(context),
+    textDirection: Directionality.of(context),
+  )..layout();
+  final width = math.max(minimum, (painter.width + 16).ceilToDouble());
+  painter.dispose();
+  return width;
+}
+
 class _ActionTile extends StatelessWidget {
   const _ActionTile({
     required this.icon,
@@ -3849,7 +4991,8 @@ class _ActionTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          width: 52,
+          width: _toolTileWidth(context, label, minimum: 52),
+          constraints: const BoxConstraints(minHeight: 48),
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
           decoration: BoxDecoration(
             color: enabled ? AppColors.surfaceAlt : AppColors.background,
@@ -3870,9 +5013,9 @@ class _ActionTile extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 9,
+                  fontSize: 10,
                   color: enabled
-                      ? activeColor.withValues(alpha: 0.7)
+                      ? activeColor
                       : AppColors.textSecondary.withValues(alpha: 0.3),
                   fontWeight: FontWeight.w500,
                 ),
@@ -3913,7 +5056,11 @@ class _AccTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          width: 44,
+          width: math.max(
+            _toolTileWidth(context, sublabel),
+            _toolTileWidth(context, label, fontSize: 15),
+          ),
+          constraints: const BoxConstraints(minHeight: 48),
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
           decoration: BoxDecoration(
             color: isActive
@@ -3937,6 +5084,7 @@ class _AccTile extends StatelessWidget {
                 label,
                 style: TextStyle(
                   fontSize: 15,
+                  fontFamilyFallback: const ['NotoMusic'],
                   color: isActive
                       ? _accent
                       : enabled
@@ -3950,11 +5098,11 @@ class _AccTile extends StatelessWidget {
               Text(
                 sublabel,
                 style: TextStyle(
-                  fontSize: 9,
+                  fontSize: 10,
                   color: isActive
-                      ? _accent.withValues(alpha: 0.8)
+                      ? _accent
                       : enabled
-                      ? AppColors.textSecondary.withValues(alpha: 0.7)
+                      ? AppColors.textSecondary
                       : AppColors.textSecondary.withValues(alpha: 0.3),
                   fontWeight: FontWeight.w500,
                 ),
@@ -3994,7 +5142,8 @@ class _ClefTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          width: 48,
+          width: _toolTileWidth(context, label),
+          constraints: const BoxConstraints(minHeight: 48),
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
           decoration: BoxDecoration(
             color: isActive
@@ -4031,11 +5180,11 @@ class _ClefTile extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 9,
+                  fontSize: 10,
                   color: isActive
-                      ? _accent.withValues(alpha: 0.8)
+                      ? _accent
                       : enabled
-                      ? AppColors.textSecondary.withValues(alpha: 0.7)
+                      ? AppColors.textSecondary
                       : AppColors.textSecondary.withValues(alpha: 0.3),
                   fontWeight: FontWeight.w500,
                 ),
@@ -4117,9 +5266,17 @@ class _MetadataSheetState extends State<_MetadataSheet> {
             ],
           ),
           const SizedBox(height: 16),
-          _MetadataField(label: 'Title', controller: _titleCtrl, maxLength: 100),
+          _MetadataField(
+            label: 'Title',
+            controller: _titleCtrl,
+            maxLength: 100,
+          ),
           const SizedBox(height: 12),
-          _MetadataField(label: 'Composer', controller: _composerCtrl, maxLength: 100),
+          _MetadataField(
+            label: 'Composer',
+            controller: _composerCtrl,
+            maxLength: 100,
+          ),
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
@@ -4138,7 +5295,11 @@ class _MetadataSheetState extends State<_MetadataSheet> {
 }
 
 class _MetadataField extends StatefulWidget {
-  const _MetadataField({required this.label, required this.controller, this.maxLength});
+  const _MetadataField({
+    required this.label,
+    required this.controller,
+    this.maxLength,
+  });
 
   final String label;
   final TextEditingController controller;
@@ -4183,21 +5344,22 @@ class _MetadataFieldState extends State<_MetadataField> {
         TextField(
           controller: widget.controller,
           maxLength: widget.maxLength,
-          inputFormatters: [
-            EmojiBlockingFormatter(onBlocked: _onEmojiBlocked),
-          ],
-          buildCounter: (_, {required currentLength, required isFocused, maxLength}) {
-            if (maxLength == null || currentLength <= maxLength - 20) return null;
-            return Text(
-              '$currentLength / $maxLength',
-              style: TextStyle(
-                color: currentLength >= maxLength
-                    ? const Color(0xFFE05252)
-                    : AppColors.textSecondary,
-                fontSize: 11,
-              ),
-            );
-          },
+          inputFormatters: [EmojiBlockingFormatter(onBlocked: _onEmojiBlocked)],
+          buildCounter:
+              (_, {required currentLength, required isFocused, maxLength}) {
+                if (maxLength == null || currentLength <= maxLength - 20) {
+                  return null;
+                }
+                return Text(
+                  '$currentLength / $maxLength',
+                  style: TextStyle(
+                    color: currentLength >= maxLength
+                        ? const Color(0xFFE05252)
+                        : AppColors.textSecondary,
+                    fontSize: 11,
+                  ),
+                );
+              },
           style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
           cursorColor: AppColors.accent,
           decoration: InputDecoration(
@@ -4253,7 +5415,11 @@ class _DurTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 120),
-          width: 44,
+          width: math.max(
+            _toolTileWidth(context, sublabel),
+            _toolTileWidth(context, label, fontSize: 15),
+          ),
+          constraints: const BoxConstraints(minHeight: 48),
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
           decoration: BoxDecoration(
             color: isActive
@@ -4290,11 +5456,11 @@ class _DurTile extends StatelessWidget {
               Text(
                 sublabel,
                 style: TextStyle(
-                  fontSize: 9,
+                  fontSize: 10,
                   color: isActive
-                      ? _accent.withValues(alpha: 0.8)
+                      ? _accent
                       : enabled
-                      ? AppColors.textSecondary.withValues(alpha: 0.7)
+                      ? AppColors.textSecondary
                       : AppColors.textSecondary.withValues(alpha: 0.3),
                   fontWeight: FontWeight.w500,
                 ),

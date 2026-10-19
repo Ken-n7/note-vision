@@ -37,5 +37,12 @@ class KeySignature extends ScoreSymbol {
   }
 
   @override
+  bool operator ==(Object other) =>
+      other is KeySignature && other.fifths == fifths;
+
+  @override
+  int get hashCode => fifths.hashCode;
+
+  @override
   String toString() => 'KeySignature(fifths: $fifths, key: $name)';
 }

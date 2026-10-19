@@ -1,30 +1,11 @@
+import 'package:note_vision/core/models/beam_grouping.dart';
+import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/rest.dart';
 
-// Access the beam-group helper via a thin wrapper so tests don't depend on
-// private painter internals.  We inline the same grouping logic here and verify
-// it against known inputs — the same algorithm is used by both
-// PdfScoreRenderer and ScoreNotationPainter.
-List<List<int>> buildBeamGroups(List<dynamic> symbols) {
-  final groups = <List<int>>[];
-  List<int>? current;
-  for (var i = 0; i < symbols.length; i++) {
-    final sym = symbols[i];
-    if (sym is Note && sym.type == 'eighth' && sym.beamed) {
-      current ??= [];
-      current.add(i);
-    } else {
-      if (current != null) {
-        groups.add(current);
-        current = null;
-      }
-    }
-  }
-  if (current != null) groups.add(current);
-  return groups;
-}
+List<List<int>> buildBeamGroups(List<ScoreSymbol> symbols) => BeamGrouping.groups(symbols);
 
 Note _eighth({bool beamed = true}) => Note(
       step: 'C',

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
 
+import '../../preprocessing/data/barline_finder.dart';
+import '../../preprocessing/data/staff_line_tracer.dart';
 import '../../preprocessing/domain/preprocessed_result.dart';
 import '../domain/detected_staff.dart';
 import '../domain/detected_symbol.dart';
@@ -12,32 +14,55 @@ import '../domain/music_symbol.dart';
 import '../domain/symbol_detector.dart';
 
 class TfliteSymbolDetector implements SymbolDetector {
-  static const String _modelPath = 'assets/models/deepscores_int8.tflite';
+  static const String _modelPath = 'assets/models/best.tflite';
 
-  static const double _defaultThreshold = 0.75;
+  /// Model output class index → (pipeline symbol, note value).
+  /// Order must match the training data.yaml `names` list.
+  /// Whole-note symbols (notehead + stem + flag in one box) are mapped onto
+  /// the existing notehead vocabulary; the note value rides along in
+  /// metadata['noteType'] since there are no separate stem/flag detections.
+  static const List<(MusicSymbol, String?)> _classes = [
+    (MusicSymbol.clefF, null), // Fclef
+    (MusicSymbol.clefG, null), // Gclef
+    (MusicSymbol.noteheadBlackInSpace, 'eighth'), // eighthnote
+    (MusicSymbol.noteheadHalfInSpace, 'half'), // halfnote
+    (MusicSymbol.restHalf, null), // halfrest
+    (MusicSymbol.noteheadBlackInSpace, 'quarter'), // quarternote
+    (MusicSymbol.noteheadBlackInSpace, 'sixteenth'), // sixteenthnote
+    (MusicSymbol.noteheadWholeInSpace, 'whole'), // wholenote
+    (MusicSymbol.restWhole, null), // wholerest
+    (MusicSymbol.beam, null), // beam
+    (MusicSymbol.accidentalSharp, null), // sharp
+    (MusicSymbol.accidentalFlat, null), // flat
+    (MusicSymbol.accidentalNatural, null), // natural
+    (MusicSymbol.restQuarter, null), // quarterrest
+    (MusicSymbol.rest8th, null), // eighthrest
+    (MusicSymbol.rest16th, null), // sixteenthrest
+    (MusicSymbol.timeSig2, null), // timeSig2
+    (MusicSymbol.timeSig3, null), // timeSig3
+    (MusicSymbol.timeSig4, null), // timeSig4
+    (MusicSymbol.timeSig6, null), // timeSig6
+    (MusicSymbol.timeSig8, null), // timeSig8
+    (MusicSymbol.timeSigCommon, null), // timeSigCommon
+    (MusicSymbol.timeSigCutCommon, null), // timeSigCutCommon
+    (MusicSymbol.augmentationDot, null), // augmentationDot
+  ];
+
+  // Calibration knobs: rests had the lowest recall in validation.
+  static const double _defaultThreshold = 0.40;
   static const Map<MusicSymbol, double> _confidenceThresholds = {
-    MusicSymbol.accidentalFlat: 0.65,
-    MusicSymbol.accidentalSharp: 0.65,
-    MusicSymbol.accidentalNatural: 0.60,
-    MusicSymbol.accidentalDoubleFlat: 0.60,
-    MusicSymbol.accidentalDoubleSharp: 0.60,
-    MusicSymbol.augmentationDot: 0.55,
-    MusicSymbol.flag8thDown: 0.65,
-    MusicSymbol.flag8thUp: 0.65,
-    MusicSymbol.flag16thDown: 0.65,
-    MusicSymbol.flag16thUp: 0.65,
-    MusicSymbol.flag32ndDown: 0.65,
-    MusicSymbol.flag32ndUp: 0.65,
-    MusicSymbol.flag64thDown: 0.65,
-    MusicSymbol.flag64thUp: 0.65,
-    MusicSymbol.flag128thDown: 0.65,
-    MusicSymbol.flag128thUp: 0.65,
-    MusicSymbol.ledgerLine: 0.60,
-    MusicSymbol.repeatDot: 0.60,
+    MusicSymbol.restHalf: 0.30,
+    MusicSymbol.restWhole: 0.30,
   };
 
   static const double _iouThreshold = 0.35;
-  static const int _inputSize = 640;
+  static const int _inputSize = 960;
+  static const int _anchors = 18900;
+  static const int _outputRows = 28; // 4 box + 24 classes
+
+  // Two stacked beams of a sixteenth group overlap far more than two
+  // detections of different symbols do, so beams get a looser NMS.
+  static const double _beamIouThreshold = 0.7;
 
   Interpreter? _interpreter;
 
@@ -55,6 +80,7 @@ class TfliteSymbolDetector implements SymbolDetector {
 
   void dispose() {
     _interpreter?.close();
+    _interpreter = null;
   }
 
   @override
@@ -71,141 +97,84 @@ class TfliteSymbolDetector implements SymbolDetector {
       );
     }
 
-    // Letterbox the image to 640×640: scale uniformly so the long edge fits,
-    // then pad the short edge with gray (114) — matching standard Ultralytics
-    // YOLOv8 training preprocessing. This avoids the aspect-ratio distortion
-    // that stretch-to-square causes for small symbols like noteheads and flags.
-    final lb = _letterbox(fullImage);
-
-    final raw = _runInference(lb.image);
-    final allDetections = _parseOutput(
-      raw,
-      scale: lb.scale,
-      padLeft: lb.padLeft,
-      padTop: lb.padTop,
+    // Stretch to 960×960 — the training images were stretched (Roboflow
+    // "Resize: Stretch"), so letterboxing would skew the input distribution.
+    final resized = img.copyResize(
+      fullImage,
+      width: _inputSize,
+      height: _inputSize,
+      interpolation: img.Interpolation.linear,
     );
 
-    // Partition detections by role before NMS to avoid cross-class suppression.
-    // staff → staff geometry bboxes; everything else → musical symbols.
-    final staffDetections = allDetections
-        .where((s) => s.musicSymbol == MusicSymbol.staff)
-        .toList();
-    final musicalDetections = allDetections
-        .where((s) => s.musicSymbol != MusicSymbol.staff)
-        .toList();
+    final nmsMusical = _nms(
+      _parseOutput(
+        _runInference(resized),
+        image: fullImage,
+        scaleX: fullImage.width / _inputSize,
+        scaleY: fullImage.height / _inputSize,
+      ),
+    );
 
-    final mergedStaves = _mergeStaves(_nms(staffDetections), staves);
-    final nmsMusical = _nms(musicalDetections);
-    final afterClefStaves = _addClefStaves(nmsMusical, mergedStaves);
+    // The model has no staff class. Each clef first looks for the real lines
+    // it sits on, which follow a sloped or hand-ruled staff; failing that it
+    // gets a level staff sized from the clef. The projector's staves only
+    // fill in where there is no clef: on handwriting it often groups the
+    // wrong rows.
+    final tracedStaves = _tracedStaves(nmsMusical, fullImage);
+    final clefStaves = _addClefStaves(nmsMusical, tracedStaves);
+    final middleX = fullImage.width / 2;
+    final projectedStaves = [
+      for (final staff in staves)
+        if (!clefStaves.any(
+          (c) => c.containsY((staff.topY + staff.bottomY) / 2, x: middleX),
+        ))
+          staff,
+    ];
+    final afterClefStaves = [...clefStaves, ...projectedStaves]
+      ..sort((a, b) => a.topY.compareTo(b.topY));
     final allStaves = _addClusterStaves(nmsMusical, afterClefStaves);
     final symbols = _filterOutsideStaves(nmsMusical, allStaves);
 
     debugPrint(
       '[TfliteSymbolDetector] ${fullImage.width}×${fullImage.height} → '
       '$_inputSize×$_inputSize | '
-      '${staffDetections.length} staff → ${allStaves.length} stave(s) '
-      '(${mergedStaves.length} detected, '
-      '${afterClefStaves.length - mergedStaves.length} clef-synthesized, '
+      '${allStaves.length} stave(s) '
+      '(${tracedStaves.length} traced, '
+      '${clefStaves.length - tracedStaves.length} clef-synthesized, '
+      '${projectedStaves.length} projected, '
       '${allStaves.length - afterClefStaves.length} cluster-synthesized) | '
       '${symbols.length} musical symbol(s)',
     );
 
-    return DetectionResult(symbols: symbols, staffs: allStaves);
+    return DetectionResult(
+      symbols: symbols,
+      staffs: allStaves,
+      barlines: const BarlineFinder().find(fullImage, allStaves, symbols),
+    );
   }
 
-  /// Builds the final staff list by preferring model-detected [staff]
-  /// bboxes and supplementing with [projectorStaves] from
-  /// [HorizontalProjectionStaffDetector] wherever the model missed a staff.
-  List<DetectedStaff> _mergeStaves(
-    List<DetectedSymbol> staffSymbols,
-    List<DetectedStaff> projectorStaves,
-  ) {
-    // Convert each staff bbox into a DetectedStaff. Assume the bbox spans
-    // exactly from the top staff line to the bottom staff line, giving 4 equal
-    // gaps between 5 lines.
-    final modelStaves = <DetectedStaff>[];
-    for (int i = 0; i < staffSymbols.length; i++) {
-      final box = staffSymbols[i].boundingBox;
-      if (box == null) continue;
-      final spacing = box.height / 4;
-      modelStaves.add(
-        DetectedStaff(
-          id: 'model-staff-$i',
-          topY: box.top,
-          bottomY: box.bottom,
-          lineYs: List.generate(5, (l) => box.top + l * spacing),
-        ),
-      );
-    }
-
-    // Add projector staves whose midpoint isn't already covered by a model staff.
-    final supplementary = <DetectedStaff>[];
-    for (final proj in projectorStaves) {
-      final midY = (proj.topY + proj.bottomY) / 2;
-      final covered = modelStaves.any(
-        (ms) => midY >= ms.topY && midY <= ms.bottomY,
-      );
-      if (!covered) supplementary.add(proj);
-    }
-
-    if (modelStaves.isEmpty && supplementary.isEmpty) {
-      debugPrint(
-        '[TfliteSymbolDetector] No staves from model or projector — '
-        'mapper will attempt SyntheticStaffBuilder.',
-      );
-    } else {
-      debugPrint(
-        '[TfliteSymbolDetector] Staves: ${modelStaves.length} model, '
-        '${supplementary.length} projector supplement.',
-      );
-    }
-
-    final merged = [...modelStaves, ...supplementary]
-      ..sort((a, b) => a.topY.compareTo(b.topY));
-    return merged;
+  /// Runs the model and returns its raw output, row-major `[28][18900]`:
+  /// rows 0–3 = cx, cy, w, h (normalized 0–1), rows 4–27 = class scores.
+  Float32List _runInference(img.Image resized) {
+    final input = _imageToTensor(resized);
+    final output = Uint8List(_outputRows * _anchors * 4);
+    _interpreter!.run(input.buffer.asUint8List(), output);
+    return output.buffer.asFloat32List();
   }
 
-  List<List<double>> _runInference(img.Image tile) {
-    final inputData = _imageToTensor(tile);
-
-    // Wrap in nested list so tflite_flutter maps it to [1, 640, 640, 3].
-    final input = [
-      List.generate(
-        _inputSize,
-        (y) => List.generate(
-          _inputSize,
-          (x) {
-            final base = (y * _inputSize + x) * 3;
-            return [inputData[base], inputData[base + 1], inputData[base + 2]];
-          },
-        ),
-      ),
-    ];
-
-    final output = List.generate(
-      300,
-      (_) => List.filled(6, 0.0),
-    ).reshape([1, 300, 6]);
-
-    _interpreter!.run(input, output);
-
-    return output[0] as List<List<double>>;
-  }
-
-  /// Builds the input tensor from a 640×640 RGB image.
-  ///
-  /// The Ultralytics INT8 TFLite export keeps float32 I/O (internal ops are
-  /// quantized but the tensor interface remains float32). Pixels are normalized
-  /// to [0.0, 1.0].
-  Float32List _imageToTensor(img.Image tile) {
-    final data = Float32List(_inputSize * _inputSize * 3);
-    int idx = 0;
+  /// Builds the channels-first `[1, 3, 960, 960]` float input the LiteRT
+  /// export expects, pixels normalized to [0.0, 1.0].
+  Float32List _imageToTensor(img.Image resized) {
+    const plane = _inputSize * _inputSize;
+    final data = Float32List(3 * plane);
+    int i = 0;
     for (int y = 0; y < _inputSize; y++) {
       for (int x = 0; x < _inputSize; x++) {
-        final pixel = tile.getPixel(x, y);
-        data[idx++] = pixel.r.toInt() / 255.0;
-        data[idx++] = pixel.g.toInt() / 255.0;
-        data[idx++] = pixel.b.toInt() / 255.0;
+        final pixel = resized.getPixel(x, y);
+        data[i] = pixel.r / 255.0;
+        data[plane + i] = pixel.g / 255.0;
+        data[2 * plane + i] = pixel.b / 255.0;
+        i++;
       }
     }
     return data;
@@ -232,18 +201,39 @@ class TfliteSymbolDetector implements SymbolDetector {
     MusicSymbol.clefF,
   };
 
-  // Standard music engraving proportions (in inter-line spaces):
+  // Proportions of written clefs, measured on the group's pages (a staff is
+  // 4 spaces tall). They differ from engraved clefs, which are 7 and 3 spaces.
   //
-  // G clef — tall glyph, extends ~2 spaces above line 5 (top staff line)
-  // and ~1 space below line 1 (bottom staff line). Total bbox height ≈ 7
-  // inter-line spaces. The top staff line is ~2 spaces below the clef top.
-  static const _gClefHeightInSpaces = 7.0;
-  static const _gClefSpacesAboveTopLine = 2.0;
+  // G clef — 1.48 staves tall and centred on the staff, so the top staff line
+  // sits ~0.96 spaces below the clef top.
+  static const _gClefHeightInSpaces = 4 * StaffLineTracer.gClefHeightInStaves;
+  static const _gClefSpacesAboveTopLine = _gClefHeightInSpaces / 2 - 2;
 
-  // F clef — compact glyph, roughly 3 inter-line spaces tall. The curl sits
-  // near line 4 (second from top), which is ~0.5 spaces below the clef top.
-  static const _fClefHeightInSpaces = 3.0;
-  static const _fClefSpacesAboveLine4 = 0.5; // line 4 = index 1 from top
+  // F clef — 0.85 staves tall, its middle 0.2 spaces below the staff's, so
+  // the top staff line sits ~0.5 spaces above the clef top.
+  static const _fClefHeightInSpaces = 4 * StaffLineTracer.fClefHeightInStaves;
+  static const _fClefSpacesAboveTopLine =
+      _fClefHeightInSpaces / 2 -
+      StaffLineTracer.fClefMiddleBelowStaffMiddle -
+      2;
+
+  /// A staff for each clef that sits on five traceable lines.
+  List<DetectedStaff> _tracedStaves(
+    List<DetectedSymbol> symbols,
+    img.Image image,
+  ) {
+    final clefs = symbols
+        .where((s) => _clefSymbols.contains(s.musicSymbol))
+        .toList();
+    if (clefs.isEmpty) return const [];
+
+    const tracer = StaffLineTracer();
+    return tracer.stavesAtClefs(tracer.candidates(image), [
+      for (final clef in clefs)
+        if (clef.boundingBox case final box?)
+          (isGClef: clef.musicSymbol == MusicSymbol.clefG, box: box),
+    ]);
+  }
 
   /// Tier-3 staff recovery: any detected clef whose center Y falls outside
   /// every already-known staff is unambiguous evidence of a missed staff.
@@ -270,26 +260,21 @@ class TfliteSymbolDetector implements SymbolDetector {
       final clefCenterY = box.center.dy;
 
       final covered = detectedStaves.any(
-        (s) => clefCenterY >= s.topY && clefCenterY <= s.bottomY,
+        (s) => s.containsY(clefCenterY, x: box.center.dx),
       );
       if (covered) continue;
 
       final List<double> lineYs;
 
       if (clef.musicSymbol == MusicSymbol.clefG) {
-        // lineSpacing derived from the known 7-space total height of the G clef.
         final lineSpacing =
             (box.height / _gClefHeightInSpaces).clamp(8.0, double.infinity);
-        // Top staff line (line 5) sits ~2 spaces below the top of the bbox.
         final topLineY = box.top + _gClefSpacesAboveTopLine * lineSpacing;
         lineYs = List.generate(5, (i) => topLineY + i * lineSpacing);
       } else {
-        // clefF: lineSpacing from the 3-space total height.
         final lineSpacing =
             (box.height / _fClefHeightInSpaces).clamp(8.0, double.infinity);
-        // Line 4 (index 1 from top) sits ~0.5 spaces below the bbox top.
-        final line4Y = box.top + _fClefSpacesAboveLine4 * lineSpacing;
-        final topLineY = line4Y - lineSpacing; // line 5 = one space above line 4
+        final topLineY = box.top + _fClefSpacesAboveTopLine * lineSpacing;
         lineYs = List.generate(5, (i) => topLineY + i * lineSpacing);
       }
 
@@ -459,6 +444,9 @@ class TfliteSymbolDetector implements SymbolDetector {
       ..sort((a, b) => a.topY.compareTo(b.topY)));
   }
 
+  /// Spaces beyond a staff's outer lines within which a symbol is kept.
+  static const _keepSpaces = 2.5;
+
   List<DetectedSymbol> _filterOutsideStaves(
     List<DetectedSymbol> symbols,
     List<DetectedStaff> staves,
@@ -467,101 +455,193 @@ class TfliteSymbolDetector implements SymbolDetector {
     return symbols.where((s) {
       final box = s.boundingBox;
       if (box == null) return true;
-      final centerY = box.center.dy;
-      return staves.any((staff) => centerY >= staff.topY && centerY <= staff.bottomY);
+      return staves.any((staff) {
+        if (staff.lineYs.length < 2) {
+          return staff.containsY(box.center.dy, x: box.center.dx);
+        }
+        // Up to two ledger lines above or below still belongs to the staff.
+        final space =
+            (staff.lineYs.last - staff.lineYs.first) / (staff.lineYs.length - 1);
+        final level = box.center.dy - staff.offsetAt(box.center.dx);
+        return level >= staff.lineYs.first - _keepSpaces * space &&
+            level <= staff.lineYs.last + _keepSpaces * space;
+      });
     }).toList();
   }
 
-  /// Scales [src] to fit within [_inputSize]×[_inputSize] preserving aspect
-  /// ratio, then pads the shorter dimension with gray (114) on both sides —
-  /// the standard Ultralytics YOLOv8 letterbox used during training.
-  ({img.Image image, double scale, int padLeft, int padTop}) _letterbox(
-    img.Image src,
-  ) {
-    final scale = src.width >= src.height
-        ? _inputSize / src.width
-        : _inputSize / src.height;
-
-    final scaledW = (src.width * scale).round();
-    final scaledH = (src.height * scale).round();
-    final padLeft = (_inputSize - scaledW) ~/ 2;
-    final padTop = (_inputSize - scaledH) ~/ 2;
-
-    final resized = img.copyResize(
-      src,
-      width: scaledW,
-      height: scaledH,
-      interpolation: img.Interpolation.linear,
-    );
-
-    final canvas = img.Image(
-      width: _inputSize,
-      height: _inputSize,
-      numChannels: 3,
-    );
-
-    // Fill with gray (114, 114, 114) — standard YOLO padding value.
-    for (int y = 0; y < _inputSize; y++) {
-      for (int x = 0; x < _inputSize; x++) {
-        canvas.setPixelRgb(x, y, 114, 114, 114);
-      }
-    }
-
-    // Stamp the resized image into the centre of the canvas.
-    for (int y = 0; y < scaledH; y++) {
-      for (int x = 0; x < scaledW; x++) {
-        canvas.setPixel(x + padLeft, y + padTop, resized.getPixel(x, y));
-      }
-    }
-
-    return (image: canvas, scale: scale, padLeft: padLeft, padTop: padTop);
-  }
-
-  /// Converts raw model output rows into [DetectedSymbol]s in original-image
-  /// pixel space. Undoes the letterbox transform using [scale], [padLeft],
-  /// and [padTop] so all coordinates are in the pre-letterbox image space.
+  /// Converts raw model output into [DetectedSymbol]s in original-image
+  /// pixel space. Note boxes are shrunk to their notehead so pitch is read
+  /// from the head, not the middle of the stem.
   List<DetectedSymbol> _parseOutput(
-    List<List<double>> rawOutput, {
-    required double scale,
-    required int padLeft,
-    required int padTop,
+    Float32List raw, {
+    required img.Image image,
+    required double scaleX,
+    required double scaleY,
   }) {
+    final decoded = <(int, double, Rect)>[];
+
+    for (int a = 0; a < _anchors; a++) {
+      int classIndex = 0;
+      double confidence = 0;
+      for (int c = 0; c < _classes.length; c++) {
+        final score = raw[(4 + c) * _anchors + a];
+        if (score > confidence) {
+          confidence = score;
+          classIndex = c;
+        }
+      }
+
+      if (confidence < confidenceThresholdFor(_classes[classIndex].$1)) continue;
+
+      final cx = raw[a] * _inputSize * scaleX;
+      final cy = raw[_anchors + a] * _inputSize * scaleY;
+      final w = raw[2 * _anchors + a] * _inputSize * scaleX;
+      final h = raw[3 * _anchors + a] * _inputSize * scaleY;
+      if (w <= 0 || h <= 0) continue;
+
+      decoded.add((
+        classIndex,
+        confidence,
+        Rect.fromCenter(center: Offset(cx, cy), width: w, height: h),
+      ));
+    }
+
+    // Beams only tell beamed notes apart; they are used up here and not
+    // passed on to the mapper.
+    final beams = _nms(
+      [
+        for (final (classIndex, confidence, box) in decoded)
+          if (_classes[classIndex].$1 == MusicSymbol.beam)
+            DetectedSymbol.fromMusicSymbol(
+              id: 'beam',
+              symbol: MusicSymbol.beam,
+              boundingBox: box,
+              confidence: confidence,
+            ),
+      ],
+      iouThreshold: _beamIouThreshold,
+    ).map((beam) => beam.boundingBox!).toList();
+
     final detections = <DetectedSymbol>[];
-    int counter = 0;
 
-    for (final detection in rawOutput) {
-      final classIndex = detection[5].toInt();
-      if (classIndex < 0 || classIndex >= MusicSymbol.values.length) continue;
+    for (var (classIndex, confidence, box) in decoded) {
+      var (symbol, noteType) = _classes[classIndex];
+      if (symbol == MusicSymbol.beam) continue;
+      var beamed = false;
+      if (noteType == 'quarter') {
+        noteType = beamedNoteType(box, beams);
+        beamed = noteType != 'quarter';
+      }
 
-      final symbol = MusicSymbol.values[classIndex];
-      final confidence = detection[4];
-      if (confidence < confidenceThresholdFor(symbol)) continue;
-
-      // Ultralytics YOLO TFLite NMS output: normalized 0–1 coords relative to
-      // the 640×640 letterboxed input. Undo padding then undo the uniform scale
-      // to recover coordinates in the original full-resolution image space.
-      final x1 = (detection[0] * _inputSize - padLeft) / scale;
-      final y1 = (detection[1] * _inputSize - padTop) / scale;
-      final x2 = (detection[2] * _inputSize - padLeft) / scale;
-      final y2 = (detection[3] * _inputSize - padTop) / scale;
-
-      if (x2 <= x1 || y2 <= y1) continue;
+      final fullBox = box;
+      if (noteType != null && noteType != 'whole') {
+        box = noteheadRect(image, box);
+      }
 
       detections.add(
         DetectedSymbol.fromMusicSymbol(
-          id: 'symbol-$counter',
+          id: 'symbol-${detections.length}',
           symbol: symbol,
-          boundingBox: Rect.fromLTRB(x1, y1, x2, y2),
+          boundingBox: box,
           confidence: confidence,
+          metadata: noteType == null
+              ? null
+              : {
+                  'noteType': noteType,
+                  // The editor draws beamed notes with beams, not flags.
+                  if (beamed) 'beamed': true,
+                  // The scan result screen shows what the model boxed.
+                  if (box != fullBox)
+                    DetectedSymbol.fullBoxKey: [
+                      fullBox.left,
+                      fullBox.top,
+                      fullBox.right,
+                      fullBox.bottom,
+                    ],
+                },
         ),
       );
-      counter++;
     }
 
     return detections;
   }
 
-  List<DetectedSymbol> _nms(List<DetectedSymbol> detections) {
+  /// How far past a note box's top and bottom a beam may sit and still count,
+  /// as a fraction of the box height. Stems are often drawn short of the beam.
+  static const double _beamReachRatio = 0.1;
+
+  /// The model labels a beamed note as a quarter note (head + stem) plus
+  /// separate beam boxes: one beam on the note makes it an eighth, two or
+  /// more a sixteenth.
+  // ponytail: box-overlap count, 94% right on MUSCIMA++ ground-truth boxes;
+  // misses stems drawn well short of the beam. Match beams to the stem tip
+  // if beamed rhythms come out wrong.
+  @visibleForTesting
+  static String beamedNoteType(Rect note, List<Rect> beams) {
+    final reach = note.height * _beamReachRatio;
+    final zone = Rect.fromLTRB(
+      note.left,
+      note.top - reach,
+      note.right,
+      note.bottom + reach,
+    );
+    return switch (beams.where(zone.overlaps).length) {
+      0 => 'quarter',
+      1 => 'eighth',
+      _ => 'sixteenth',
+    };
+  }
+
+  /// Fraction of a stemmed note's box height taken as the notehead band.
+  static const double _noteheadBandRatio = 0.3;
+
+  /// Height of the returned notehead box as a fraction of the note box. A
+  /// stemmed note spans ~4 line spacings and a printed head is ~0.65 of one,
+  /// which is what the staff-synthesis fallbacks assume.
+  static const double _noteheadBoxRatio = 0.16;
+
+  /// Returns the notehead of a stemmed note box, centred in whichever end
+  /// band (top or bottom) has more ink. The head is a filled/ringed blob,
+  /// the other end is only a thin stem tip plus flag.
+  // ponytail: ink-density guess, ~95% right on the test set; misses some
+  // wide flagged notes. Train a separate notehead class if pitch errors matter.
+  @visibleForTesting
+  static Rect noteheadRect(img.Image image, Rect box) {
+    final band = box.height * _noteheadBandRatio;
+    final top = Rect.fromLTRB(box.left, box.top, box.right, box.top + band);
+    final bottom = Rect.fromLTRB(
+      box.left,
+      box.bottom - band,
+      box.right,
+      box.bottom,
+    );
+    final head =
+        _meanLuminance(image, top) < _meanLuminance(image, bottom) ? top : bottom;
+    return Rect.fromCenter(
+      center: head.center,
+      width: box.width,
+      height: box.height * _noteheadBoxRatio,
+    );
+  }
+
+  static double _meanLuminance(img.Image image, Rect r) {
+    final x0 = r.left.floor().clamp(0, image.width - 1);
+    final x1 = r.right.ceil().clamp(x0 + 1, image.width);
+    final y0 = r.top.floor().clamp(0, image.height - 1);
+    final y1 = r.bottom.ceil().clamp(y0 + 1, image.height);
+    double sum = 0;
+    for (int y = y0; y < y1; y++) {
+      for (int x = x0; x < x1; x++) {
+        sum += image.getPixel(x, y).luminance;
+      }
+    }
+    return sum / ((x1 - x0) * (y1 - y0));
+  }
+
+  List<DetectedSymbol> _nms(
+    List<DetectedSymbol> detections, {
+    double iouThreshold = _iouThreshold,
+  }) {
     if (detections.isEmpty) return detections;
 
     detections.sort((a, b) => (b.confidence ?? 0).compareTo(a.confidence ?? 0));
@@ -580,7 +660,7 @@ class TfliteSymbolDetector implements SymbolDetector {
         final keptBox = keptDetection.boundingBox;
         if (keptBox == null) continue;
 
-        if (_iou(detectionBox, keptBox) > _iouThreshold) {
+        if (_iou(detectionBox, keptBox) > iouThreshold) {
           suppressed = true;
           break;
         }

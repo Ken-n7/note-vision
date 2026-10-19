@@ -1,6 +1,8 @@
 import '../models/note.dart';
+import '../models/note_value.dart';
 import '../models/rest.dart';
 import '../models/score.dart';
+import 'accidentals.dart';
 
 // ---------------------------------------------------------------------------
 // PlaybackEvent
@@ -105,6 +107,17 @@ class PlaybackConverter {
   int durationMs(int divisions) =>
       (divisions * 30000 ~/ defaultTempo).clamp(50, 16000);
 
+  /// Milliseconds at [defaultTempo] BPM for a length in quarter notes,
+  /// clamped like [durationMs].
+  int quarterMs(double quarters) =>
+      (quarters * 60000 / defaultTempo).round().clamp(50, 16000);
+
+  /// How long a note or rest written as [type] with [dots] sounds at
+  /// [defaultTempo]; sixteenths and dotted eighths included. [divisions] is
+  /// the stored duration, used only for an unknown type.
+  int symbolMs(String type, int dots, int divisions) =>
+      quarterMs(quarterLength(type, dots, divisions));
+
   /// Scales a [baseDurationMs] (computed at [defaultTempo]) to [actualTempo].
   int scaledDuration(int baseDurationMs, int actualTempo) =>
       (baseDurationMs * defaultTempo / actualTempo).round();
@@ -114,22 +127,37 @@ class PlaybackConverter {
   /// Iteration order: parts in index order, each part fully before the next.
   /// Within a part: measures in order, symbols in order.
   /// Notes with unresolvable pitch (unknown step) are skipped silently.
+  ///
+  /// Notes sound as written on the page: a note without its own accidental
+  /// takes the key signature, unless an earlier note of the same pitch in the
+  /// same measure carried an accidental, which holds to the barline.
   List<PlaybackEvent> buildEvents(Score score) {
     final events = <PlaybackEvent>[];
     for (var pi = 0; pi < score.parts.length; pi++) {
       final part = score.parts[pi];
+      final accidentals = Accidentals();
       for (var mi = 0; mi < part.measures.length; mi++) {
         final measure = part.measures[mi];
+        accidentals.startMeasure(measure);
         for (var si = 0; si < measure.symbols.length; si++) {
           final symbol = measure.symbols[si];
           if (symbol is Note) {
-            final midi = noteToMidi(symbol);
+            final midi = noteToMidi(
+              Note(
+                step: symbol.step,
+                octave: symbol.octave,
+                alter: accidentals.sounding(symbol),
+                duration: symbol.duration,
+                type: symbol.type,
+              ),
+            );
             events.add(PlaybackEvent(
               partIndex: pi,
               measureIndex: mi,
               symbolIndex: si,
               midiNote: midi,
-              baseDurationMs: durationMs(symbol.duration),
+              baseDurationMs:
+                  symbolMs(symbol.type, symbol.dots, symbol.duration),
               isChordTone: symbol.isChordTone,
             ));
           } else if (symbol is Rest) {
@@ -138,7 +166,8 @@ class PlaybackConverter {
               measureIndex: mi,
               symbolIndex: si,
               midiNote: -1,
-              baseDurationMs: durationMs(symbol.duration),
+              baseDurationMs:
+                  symbolMs(symbol.type, symbol.dots, symbol.duration),
             ));
           }
         }

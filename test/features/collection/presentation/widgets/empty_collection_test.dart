@@ -40,7 +40,7 @@ void main() {
     expect(find.byKey(const ValueKey('importMusicXmlButton')), findsOneWidget);
     expect(find.byKey(const ValueKey('newScoreButton')), findsOneWidget);
     expect(
-      find.text('Camera scan, file import, or blank score'),
+      find.text('Scans work best on handwritten music, flat and well lit'),
       findsOneWidget,
     );
 

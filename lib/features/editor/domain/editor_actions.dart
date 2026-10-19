@@ -1,6 +1,8 @@
+import 'package:note_vision/core/models/beam_grouping.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
+import 'package:note_vision/core/models/note_value.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
@@ -36,6 +38,10 @@ const DurationSpec halfDuration = DurationSpec('half', 4);
 const DurationSpec quarterDuration = DurationSpec('quarter', 2);
 const DurationSpec eighthDuration = DurationSpec('eighth', 1);
 
+/// The stored duration counts 2 divisions per quarter, so a sixteenth is
+/// stored as 1; its real length comes from its type (see [quarterLength]).
+const DurationSpec sixteenthDuration = DurationSpec('sixteenth', 1);
+
 extension EditorActions on EditorState {
   bool get hasSelection => hasSymbolSelection;
 
@@ -44,6 +50,32 @@ extension EditorActions on EditorState {
   bool get canUndo => undoStack.isNotEmpty;
 
   bool get canRedo => redoStack.isNotEmpty;
+
+  int get musicSymbolCount => score.parts.fold(
+    0,
+    (count, part) =>
+        count +
+        part.measures.fold(
+          0,
+          (count, measure) =>
+              count +
+              measure.symbols
+                  .where((symbol) => symbol is Note || symbol is Rest)
+                  .length,
+        ),
+  );
+
+  /// One undo step for the entire score; keep the current measure available
+  /// for insertion without retaining a selection of a removed symbol.
+  EditorState clearAllSymbols() {
+    final cleared = score.clearAllMusicSymbols();
+    if (identical(cleared, score)) return this;
+    return applyEdit(
+      score: cleared,
+      selectedPartIndex: selectedPartIndex,
+      selectedMeasureIndex: selectedMeasureIndex,
+    );
+  }
 
   EditorState selectSymbolAt({
     required int partIndex,
@@ -97,6 +129,7 @@ extension EditorActions on EditorState {
     if (!hasSelection || selectedSymbol is! Note) return this;
     final note = selectedSymbol as Note;
     final moved = _moveNoteByScaleStep(note, 1);
+    if (identical(moved, note)) return this;
     return _replaceSelectedSymbol(
       moved,
       intent: EditorEditIntent.replaceSelection,
@@ -107,26 +140,55 @@ extension EditorActions on EditorState {
     if (!hasSelection || selectedSymbol is! Note) return this;
     final note = selectedSymbol as Note;
     final moved = _moveNoteByScaleStep(note, -1);
+    if (identical(moved, note)) return this;
     return _replaceSelectedSymbol(
       moved,
       intent: EditorEditIntent.replaceSelection,
     );
   }
 
+  bool canSetSelectedDuration(DurationSpec spec) =>
+      hasEditableSelection &&
+      _canReplaceSelectedSymbolWith(
+        selectedSymbol is Note && (selectedSymbol as Note).isChordTone
+            ? 0
+            : quarterLength(spec.type, 0, spec.divisions),
+      );
+
+  bool get canToggleSelectedDot {
+    final symbol = selectedEditableSymbol;
+    if (symbol == null) return false;
+    if (symbol is Note && symbol.isChordTone) return true;
+    final (type, dots, duration) = switch (symbol) {
+      Note(:final type, :final dots, :final duration) ||
+      Rest(:final type, :final dots, :final duration) => (type, dots, duration),
+      _ => ('', 0, 0),
+    };
+    return noteValueQuarters.containsKey(type) &&
+        _canReplaceSelectedSymbolWith(
+          quarterLength(type, dots > 0 ? 0 : 1, duration),
+        );
+  }
+
   EditorState setSelectedDuration(DurationSpec durationSpec) {
     if (!hasSelection) return this;
 
     final symbol = selectedSymbol;
-    if (!_canReplaceSelectedSymbolWithDuration(durationSpec.divisions)) {
+    if (!canSetSelectedDuration(durationSpec)) {
       return this;
     }
     if (symbol is Note) {
       final isSameDuration =
           symbol.duration == durationSpec.divisions &&
-          symbol.type == durationSpec.type;
+          symbol.type == durationSpec.type &&
+          symbol.dots == 0;
       if (isSameDuration) return this;
+      final canBeam =
+          durationSpec.type == 'eighth' || durationSpec.type == 'sixteenth';
       return _replaceSelectedSymbol(
         Note(
+          source: symbol.source,
+          reviewId: symbol.reviewId,
           step: symbol.step,
           octave: symbol.octave,
           alter: symbol.alter,
@@ -134,6 +196,15 @@ extension EditorActions on EditorState {
           type: durationSpec.type,
           voice: symbol.voice,
           staff: symbol.staff,
+          beamed: canBeam && symbol.beamed,
+          beams: canBeam
+              ? {
+                  for (final entry in symbol.beams.entries)
+                    if (entry.key <= (durationSpec.type == 'eighth' ? 1 : 2))
+                      entry.key: entry.value,
+                }
+              : const {},
+          isChordTone: symbol.isChordTone,
         ),
         intent: EditorEditIntent.replaceSelection,
       );
@@ -142,10 +213,13 @@ extension EditorActions on EditorState {
     if (symbol is Rest) {
       final isSameDuration =
           symbol.duration == durationSpec.divisions &&
-          symbol.type == durationSpec.type;
+          symbol.type == durationSpec.type &&
+          symbol.dots == 0;
       if (isSameDuration) return this;
       return _replaceSelectedSymbol(
         Rest(
+          source: symbol.source,
+          reviewId: symbol.reviewId,
           duration: durationSpec.divisions,
           type: durationSpec.type,
           voice: symbol.voice,
@@ -158,6 +232,36 @@ extension EditorActions on EditorState {
     return this;
   }
 
+  EditorState applyBeamEdits(List<ScoreSymbol> symbols) {
+    if (!hasMeasureContext) return this;
+    final p = selectedPartIndex!;
+    final m = selectedMeasureIndex!;
+    final current = score.parts[p].measures[m].symbols;
+    if (current.length != symbols.length) return this;
+    var next = score;
+    for (var i = 0; i < symbols.length; i++) {
+      if (!identical(current[i], symbols[i])) {
+        next = next.replaceSymbolAt(p, m, i, symbols[i]);
+      }
+    }
+    if (identical(next, score)) return this;
+    final index = selectedSymbolIndex;
+    if (index != null) {
+      return applyEditWithSymbolSelection(
+        score: next,
+        partIndex: p,
+        measureIndex: m,
+        symbolIndex: index,
+        symbol: next.getSymbolAt(p, m, index)!,
+      );
+    }
+    return applyEditWithMeasureContext(
+      score: next,
+      partIndex: p,
+      measureIndex: m,
+    );
+  }
+
   EditorState toggleSelectedDot() {
     if (!hasSelection) return this;
     final symbol = selectedSymbol;
@@ -167,22 +271,25 @@ extension EditorActions on EditorState {
         : symbol is Rest
         ? symbol.type.trim().toLowerCase()
         : null;
-    if (type == null) return this;
-
-    // Dotted eighth = 1.5 divisions — not representable with 2 divs/quarter.
-    const baseDivisions = {'whole': 8, 'half': 4, 'quarter': 2};
-    final base = baseDivisions[type];
-    if (base == null) return this;
+    if (type == null || noteValueQuarters[type] == null) return this;
 
     final currentDots = symbol is Note ? symbol.dots : (symbol as Rest).dots;
     final newDots = currentDots > 0 ? 0 : 1;
-    final newDuration = newDots == 1 ? base + base ~/ 2 : base;
+    final storedDuration = symbol is Note
+        ? symbol.duration
+        : (symbol as Rest).duration;
+    final newQuarters = quarterLength(type, newDots, storedDuration);
+    // The stored duration (2 per quarter) can't hold a dotted eighth or
+    // sixteenth exactly; timing uses the type and dots.
+    final newDuration = (newQuarters * 2).round().clamp(1, 1 << 20);
 
-    if (!_canReplaceSelectedSymbolWithDuration(newDuration)) return this;
+    if (!canToggleSelectedDot) return this;
 
     if (symbol is Note) {
       return _replaceSelectedSymbol(
         Note(
+          source: symbol.source,
+          reviewId: symbol.reviewId,
           step: symbol.step,
           octave: symbol.octave,
           alter: symbol.alter,
@@ -191,6 +298,7 @@ extension EditorActions on EditorState {
           voice: symbol.voice,
           staff: symbol.staff,
           beamed: symbol.beamed,
+          beams: symbol.beams,
           dots: newDots,
           isChordTone: symbol.isChordTone,
         ),
@@ -201,6 +309,8 @@ extension EditorActions on EditorState {
     if (symbol is Rest) {
       return _replaceSelectedSymbol(
         Rest(
+          source: symbol.source,
+          reviewId: symbol.reviewId,
           duration: newDuration,
           type: symbol.type,
           voice: symbol.voice,
@@ -301,14 +411,36 @@ extension EditorActions on EditorState {
         : score.parts.first.measures.length;
     return _applyMeasureContextEdit(
       intent: EditorEditIntent.createPage,
-      score: Score(
-        id: score.id,
-        title: score.title,
-        composer: score.composer,
-        parts: updatedParts,
-      ),
+      score: score.copyWith(parts: updatedParts),
       partIndex: selectedPartIndex ?? 0,
       measureIndex: newMeasureIndex,
+    );
+  }
+
+  /// Sets the time signature from the selected measure on, in every part.
+  EditorState setTimeSignatureAtSelectedMeasure(TimeSignature timeSignature) {
+    if (selectedMeasureIndex == null) return this;
+    // Already in force there: nothing to change or undo.
+    if (selectedMeasureTimeSignature == timeSignature) return this;
+    final nextScore = score.setTimeSignatureAt(
+      selectedMeasureIndex!,
+      timeSignature,
+    );
+    if (identical(nextScore, score)) return this;
+    return _applySelectionPreservingEdit(
+      intent: EditorEditIntent.updateMeasureMetadata,
+      score: nextScore,
+    );
+  }
+
+  /// The time signature in force at the selected measure.
+  TimeSignature? get selectedMeasureTimeSignature {
+    if (selectedMeasureIndex == null || score.parts.isEmpty) return null;
+    final part = (selectedPartIndex ?? 0).clamp(0, score.parts.length - 1);
+    if (selectedMeasureIndex! >= score.parts[part].measures.length) return null;
+    return _activeTimeSignatureForMeasure(
+      partIndex: part,
+      measureIndex: selectedMeasureIndex!,
     );
   }
 
@@ -354,6 +486,8 @@ extension EditorActions on EditorState {
           newClefLine: newClef.line,
         );
         return Note(
+          source: symbol.source,
+          reviewId: symbol.reviewId,
           step: newPitch.step,
           octave: newPitch.octave,
           alter: symbol.alter,
@@ -362,6 +496,7 @@ extension EditorActions on EditorState {
           voice: symbol.voice,
           staff: symbol.staff,
           beamed: symbol.beamed,
+          beams: symbol.beams,
           dots: symbol.dots,
           isChordTone: symbol.isChordTone,
         );
@@ -369,6 +504,8 @@ extension EditorActions on EditorState {
 
       return Measure(
         number: measure.number,
+        reviewId: measure.reviewId,
+        source: measure.source,
         clef: i == 0 ? newClef : null,
         timeSignature: measure.timeSignature,
         keySignature: measure.keySignature,
@@ -387,12 +524,7 @@ extension EditorActions on EditorState {
         measures: updatedMeasures,
       );
 
-    final nextScore = Score(
-      id: score.id,
-      title: score.title,
-      composer: score.composer,
-      parts: updatedParts,
-    );
+    final nextScore = score.copyWith(parts: updatedParts);
 
     return _applySelectionPreservingEdit(
       intent: EditorEditIntent.updateMeasureMetadata,
@@ -449,6 +581,8 @@ extension EditorActions on EditorState {
     if (note.alter == alter) return this;
     return _replaceSelectedSymbol(
       Note(
+        source: note.source,
+        reviewId: note.reviewId,
         step: note.step,
         octave: note.octave,
         alter: alter,
@@ -456,6 +590,10 @@ extension EditorActions on EditorState {
         type: note.type,
         voice: note.voice,
         staff: note.staff,
+        beamed: note.beamed,
+        beams: note.beams,
+        dots: note.dots,
+        isChordTone: note.isChordTone,
       ),
       intent: EditorEditIntent.replaceSelection,
     );
@@ -565,11 +703,6 @@ extension EditorActions on EditorState {
       partIndex: toPartIndex,
       measureIndex: toMeasureIndex,
       symbol: moved,
-      replacingSymbolDuration: sameMeasure
-          ? _symbolDuration(
-              fromMeasures[fromMeasureIndex].symbols[fromSymbolIndex],
-            )
-          : 0,
     )) {
       return this;
     }
@@ -771,13 +904,16 @@ extension EditorActions on EditorState {
     required int partIndex,
     required int measureIndex,
   }) {
+    final next = intent == EditorEditIntent.deleteSelection
+        ? _repairEditedBeams(score)
+        : score;
     switch (intent) {
       case EditorEditIntent.deleteMeasure:
       case EditorEditIntent.createMeasure:
       case EditorEditIntent.createPage:
       case EditorEditIntent.deleteSelection:
         return applyEditWithMeasureContext(
-          score: score,
+          score: next,
           partIndex: partIndex,
           measureIndex: measureIndex,
         );
@@ -798,6 +934,14 @@ extension EditorActions on EditorState {
     required int symbolIndex,
     required ScoreSymbol symbol,
   }) {
+    final changedValue =
+        selectedSymbol is Note &&
+        symbol is Note &&
+        BeamGrouping.levels(selectedSymbol as Note) !=
+            BeamGrouping.levels(symbol);
+    final next = intent != EditorEditIntent.replaceSelection || changedValue
+        ? _repairEditedBeams(score)
+        : score;
     switch (intent) {
       case EditorEditIntent.replaceSelection:
       case EditorEditIntent.appendToMeasure:
@@ -807,11 +951,12 @@ extension EditorActions on EditorState {
       case EditorEditIntent.reorderWithinMeasure:
       case EditorEditIntent.deleteSelection:
         return applyEditWithSymbolSelection(
-          score: score,
+          score: next,
           partIndex: partIndex,
           measureIndex: measureIndex,
           symbolIndex: symbolIndex,
-          symbol: symbol,
+          symbol:
+              next.getSymbolAt(partIndex, measureIndex, symbolIndex) ?? symbol,
         );
       default:
         throw ArgumentError.value(
@@ -826,10 +971,25 @@ extension EditorActions on EditorState {
     required EditorEditIntent intent,
     required Score score,
   }) {
+    final next = intent == EditorEditIntent.reorderWithinMeasure
+        ? _repairEditedBeams(score)
+        : score;
     switch (intent) {
       case EditorEditIntent.updateMeasureMetadata:
       case EditorEditIntent.reorderWithinMeasure:
-        return applyEditPreservingSelection(score: score);
+        return applyEdit(
+          score: next,
+          selectedPartIndex: selectedPartIndex,
+          selectedMeasureIndex: selectedMeasureIndex,
+          selectedSymbolIndex: selectedSymbolIndex,
+          selectedSymbol: hasSymbolSelection
+              ? next.getSymbolAt(
+                  selectedPartIndex!,
+                  selectedMeasureIndex!,
+                  selectedSymbolIndex!,
+                )
+              : null,
+        );
       default:
         throw ArgumentError.value(
           intent,
@@ -839,20 +999,38 @@ extension EditorActions on EditorState {
     }
   }
 
-  bool _canReplaceSelectedSymbolWithDuration(int nextDuration) {
+  Score _repairEditedBeams(Score candidate) {
+    var next = candidate;
+    for (var p = 0; p < candidate.parts.length; p++) {
+      for (var m = 0; m < candidate.parts[p].measures.length; m++) {
+        final symbols = candidate.parts[p].measures[m].symbols;
+        final oldSymbols =
+            p < score.parts.length && m < score.parts[p].measures.length
+            ? score.parts[p].measures[m].symbols
+            : null;
+        if (identical(symbols, oldSymbols)) continue;
+        final repaired = BeamGrouping.repairExplicit(symbols);
+        if (identical(repaired, symbols)) continue;
+        for (var i = 0; i < symbols.length; i++) {
+          if (!identical(symbols[i], repaired[i])) {
+            next = next.replaceSymbolAt(p, m, i, repaired[i]);
+          }
+        }
+      }
+    }
+    return next;
+  }
+
+  bool _canReplaceSelectedSymbolWith(double nextQuarters) {
     if (!hasEditableSelection) {
       return false;
     }
 
-    final partIndex = selectedPartIndex!;
-    final measureIndex = selectedMeasureIndex!;
-    final currentDuration = _symbolDuration(selectedSymbol!);
-
-    return _canMeasureAcceptDuration(
-      partIndex: partIndex,
-      measureIndex: measureIndex,
-      nextDuration: nextDuration,
-      replacingDuration: currentDuration,
+    return _canMeasureAcceptQuarters(
+      partIndex: selectedPartIndex!,
+      measureIndex: selectedMeasureIndex!,
+      nextQuarters: nextQuarters,
+      replacingQuarters: _symbolQuarters(selectedSymbol!),
     );
   }
 
@@ -860,68 +1038,50 @@ extension EditorActions on EditorState {
     required int partIndex,
     required int measureIndex,
     required ScoreSymbol symbol,
-    int replacingSymbolDuration = 0,
   }) {
-    return _canMeasureAcceptDuration(
+    return _canMeasureAcceptQuarters(
       partIndex: partIndex,
       measureIndex: measureIndex,
-      nextDuration: _symbolDuration(symbol),
-      replacingDuration: replacingSymbolDuration,
+      nextQuarters: _symbolQuarters(symbol),
+      replacingQuarters: 0,
     );
   }
 
-  bool _canMeasureAcceptDuration({
+  bool _canMeasureAcceptQuarters({
     required int partIndex,
     required int measureIndex,
-    required int nextDuration,
-    required int replacingDuration,
-  }) {
-    final capacity = _measureCapacityDuration(
-      partIndex: partIndex,
-      measureIndex: measureIndex,
-    );
-    if (capacity == null || nextDuration <= 0) {
-      return true;
-    }
-
-    final used = _measureUsedDuration(
-      partIndex: partIndex,
-      measureIndex: measureIndex,
-    );
-    return used - replacingDuration + nextDuration <= capacity;
-  }
-
-  int _measureUsedDuration({
-    required int partIndex,
-    required int measureIndex,
-  }) {
-    final measure = score.parts[partIndex].measures[measureIndex];
-    return measure.symbols.fold<int>(
-      0,
-      (sum, symbol) => sum + _symbolDuration(symbol),
-    );
-  }
-
-  int? _measureCapacityDuration({
-    required int partIndex,
-    required int measureIndex,
+    required double nextQuarters,
+    required double replacingQuarters,
   }) {
     final timeSignature = _activeTimeSignatureForMeasure(
       partIndex: partIndex,
       measureIndex: measureIndex,
     );
-    if (timeSignature == null) {
-      return null;
+    if (timeSignature == null || nextQuarters <= 0) {
+      return true;
     }
 
-    return (wholeDuration.divisions * timeSignature.beats) ~/
-        timeSignature.beatType;
+    final capacity = timeSignature.beats * 4 / timeSignature.beatType;
+    final used = score.parts[partIndex].measures[measureIndex].symbols
+        .fold<double>(0, (sum, symbol) => sum + _symbolQuarters(symbol));
+    return used - replacingQuarters + nextQuarters <= capacity + 1e-9;
   }
 
-  int _symbolDuration(ScoreSymbol symbol) {
+  /// Time a symbol takes in its measure, in quarter notes. A chord tone
+  /// sounds with the note before it, so it takes none.
+  double _symbolQuarters(ScoreSymbol symbol) {
     return switch (symbol) {
-      Note(:final duration) => duration,
-      Rest(:final duration) => duration,
+      Note(isChordTone: true) => 0,
+      Note(:final type, :final dots, :final duration) => quarterLength(
+        type,
+        dots,
+        duration,
+      ),
+      Rest(:final type, :final dots, :final duration) => quarterLength(
+        type,
+        dots,
+        duration,
+      ),
       _ => 0,
     };
   }
@@ -960,13 +1120,22 @@ Note _moveNoteByScaleStep(Note note, int steps) {
     nextOctave += 1;
   }
 
+  // Past the range the editor shows, the note stays where it is.
+  if (nextOctave < 1 || nextOctave > 7) return note;
+
   return Note(
+    source: note.source,
+    reviewId: note.reviewId,
     step: stepsByName[nextIndex],
-    octave: nextOctave.clamp(1, 7),
+    octave: nextOctave,
     alter: note.alter,
     duration: note.duration,
     type: note.type,
     voice: note.voice,
     staff: note.staff,
+    beamed: note.beamed,
+    beams: note.beams,
+    dots: note.dots,
+    isChordTone: note.isChordTone,
   );
 }

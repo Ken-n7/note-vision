@@ -8,6 +8,9 @@ class AppColors {
   static const Color accent = Color(0xFFD4A96A);
   static const Color textPrimary = Color(0xFFFFFFFF);
   static const Color textSecondary = Color(0xFF8A8A8A);
+
+  /// Destructive actions and errors (delete, failed import, invalid input).
+  static const Color error = Color(0xFFE05252);
 }
 
 class AppTheme {

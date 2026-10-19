@@ -112,10 +112,12 @@ class PlaybackPosition {
 /// await PlaybackService.instance.play(score);
 /// PlaybackService.instance.pause();
 /// PlaybackService.instance.resume();
-/// PlaybackService.instance.stop();
+/// PlaybackService.instance.stop();       // on screen dispose
 /// PlaybackService.instance.setTempo(90);
-/// PlaybackService.instance.dispose();    // on screen dispose
 /// ```
+///
+/// [dispose] closes the streams of this app-wide instance; only tests call
+/// it. Screens call [stop] when they close.
 ///
 /// Soundfont requirement
 /// ---------------------
@@ -126,7 +128,11 @@ class PlaybackPosition {
 ///   • TimGM6mb.sf2          – from MuseScore / Timidity++ project
 ///   • GeneralUser GS v1.471.sf2  – schristiancollins.com
 class PlaybackService {
-  PlaybackService._();
+  PlaybackService._({MidiPro? midi}) : _midi = midi ?? MidiPro();
+
+  @visibleForTesting
+  factory PlaybackService.forTesting(MidiPro midi) =>
+      PlaybackService._(midi: midi);
 
   static final PlaybackService instance = PlaybackService._();
 
@@ -138,7 +144,7 @@ class PlaybackService {
   static const int _velocity = 90;
 
   // ── Dependencies ────────────────────────────────────────────────────────
-  final MidiPro _midi = MidiPro();
+  final MidiPro _midi;
   final _converter = const PlaybackConverter();
   int? _sfId;
   bool _initialized = false;
@@ -156,7 +162,15 @@ class PlaybackService {
   Completer<bool>? _waitCompleter;
 
   List<PlaybackEvent> _events = const [];
+  Score? _playingScore;
+  PlaybackPosition _position = PlaybackPosition.none;
   int _currentEventIndex = 0;
+
+  /// Counts playback loops. A loop that wakes up after a newer one started
+  /// (play() while playing, as when seeking) must leave the notes and the
+  /// state to the newer loop.
+  int _loopRun = 0;
+  int _playRequest = 0;
   final List<int> _activeMidiNotes = <int>[];
 
   // ── Streams ────────────────────────────────────────────────────────────
@@ -168,6 +182,7 @@ class PlaybackService {
 
   PlaybackStatus get status => _status;
   int get tempo => _tempo;
+  PlaybackPosition get position => _position;
 
   // Emit a state directly — used only in tests to simulate playback transitions.
   @visibleForTesting
@@ -178,7 +193,7 @@ class PlaybackService {
 
   @visibleForTesting
   void emitPositionForTesting(PlaybackPosition position) {
-    _positionController.add(position);
+    _emitPosition(position);
   }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────
@@ -210,6 +225,7 @@ class PlaybackService {
         program: _program,
       );
       _initialized = true;
+      if (_status == PlaybackStatus.error) _emitState(PlaybackStatus.stopped);
     } catch (e) {
       _initialized = false;
       _sfId = null;
@@ -227,20 +243,56 @@ class PlaybackService {
 
   // ── Playback control ───────────────────────────────────────────────────
 
-  /// Starts playback from [fromMeasureIndex] (default 0 = beginning).
-  /// Safe to call while already playing (stops previous playback first).
-  Future<void> play(Score score, {int fromMeasureIndex = 0}) async {
-    if (_status == PlaybackStatus.playing) stop();
-    if (!_initialized) await init();
-    if (_status == PlaybackStatus.error) return;
+  /// Index of the first event at or after measure [measureIndex] of part
+  /// [partIndex]. Events run part by part, so earlier parts are skipped.
+  static int startIndex(
+    List<PlaybackEvent> events, {
+    required int partIndex,
+    required int measureIndex,
+  }) {
+    final i = events.indexWhere(
+      (e) =>
+          e.partIndex > partIndex ||
+          (e.partIndex == partIndex && e.measureIndex >= measureIndex),
+    );
+    return i < 0 ? 0 : i;
+  }
 
+  /// Starts playback from measure [fromMeasureIndex] of part [fromPartIndex]
+  /// (default: the beginning), then carries on through the later parts.
+  /// Safe to call while already playing (stops previous playback first).
+  Future<void> play(
+    Score score, {
+    int fromMeasureIndex = 0,
+    int fromPartIndex = 0,
+    int? throughMeasureIndex,
+  }) async {
+    if (_status == PlaybackStatus.playing || _status == PlaybackStatus.paused) {
+      stop();
+    }
+    final request = ++_playRequest;
+    if (!_initialized) await init();
+    if (request != _playRequest || _status == PlaybackStatus.error) return;
+
+    _playingScore = score;
     _events = _converter.buildEvents(score);
+    if (throughMeasureIndex != null) {
+      _events = _events
+          .where(
+            (event) =>
+                event.partIndex == fromPartIndex &&
+                event.measureIndex >= fromMeasureIndex &&
+                event.measureIndex <= throughMeasureIndex,
+          )
+          .toList();
+    }
     if (_events.isEmpty) return;
 
-    _currentEventIndex = fromMeasureIndex <= 0
-        ? 0
-        : _events.indexWhere((e) => e.measureIndex >= fromMeasureIndex);
-    if (_currentEventIndex < 0) _currentEventIndex = 0;
+    _currentEventIndex = startIndex(
+      _events,
+      partIndex: fromPartIndex,
+      measureIndex: fromMeasureIndex,
+    );
 
     _shouldPlay = true;
     _emitState(PlaybackStatus.playing);
@@ -256,21 +308,93 @@ class PlaybackService {
     _emitState(PlaybackStatus.paused);
   }
 
-  void resume() {
+  /// Cue a measure without starting audio when stopped or paused.
+  Future<void> seek(
+    Score score, {
+    int fromMeasureIndex = 0,
+    int fromPartIndex = 0,
+  }) async {
+    if (_status == PlaybackStatus.playing) {
+      await play(
+        score,
+        fromMeasureIndex: fromMeasureIndex,
+        fromPartIndex: fromPartIndex,
+      );
+      return;
+    }
+    _playRequest++;
+    _loopRun++;
+    _playingScore = score;
+    _events = _converter.buildEvents(score);
+    if (_events.isEmpty) {
+      stop();
+      return;
+    }
+    _currentEventIndex = startIndex(
+      _events,
+      partIndex: fromPartIndex,
+      measureIndex: fromMeasureIndex,
+    );
+    _emitPosition(_positionAt(_currentEventIndex));
+  }
+
+  void resume({Score? score}) {
     if (_status != PlaybackStatus.paused) return;
+    if (score != null && _currentEventIndex < _events.length) {
+      final previous = _events[_currentEventIndex];
+      final symbolId = _playingScore
+          ?.getSymbolAt(
+            previous.partIndex,
+            previous.measureIndex,
+            previous.symbolIndex,
+          )
+          ?.toJson()['reviewId'];
+      final events = _converter.buildEvents(score);
+      var index = symbolId == null
+          ? -1
+          : events.indexWhere(
+              (event) =>
+                  score
+                      .getSymbolAt(
+                        event.partIndex,
+                        event.measureIndex,
+                        event.symbolIndex,
+                      )
+                      ?.toJson()['reviewId'] ==
+                  symbolId,
+            );
+      if (index < 0) {
+        index = events.indexWhere(
+          (event) =>
+              event.partIndex > previous.partIndex ||
+              (event.partIndex == previous.partIndex &&
+                  (event.measureIndex > previous.measureIndex ||
+                      (event.measureIndex == previous.measureIndex &&
+                          event.symbolIndex >= previous.symbolIndex))),
+        );
+      }
+      if (index < 0) {
+        stop();
+        return;
+      }
+      _events = events;
+      _currentEventIndex = index;
+      _playingScore = score;
+    }
     _shouldPlay = true;
     _emitState(PlaybackStatus.playing);
     _runLoop();
   }
 
   void stop() {
-    if (_status == PlaybackStatus.stopped) return;
+    _playRequest++;
+    if (_status == PlaybackStatus.stopped && _position.isNone) return;
     _shouldPlay = false;
     _interruptWait();
     _stopCurrentNote();
     _currentEventIndex = 0;
     _emitState(PlaybackStatus.stopped);
-    _positionController.add(PlaybackPosition.none);
+    _emitPosition(PlaybackPosition.none);
   }
 
   /// Updates playback tempo in BPM. Takes effect on the next note boundary.
@@ -292,34 +416,12 @@ class PlaybackService {
   // ── Internal playback loop ─────────────────────────────────────────────
 
   void _runLoop() async {
+    final run = ++_loopRun;
     while (_shouldPlay && _currentEventIndex < _events.length) {
       final event = _events[_currentEventIndex];
       final groupEnd = _eventGroupEnd(_currentEventIndex);
-      final nextEvent = groupEnd < _events.length ? _events[groupEnd] : null;
       final ms = _converter.scaledDuration(event.baseDurationMs, _tempo);
-      final measureElapsedMs = _converter.scaledDuration(
-        _measureElapsedBaseDuration(_currentEventIndex),
-        _tempo,
-      );
-      final measureDurationMs = _converter.scaledDuration(
-        _measureBaseDuration(_currentEventIndex),
-        _tempo,
-      );
-
-      // Emit current score position for the viewer highlight.
-      _positionController.add(
-        PlaybackPosition(
-          partIndex: event.partIndex,
-          measureIndex: event.measureIndex,
-          symbolIndex: event.symbolIndex,
-          durationMs: ms,
-          measureElapsedMs: measureElapsedMs,
-          measureDurationMs: measureDurationMs,
-          nextPartIndex: nextEvent?.partIndex,
-          nextMeasureIndex: nextEvent?.measureIndex,
-          nextSymbolIndex: nextEvent?.symbolIndex,
-        ),
-      );
+      _emitPosition(_positionAt(_currentEventIndex));
 
       _activeMidiNotes.clear();
 
@@ -332,18 +434,21 @@ class PlaybackService {
         for (var i = _currentEventIndex; i < groupEnd; i++) {
           final groupedEvent = _events[i];
           if (groupedEvent.isRest) continue;
-          unawaited(_midi.playNote(
-            sfId: _sfId!,
-            channel: _midiChannel,
-            key: groupedEvent.midiNote,
-            velocity: _velocity,
-          ));
+          unawaited(
+            _midi.playNote(
+              sfId: _sfId!,
+              channel: _midiChannel,
+              key: groupedEvent.midiNote,
+              velocity: _velocity,
+            ),
+          );
           _activeMidiNotes.add(groupedEvent.midiNote);
         }
       }
 
       // Wait for duration, scaled to current tempo.
       final completed = await _waitMs(ms);
+      if (run != _loopRun) return; // a newer loop owns playback now
 
       // Stop notes without awaiting — same reason as playNote above.
       // _stopActiveNotes() copies _activeMidiNotes before clearing it so the
@@ -359,8 +464,36 @@ class PlaybackService {
       _shouldPlay = false;
       _currentEventIndex = 0;
       _emitState(PlaybackStatus.stopped);
-      _positionController.add(PlaybackPosition.none);
+      _emitPosition(PlaybackPosition.none);
     }
+  }
+
+  void _emitPosition(PlaybackPosition position) {
+    _position = position;
+    _positionController.add(position);
+  }
+
+  PlaybackPosition _positionAt(int index) {
+    final event = _events[index];
+    final end = _eventGroupEnd(index);
+    final next = end < _events.length ? _events[end] : null;
+    return PlaybackPosition(
+      partIndex: event.partIndex,
+      measureIndex: event.measureIndex,
+      symbolIndex: event.symbolIndex,
+      durationMs: _converter.scaledDuration(event.baseDurationMs, _tempo),
+      measureElapsedMs: _converter.scaledDuration(
+        _measureElapsedBaseDuration(index),
+        _tempo,
+      ),
+      measureDurationMs: _converter.scaledDuration(
+        _measureBaseDuration(index),
+        _tempo,
+      ),
+      nextPartIndex: next?.partIndex,
+      nextMeasureIndex: next?.measureIndex,
+      nextSymbolIndex: next?.symbolIndex,
+    );
   }
 
   // ── Timer helpers ──────────────────────────────────────────────────────

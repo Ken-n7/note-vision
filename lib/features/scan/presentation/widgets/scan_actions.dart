@@ -14,7 +14,7 @@ class ScanActions extends StatelessWidget {
     required this.onContinue,
     this.onImport,
     this.canContinue = true,
-    this.redoLabel = 'Redo',
+    this.redoLabel = 'Retake',
   });
 
   static const _bg = Color(0xFF0D0D0D);
@@ -82,7 +82,7 @@ class ScanActions extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.redo_outlined, size: 18, color: _textMuted),
+              const Icon(Icons.refresh_rounded, size: 18, color: _textMuted),
               const SizedBox(width: 8),
               Text(
                 redoLabel,

@@ -10,6 +10,7 @@ import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
+import 'package:note_vision/core/widgets/score_notation/score_notation_metrics.dart';
 import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 
@@ -240,7 +241,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('taps resolve note and rest targets with 24dp hit areas', (
+    testWidgets('symbol hit areas work alongside blank-measure selection', (
       tester,
     ) async {
       final score = Score(
@@ -265,6 +266,7 @@ void main() {
       );
 
       final taps = <(int, int)>[];
+      final measureTaps = <(int, int)>[];
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -273,6 +275,10 @@ void main() {
               onSymbolTap: (target) {
                 if (target == null) return;
                 taps.add((target.measureIndex, target.symbolIndex));
+              },
+              onMeasureTap: (target) {
+                if (target == null) return;
+                measureTaps.add((target.partIndex, target.measureIndex));
               },
             ),
           ),
@@ -289,6 +295,14 @@ void main() {
       await tester.pump();
 
       expect(taps, equals([(0, 0), (0, 1)]));
+      expect(measureTaps, isEmpty);
+      await tester.tapAt(
+        origin +
+            _symbolCenterOffset(score, measureIndex: 0, symbolIndex: 0) +
+            const Offset(0, -50),
+      );
+      await tester.pump();
+      expect(measureTaps, [(0, 0)]);
     });
 
     testWidgets('long-press drag reorders symbols within the same measure', (
@@ -652,6 +666,84 @@ void main() {
       expect(
         slice.parts[1].single.keySignature,
         const KeySignature(fifths: -1),
+      );
+    });
+
+    test('time signatures show at the start and where they change', () {
+      final measures = [
+        const Measure(
+          number: 1,
+          timeSignature: TimeSignature(beats: 3, beatType: 4),
+          symbols: [],
+        ),
+        // A saved score's own copy of 3/4 is equal, so it is not shown again.
+        Measure(
+          number: 2,
+          timeSignature: TimeSignature.fromJson(const {
+            'beats': 3,
+            'beatType': 4,
+          }),
+          symbols: const [],
+        ),
+        const Measure(
+          number: 3,
+          timeSignature: TimeSignature(beats: 2, beatType: 4),
+          symbols: [],
+        ),
+        const Measure(
+          number: 4,
+          timeSignature: TimeSignature(beats: 3, beatType: 4),
+          keySignature: KeySignature(fifths: -4),
+          symbols: [],
+        ),
+      ];
+
+      expect(
+        [
+          for (var i = 0; i < measures.length; i++)
+            ScoreNotationMetrics.showsTimeSignature(measures, i),
+        ],
+        [true, false, true, true],
+      );
+      bool inMeasure(int index, int measureInRow) =>
+          ScoreNotationMetrics.timeSignatureInMeasure(
+            measures,
+            index,
+            measureInRow: measureInRow,
+            rowPrefixWidth: 86,
+          );
+      // A row start in C major has room before the barline; mid-row and
+      // after four flats the time signature goes inside the measure.
+      expect(inMeasure(0, 0), isFalse);
+      expect(inMeasure(2, 2), isTrue);
+      expect(inMeasure(3, 0), isTrue);
+    });
+
+    test('notes move right of a time signature inside their measure', () {
+      Measure bar(int number, TimeSignature time) => Measure(
+        number: number,
+        timeSignature: time,
+        symbols: const [
+          Note(step: 'B', octave: 4, duration: 2, type: 'quarter'),
+        ],
+      );
+      double secondNoteX(TimeSignature time) =>
+          ScoreNotationPainter.buildSymbolTargets(
+            parts: [
+              [bar(1, const TimeSignature(beats: 4, beatType: 4)), bar(2, time)],
+            ],
+            measuresPerRow: 4,
+            minMeasureWidth: 140,
+            rowHeight: 140,
+            padding: const EdgeInsets.all(16),
+            rowPrefixWidth: 86,
+          ).last.center.dx;
+
+      // One note sits mid-lane, so it moves half the time signature's room.
+      expect(
+        secondNoteX(const TimeSignature(beats: 3, beatType: 4)) -
+            secondNoteX(const TimeSignature(beats: 4, beatType: 4)),
+        closeTo(ScoreNotationMetrics.timeSignatureWidth / 2, 1e-9),
       );
     });
   });

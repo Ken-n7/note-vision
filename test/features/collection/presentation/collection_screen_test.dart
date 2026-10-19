@@ -137,7 +137,9 @@ void main() {
 
       expect(find.text('Symphony No. 1'), findsOneWidget);
       expect(find.text('Moonlight Sonata'), findsOneWidget);
-      expect(find.text('Simple Melody'), findsNWidgets(2));
+      // The cards name only the genre model's genres; a 4/4 melody is Jazz.
+      expect(find.text('Jazz'), findsNWidgets(2));
+      expect(find.text('Simple Melody'), findsNothing);
       expect(find.text('2 projects'), findsOneWidget);
     });
 

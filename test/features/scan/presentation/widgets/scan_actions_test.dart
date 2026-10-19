@@ -19,7 +19,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Redo'), findsOneWidget);
+    expect(find.text('Retake'), findsOneWidget);
     expect(find.text('Import'), findsOneWidget);
     expect(find.text('Continue'), findsOneWidget);
     expect(tester.takeException(), isNull);

@@ -1,10 +1,14 @@
+import 'score_review.dart';
 import 'dart:math' as math;
 
 import 'barline_type.dart';
 import 'clef.dart';
 import 'measure.dart';
+import 'note.dart';
 import 'part.dart';
+import 'rest.dart';
 import 'score_symbol.dart';
+import 'time_signature.dart';
 
 class Score {
   static const Object _keep = Object();
@@ -13,12 +17,16 @@ class Score {
   final String title;
   final String composer;
   final List<Part> parts;
+  final List<ScoreSourcePage> sourcePages;
+  final List<ScoreReviewEntry> reviewHistory;
 
   const Score({
     required this.id,
     required this.title,
     required this.composer,
     required this.parts,
+    this.sourcePages = const [],
+    this.reviewHistory = const [],
   });
 
   Map<String, dynamic> toJson() => {
@@ -26,21 +34,79 @@ class Score {
     'title': title,
     'composer': composer,
     'parts': parts.map((p) => p.toJson()).toList(),
+    if (sourcePages.isNotEmpty)
+      'sourcePages': sourcePages.map((p) => p.toJson()).toList(),
+    if (reviewHistory.isNotEmpty)
+      'reviewHistory': reviewHistory.map((e) => e.toJson()).toList(),
   };
 
   factory Score.fromJson(Map<String, dynamic> json) => Score(
     id: json['id'] as String,
     title: json['title'] as String,
     composer: (json['composer'] as String?) ?? '',
+    sourcePages: (json['sourcePages'] as List? ?? [])
+        .map(
+          (p) => ScoreSourcePage.fromJson(Map<String, dynamic>.from(p as Map)),
+        )
+        .toList(),
+    reviewHistory: (json['reviewHistory'] as List? ?? [])
+        .map(
+          (e) => ScoreReviewEntry.fromJson(Map<String, dynamic>.from(e as Map)),
+        )
+        .toList(),
     parts: (json['parts'] as List<dynamic>)
         .map((p) => Part.fromJson(p as Map<String, dynamic>))
         .toList(),
+  );
+
+  Score copyWith({
+    String? title,
+    String? composer,
+    List<Part>? parts,
+    List<ScoreSourcePage>? sourcePages,
+    List<ScoreReviewEntry>? reviewHistory,
+  }) => Score(
+    id: id,
+    title: title ?? this.title,
+    composer: composer ?? this.composer,
+    parts: parts ?? this.parts,
+    sourcePages: sourcePages ?? this.sourcePages,
+    reviewHistory: reviewHistory ?? this.reviewHistory,
   );
 
   int get partCount => parts.length;
 
   int get totalMeasures =>
       parts.fold(0, (sum, part) => sum + part.measures.length);
+
+  /// Clears musical content while keeping the score's structure and evidence.
+  /// Structural symbols stored inside a measure are preserved too.
+  Score clearAllMusicSymbols() {
+    var changed = false;
+    final updatedParts = <Part>[];
+    for (final part in parts) {
+      var partChanged = false;
+      final measures = <Measure>[];
+      for (final measure in part.measures) {
+        final symbols = measure.symbols
+            .where((s) => s is! Note && s is! Rest)
+            .toList();
+        if (symbols.length == measure.symbols.length) {
+          measures.add(measure);
+        } else {
+          partChanged = true;
+          measures.add(_copyMeasure(measure, symbols: symbols));
+        }
+      }
+      changed |= partChanged;
+      updatedParts.add(
+        partChanged
+            ? Part(id: part.id, name: part.name, measures: measures)
+            : part,
+      );
+    }
+    return changed ? copyWith(parts: updatedParts) : this;
+  }
 
   ScoreSymbol? getSymbolAt(int partIndex, int measureIndex, int symbolIndex) {
     final measure = _measureAt(partIndex, measureIndex);
@@ -89,6 +155,23 @@ class Score {
     return _replaceMeasureSymbols(partIndex, measureIndex, symbols);
   }
 
+  /// Sets the time signature of measure [measureIndex] in every part: a
+  /// time signature applies to all staves alike. It holds until the next
+  /// measure that sets one.
+  Score setTimeSignatureAt(int measureIndex, TimeSignature timeSignature) {
+    var next = this;
+    for (var p = 0; p < parts.length; p++) {
+      final measure = next._measureAt(p, measureIndex);
+      if (measure == null || measure.timeSignature == timeSignature) continue;
+      next = next._replaceMeasure(
+        p,
+        measureIndex,
+        next._copyMeasure(measure, timeSignature: timeSignature),
+      );
+    }
+    return next;
+  }
+
   Score setMeasureClef(int partIndex, int measureIndex, Clef? clef) {
     final measure = _measureAt(partIndex, measureIndex);
     if (measure == null) return this;
@@ -134,7 +217,15 @@ class Score {
         ),
       );
     }
-    return Score(id: id, title: title, composer: composer, parts: updatedParts);
+    return copyWith(
+      parts: updatedParts,
+      sourcePages: [
+        ...sourcePages,
+        ...other.sourcePages.where(
+          (p) => !sourcePages.any((own) => own.id == p.id),
+        ),
+      ],
+    );
   }
 
   /// Inserts a new empty measure immediately after [measureIndex] in every
@@ -162,18 +253,20 @@ class Score {
       );
     }
 
-    return Score(id: id, title: title, composer: composer, parts: updatedParts);
+    return copyWith(parts: updatedParts);
   }
 
   /// Removes the measure at [measureIndex] from every part and renumbers.
-  /// The caller is responsible for ensuring more than one measure exists —
-  /// this method does no safety checks.
+  /// The caller is responsible for ensuring more than one measure exists.
+  /// A part too short to have that measure (imported parts can differ in
+  /// length) is left as it is.
   Score deleteMeasureFromAllParts(int measureIndex) {
     if (parts.isEmpty) return this;
 
     final updatedParts = List<Part>.from(parts);
     for (int pi = 0; pi < updatedParts.length; pi++) {
       final part = updatedParts[pi];
+      if (measureIndex < 0 || measureIndex >= part.measures.length) continue;
       final measures = List<Measure>.from(part.measures)
         ..removeAt(measureIndex);
 
@@ -184,7 +277,7 @@ class Score {
       );
     }
 
-    return Score(id: id, title: title, composer: composer, parts: updatedParts);
+    return copyWith(parts: updatedParts);
   }
 
   Score reorderSymbol(
@@ -243,7 +336,7 @@ class Score {
       measures: updatedMeasures,
     );
 
-    return Score(id: id, title: title, composer: composer, parts: updatedParts);
+    return copyWith(parts: updatedParts);
   }
 
   List<Measure> _renumberMeasures(List<Measure> measures) {
@@ -257,18 +350,25 @@ class Score {
     Measure measure, {
     int? number,
     Object? clef = _keep,
+    Object? timeSignature = _keep,
     List<ScoreSymbol>? symbols,
     bool? startsNewPage,
+    bool? startsNewSystem,
     Object? leftBarlineType = _keep,
     Object? rightBarlineType = _keep,
   }) {
     return Measure(
       number: number ?? measure.number,
+      reviewId: measure.reviewId,
+      source: measure.source,
       clef: identical(clef, _keep) ? measure.clef : clef as Clef?,
-      timeSignature: measure.timeSignature,
+      timeSignature: identical(timeSignature, _keep)
+          ? measure.timeSignature
+          : timeSignature as TimeSignature?,
       keySignature: measure.keySignature,
       symbols: symbols ?? measure.symbols,
       startsNewPage: startsNewPage ?? measure.startsNewPage,
+      startsNewSystem: startsNewSystem ?? measure.startsNewSystem,
       leftBarlineType: identical(leftBarlineType, _keep)
           ? measure.leftBarlineType
           : leftBarlineType as BarlineType?,

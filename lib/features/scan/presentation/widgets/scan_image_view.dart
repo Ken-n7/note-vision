@@ -5,7 +5,10 @@ import 'detection_overlay.dart';
 class ScanImageView extends StatelessWidget {
   final ScanResult result;
 
-  const ScanImageView({super.key, required this.result});
+  /// The scanned score's label (genre model, else the rules); null hides it.
+  final String? genre;
+
+  const ScanImageView({super.key, required this.result, this.genre});
 
   // ── Design tokens ──────────────────────────────────────────────────────────
   static const _surface = Color(0xFF1A1A1A);
@@ -15,6 +18,12 @@ class ScanImageView extends StatelessWidget {
   static const _textSecondary = Color(0xFF8A8A8A);
   // static const _success       = Color(0xFF4ADE80);
   // static const _warning       = Color(0xFFFBBF24);
+
+  static String _staffSummary(int staves) => switch (staves) {
+        0 => 'No staff found',
+        1 => '1 staff',
+        _ => '$staves staves',
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -46,9 +55,12 @@ class ScanImageView extends StatelessWidget {
 
           const SizedBox(height: 6),
 
-          // ── Image dimensions ──────────────────────────────────────────
+          // ── Staves found ──────────────────────────────────────────────
           Text(
-            '${result.preprocessed.width} × ${result.preprocessed.height} px',
+            [
+              _staffSummary(result.detection.staffs.length),
+              if (genre != null) 'Genre: $genre',
+            ].join(' · '),
             style: const TextStyle(
               fontSize: 12,
               color: _textSecondary,
@@ -87,6 +99,7 @@ class ScanImageView extends StatelessWidget {
                           DetectionOverlay(
                             symbols: result.symbols,
                             staffs: result.detection.staffs,
+                            barlines: result.detection.barlines,
                             imageWidth: result.preprocessed.width,
                             imageHeight: result.preprocessed.height,
                           ),
@@ -97,6 +110,12 @@ class ScanImageView extends StatelessWidget {
               ),
             ),
           ),
+
+          if (hasDetections)
+            const Padding(
+              padding: EdgeInsets.only(top: 10),
+              child: DetectionLegend(),
+            ),
 
           // ── Zoom hint ─────────────────────────────────────────────────
           Padding(

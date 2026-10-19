@@ -3,19 +3,35 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:note_vision/core/models/barline_type.dart';
+import 'package:note_vision/core/models/beam_grouping.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
+import 'package:note_vision/core/models/note_value.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
-import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/utils/export_file_name.dart';
+import 'package:note_vision/core/services/accidentals.dart';
 import 'package:xml/xml.dart';
 
 /// Converts a [Score] to a valid MusicXML 3.1 string and saves it to a
 /// user-chosen location via the system file picker.
 class MusicXmlExportService {
   const MusicXmlExportService();
+
+  /// Divisions per quarter note in exported files: fine enough for
+  /// sixteenths, dotted eighths and dotted sixteenths.
+  static const divisionsPerQuarter = 8;
+
+  /// MusicXML's name for a note value: scans call a sixteenth 'sixteenth',
+  /// MusicXML calls it '16th'.
+  static String musicXmlType(String type) =>
+      type.trim().toLowerCase() == 'sixteenth' ? '16th' : type;
+
+  /// `<duration>` of a note or rest written as [type] with [dots].
+  static int durationFor(String type, int dots, int storedDuration) =>
+      (quarterLength(type, dots, storedDuration) * divisionsPerQuarter)
+          .round();
 
   // ---------------------------------------------------------------------------
   // Public API
@@ -99,13 +115,20 @@ class MusicXmlExportService {
   void _buildPart(XmlBuilder b, Part part) {
     b.element('part', attributes: {'id': part.id}, nest: () {
       final measures = part.measures;
+      final accidentals = Accidentals();
       for (var i = 0; i < measures.length; i++) {
-        _buildMeasure(b, measures[i], isFirst: i == 0);
+        accidentals.startMeasure(measures[i]);
+        _buildMeasure(b, measures[i], isFirst: i == 0, accidentals: accidentals);
       }
     });
   }
 
-  void _buildMeasure(XmlBuilder b, Measure measure, {required bool isFirst}) {
+  void _buildMeasure(
+    XmlBuilder b,
+    Measure measure, {
+    required bool isFirst,
+    required Accidentals accidentals,
+  }) {
     b.element(
       'measure',
       attributes: {'number': measure.number.toString()},
@@ -124,8 +147,7 @@ class MusicXmlExportService {
 
         if (needsAttributes) {
           b.element('attributes', nest: () {
-            // divisions: our quarter = 2, so divisions per quarter = 2
-            b.element('divisions', nest: '2');
+            b.element('divisions', nest: '$divisionsPerQuarter');
 
             if (measure.keySignature != null) {
               b.element('key', nest: () {
@@ -161,7 +183,12 @@ class MusicXmlExportService {
         for (var i = 0; i < symbols.length; i++) {
           final symbol = symbols[i];
           if (symbol is Note) {
-            _buildNote(b, symbol, beamValue: _beamValue(symbols, i));
+            _buildNote(
+              b,
+              symbol,
+              soundingAlter: accidentals.sounding(symbol),
+              beamValues: BeamGrouping.valuesFor(symbols, i),
+            );
           } else if (symbol is Rest) {
             _buildRest(b, symbol);
           }
@@ -178,23 +205,33 @@ class MusicXmlExportService {
     );
   }
 
-  void _buildNote(XmlBuilder b, Note note, {String? beamValue}) {
+  /// [soundingAlter] goes in `<alter>`, which MusicXML reads as the pitch
+  /// heard, key signature included.
+  void _buildNote(
+    XmlBuilder b,
+    Note note, {
+    required int soundingAlter,
+    Map<int, BeamValue> beamValues = const {},
+  }) {
     b.element('note', nest: () {
       if (note.isChordTone) {
         b.element('chord');
       }
       b.element('pitch', nest: () {
         b.element('step', nest: note.step);
-        if (note.alter != null && note.alter != 0) {
-          b.element('alter', nest: note.alter.toString());
+        if (soundingAlter != 0) {
+          b.element('alter', nest: soundingAlter.toString());
         }
         b.element('octave', nest: note.octave.toString());
       });
-      b.element('duration', nest: note.duration.toString());
+      b.element(
+        'duration',
+        nest: durationFor(note.type, note.dots, note.duration).toString(),
+      );
       if (note.voice != null) {
         b.element('voice', nest: note.voice.toString());
       }
-      b.element('type', nest: note.type);
+      b.element('type', nest: musicXmlType(note.type));
       if (note.dots > 0) {
         for (var i = 0; i < note.dots; i++) {
           b.element('dot');
@@ -203,31 +240,27 @@ class MusicXmlExportService {
       if (note.staff != null) {
         b.element('staff', nest: note.staff.toString());
       }
-      if (beamValue != null) {
-        b.element('beam', attributes: {'number': '1'}, nest: beamValue);
+      for (final entry in beamValues.entries) {
+        b.element(
+          'beam',
+          attributes: {'number': '${entry.key}'},
+          nest: entry.value.xmlValue,
+        );
       }
     });
-  }
-
-  String? _beamValue(List<ScoreSymbol> symbols, int index) {
-    final note = symbols[index];
-    if (note is! Note || !note.beamed) return null;
-    final prevBeamed = index > 0 && symbols[index - 1] is Note && (symbols[index - 1] as Note).beamed;
-    final nextBeamed = index < symbols.length - 1 && symbols[index + 1] is Note && (symbols[index + 1] as Note).beamed;
-    if (!prevBeamed && nextBeamed) return 'begin';
-    if (prevBeamed && nextBeamed) return 'continue';
-    if (prevBeamed && !nextBeamed) return 'end';
-    return 'begin';
   }
 
   void _buildRest(XmlBuilder b, Rest rest) {
     b.element('note', nest: () {
       b.element('rest');
-      b.element('duration', nest: rest.duration.toString());
+      b.element(
+        'duration',
+        nest: durationFor(rest.type, rest.dots, rest.duration).toString(),
+      );
       if (rest.voice != null) {
         b.element('voice', nest: rest.voice.toString());
       }
-      b.element('type', nest: rest.type);
+      b.element('type', nest: musicXmlType(rest.type));
       if (rest.dots > 0) {
         for (var i = 0; i < rest.dots; i++) {
           b.element('dot');

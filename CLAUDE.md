@@ -9,11 +9,11 @@
 ## What This App Is
 
 Note Vision is a fully offline Flutter mobile app for Optical Music Recognition (OMR).
-The user photographs printed sheet music, the app detects musical symbols using an on-device
+The user photographs handwritten sheet music, the app detects musical symbols using an on-device
 TFLite YOLO model, reconstructs the symbols into a digital score, lets the user correct
 mistakes in an editor, then exports or plays back the result. No internet. No server. Everything on-device.
 
-**Target users:** Music students, teachers, musicians who want to digitize printed scores quickly.
+**Target users:** Music students, teachers, musicians who want to digitize handwritten scores quickly.
 
 **Platform:** Android + iOS (Flutter). Also builds for Linux desktop but mobile is primary.
 
@@ -35,11 +35,12 @@ mistakes in an editor, then exports or plays back the result. No internet. No se
 |---------|---------------|
 | Framework | Flutter (Dart) |
 | ML inference | tflite_flutter 0.12.1 |
-| ML model | YOLO — 57 music symbol classes |
+| ML model | YOLO26n at 960×960 — 24 handwritten symbol classes (model B6): clefs, 5 note values, 5 rests, beam, sharp/flat/natural, time-sig digits 2/3/4/6/8, C, cut time, augmentation dot |
+| Genre model | LSTM (`assets/models/genre_lstm.tflite`, 2.4 MB, 4-seed average): waltz / kundiman / jazz / other from the melody of all parts in reading order (first 320 notes); input [1,64,22]: step, rest, length, place in bar, meter, plus scale degree (12) and minor flag from Krumhansl–Schmuckler (`GenreModel.keyOf`); trained in the data project (`scripts/genre_train.py`, v3: + Weimar Jazz DB solos, Essen folk songs, PDMX jazz/waltz/other; kundiman from synthetic melodies (`kundiman_gen.py` + `trait_kundiman`, from published descriptions of the genre) plus 14 real transcriptions, 4 more held out for validation; 4-fold cross-validation over the 14: 13/14 whole songs, 12/14 on 40-note pieces, 0.5% of non-kundiman called kundiman with the app's logic) |
 | Image processing | image 4.8.0 |
 | XML parsing | xml 6.5.0 |
 | File picking | file_picker 8.1.2 |
-| Camera / gallery | camera 0.12.0, image_picker 1.1.2 |
+| Camera / gallery | image_picker 1.1.2 (system camera and gallery) |
 | Archive (.mxl) | archive 4.0.7 |
 | State management | provider 6.1.5, ChangeNotifier |
 | Local storage | shared_preferences, path_provider |
@@ -57,16 +58,26 @@ Camera / Gallery / MusicXML file
 1. Preprocessing
    BasicImagePreprocessor — grayscale, orientation-corrected, full resolution
         ↓
-2. Staff Line Detection
-   HorizontalProjectionStaffDetector — finds 5 line Y positions per stave
-   Populates DetectedStaff.lineYs for pitch reconstruction
+2. Staff Line Detection (projector)
+   HorizontalProjectionStaffDetector — level, evenly ruled staves only; on
+   handwriting it is a last resort (see step 3)
         ↓
-3. Symbol Detection
-   TfliteSymbolDetector — full image stretched to 640×640 (no tiling/letterbox)
-   YOLO on-device int8, NMS, confidence 0.75 threshold
-   combStaff detections → DetectedStaff (model-detected staves, preferred over projector)
-   musical symbol detections → DetectedSymbol list
-   SyntheticStaffBuilder fallback when neither source produces staves
+3. Symbol Detection + staves + barlines
+   TfliteSymbolDetector — full image stretched to 960×960 (no tiling/letterbox)
+   YOLO26n FP32 LiteRT, NCHW input, raw [1,28,18900] output, Dart NMS, confidence 0.40 (rests 0.30)
+   Each note box is one whole symbol (head+stem+flag); it is shrunk to its notehead
+   (for pitch), the model's whole box is kept in metadata['fullBox'] and the note
+   value in metadata['noteType']. Beam boxes turn beamed quarters into 8ths/16ths
+   and mark them metadata['beamed'], so the editor draws them beamed.
+   Staves, in order of preference:
+     StaffLineTracer — follows each drawn line across the page (hand-ruled, sloped,
+       bent staves); each detected clef picks the five lines it sits on.
+       DetectedStaff.offsetAt(x) carries the slope/bend; pitch, staff assignment,
+       time-sig digits and the overlay all read the staff where the symbol stands.
+     clef-sized level staff (handwritten proportions: G clef 1.48 staves tall, F 0.85)
+     projector staves where there is no clef; cluster/synthetic fallbacks after that
+   BarlineFinder — thin full-staff-height strokes that are not inside a clef or
+     stemmed-note box and stop at the staff → DetectionResult.barlines
         ↓
 4. Reconstruction Pipeline
    StaffAssigner → MeasureGrouper → StemAssociator
@@ -93,7 +104,9 @@ lib/
   main.dart                          App entry, dark theme, route setup
   core/
     models/                          Score, Part, Measure, Note, Rest,
-                                     Clef, KeySignature, TimeSignature, ScoreSymbol
+                                     Clef, KeySignature, TimeSignature, ScoreSymbol,
+                                     note_value.dart (quarterLength: timing from type + dots),
+                                     note_beam.dart, beam_grouping.dart (numbered beam boundaries)
     widgets/
       score_notation_viewer.dart     CustomPainter staff notation viewer (main editor canvas)
       score_notation/
@@ -105,6 +118,8 @@ lib/
       image_storage_service.dart     Save/load scanned image paths
       user_profile_service.dart      Username + photo in shared_preferences
       playback_converter.dart        Pure-Dart Score→PlaybackEvent conversion (no platform deps)
+      genre_model.dart               Genre LSTM: melody → features → waltz/kundiman/jazz/other
+      score_classifier.dart          Genre label shown in the app (model, then 3-genre rules)
       playback_service.dart          Singleton MIDI playback service via flutter_midi_pro
 
   features/
@@ -112,7 +127,7 @@ lib/
     collection/                      CollectionScreen — saved score grid + project list (merged)
     capture/                         CaptureScreen — camera + gallery
     scan/                            ScanScreen + ScanViewModel — pipeline orchestrator
-    preprocessing/                   BasicImagePreprocessor
+    preprocessing/                   BasicImagePreprocessor, StaffLineTracer, BarlineFinder
     detection/                       TfliteSymbolDetector, DetectionResult models
     mapping/                         Full reconstruction pipeline
       domain/
@@ -136,7 +151,8 @@ lib/
       presentation/
         editor_shell_screen.dart     Full editor UI
         widgets/symbol_palette.dart  Draggable note/rest palette
-        widgets/playback_controls_bar.dart  Play/pause/stop + BPM slider
+        widgets/playback_controls_bar.dart  Responsive transport, measure scrubber, BPM buttons
+        widgets/beam_editor_sheet.dart  Measure preview, beam range and beat grouping controls
     musicXML/                        Import pipeline
       musicxml_importer.dart         File pick + read + decompress
       musicxml_parser_service.dart   XML parse + validate
@@ -153,7 +169,7 @@ lib/
       export_file_name.dart          Shared `safeExportFileName(title)` used by both XML and PDF export
 
 assets/
-  models/best_int8.tflite            YOLO model — 640×640 int8 quantized
+  models/best.tflite                 YOLO26n model B6 — 960×960 FP32, 24 classes
   fonts/                             MaturaMTScriptCapitals
   images/                            notevision.png logo
   soundfonts/piano.sf2               GM SF2 soundfont for MIDI playback (not committed — see README.txt)
@@ -190,25 +206,34 @@ All screens use the same dark theme. Never use light colors unless it is a notat
 
 These are final unless explicitly changed:
 
-- **Model input size:** 640×640 int8 — model is `assets/models/best_int8.tflite`
-- **Tiling strategy:** No tiling — full image always stretched to 640×640 (no letterbox, no stave-based cropping). Model was trained on full-page stretches.
-- **Staff detection:** Two sources merged — model `combStaff` detections (preferred) + `HorizontalProjectionStaffDetector` supplement + `SyntheticStaffBuilder` fallback. `SyntheticStaffBuilder` uses notehead Y distribution to estimate staff geometry when no staves detected.
-- **Notation renderer:** CustomPainter — not a text list, not an SVG library
+- **Model:** `assets/models/best.tflite` — YOLO26n model B6, 960×960 FP32 LiteRT, 24 handwritten classes, trained on stretched grayscale images (data project and training notebooks live outside this repo)
+- **Tiling strategy:** No tiling — full image always stretched to 960×960 (no letterbox, no stave-based cropping). Model was trained on full-page stretches.
+- **Staff detection:** `StaffLineTracer` per clef (preferred) → clef-sized level staff → `HorizontalProjectionStaffDetector` where no clef → cluster / `SyntheticStaffBuilder` fallbacks. A staff with no clef of its own is read in the clef of the nearest staff above (else below).
+- **Bars:** split at barlines found by `BarlineFinder`; a staff with none falls back to beat counting. `ScoreBuilder` pads parts to equal measure counts because the editor pages by measure index.
+- **Notation renderer:** CustomPainter — not a text list, not an SVG library. Editor and PDF follow the same rules: the key signature starts every row; the time signature shows on a page's first measure and wherever it changes (before the row's opening barline when the key leaves room, else inside the measure, whose notes move right; `ScoreNotationMetrics.timeSignatureInMeasure`). Flags are solid and point right on up and down stems; beamed eighths and sixteenths are drawn with beams (a chord tone neither joins nor ends a group).
 - **Undo/redo:** Whole-state snapshot, max 50 entries, new edit clears redo stack
+- **Note values:** the editor offers the scanner's ten values: whole, half, quarter, eighth and sixteenth notes and rests (palette, DURATION tab, drawing in editor and PDF). A symbol's stored `duration` counts 2 divisions per quarter, which cannot hold a sixteenth or a dotted eighth, so all timing (playback, MusicXML `<duration>`, measure-full checks, genre model) uses `quarterLength(type, dots, duration)` from `lib/core/models/note_value.dart`. Chord tones take no time in a measure.
+- **Hidden, not removed:** `AppFeatures` (`lib/core/config/app_features.dart`) switches off features the presentation build does not show: `classroomWorkflow` (teacher/student), `legacyScoreLabels` (the old rule labels), `cClefs` (alto/tenor clef tiles; the scanner reads G and F clefs only).
 - **Insert default:** C4 quarter note / quarter rest, appended to end of selected measure, auto-selected after insert — only via drag-from-palette. The INSERT inspector button group was removed (redundant with drag-drop). `insertNoteAfterSelection()` / `insertRestAfterSelection()` still exist in `EditorActions` for future use.
 - **Drag insert:** LongPressDraggable from palette → DragTarget on staff. Drop Y → pitch via PitchCalculator. Drop X → insert index.
 - **PDF export:** `pdf` package with programmatic Canvas drawing — replicates CustomPainter logic. `exportToDevice(Score)` opens system save dialog via `file_picker` — returns saved path or `null` if cancelled.
-- **MusicXML export:** `xml` package, valid MusicXML 3.1. `exportToDevice(Score)` opens system save dialog via `file_picker` — returns saved path or `null` if cancelled. Exports `<print new-page="yes">` and `<print new-system="yes">` from `Measure.startsNewPage` / `startsNewSystem`. Exports `<beam>` elements (begin/continue/end) for beamed notes.
-- **MusicXML import:** Reads `<print new-page="yes">` → `Measure.startsNewPage` and `<print new-system="yes">` → `Measure.startsNewSystem`. Normalizes `<duration>` values from any `<divisions>` setting to the internal 2-divisions-per-quarter convention.
-- **Imported layout preservation:** When an imported MusicXML file has explicit `startsNewPage` or `startsNewSystem` breaks, the editor respects them. Scores without explicit breaks fall back to the 4×5 grid. Reflow (resetting breaks) is deferred to Milestone 5.
+- **MusicXML export:** `xml` package, valid MusicXML 3.1. `exportToDevice(Score)` opens system save dialog via `file_picker` — returns saved path or `null` if cancelled. Writes 8 divisions per quarter with each `<duration>` from the written type and dots, and spells a sixteenth `16th`. Exports `<print new-page="yes">` and `<print new-system="yes">` from `Measure.startsNewPage` / `startsNewSystem`. Exports numbered `<beam>` boundaries (begin/continue/end) and secondary forward/backward hooks through `BeamGrouping.valuesFor`.
+- **MusicXML import:** `ImportScoreScreen` uses `MusicXmlImporter`: one system picker showing all files (a filtered picker greys out .musicxml/.mxl on Android), then the extension is checked; reads .xml, .musicxml and .mxl (the file `META-INF/container.xml` names), UTF-8, UTF-16 or Latin-1. Reads `<print new-page="yes">` → `Measure.startsNewPage` and `<print new-system="yes">` → `Measure.startsNewSystem`. Normalizes `<duration>` values from any `<divisions>` setting to the internal 2-divisions-per-quarter convention. A note or rest without `<type>`, and every whole-bar rest (`<rest measure="yes"/>`), takes its value from its duration (a 3/4 bar rest becomes a dotted half). A `16th` is stored as `sixteenth`, as scans write it. `Note.beams` preserves numbered beam boundaries and hooks, keeping adjacent groups distinct through save/load, preview and export. Older projects containing only `beamed` remain supported. The preview shows page 1 as the editor lays it out (`ScorePageThumbnail`).
+- **Imported layout preservation:** Explicit page breaks (`startsNewPage`) start a new editor page; scores without them fall back to the 4×5 grid. System breaks (`startsNewSystem`) are kept through edits and written back on export, but the editor grid does not break rows at them. Reflow (resetting breaks) is deferred to Milestone 5.
 - **Audio playback:** `flutter_midi_pro` — synthesizes from Note step+octave+duration directly. Requires `assets/soundfonts/piano.sf2` (any standard GM SF2 file, not committed). After adding the file run `flutter clean && flutter pub get` then do a full restart (not hot reload) to rebundle assets.
-- **Save/load:** JSON files in app documents directory via path_provider. Project index in shared_preferences.
+- **Score label (genre):** the app shows only Waltz, Kundiman or Jazz (null for a score without notes): on score cards, in the editor header (worked out 600 ms after edits stop) and on the scan result screen. `ScoreClassifier.classify` asks `GenreModel` (LSTM, loaded in `main`) first and uses its answer when at least 0.7 sure of one of the three. Otherwise (it says "other", is unsure, has under 16 notes, or is not loaded) `classifyByRules` picks one of the three (a rule Kundiman also needs the model's kundiman ≥ `minRuleKundiman` 0.4 when the model ran, else Waltz; `ScoreClassifier.decide` is the testable core): not triple time → Jazz; triple time (3, 6 or 9 beats) → Kundiman when the first half of the melody is in a minor key (Krumhansl–Schmuckler), else Waltz. The old labels live on in `classifyByLegacyRules` behind `AppFeatures.legacyScoreLabels`. `GenreModel.features` must match `features()` in the data project's genre_train.py.
+- **Review & Correct (paper Objective 3):** the editor has a visible review button and an automatic reminder after scans; the overflow menu also retains "Check Notation". `NotationReviewPanel` stays beside the score on wide screens and below it on phones (resizable). Selecting a finding focuses its measure; the canvas remains pannable/zoomable, with editing available via "Edit manually". Each suggested change requires a current/proposed preview; batch review applies only explicitly selected, still-valid suggestions as one undo step. Dependent suggestions are rechecked and omitted when their context changes. `NotationReviewService` assigns stable measure/symbol IDs, records applied/kept decisions, rejects stale previews, and supports conflict-checked restore from History. Decisions and scan evidence live in `Score.reviewHistory` / `sourcePages`, travel through project save/export, and participate in undo/redo. Original scan crops come from normalized symbol bounds retained by the mapper; `ScoreSourceService` compresses an orientation-corrected page once per scan, fully offline. Older projects and MusicXML work without source images. Passage audition uses the same tempo for current/proposed notation, stops at the affected range, and cancels pending playback when review closes. The checker still covers uncertain recognition, missing components, redundant accidentals, beat totals (pickup exempt), and meter mismatches; mathematical consistency is presented as a suggestion requiring musical judgment. Tests: `notation_review_service_test.dart`, `score_source_service_test.dart`, `review_playback_test.dart`, `notation_review_workflow_test.dart`. Set `NV_REVIEW_SCREENSHOTS=/tmp/note-vision-review-screenshots` when running the workflow test to render phone/tablet comparisons.
+- **Save/load:** JSON files in app documents directory via path_provider. Project index in shared_preferences. The editor compares the current score with the last saved snapshot, so undo/redo and edits during an asynchronous save retain an accurate Unsaved indicator. Save is disabled while saving, with visible progress.
 - **Export filename:** shared `safeExportFileName(title)` in `lib/core/utils/export_file_name.dart`.
-- **Delete symbol:** drag-to-trash gesture — drag a symbol to the trash zone in `EditorShellScreen`; no separate delete button. In portrait mode the trash zone overlays the inspector bar (`bottom: 0, height: _kInspectorBarHeight`) while a drag is active so it stays reachable at the bottom edge.
-- **Portrait inspector:** `_BottomInspectorBar` — a 56 px horizontal bar (`_kInspectorBarHeight = 56.0`) above `PlaybackControlsBar` with four tab buttons (PITCH, ACCIDENTAL, DURATION, MEASURE). Tapping a tab opens a popup that floats upward; action buttons keep the popup open so the user can press repeatedly (e.g. Up/Down multiple times). Close by re-tapping the same tab or tapping the canvas. Landscape keeps the original side-panel layout.
+- **Delete symbol:** use Delete in the PITCH tool group, or drag a symbol to the trash zone in `EditorShellScreen`. In portrait mode the trash zone overlays the inspector bar (`bottom: 0, height: _kInspectorBarHeight`) while a drag is active so it stays reachable at the bottom edge.
+- **Clear all symbols:** More → Clear all symbols… confirms the number of notes/rests across every page and staff. It preserves measures, page/system breaks, clefs, signatures, barlines, score details, scan evidence and review history. Clearing is one undo step, preserves measure context, resets paused playback and stale review previews, and offers an Undo banner. It is disabled during playback/loading and when already empty, and hidden in read-only review mode. Cancel or dismissal makes no changes. Tests: `clear_all_symbols_test.dart` in editor domain and presentation.
+- **Editor layout and controls:** narrow headers put Review, Undo/Redo and Save on a second row, retaining title space and 44 px touch targets. Tool tile widths follow text scaling. Pitch controls require a note, and duration/dot controls reflect measure capacity. Symbol and blank-measure taps both update the editing context. The palette hides while a symbol is selected; Insert reveals it and Done exits insertion. Tool tabs, insertion mode and palette items expose screen-reader activation actions. The initial canvas fit uses actual notation height; selected measures focus inside the space available between overlays. Zoom buttons clamp to 15–500%.
+- **Portrait inspector:** `_BottomInspectorBar` — a 56 px horizontal bar (`_kInspectorBarHeight = 56.0`) above `PlaybackControlsBar` with six tab buttons (Pitch, Accidental, Clef, Time, Duration, Measure; title case so they fit at 10 px). TIME sets 2/4, 3/4, 4/4, 2/2, 3/8 or 6/8 on the selected measure in every part. Tapping a tab opens a popup that floats upward; action buttons keep the popup open so the user can press repeatedly (e.g. Up/Down multiple times). Close by re-tapping the same tab or tapping the canvas. Landscape keeps the original side-panel layout.
 - **In-project scan:** "Scan Page" icon button (`Icons.add_photo_alternate_rounded`) in `_EditorHeader`, disabled during playback. Tapping shows a bottom sheet (Camera / Gallery), picks image, then pushes `ScanScreenProvider(appendMode: true)`. On "Continue", `ScanScreen` pops with the scanned `Score` instead of pushing `EditorShellScreen`. The editor merges parts by index (min of current vs scanned part count), renumbers all measures, pushes to undo stack, and jumps to the last page.
 - **Scan preferences:** `ScanPreferencesService` stores two booleans in SharedPreferences (`scan_skip_preview`, `scan_skip_review`, both default `false`). Toggles live in a "SCAN SETTINGS" section at the bottom of `ProfileStatsScreen`. Skip-preview skips the image preview in `CaptureScreen` and goes straight to scanning. Skip-review auto-advances past the detection results screen in `ScanScreen` when detections are found (guarded by `_autoNavigated` flag to prevent double-fire).
-- **Playback lock:** all editor interactions (symbol tap, drag, palette, insert mode, inspector tiles, undo/redo) are disabled when `PlaybackStatus.playing`. Pan/zoom is unaffected. `paused` leaves interactions enabled so the user can edit between playback sessions.
+- **Playback controls:** `PlaybackControlsBar` uses the editor's injected service and a native accessible measure slider, with 48 px transport/tempo targets. Small screens and large text use two rows. The scrubber follows actual staff lengths. Seeking while stopped or paused cues silently; Resume rebuilds events from current edits while retaining the cued symbol when its ID survives. Loading can be cancelled with Stop, and errors expose Retry. `editor_controls_test.dart` covers layouts, semantics, transport, and save state; set `NV_EDITOR_SCREENSHOTS=/tmp/note-vision-editor-controls` to render snapshots.
+- **Playback lock:** all editor interactions (symbol tap, drag, palette, insert mode, inspector tiles, undo/redo, metadata) are disabled during loading and `PlaybackStatus.playing`. Pan/zoom is unaffected. `paused` leaves interactions enabled so the user can edit between playback sessions.
+- **Beam editing:** DURATION → Beams opens a measure preview with sticky notation above scrollable phone controls. Tap first/last eligible notes to select a range, then Beam together, Separate notes, or Break before/after the focused note. Group by beat handles simple/compound meters and aligns a short opening pickup to the end of its measure; additive meters such as 5/8 keep manual grouping. Rests, longer notes and voice/staff boundaries prevent joining; chord tones do not interrupt a group. Apply commits the complete preview as one undo step; Cancel and Reset leave the score untouched. Structural edits repair explicit beam boundaries; ordinary pitch/accidental/dot edits preserve imported evidence. `BeamGrouping` is shared by the editor, checker, canvas, PDF and MusicXML export. Tests: `beam_grouping_test.dart`, `beam_editor_test.dart`, `explicit_beams_test.dart`; set `NV_EDITOR_SCREENSHOTS=/tmp/note-vision-beams` for phone, large-text, landscape and tablet snapshots.
 - **Playback page auto-advance:** `positionStream` from `PlaybackService` updates `_currentPageIndex` in `_EditorShellScreenState` when the page index derived from `EditorLayoutPolicy` changes. Viewport zoom/fit is NOT reset on playback-driven page changes (only on manual navigation).
 - **Smooth page transition:** `AnimatedSwitcher` (250ms crossfade) wraps the white-sheet `Container` inside `InteractiveViewer`, keyed by `pageFirstMeasure`. Triggers on both manual and playback-driven page changes.
 - **Cross-measure/part drag reorder:** `moveSymbolToDest()` in `editor_actions.dart` — same-measure delegates to `reorderSymbol`; cross-measure deletes from source + inserts at destination; cross-part supported.
@@ -306,20 +331,20 @@ deleteMeasureFromAllParts(measureIndex)      // renumbers all measures 1-indexed
 |---------|--------|
 | Single treble clef stave | ✅ Works |
 | Multi-stave (one Part per staff) | ✅ Works |
-| Staff assignment | ✅ Works — model combStaff detections preferred, projector supplement, synthetic fallback |
-| Measure grouping from barlines | ✅ Works |
+| Staff assignment | ✅ Works — traced staves (follow slope/bend), clef-sized, projector and synthetic fallbacks |
+| Measure grouping from barlines | ✅ Works — barlines found in the image; one drawn against a note is taken for its stem and missed |
 | Note reconstruction (whole/half/quarter/eighth/sixteenth) | ✅ Works — noteheadBlack without stem assumed quarter |
 | Rest reconstruction (whole/half/quarter/eighth/sixteenth) | ✅ Works |
 | Pitch calculation from staff position | ✅ Works — treble + bass clef both supported |
 | Stem/flag/beam association | ✅ Works |
 | Key signature | ✅ Works — accidental cluster count → fifths |
-| Time signature | ✅ Works — digit pair + common/cut |
+| Time signature | ✅ Works — digit pair + common/cut; editable in the editor's TIME tab |
 | Accidentals on individual notes | ✅ Works — proximity match to notehead |
 | Beamed eighth notes | ✅ Works |
 | Bass clef (fClef) pitch reconstruction | ✅ Works |
 | SyntheticStaffBuilder fallback | ✅ Works — estimates staff from notehead Y distribution |
 | Grand staff | ❌ Not supported |
-| Chords | ❌ Not supported |
+| Chords | ❌ Not detected — the model reads two heads on one stem as one note |
 | Ties, slurs, tuplets | ❌ Not supported |
 
 ---
@@ -363,19 +388,19 @@ Sprints 1–10 (tickets 1–104) are fully shipped.
 
 These are current limitations, not hard ceilings — going beyond them is fine if it makes the app better.
 
-- Bass clef rendering ✅ done in editor and PDF export; alto clef, tenor clef still unsupported
+- Bass clef rendering ✅ done in editor and PDF export; alto and tenor clefs are drawn but hidden from the editor (`AppFeatures.cClefs`) because the scanner cannot read them
 - Grand staff (two staves, piano LH+RH)
-- Chords ✅ reconstructed from scan; not editable in editor yet
+- Chords: the model has no class for a second notehead on a stem, so a scanned chord becomes one note
 - Dotted note/rest rhythms ✅ reconstructed from scan
 - Repeat barlines ✅ detected and exported to MusicXML
 - Ties, slurs, tuplets
-- Sixteenth notes or smaller
+- 32nd notes or smaller
 - Grace notes, ornaments
 - Dynamics, articulations, tempo markings
 - D.C., D.S., coda
 - Multiple voices on one staff
 - Lyrics
-- Handwritten music
+- Printed (engraved) music — the model is trained on handwriting only
 - Cloud sync, accounts, collaboration
 - Any network call of any kind
 

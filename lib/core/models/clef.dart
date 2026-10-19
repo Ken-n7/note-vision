@@ -22,5 +22,12 @@ class Clef extends ScoreSymbol {
       );
 
   @override
+  bool operator ==(Object other) =>
+      other is Clef && other.sign == sign && other.line == line;
+
+  @override
+  int get hashCode => Object.hash(sign, line);
+
+  @override
   String toString() => 'Clef(sign: $sign, line: $line)';
 }

@@ -187,7 +187,8 @@ void main() {
 
       expect(viewModel.state, ScanState.error);
       expect(viewModel.result, isNull);
-      expect(viewModel.errorMessage, contains('preprocessing failed'));
+      expect(viewModel.errorMessage, ScanViewModel.scanFailedMessage);
+      expect(viewModel.errorDetail, contains('preprocessing failed'));
     });
 
     test('reset clears result and error state', () async {

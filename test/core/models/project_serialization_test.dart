@@ -563,6 +563,25 @@ void main() {
       },
     );
 
+    test('loadAllProjects skips a damaged file and keeps the rest', () async {
+      final good = Project.create(name: 'Good', score: _buildFullScore());
+      final bad = Project.create(name: 'Bad', score: _buildFullScore());
+      await service.saveProject(good);
+      await service.saveProject(
+        Project(
+          id: '${bad.id}x',
+          name: bad.name,
+          createdAt: bad.createdAt,
+          updatedAt: bad.updatedAt,
+          scoreJson: bad.scoreJson,
+        ),
+      );
+      await File('${tempDir.path}/${bad.id}x.json').writeAsString('{not json');
+
+      final all = await service.loadAllProjects();
+      expect(all.map((p) => p.id), [good.id]);
+    });
+
     test('deleteProject removes file and entry from index', () async {
       final project = Project.create(
         name: 'ToDelete',

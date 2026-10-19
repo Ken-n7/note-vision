@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'core/services/genre_model.dart';
 import 'core/services/project_storage_service.dart';
 import 'core/services/sample_seeder.dart';
 import 'core/theme/app_theme.dart';
@@ -11,6 +12,7 @@ import 'features/profile/presentation/profile_stats_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SampleSeeder.seedIfNeeded(ProjectStorageService());
+  await GenreModel.load();
   runApp(const App());
 }
 
