@@ -51,6 +51,32 @@ extension EditorActions on EditorState {
 
   bool get canRedo => redoStack.isNotEmpty;
 
+  int get musicSymbolCount => score.parts.fold(
+    0,
+    (count, part) =>
+        count +
+        part.measures.fold(
+          0,
+          (count, measure) =>
+              count +
+              measure.symbols
+                  .where((symbol) => symbol is Note || symbol is Rest)
+                  .length,
+        ),
+  );
+
+  /// One undo step for the entire score; keep the current measure available
+  /// for insertion without retaining a selection of a removed symbol.
+  EditorState clearAllSymbols() {
+    final cleared = score.clearAllMusicSymbols();
+    if (identical(cleared, score)) return this;
+    return applyEdit(
+      score: cleared,
+      selectedPartIndex: selectedPartIndex,
+      selectedMeasureIndex: selectedMeasureIndex,
+    );
+  }
+
   EditorState selectSymbolAt({
     required int partIndex,
     required int measureIndex,

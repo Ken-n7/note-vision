@@ -117,6 +117,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   bool _isSubmitting = false;
   String? _role;
   _EditorBannerData? _banner;
+  Score? _clearSymbolsUndoScore;
 
   // Notation check, turned on by the user from the header menu. While it is
   // on, the issues are worked out again after every edit (a few ms).
@@ -851,7 +852,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   void _showEditorBanner(_EditorBannerData banner) {
     _bannerTimer?.cancel();
     if (!mounted) return;
-    setState(() => _banner = banner);
+    setState(() {
+      _banner = banner;
+      _clearSymbolsUndoScore = null;
+    });
     _bannerTimer = Timer(banner.duration, () {
       if (!mounted) return;
       setState(() => _banner = null);
@@ -1163,6 +1167,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         score: NotationReviewService.ensureIdentity(nextState.score),
       );
       if (!identical(prevScore, _editorState.score)) {
+        if (_clearSymbolsUndoScore != null &&
+            !identical(_clearSymbolsUndoScore, _editorState.score)) {
+          _bannerTimer?.cancel();
+          _banner = null;
+          _clearSymbolsUndoScore = null;
+        }
         _editorState = _editorState.copyWith(
           hasUnsavedChanges:
               jsonEncode(_editorState.score.toJson()) != _savedScoreJson,
@@ -1177,6 +1187,90 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       }
     });
     if (!identical(_editorState.score, prevScore)) _scheduleScoreLabelUpdate();
+  }
+
+  bool get _canClearAllSymbols =>
+      _canApplyIssueFix &&
+      !_isDraggingNote &&
+      _editorState.musicSymbolCount > 0;
+
+  Future<void> _confirmClearAllSymbols() async {
+    if (!_canClearAllSymbols) return;
+    final originalScore = _editorState.score;
+    final count = _editorState.musicSymbolCount;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        scrollable: true,
+        title: const Text('Clear all symbols?'),
+        content: Text(
+          'Remove all $count ${count == 1 ? 'note or rest' : 'notes and rests'} '
+          'from every page and staff.\n\n'
+          'Measures, clefs, key and time signatures, and score details will stay. '
+          'You can undo this in one step.',
+        ),
+        actions: [
+          TextButton(
+            autofocus: true,
+            style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(48, 48),
+            ),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Clear all symbols'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true || !_canClearAllSymbols) return;
+    if (!identical(originalScore, _editorState.score)) {
+      _showEditorBanner(
+        const _EditorBannerData.error(
+          'The score changed. Choose Clear all symbols again.',
+        ),
+      );
+      return;
+    }
+
+    _stopReviewListening();
+    _playback.stop();
+    _stopVisualPlayback();
+    _updateState((state) => state.clearAllSymbols());
+    final clearedScore = _editorState.score;
+    setState(() {
+      _playbackPosition = PlaybackPosition.none;
+      _focusedIssueKey = null;
+      _reviewOpen = false;
+      _insertMode = false;
+      _insertSymbolType = null;
+      _scoreLabelTimer?.cancel();
+      _scoreLabel = null;
+    });
+    _showEditorBanner(
+      _EditorBannerData(
+        message: 'All notes and rests cleared',
+        backgroundColor: AppColors.surfaceAlt,
+        duration: const Duration(seconds: 8),
+        actionLabel: 'Undo',
+        onAction: () {
+          if (!identical(_editorState.score, clearedScore) ||
+              !_canApplyIssueFix) {
+            return;
+          }
+          _updateState((state) => state.applyUndo());
+          _bannerTimer?.cancel();
+          setState(() => _banner = null);
+        },
+      ),
+    );
+    _clearSymbolsUndoScore = clearedScore;
   }
 
   void _onNotationSymbolTap(int partIndex, int measureIndex, int symbolIndex) {
@@ -1762,6 +1856,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   onBack: () => Navigator.of(context).maybePop(),
                   onUndo: () => _updateState((s) => s.applyUndo()),
                   onRedo: () => _updateState((s) => s.applyRedo()),
+                  onClearAllSymbols: _canClearAllSymbols
+                      ? _confirmClearAllSymbols
+                      : null,
                   onSave: isReadOnly ? null : _onSave,
                   isSaving: _isSaving,
                   showSubmitButton: _isStudent && !isReadOnly,
@@ -2188,23 +2285,33 @@ class _EditorBannerData {
   final VoidCallback? onAction;
 }
 
-enum _HeaderMenuAction { scanPage, checkNotation, exportXml, exportPdf }
+enum _HeaderMenuAction {
+  scanPage,
+  checkNotation,
+  exportXml,
+  exportPdf,
+  clearAllSymbols,
+}
 
 class _HeaderMenuItem extends StatelessWidget {
-  const _HeaderMenuItem({required this.icon, required this.label});
+  const _HeaderMenuItem({
+    required this.icon,
+    required this.label,
+    this.color = AppColors.textPrimary,
+  });
 
   final IconData icon;
   final String label;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 16, color: AppColors.textPrimary),
+        Icon(icon, size: 16, color: color),
         const SizedBox(width: 10),
-        Text(
-          label,
-          style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+        Flexible(
+          child: Text(label, style: TextStyle(color: color, fontSize: 13)),
         ),
       ],
     );
@@ -2233,6 +2340,7 @@ class _EditorHeader extends StatelessWidget {
     this.onSubmit,
     this.onScanPage,
     this.onCheckNotation,
+    this.onClearAllSymbols,
     this.isSaving = false,
   });
 
@@ -2256,6 +2364,7 @@ class _EditorHeader extends StatelessWidget {
   final VoidCallback? onSubmit;
   final VoidCallback? onScanPage;
   final VoidCallback? onCheckNotation;
+  final VoidCallback? onClearAllSymbols;
   final bool isSaving;
 
   static final ButtonStyle _compactIconButtonStyle = IconButton.styleFrom(
@@ -2465,6 +2574,9 @@ class _EditorHeader extends StatelessWidget {
                           onExportXml();
                         } else if (action == _HeaderMenuAction.exportPdf) {
                           onExportPdf();
+                        } else if (action ==
+                            _HeaderMenuAction.clearAllSymbols) {
+                          onClearAllSymbols?.call();
                         }
                       },
                       tooltip: 'More',
@@ -2503,6 +2615,20 @@ class _EditorHeader extends StatelessWidget {
                             label: 'Export PDF…',
                           ),
                         ),
+                        if (!isReviewMode) ...[
+                          const PopupMenuDivider(),
+                          PopupMenuItem(
+                            value: _HeaderMenuAction.clearAllSymbols,
+                            enabled: onClearAllSymbols != null,
+                            child: _HeaderMenuItem(
+                              icon: Icons.delete_sweep_rounded,
+                              label: 'Clear all symbols…',
+                              color: onClearAllSymbols != null
+                                  ? AppColors.error
+                                  : AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                     const SizedBox(width: 2),

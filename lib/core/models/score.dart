@@ -4,7 +4,9 @@ import 'dart:math' as math;
 import 'barline_type.dart';
 import 'clef.dart';
 import 'measure.dart';
+import 'note.dart';
 import 'part.dart';
+import 'rest.dart';
 import 'score_symbol.dart';
 import 'time_signature.dart';
 
@@ -76,6 +78,35 @@ class Score {
 
   int get totalMeasures =>
       parts.fold(0, (sum, part) => sum + part.measures.length);
+
+  /// Clears musical content while keeping the score's structure and evidence.
+  /// Structural symbols stored inside a measure are preserved too.
+  Score clearAllMusicSymbols() {
+    var changed = false;
+    final updatedParts = <Part>[];
+    for (final part in parts) {
+      var partChanged = false;
+      final measures = <Measure>[];
+      for (final measure in part.measures) {
+        final symbols = measure.symbols
+            .where((s) => s is! Note && s is! Rest)
+            .toList();
+        if (symbols.length == measure.symbols.length) {
+          measures.add(measure);
+        } else {
+          partChanged = true;
+          measures.add(_copyMeasure(measure, symbols: symbols));
+        }
+      }
+      changed |= partChanged;
+      updatedParts.add(
+        partChanged
+            ? Part(id: part.id, name: part.name, measures: measures)
+            : part,
+      );
+    }
+    return changed ? copyWith(parts: updatedParts) : this;
+  }
 
   ScoreSymbol? getSymbolAt(int partIndex, int measureIndex, int symbolIndex) {
     final measure = _measureAt(partIndex, measureIndex);
