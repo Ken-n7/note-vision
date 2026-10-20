@@ -68,7 +68,7 @@ void main() {
     expect(NotationChecker.check(s), isEmpty);
   });
 
-  test('a short bar can be filled with rests', () {
+  test('a short bar is listed for review, not filled with rests', () {
     final s = score([
       full(),
       [q('C'), q('D')],
@@ -78,8 +78,20 @@ void main() {
     expect(issues, hasLength(1));
     expect(issues.single.kind, NotationIssueKind.beatTotal);
     expect(issues.single.measureIndex, 1);
-    expect(issues.single.fixLabel, 'Fill with rests');
-    expect(NotationChecker.check(issues.single.fix!(s)), isEmpty);
+    // A missed note is likelier than missing rests; the user checks.
+    expect(issues.single.hasFix, isFalse);
+    expect(issues.single.message, contains('A note may be missing'));
+  });
+
+  test('an overfull bar is not fixed by shortening its last note', () {
+    final s = score([
+      full(),
+      [q('C'), q('D'), q('E'), half('F')],
+      full(),
+    ]);
+    final issue = NotationChecker.check(s).single;
+    expect(issue.kind, NotationIssueKind.beatTotal);
+    expect(issue.hasFix, isFalse);
   });
 
   test('a short first bar is a pickup, not an issue', () {

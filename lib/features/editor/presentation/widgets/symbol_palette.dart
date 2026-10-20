@@ -264,9 +264,16 @@ class _PaletteDraggableItem extends StatelessWidget {
     );
     return LongPressDraggable<PaletteDragData>(
       data: PaletteDragData(type: item.type),
+      // The score places a drop at the drag offset; anchoring it at the
+      // pointer makes that the finger, at any zoom. The symbol is drawn
+      // just above the finger so it stays visible.
+      dragAnchorStrategy: pointerDragAnchorStrategy,
       feedback: Material(
         color: Colors.transparent,
-        child: Transform.scale(scale: 1.7, child: dragFeedback),
+        child: FractionalTranslation(
+          translation: const Offset(-0.5, -1),
+          child: Transform.scale(scale: 1.7, child: dragFeedback),
+        ),
       ),
       childWhenDragging: Opacity(opacity: 0.28, child: core),
       child: Semantics(

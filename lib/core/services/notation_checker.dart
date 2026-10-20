@@ -44,7 +44,7 @@ class NotationIssue {
   final int? symbolIndex;
   final String message;
 
-  /// What accepting the issue does ("Fill with rests"); null when the issue
+  /// What accepting the issue does ("Split into 2 bars"); null when the issue
   /// can only be reviewed and edited by hand.
   final String? fixLabel;
   final Score Function(Score score)? fix;
@@ -353,16 +353,10 @@ class NotationChecker {
           fix = (s) => _moveHead(s, p, m + 1, head);
         }
       }
-      if (fix == null) {
-        final rests = _restsFor(-diff);
-        if (rests != null) {
-          label = 'Fill with rests';
-          fix = (s) => _withMeasureSymbols(s, p, m, [
-            ...s.parts[p].measures[m].symbols,
-            ...rests,
-          ]);
-        }
-      }
+      // No rests are offered to fill the gap: on real scans a short bar
+      // nearly always lost a note the model missed, and padding it with
+      // rests moved 82 of 95 scanned bars further from the page
+      // (tool/real_scan_review_eval_test.dart).
       issues.add(
         NotationIssue(
           kind: NotationIssueKind.beatTotal,
@@ -370,7 +364,9 @@ class NotationChecker {
           measureIndex: m,
           message:
               '$where has ${_beatsText(total, meter)}; a bar of '
-              '${_meterText(meter)} needs ${_beatsText(capacity, meter)}.',
+              '${_meterText(meter)} needs ${_beatsText(capacity, meter)}.'
+              '${fix == null ? ' A note may be missing; check the bar '
+                        'against the page.' : ''}',
           fixLabel: label,
           fix: fix,
         ),
@@ -444,30 +440,8 @@ class NotationChecker {
       }
     }
 
-    // 5. The last note was read too long.
-    if (fix == null) {
-      final last = measure.symbols.lastIndexWhere(
-        (s) => (s is Note && !s.isChordTone) || s is Rest,
-      );
-      if (last >= 0) {
-        final symbol = measure.symbols[last];
-        final length = _length(symbol);
-        final value = _valueFor(length - over);
-        if (value != null) {
-          label =
-              'Shorten the last ${_symbolName(symbol)} to '
-              '${value.dots > 0 ? 'a dotted ' : 'a '}${value.type}';
-          fix = (s) => _replaceSymbol(
-            s,
-            p,
-            m,
-            last,
-            (old) => _withValue(old, value.type, value.dots),
-          );
-        }
-      }
-    }
-
+    // The last note is not offered shorter: on real scans that moved more
+    // bars away from the page than towards it.
     issues.add(
       NotationIssue(
         kind: NotationIssueKind.beatTotal,
@@ -614,39 +588,6 @@ class NotationChecker {
     return chunks;
   }
 
-  static const _plainValues = [
-    ('whole', 4.0),
-    ('half', 2.0),
-    ('quarter', 1.0),
-    ('eighth', 0.5),
-    ('sixteenth', 0.25),
-  ];
-
-  /// The written value of a note or rest lasting [length] quarters.
-  static ({String type, int dots})? _valueFor(double length) {
-    for (final (type, base) in _plainValues) {
-      if ((length - base).abs() <= _eps) return (type: type, dots: 0);
-      if ((length - base * 1.5).abs() <= _eps && type != 'sixteenth') {
-        return (type: type, dots: 1);
-      }
-    }
-    return null;
-  }
-
-  /// Rests filling [length] quarters, longest first; null when sixteenths
-  /// cannot fill it.
-  static List<Rest>? _restsFor(double length) {
-    final rests = <Rest>[];
-    var left = length;
-    for (final (type, base) in _plainValues) {
-      while (left >= base - _eps) {
-        rests.add(Rest(duration: (base * 2).round(), type: type));
-        left -= base;
-      }
-    }
-    return left.abs() <= _eps ? rests : null;
-  }
-
   static List<List<int>> _beamGroups(List<ScoreSymbol> symbols) =>
       BeamGrouping.groups(symbols);
 
@@ -672,24 +613,6 @@ class NotationChecker {
     int i,
     Note Function(Note old) change,
   ) => _replaceSymbol(s, p, m, i, (old) => old is Note ? change(old) : old);
-
-  static ScoreSymbol _withValue(ScoreSymbol old, String type, int dots) {
-    final duration = (quarterLength(type, dots, 0) * 2).round();
-    return switch (old) {
-      Note() => _copyNote(old, type: type, dots: dots, duration: duration),
-      Rest() => Rest(
-        duration: duration,
-        type: type,
-        voice: old.voice,
-        staff: old.staff,
-        dots: dots,
-        confidence: old.confidence,
-        reviewId: old.reviewId,
-        source: old.source,
-      ),
-      _ => old,
-    };
-  }
 
   static const Object _keep = Object();
 

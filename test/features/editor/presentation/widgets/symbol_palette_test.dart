@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.dart';
@@ -91,5 +92,48 @@ void main() {
 
     expect(endLeftArrow.opacity, 1);
     expect(endRightArrow.opacity, 0);
+  });
+
+  // The score reads the drop position from the drag offset; it used to be
+  // the corner of the dragged symbol, so zoomed-out drops missed the staff.
+  testWidgets('a dragged symbol is dropped where the finger lifts', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(400, 400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    Offset? dropped;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              Expanded(
+                child: DragTarget<PaletteDragData>(
+                  onAcceptWithDetails: (details) => dropped = details.offset,
+                  builder: (_, _, _) => const SizedBox.expand(),
+                ),
+              ),
+              const SizedBox(height: 120, child: SymbolPalette()),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final gesture = await tester.startGesture(
+      tester.getCenter(find.text('Quarter').first),
+    );
+    await tester.pump(kLongPressTimeout + const Duration(milliseconds: 100));
+    await gesture.moveTo(const Offset(150, 140));
+    await tester.pump();
+    await gesture.moveTo(const Offset(150, 100));
+    await tester.pump();
+    await gesture.up();
+    await tester.pump();
+
+    expect(dropped, const Offset(150, 100));
   });
 }

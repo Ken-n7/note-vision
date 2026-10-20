@@ -233,7 +233,7 @@ void main() {
   );
 
   for (final size in const [Size(1600, 900), Size(390, 844)]) {
-    testWidgets('notation check lists a short bar and fills it on accept '
+    testWidgets('notation check lists a doubled note and removes it on accept '
         '(${size.width.toInt()} wide)', (tester) async {
       const quarter = Note(step: 'C', octave: 4, duration: 2, type: 'quarter');
       final score = Score(
@@ -251,7 +251,10 @@ void main() {
                 timeSignature: TimeSignature(beats: 4, beatType: 4),
                 symbols: [quarter, quarter, quarter, quarter],
               ),
-              const Measure(number: 2, symbols: [quarter, quarter]),
+              const Measure(
+                number: 2,
+                symbols: [quarter, quarter, quarter, quarter, quarter],
+              ),
               const Measure(
                 number: 3,
                 symbols: [quarter, quarter, quarter, quarter],
@@ -272,7 +275,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.text('Bar 2 has 2 beats; a bar of 4/4 needs 4 beats.'),
+        find.text('Bar 2 has 5 beats; a bar of 4/4 holds only 4 beats.'),
         findsOneWidget,
       );
 
