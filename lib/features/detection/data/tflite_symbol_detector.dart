@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:image/image.dart' as img;
 import 'package:tflite_flutter/tflite_flutter.dart';
@@ -15,6 +16,7 @@ import '../domain/symbol_detector.dart';
 
 class TfliteSymbolDetector implements SymbolDetector {
   static const String _modelPath = 'assets/models/best.tflite';
+  static const String _modelVersion = 'B9 v2 A';
 
   /// Model output class index → (pipeline symbol, note value).
   /// Order must match the training data.yaml `names` list.
@@ -48,7 +50,8 @@ class TfliteSymbolDetector implements SymbolDetector {
     (MusicSymbol.augmentationDot, null), // augmentationDot
   ];
 
-  // Calibration knobs: rests had the lowest recall in validation.
+  // Retain the existing cutoffs for B9 v2. New per-class cutoffs must be
+  // calibrated on validation pages with the app's postprocessing.
   static const double _defaultThreshold = 0.40;
   static const Map<MusicSymbol, double> _confidenceThresholds = {
     MusicSymbol.restHalf: 0.30,
@@ -67,15 +70,38 @@ class TfliteSymbolDetector implements SymbolDetector {
   Interpreter? _interpreter;
 
   Future<void> init() async {
+    if (_interpreter != null) return;
     final options = InterpreterOptions()..threads = 4;
-    _interpreter = await Interpreter.fromAsset(_modelPath, options: options);
-
-    final inputTensor = _interpreter!.getInputTensor(0);
-    final outputTensor = _interpreter!.getOutputTensor(0);
-    debugPrint('Input shape: ${inputTensor.shape}');
-    debugPrint('Input type: ${inputTensor.type}');
-    debugPrint('Output shape: ${outputTensor.shape}');
-    debugPrint('Output type: ${outputTensor.type}');
+    final interpreter = await Interpreter.fromAsset(
+      _modelPath,
+      options: options,
+    );
+    try {
+      final inputs = interpreter.getInputTensors();
+      final outputs = interpreter.getOutputTensors();
+      if (inputs.length != 1 || outputs.length != 1) {
+        throw StateError('$_modelVersion requires one input and one output.');
+      }
+      final input = inputs.single;
+      final output = outputs.single;
+      if (!listEquals(input.shape, const [1, 3, _inputSize, _inputSize]) ||
+          !listEquals(output.shape, const [1, _outputRows, _anchors]) ||
+          input.type != TensorType.float32 ||
+          output.type != TensorType.float32) {
+        throw StateError(
+          'Incompatible symbol model: ${input.shape} ${input.type} -> '
+          '${output.shape} ${output.type}. Expected FP32 '
+          '[1, 3, $_inputSize, $_inputSize] -> [1, $_outputRows, $_anchors].',
+        );
+      }
+      debugPrint(
+        'Symbol model: $_modelVersion | ${input.shape} -> ${output.shape} FP32',
+      );
+      _interpreter = interpreter;
+    } catch (_) {
+      interpreter.close();
+      rethrow;
+    }
   }
 
   void dispose() {

@@ -35,7 +35,7 @@ mistakes in an editor, then exports or plays back the result. No internet. No se
 |---------|---------------|
 | Framework | Flutter (Dart) |
 | ML inference | tflite_flutter 0.12.1 |
-| ML model | YOLO26n at 960×960 — 24 handwritten symbol classes (model B6): clefs, 5 note values, 5 rests, beam, sharp/flat/natural, time-sig digits 2/3/4/6/8, C, cut time, augmentation dot |
+| ML model | YOLO26n at 960×960 — 24 handwritten symbol classes (model B9 v2 A): clefs, 5 note values, 5 rests, beam, sharp/flat/natural, time-sig digits 2/3/4/6/8, C, cut time, augmentation dot |
 | Genre model | LSTM (`assets/models/genre_lstm.tflite`, 2.4 MB, 4-seed average): waltz / kundiman / jazz / other from the melody of all parts in reading order (first 320 notes); input [1,64,22]: step, rest, length, place in bar, meter, plus scale degree (12) and minor flag from Krumhansl–Schmuckler (`GenreModel.keyOf`); trained in the data project (`scripts/genre_train.py`, v3: + Weimar Jazz DB solos, Essen folk songs, PDMX jazz/waltz/other; kundiman from synthetic melodies (`kundiman_gen.py` + `trait_kundiman`, from published descriptions of the genre) plus 14 real transcriptions, 4 more held out for validation; 4-fold cross-validation over the 14: 13/14 whole songs, 12/14 on 40-note pieces, 0.5% of non-kundiman called kundiman with the app's logic) |
 | Image processing | image 4.8.0 |
 | XML parsing | xml 6.5.0 |
@@ -169,7 +169,7 @@ lib/
       export_file_name.dart          Shared `safeExportFileName(title)` used by both XML and PDF export
 
 assets/
-  models/best.tflite                 YOLO26n model B6 — 960×960 FP32, 24 classes
+  models/best.tflite                 YOLO26n model B9 v2 A — 960×960 FP32, 24 classes
   fonts/                             MaturaMTScriptCapitals
   images/                            notevision.png logo
   soundfonts/piano.sf2               GM SF2 soundfont for MIDI playback (not committed — see README.txt)
@@ -206,7 +206,7 @@ All screens use the same dark theme. Never use light colors unless it is a notat
 
 These are final unless explicitly changed:
 
-- **Model:** `assets/models/best.tflite` — YOLO26n model B6, 960×960 FP32 LiteRT, 24 handwritten classes, trained on stretched grayscale images (data project and training notebooks live outside this repo)
+- **Model:** `assets/models/best.tflite` — YOLO26n model B9 v2 A, 960×960 FP32 LiteRT, 24 handwritten classes, trained on stretched grayscale images (data project and training notebooks live outside this repo). SHA-256: `841a0959ac9569bca8f90d151e27b185fa0b495df22a377df640c2379602be76`. Dataset `d0222605`, variant A (1,163 training images), best epoch 65; selected over B using 25 real validation photos. All nine exported evaluations were independently reproduced. Frozen real test AP50 79.92% (B8 80.43%), older real test 95.40%, synthetic test 90.97%; the separate fresh-page AP50 94.25% covers only one page. C/cut time remain synthetic-only in evaluation. Keep the existing confidence cutoffs until validation-based app calibration; detector scores exclude staff filtering and reconstruction. Initialization checks the FP32 tensor contract before decoding.
 - **Tiling strategy:** No tiling — full image always stretched to 960×960 (no letterbox, no stave-based cropping). Model was trained on full-page stretches.
 - **Staff detection:** `StaffLineTracer` per clef (preferred) → clef-sized level staff → `HorizontalProjectionStaffDetector` where no clef → cluster / `SyntheticStaffBuilder` fallbacks. A staff with no clef of its own is read in the clef of the nearest staff above (else below).
 - **Bars:** split at barlines found by `BarlineFinder`; a staff with none falls back to beat counting. `ScoreBuilder` pads parts to equal measure counts because the editor pages by measure index.
