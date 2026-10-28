@@ -244,7 +244,7 @@ abstract final class BeamGrouping {
       }
       final key = (voice, staff);
       final onset = clocks[key] ?? 0;
-      final length = quarterLength(type, dots, duration);
+      final length = symbolQuarters(symbol);
       final bucket = ((onset + 1e-7) / beat).floor();
       clocks[key] = onset + length;
       if (!eligible(symbol) || onset + length > (bucket + 1) * beat + 1e-7) {
@@ -275,14 +275,10 @@ abstract final class BeamGrouping {
     for (final symbol in symbols) {
       if (symbol is Note && !symbol.isChordTone) {
         final key = _voice(symbol);
-        result[key] =
-            (result[key] ?? 0) +
-            quarterLength(symbol.type, symbol.dots, symbol.duration);
+        result[key] = (result[key] ?? 0) + symbolQuarters(symbol);
       } else if (symbol is Rest) {
         final key = (symbol.voice ?? 1, symbol.staff ?? 1);
-        result[key] =
-            (result[key] ?? 0) +
-            quarterLength(symbol.type, symbol.dots, symbol.duration);
+        result[key] = (result[key] ?? 0) + symbolQuarters(symbol);
       }
     }
     return result;

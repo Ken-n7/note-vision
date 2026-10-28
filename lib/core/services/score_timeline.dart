@@ -90,7 +90,20 @@ class ScoreTimelineBuilder {
     _ => ('1', 1),
   };
 
+  /// A note or rest's length as it sounds: its written value, shortened
+  /// exactly by its tuplet.
   static MusicalTime writtenDuration(ScoreSymbol symbol) {
+    final tuplet = switch (symbol) {
+      Note(:final tuplet) || Rest(:final tuplet) => tuplet,
+      _ => null,
+    };
+    final value = _writtenValue(symbol);
+    return tuplet == null
+        ? value
+        : value * MusicalTime(tuplet.normal, tuplet.actual);
+  }
+
+  static MusicalTime _writtenValue(ScoreSymbol symbol) {
     final (type, dots, stored) = switch (symbol) {
       Note(:final type, :final dots, :final duration) ||
       Rest(

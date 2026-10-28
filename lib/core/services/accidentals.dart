@@ -77,19 +77,7 @@ class Accidentals {
               symbols: [
                 for (final s in m.symbols)
                   s is Note
-                      ? Note(
-                          step: s.step,
-                          octave: s.octave,
-                          alter: state.written(s, s.alter ?? 0),
-                          duration: s.duration,
-                          type: s.type,
-                          voice: s.voice,
-                          staff: s.staff,
-                          beamed: s.beamed,
-                          beams: s.beams,
-                          dots: s.dots,
-                          isChordTone: s.isChordTone,
-                        )
+                      ? s.copyWith(alter: state.written(s, s.alter ?? 0))
                       : s,
               ],
             );

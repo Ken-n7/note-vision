@@ -1,5 +1,9 @@
 import 'dart:math' as math;
 
+import 'note.dart';
+import 'rest.dart';
+import 'score_symbol.dart';
+
 /// Length in quarter notes of each written note or rest value.
 ///
 /// A symbol's stored `duration` counts 2 divisions per quarter, so it cannot
@@ -24,3 +28,12 @@ double quarterLength(String type, int dots, int divisions) {
   if (base == null) return divisions / 2;
   return base * (2 - math.pow(0.5, dots));
 }
+
+/// Length in quarter notes of a note or rest as it sounds: its written value,
+/// shortened by its tuplet (a triplet eighth is a third of a quarter).
+double symbolQuarters(ScoreSymbol symbol) => switch (symbol) {
+  Note(:final type, :final dots, :final duration, :final tuplet) ||
+  Rest(:final type, :final dots, :final duration, :final tuplet) =>
+    quarterLength(type, dots, duration) * (tuplet?.factor ?? 1),
+  _ => 0,
+};

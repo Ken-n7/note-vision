@@ -481,12 +481,7 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
         .map(
           (s) => switch (s) {
             Note(isChordTone: true) => 0.0,
-            Note(:final type, :final dots, :final duration) ||
-            Rest(
-              :final type,
-              :final dots,
-              :final duration,
-            ) => quarterLength(type, dots, duration),
+            Note() || Rest() => symbolQuarters(s),
             _ => 0.0,
           },
         )

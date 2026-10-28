@@ -1,8 +1,10 @@
 import 'score_review.dart';
 import 'score_symbol.dart';
 import 'note_beam.dart';
+import 'tuplet.dart';
 
 export 'note_beam.dart';
+export 'tuplet.dart';
 
 class Note extends ScoreSymbol {
   final String step; // C, D, E, F, G, A, B
@@ -41,7 +43,51 @@ class Note extends ScoreSymbol {
     this.confidence,
     this.reviewId,
     this.source,
+    this.tuplet,
   }) : _legacyBeamed = beamed;
+
+  /// The tuplet this note belongs to, if any.
+  final Tuplet? tuplet;
+
+  static const Object _keep = Object();
+
+  /// This note with the given fields changed and every other field kept,
+  /// so that adding a field to [Note] cannot be lost by a copy.
+  Note copyWith({
+    String? step,
+    int? octave,
+    Object? alter = _keep,
+    int? duration,
+    String? type,
+    Object? voice = _keep,
+    Object? staff = _keep,
+    Map<int, BeamValue>? beams,
+    bool? beamed,
+    int? dots,
+    bool? isChordTone,
+    Object? confidence = _keep,
+    Object? reviewId = _keep,
+    Object? source = _keep,
+    Object? tuplet = _keep,
+  }) => Note(
+    step: step ?? this.step,
+    octave: octave ?? this.octave,
+    alter: identical(alter, _keep) ? this.alter : alter as int?,
+    duration: duration ?? this.duration,
+    type: type ?? this.type,
+    voice: identical(voice, _keep) ? this.voice : voice as int?,
+    staff: identical(staff, _keep) ? this.staff : staff as int?,
+    beamed: beamed ?? (beams == null && _legacyBeamed),
+    beams: beams ?? this.beams,
+    dots: dots ?? this.dots,
+    isChordTone: isChordTone ?? this.isChordTone,
+    confidence: identical(confidence, _keep)
+        ? this.confidence
+        : confidence as double?,
+    reviewId: identical(reviewId, _keep) ? this.reviewId : reviewId as String?,
+    source: identical(source, _keep) ? this.source : source as SourceRegion?,
+    tuplet: identical(tuplet, _keep) ? this.tuplet : tuplet as Tuplet?,
+  );
 
   @override
   Map<String, dynamic> toJson() => {
@@ -63,9 +109,11 @@ class Note extends ScoreSymbol {
     if (confidence != null) 'confidence': confidence,
     if (reviewId != null) 'reviewId': reviewId,
     if (source != null) 'source': source!.toJson(),
+    if (tuplet != null) 'tuplet': tuplet!.toJson(),
   };
 
   factory Note.fromJson(Map<String, dynamic> json) => Note(
+    tuplet: Tuplet.fromJson(json['tuplet']),
     step: json['step'] as String,
     octave: json['octave'] as int,
     alter: json['alter'] as int?,
@@ -99,39 +147,12 @@ class Note extends ScoreSymbol {
     return Map.unmodifiable(result);
   }
 
-  Note withBeams(Map<int, BeamValue> values) => Note(
-    step: step,
-    octave: octave,
-    alter: alter,
-    duration: duration,
-    type: type,
-    voice: voice,
-    staff: staff,
-    beams: Map.unmodifiable(values),
-    dots: dots,
-    isChordTone: isChordTone,
-    confidence: confidence,
-    reviewId: reviewId,
-    source: source,
-  );
+  Note withBeams(Map<int, BeamValue> values) =>
+      copyWith(beams: Map.unmodifiable(values));
 
   /// The same note written as [step][octave] with accidental [alter].
-  Note withPitch(String step, int octave, int? alter) => Note(
-    step: step,
-    octave: octave,
-    alter: alter,
-    duration: duration,
-    type: type,
-    voice: voice,
-    staff: staff,
-    beamed: _legacyBeamed,
-    beams: beams,
-    dots: dots,
-    isChordTone: isChordTone,
-    confidence: confidence,
-    reviewId: reviewId,
-    source: source,
-  );
+  Note withPitch(String step, int octave, int? alter) =>
+      copyWith(step: step, octave: octave, alter: alter);
 
   String get pitch {
     final accidental = switch (alter) {

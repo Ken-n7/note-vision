@@ -467,13 +467,8 @@ class NotationChecker {
   ];
 
   static double _length(ScoreSymbol s) => switch (s) {
-    Note(:final type, :final dots, :final duration, :final isChordTone) =>
-      isChordTone ? 0 : quarterLength(type, dots, duration),
-    Rest(:final type, :final dots, :final duration) => quarterLength(
-      type,
-      dots,
-      duration,
-    ),
+    Note(:final isChordTone) => isChordTone ? 0 : symbolQuarters(s),
+    Rest() => symbolQuarters(s),
     _ => 0,
   };
 
@@ -623,21 +618,13 @@ class NotationChecker {
     String? type,
     int? dots,
     int? duration,
-  }) => Note(
-    step: n.step,
-    octave: n.octave,
+  }) => n.copyWith(
     alter: identical(alter, _keep) ? n.alter : alter as int?,
     duration: duration ?? n.duration,
     type: type ?? n.type,
-    voice: n.voice,
-    staff: n.staff,
     beamed: beamed ?? n.beamed,
     beams: beamed == false ? const {} : n.beams,
     dots: dots ?? n.dots,
-    isChordTone: n.isChordTone,
-    confidence: n.confidence,
-    reviewId: n.reviewId,
-    source: n.source,
   );
 
   static Measure _measureWith(

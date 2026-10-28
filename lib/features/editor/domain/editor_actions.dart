@@ -215,6 +215,7 @@ extension EditorActions on EditorState {
         staff: note.staff,
         reviewId: note.reviewId,
         source: note.source,
+        tuplet: note.tuplet,
       ),
       intent: EditorEditIntent.replaceSelection,
     );
@@ -234,6 +235,7 @@ extension EditorActions on EditorState {
         staff: rest.staff,
         reviewId: rest.reviewId,
         source: rest.source,
+        tuplet: rest.tuplet,
       ),
       intent: EditorEditIntent.replaceSelection,
     );
@@ -242,8 +244,14 @@ extension EditorActions on EditorState {
   bool canSetSelectedDuration(DurationSpec spec) =>
       hasEditableSelection &&
       _canReplaceSelectedSymbolWith(
-        quarterLength(spec.type, 0, spec.divisions),
+        quarterLength(spec.type, 0, spec.divisions) * _selectedTupletFactor,
       );
+
+  /// A tuplet member keeps its tuplet when its value changes.
+  double get _selectedTupletFactor => switch (selectedEditableSymbol) {
+    Note(:final tuplet) || Rest(:final tuplet) => tuplet?.factor ?? 1,
+    _ => 1,
+  };
 
   bool get canToggleSelectedDot {
     final symbol = selectedEditableSymbol;
@@ -255,7 +263,8 @@ extension EditorActions on EditorState {
     };
     return noteValueQuarters.containsKey(type) &&
         _canReplaceSelectedSymbolWith(
-          quarterLength(type, dots > 0 ? 0 : 1, duration),
+          quarterLength(type, dots > 0 ? 0 : 1, duration) *
+              _selectedTupletFactor,
         );
   }
 
@@ -275,16 +284,10 @@ extension EditorActions on EditorState {
       final canBeam =
           durationSpec.type == 'eighth' || durationSpec.type == 'sixteenth';
       return _replaceSelectedSymbol(
-        Note(
-          source: symbol.source,
-          reviewId: symbol.reviewId,
-          step: symbol.step,
-          octave: symbol.octave,
-          alter: symbol.alter,
+        symbol.copyWith(
           duration: durationSpec.divisions,
           type: durationSpec.type,
-          voice: symbol.voice,
-          staff: symbol.staff,
+          dots: 0,
           beamed: canBeam && symbol.beamed,
           beams: canBeam
               ? {
@@ -293,7 +296,7 @@ extension EditorActions on EditorState {
                       entry.key: entry.value,
                 }
               : const {},
-          isChordTone: symbol.isChordTone,
+          confidence: null,
         ),
         intent: EditorEditIntent.replaceSelection,
       );
@@ -306,13 +309,11 @@ extension EditorActions on EditorState {
           symbol.dots == 0;
       if (isSameDuration) return this;
       return _replaceSelectedSymbol(
-        Rest(
-          source: symbol.source,
-          reviewId: symbol.reviewId,
+        symbol.copyWith(
           duration: durationSpec.divisions,
           type: durationSpec.type,
-          voice: symbol.voice,
-          staff: symbol.staff,
+          dots: 0,
+          confidence: null,
         ),
         intent: EditorEditIntent.replaceSelection,
       );
@@ -376,20 +377,11 @@ extension EditorActions on EditorState {
 
     if (symbol is Note) {
       return _replaceSelectedSymbol(
-        Note(
-          source: symbol.source,
-          reviewId: symbol.reviewId,
-          step: symbol.step,
-          octave: symbol.octave,
-          alter: symbol.alter,
+        symbol.copyWith(
           duration: newDuration,
-          type: symbol.type,
-          voice: symbol.voice,
-          staff: symbol.staff,
-          beamed: symbol.beamed,
-          beams: symbol.beams,
           dots: newDots,
-          isChordTone: symbol.isChordTone,
+          beamed: symbol.beamed,
+          confidence: null,
         ),
         intent: EditorEditIntent.replaceSelection,
       );
@@ -397,14 +389,10 @@ extension EditorActions on EditorState {
 
     if (symbol is Rest) {
       return _replaceSelectedSymbol(
-        Rest(
-          source: symbol.source,
-          reviewId: symbol.reviewId,
+        symbol.copyWith(
           duration: newDuration,
-          type: symbol.type,
-          voice: symbol.voice,
-          staff: symbol.staff,
           dots: newDots,
+          confidence: null,
         ),
         intent: EditorEditIntent.replaceSelection,
       );
@@ -575,20 +563,11 @@ extension EditorActions on EditorState {
           newClefSign: newClef.sign,
           newClefLine: newClef.line,
         );
-        return Note(
-          source: symbol.source,
-          reviewId: symbol.reviewId,
+        return symbol.copyWith(
           step: newPitch.step,
           octave: newPitch.octave,
-          alter: symbol.alter,
-          duration: symbol.duration,
-          type: symbol.type,
-          voice: symbol.voice,
-          staff: symbol.staff,
           beamed: symbol.beamed,
-          beams: symbol.beams,
-          dots: symbol.dots,
-          isChordTone: symbol.isChordTone,
+          confidence: null,
         );
       }).toList();
 
@@ -1316,6 +1295,7 @@ extension EditorActions on EditorState {
       voice: base.voice,
       staff: base.staff,
       isChordTone: true,
+      tuplet: base.tuplet,
     );
     return _applySymbolSelectionEdit(
       intent: EditorEditIntent.insertAfterSelection,
@@ -1432,21 +1412,7 @@ extension EditorActions on EditorState {
     final note = selectedSymbol as Note;
     if (note.alter == alter) return this;
     return _replaceSelectedSymbol(
-      Note(
-        source: note.source,
-        reviewId: note.reviewId,
-        step: note.step,
-        octave: note.octave,
-        alter: alter,
-        duration: note.duration,
-        type: note.type,
-        voice: note.voice,
-        staff: note.staff,
-        beamed: note.beamed,
-        beams: note.beams,
-        dots: note.dots,
-        isChordTone: note.isChordTone,
-      ),
+      note.copyWith(alter: alter, beamed: note.beamed, confidence: null),
       intent: EditorEditIntent.replaceSelection,
     );
   }
@@ -1951,25 +1917,14 @@ const _stepNames = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 /// A pasted copy: no scan evidence or review identity of its own.
 ScoreSymbol _pasteCopy(ScoreSymbol symbol, {bool startsChord = false}) =>
     switch (symbol) {
-      Note() => Note(
-        step: symbol.step,
-        octave: symbol.octave,
-        alter: symbol.alter,
-        duration: symbol.duration,
-        type: symbol.type,
-        voice: symbol.voice,
-        staff: symbol.staff,
+      Note() => symbol.copyWith(
         beams: symbol.beams,
-        dots: symbol.dots,
         isChordTone: symbol.isChordTone && !startsChord,
+        confidence: null,
+        reviewId: null,
+        source: null,
       ),
-      Rest() => Rest(
-        duration: symbol.duration,
-        type: symbol.type,
-        voice: symbol.voice,
-        staff: symbol.staff,
-        dots: symbol.dots,
-      ),
+      Rest() => symbol.copyWith(confidence: null, reviewId: null, source: null),
       _ => symbol,
     };
 
@@ -2069,21 +2024,13 @@ Note _pitched(
   required int? alter,
   bool? isChordTone,
   Map<int, BeamValue>? beams,
-}) => Note(
-  source: note.source,
-  reviewId: note.reviewId,
+}) => note.copyWith(
   step: _stepNames[pitch % 7],
   octave: pitch ~/ 7,
   alter: alter,
-  duration: note.duration,
-  type: note.type,
-  voice: note.voice,
-  staff: note.staff,
   beamed: note.beamed,
   beams: beams ?? note.beams,
-  dots: note.dots,
   isChordTone: isChordTone ?? note.isChordTone,
-  confidence: note.confidence,
 );
 
 Note _moveNoteByScaleStep(Note note, int steps) {
@@ -2107,19 +2054,10 @@ Note _moveNoteByScaleStep(Note note, int steps) {
   // Past the range the editor shows, the note stays where it is.
   if (nextOctave < 1 || nextOctave > 7) return note;
 
-  return Note(
-    source: note.source,
-    reviewId: note.reviewId,
+  return note.copyWith(
     step: stepsByName[nextIndex],
     octave: nextOctave,
-    alter: note.alter,
-    duration: note.duration,
-    type: note.type,
-    voice: note.voice,
-    staff: note.staff,
     beamed: note.beamed,
-    beams: note.beams,
-    dots: note.dots,
-    isChordTone: note.isChordTone,
+    confidence: null,
   );
 }

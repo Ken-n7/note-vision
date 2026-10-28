@@ -1,5 +1,6 @@
 import 'score_review.dart';
 import 'score_symbol.dart';
+import 'tuplet.dart';
 
 class Rest extends ScoreSymbol {
   final int duration; // effective divisions, including augmentation dots
@@ -22,7 +23,38 @@ class Rest extends ScoreSymbol {
     this.confidence,
     this.reviewId,
     this.source,
+    this.tuplet,
   });
+
+  /// The tuplet this rest belongs to, if any.
+  final Tuplet? tuplet;
+
+  static const Object _keep = Object();
+
+  /// This rest with the given fields changed and every other field kept.
+  Rest copyWith({
+    int? duration,
+    String? type,
+    Object? voice = _keep,
+    Object? staff = _keep,
+    int? dots,
+    Object? confidence = _keep,
+    Object? reviewId = _keep,
+    Object? source = _keep,
+    Object? tuplet = _keep,
+  }) => Rest(
+    duration: duration ?? this.duration,
+    type: type ?? this.type,
+    voice: identical(voice, _keep) ? this.voice : voice as int?,
+    staff: identical(staff, _keep) ? this.staff : staff as int?,
+    dots: dots ?? this.dots,
+    confidence: identical(confidence, _keep)
+        ? this.confidence
+        : confidence as double?,
+    reviewId: identical(reviewId, _keep) ? this.reviewId : reviewId as String?,
+    source: identical(source, _keep) ? this.source : source as SourceRegion?,
+    tuplet: identical(tuplet, _keep) ? this.tuplet : tuplet as Tuplet?,
+  );
 
   @override
   Map<String, dynamic> toJson() => {
@@ -35,9 +67,11 @@ class Rest extends ScoreSymbol {
     if (confidence != null) 'confidence': confidence,
     if (reviewId != null) 'reviewId': reviewId,
     if (source != null) 'source': source!.toJson(),
+    if (tuplet != null) 'tuplet': tuplet!.toJson(),
   };
 
   factory Rest.fromJson(Map<String, dynamic> json) => Rest(
+    tuplet: Tuplet.fromJson(json['tuplet']),
     duration: json['duration'] as int,
     type: json['type'] as String,
     voice: json['voice'] as int?,

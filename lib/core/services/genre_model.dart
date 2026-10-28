@@ -116,19 +116,11 @@ class GenreModel {
               out.last[0] = math.max(out.last[0] as int, midi);
               continue;
             }
-            final length = quarterLength(
-              symbol.type,
-              symbol.dots,
-              symbol.duration,
-            );
+            final length = symbolQuarters(symbol);
             out.add([midi, length, math.min(at / barLength, 0.999), beats]);
             at += length;
           } else if (symbol is Rest) {
-            final length = quarterLength(
-              symbol.type,
-              symbol.dots,
-              symbol.duration,
-            );
+            final length = symbolQuarters(symbol);
             out.add([-1, length, math.min(at / barLength, 0.999), beats]);
             at += length;
           }

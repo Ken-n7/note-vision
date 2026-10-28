@@ -17,20 +17,8 @@ class VoiceLayout {
     var chordOnset = 0.0;
     for (final (i, symbol) in symbols.indexed) {
       final (voice, staff, length) = switch (symbol) {
-        Note(
-          :final voice,
-          :final staff,
-          :final type,
-          :final dots,
-          :final duration,
-        ) ||
-        Rest(
-          :final voice,
-          :final staff,
-          :final type,
-          :final dots,
-          :final duration,
-        ) => (voice ?? 1, staff ?? 1, quarterLength(type, dots, duration)),
+        Note(:final voice, :final staff) || Rest(:final voice, :final staff) =>
+          (voice ?? 1, staff ?? 1, symbolQuarters(symbol)),
         _ => (1, 1, 0.0),
       };
       voices[i] = voice;

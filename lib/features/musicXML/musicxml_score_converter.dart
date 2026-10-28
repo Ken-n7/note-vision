@@ -72,17 +72,8 @@ class MusicXmlScoreConverter {
               noteIndex: indexes[symbolIndex],
             ),
           );
-          final (type, dots, duration) = switch (symbol) {
-            Note(:final type, :final dots, :final duration) ||
-            Rest(
-              :final type,
-              :final dots,
-              :final duration,
-            ) => (type, dots, duration),
-            _ => throw StateError('Unexpected imported symbol'),
-          };
           representedDurations['$sourcePartId:$measureIndex:${indexes[symbolIndex]}'] =
-              quarterLength(type, dots, duration);
+              symbolQuarters(symbol);
         }
       }
     }

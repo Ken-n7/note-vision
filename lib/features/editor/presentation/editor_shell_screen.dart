@@ -112,23 +112,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     final voice = _inputVoice;
     if (voice == null || voice == 1) return symbol;
     return switch (symbol) {
-      Note() => Note(
-        step: symbol.step,
-        octave: symbol.octave,
-        alter: symbol.alter,
-        duration: symbol.duration,
-        type: symbol.type,
-        voice: voice,
-        staff: symbol.staff,
-        dots: symbol.dots,
-      ),
-      Rest() => Rest(
-        duration: symbol.duration,
-        type: symbol.type,
-        voice: voice,
-        staff: symbol.staff,
-        dots: symbol.dots,
-      ),
+      Note() => symbol.copyWith(voice: voice),
+      Rest() => symbol.copyWith(voice: voice),
       _ => symbol,
     };
   }

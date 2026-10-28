@@ -184,25 +184,13 @@ class MusicXmlExportService {
           symbols: [
             for (final s in m.symbols)
               switch (s) {
-                Note() when s.staff == null => Note(
-                  step: s.step,
-                  octave: s.octave,
-                  alter: s.alter,
-                  duration: s.duration,
-                  type: s.type,
+                Note() when s.staff == null => s.copyWith(
                   voice: s.voice ?? 1 + 4 * (staff - 1),
                   staff: staff,
-                  beams: s.beams,
-                  dots: s.dots,
-                  isChordTone: s.isChordTone,
-                  reviewId: s.reviewId,
                 ),
-                Rest() when s.staff == null => Rest(
-                  duration: s.duration,
-                  type: s.type,
+                Rest() when s.staff == null => s.copyWith(
                   voice: s.voice ?? 1 + 4 * (staff - 1),
                   staff: staff,
-                  dots: s.dots,
                 ),
                 _ => s,
               },
