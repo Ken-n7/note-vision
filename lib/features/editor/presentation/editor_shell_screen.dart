@@ -38,12 +38,14 @@ import 'package:note_vision/features/editor/presentation/editor_layout_policy.da
 import 'package:note_vision/features/editor/presentation/widgets/notation_check_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/notation_review_panel.dart';
 import 'package:note_vision/features/editor/presentation/widgets/beam_editor_sheet.dart';
+import 'package:note_vision/features/editor/presentation/widgets/transpose_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/editor_tool_dock.dart';
 import 'package:note_vision/features/editor/presentation/widgets/editor_help_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/editor_command_palette.dart';
 import 'package:note_vision/features/editor/presentation/widgets/playback_controls_bar.dart';
 import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.dart';
 import 'package:note_vision/core/services/usage_stats_service.dart';
+import 'package:note_vision/core/services/transposer.dart';
 import 'package:note_vision/features/musicXML/musicxml_export_service.dart';
 import 'package:note_vision/features/musicXML/musicxml_preserving_exporter.dart';
 import 'package:note_vision/features/pdf/pdf_export_service.dart';
@@ -1424,6 +1426,34 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     return state.copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
   }
 
+  /// Moves every note by the interval chosen in [TransposeSheet].
+  Future<void> _showTranspose() async {
+    if (!_canClearAllSymbols || _commandEditLock != null) return;
+    final original = _editorState.score;
+    final options = await showModalBottomSheet<TransposeOptions>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      constraints: const BoxConstraints(maxWidth: 560),
+      builder: (_) => TransposeSheet(
+        currentKey:
+            original.parts.firstOrNull?.measures.firstOrNull?.keySignature
+                ?.fifths ??
+            0,
+      ),
+    );
+    // Playback or another edit can start while the sheet is open.
+    if (!mounted ||
+        options == null ||
+        !identical(_editorState.score, original) ||
+        _commandEditLock != null) {
+      return;
+    }
+    _updateState((state) => state.transposeScore(options));
+  }
+
   Future<void> _showBeamEditor() async {
     if (_isReviewMode ||
         _playbackPending ||
@@ -1645,6 +1675,14 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 : null),
       ),
       EditorCommandChoice(
+        id: 'workspace.transpose',
+        label: 'Transpose…',
+        group: 'Pitch',
+        description: 'Move the score to another key or by an interval',
+        disabledReason:
+            lock ?? (state.musicSymbolCount == 0 ? 'Add notes first' : null),
+      ),
+      EditorCommandChoice(
         id: 'workspace.addBar',
         label: 'Add bar',
         group: 'Structure',
@@ -1709,6 +1747,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         if (_commandEditLock == null) _toggleInsertMode();
       case 'workspace.beams':
         if (_commandEditLock == null) await _showBeamEditor();
+      case 'workspace.transpose':
+        await _showTranspose();
       case 'workspace.addBar':
         if (_commandEditLock == null) {
           _updateState((s) => s.appendMeasureAtEnd());
@@ -2322,6 +2362,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   onClearAllSymbols: _canClearAllSymbols
                       ? _confirmClearAllSymbols
                       : null,
+                  onTranspose: _canClearAllSymbols ? _showTranspose : null,
                   onSave: isReadOnly ? null : _onSave,
                   isSaving: _isSaving,
                   showSubmitButton: _isStudent && !isReadOnly,
@@ -2841,6 +2882,7 @@ enum _HeaderMenuAction {
   checkNotation,
   exportXml,
   exportPdf,
+  transpose,
   clearAllSymbols,
 }
 
@@ -2892,6 +2934,7 @@ class _EditorHeader extends StatelessWidget {
     this.onScanPage,
     this.onCheckNotation,
     this.onClearAllSymbols,
+    this.onTranspose,
     this.isSaving = false,
   });
 
@@ -2916,6 +2959,7 @@ class _EditorHeader extends StatelessWidget {
   final VoidCallback? onScanPage;
   final VoidCallback? onCheckNotation;
   final VoidCallback? onClearAllSymbols;
+  final VoidCallback? onTranspose;
   final bool isSaving;
 
   static final ButtonStyle _compactIconButtonStyle = IconButton.styleFrom(
@@ -3138,6 +3182,8 @@ class _EditorHeader extends StatelessWidget {
                           onExportXml();
                         } else if (action == _HeaderMenuAction.exportPdf) {
                           onExportPdf();
+                        } else if (action == _HeaderMenuAction.transpose) {
+                          onTranspose?.call();
                         } else if (action ==
                             _HeaderMenuAction.clearAllSymbols) {
                           onClearAllSymbols?.call();
@@ -3180,6 +3226,14 @@ class _EditorHeader extends StatelessWidget {
                           ),
                         ),
                         if (!isReviewMode) ...[
+                          PopupMenuItem(
+                            value: _HeaderMenuAction.transpose,
+                            enabled: onTranspose != null,
+                            child: const _HeaderMenuItem(
+                              icon: Icons.swap_vert_rounded,
+                              label: 'Transpose…',
+                            ),
+                          ),
                           const PopupMenuDivider(),
                           PopupMenuItem(
                             value: _HeaderMenuAction.clearAllSymbols,

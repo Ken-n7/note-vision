@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/services/playback_converter.dart';
+import 'package:note_vision/core/services/transposer.dart';
 import 'package:note_vision/features/musicXML/musicxml_export_service.dart';
 import 'package:note_vision/features/musicXML/musicxml_parser_service.dart';
 import 'package:note_vision/features/musicXML/musicxml_score_converter.dart';
@@ -33,6 +34,22 @@ void main() {
           .toList()
         ..sort();
 
+  void matchBaseline(String name, String report) {
+    final baseline = File('$root/baseline/$name.txt');
+    if (update) {
+      baseline.writeAsStringSync(report);
+      return;
+    }
+    expect(
+      report,
+      baseline.existsSync() ? baseline.readAsStringSync() : '<no baseline>',
+      reason:
+          'Note Vision now differs from MuseScore in a new way. If this is '
+          'an improvement, rerun with NV_UPDATE_PARITY=1 and commit '
+          '$root/baseline/$name.txt.',
+    );
+  }
+
   for (final name in cases) {
     test(name, () {
       final referenceXml = File('$root/reference/$name.musicxml');
@@ -42,27 +59,84 @@ void main() {
           'No MuseScore reference for $name: run tool/musescore_reference.sh',
         );
       }
-      final report = parityReport(
+      matchBaseline(
         name,
-        referenceXml.readAsStringSync(),
-        referenceMidi.readAsBytesSync(),
+        parityReport(
+          name,
+          referenceXml.readAsStringSync(),
+          referenceMidi.readAsBytesSync(),
+        ),
       );
-      final baseline = File('$root/baseline/$name.txt');
-      if (update) {
-        baseline.writeAsStringSync(report);
-        return;
+    });
+  }
+
+  // MuseScore transposes each case (`--transpose`); Note Vision transposes
+  // its import of MuseScore's untransposed export with the same options.
+  final transpositions =
+      jsonDecode(File('$root/transpositions.json').readAsStringSync())
+          as Map<String, dynamic>;
+  for (final MapEntry(key: name, value: spec as Map<String, dynamic>)
+      in transpositions.entries) {
+    test(name, () {
+      final transposed = File('$root/reference/transpose/$name.musicxml');
+      if (!transposed.existsSync()) {
+        fail(
+          'No MuseScore reference for $name: run tool/musescore_reference.sh',
+        );
       }
-      expect(
-        report,
-        baseline.existsSync() ? baseline.readAsStringSync() : '<no baseline>',
-        reason:
-            'Note Vision now differs from MuseScore in a new way. If this is '
-            'an improvement, rerun with NV_UPDATE_PARITY=1 and commit '
-            '$root/baseline/$name.txt.',
+      final options = spec['options'] as Map<String, dynamic>;
+      final ours = const Transposer().transpose(
+        _modelOnly(
+          _import(
+            File('$root/reference/${spec['case']}.musicxml').readAsStringSync(),
+          ),
+        ),
+        TransposeOptions(
+          mode: switch (options['mode']) {
+            'by_key' => TransposeMode.toKey,
+            'diatonically' => TransposeMode.diatonic,
+            _ => TransposeMode.byInterval,
+          },
+          direction: TransposeDirection.values.byName(
+            options['direction'] as String,
+          ),
+          targetKey: options['targetKey'] as int? ?? 0,
+          interval: options['transposeInterval'] as int? ?? 0,
+          keySignatures: options['transposeKeySignatures'] as bool? ?? true,
+          doubleAccidentals: options['useDoubleSharpsFlats'] as bool? ?? false,
+        ),
+      );
+      matchBaseline(
+        name,
+        '# $name — ${_version()} vs Note Vision\n'
+        '${compareFacts('pitches', pitchFacts(notationFacts(XmlDocument.parse(transposed.readAsStringSync()))), pitchFacts(notationFacts(XmlDocument.parse(const MusicXmlExportService().toMusicXml(ours)))))}\n',
       );
     });
   }
 }
+
+/// Imports [xml] as the app does, then saves and reopens it as a project.
+Score _import(String xml) {
+  final parsed = const MusicXmlParserService().parse(xml);
+  if (!parsed.success) throw StateError(parsed.errorMessage ?? 'import failed');
+  return Score.fromJson(
+    jsonDecode(
+          jsonEncode(
+            const MusicXmlScoreConverter().convert(parsed.document!).toJson(),
+          ),
+        )
+        as Map<String, dynamic>,
+  );
+}
+
+/// Without the retained source the exporter writes what the model holds,
+/// which is what the editor can show and edit.
+Score _modelOnly(Score score) => Score(
+  id: score.id,
+  title: score.title,
+  composer: score.composer,
+  parts: score.parts,
+);
 
 String parityReport(String name, String referenceXml, List<int> referenceMidi) {
   final reference = XmlDocument.parse(referenceXml);
@@ -71,22 +145,8 @@ String parityReport(String name, String referenceXml, List<int> referenceMidi) {
   if (!parsed.success) {
     return '$out## import failed: ${parsed.errorMessage}\n';
   }
-  final imported = Score.fromJson(
-    jsonDecode(
-          jsonEncode(
-            const MusicXmlScoreConverter().convert(parsed.document!).toJson(),
-          ),
-        )
-        as Map<String, dynamic>,
-  );
-  // Without the retained source the exporter writes what the model holds,
-  // which is what the editor can show and edit.
-  final modelOnly = Score(
-    id: imported.id,
-    title: imported.title,
-    composer: imported.composer,
-    parts: imported.parts,
-  );
+  final imported = _import(referenceXml);
+  final modelOnly = _modelOnly(imported);
   out
     ..writeln(
       compareFacts(

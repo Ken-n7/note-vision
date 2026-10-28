@@ -230,6 +230,17 @@ String? _text(XmlElement? e, String name) {
   return value == null || value.isEmpty ? null : value;
 }
 
+/// Only what transposition changes: key signatures, and each note's pitch
+/// and written accidental at its place in the bar.
+List<String> pitchFacts(List<String> facts) => [
+  for (final fact in facts)
+    if (fact.contains(' key '))
+      fact
+    else if (RegExp(r'^(\S+ \S+ @\S+) v=\S+ s=\S+ note (\S+)').firstMatch(fact)
+        case final m?)
+      '${m[1]} ${m[2]}${RegExp(r' acc=\S+').firstMatch(fact)?[0] ?? ''}',
+];
+
 /// Sounding notes as `@onset key dur` in quarter notes, so tempo marks do not
 /// matter. Instruments are separate facts. Times are rounded to 1/96 quarter:
 /// MuseScore releases each note one tick early.

@@ -115,6 +115,24 @@ class Note extends ScoreSymbol {
     source: source,
   );
 
+  /// The same note written as [step][octave] with accidental [alter].
+  Note withPitch(String step, int octave, int? alter) => Note(
+    step: step,
+    octave: octave,
+    alter: alter,
+    duration: duration,
+    type: type,
+    voice: voice,
+    staff: staff,
+    beamed: _legacyBeamed,
+    beams: beams,
+    dots: dots,
+    isChordTone: isChordTone,
+    confidence: confidence,
+    reviewId: reviewId,
+    source: source,
+  );
+
   String get pitch {
     final accidental = switch (alter) {
       -2 => 'bb',

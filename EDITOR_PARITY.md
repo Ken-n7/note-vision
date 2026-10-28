@@ -227,14 +227,21 @@ test/musescore_parity` and commit the smaller baseline. A new feature starts
 with a case: write it, generate its reference, record the baseline, then
 implement until its differences are gone.
 
-Initial gaps (2026-10-28): written accidentals, measure rests, pickups,
+`transpositions.json` lists edits MuseScore can make from the command line
+(`--transpose`, same JSON options as its Transpose dialog). The script writes
+`reference/transpose/<name>.musicxml`; the test applies Note Vision's
+`Transposer` with the same options to its import of the untransposed case and
+compares key signatures, pitches and written accidentals (`pitchFacts`).
+
+Initial gaps (2026-10-28): measure rests, pickups,
 cut/common symbols, final barlines, voltas, ties, slurs, tuplets, grace notes,
 articulations, ornaments, dynamics, text, tempo, rehearsal marks, chord
 symbols, lyrics, the second staff's clef (the model has one clef per bar)
 and hidden gaps within a voice (`<forward>`; no invisible rests) are lost in
 the model's export. Fixed since: the exporter writes `<staves>` and
 `<backup>`/`<forward>` between voice/staff lanes, and the importer no longer
-invents composer "Unknown composer". Playback lacks tie merging,
+invents composer "Unknown composer", and written accidentals are exported.
+Playback lacks tie merging,
 grace notes, repeats, articulation lengths, chord-symbol playback and
 instruments. Rhythm, pitch, beams, chords, meters and key handling match.
 
@@ -260,7 +267,25 @@ instruments. Rhythm, pitch, beams, chords, meters and key handling match.
 - Tests: `test/features/editor/domain/note_input_test.dart`, keyboard test in
   `editor_commands_test.dart`; full suite 734 passed, analysis clean.
 
-Next: Stage 3B (transpose), then 3C (range selection and clipboard), 3D
+## Stage 3B — transpose
+
+- `Transposer` (`lib/core/services/transposer.dart`) follows MuseScore's
+  Transpose dialog: to a key (closest/up/down), by any of its 25 intervals
+  (up/down, optionally leaving key signatures), or diatonically along the
+  scale keeping each note's alteration from the key; double sharps/flats
+  optional, otherwise respelled. Pitches move as heard (key and carried
+  accidentals included) and accidentals are rewritten for the new key. A key
+  past seven sharps/flats becomes its enharmonic key while notes keep the
+  interval's spelling, as MuseScore does. Scan evidence, review IDs, beams and
+  rests are kept; a first bar without a key signature gains one.
+- All ten MuseScore transposition references match exactly (keys, pitches and
+  written accidentals), including mid-score key changes, chords and a grand
+  staff. Editor: More → Transpose… and command search, one undo step,
+  selection kept; the sheet fits phones with large text.
+- Not yet: transposing only a selection (needs range selection, 3C), chord
+  symbols (not in the model), transposing instruments.
+
+Next: 3C (range selection and clipboard), 3D
 (voices), 3E (instrument/staff management) on the Stage 2B timeline. Retained-source
 rhythm export, global timewise measure slots and richer editable notation still
 need work. Range/clipboard and advanced notation should build on this timeline

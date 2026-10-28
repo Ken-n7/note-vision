@@ -90,6 +90,25 @@ class Measure {
     };
   }
 
+  /// This measure with a new key signature and symbols, keeping its number,
+  /// clef, meter, layout breaks, barlines and scan evidence.
+  Measure withContent({
+    required KeySignature? keySignature,
+    required List<ScoreSymbol> symbols,
+  }) => Measure(
+    number: number,
+    reviewId: reviewId,
+    source: source,
+    clef: clef,
+    timeSignature: timeSignature,
+    keySignature: keySignature,
+    symbols: symbols,
+    startsNewPage: startsNewPage,
+    startsNewSystem: startsNewSystem,
+    leftBarlineType: leftBarlineType,
+    rightBarlineType: rightBarlineType,
+  );
+
   List<Note> get notes => symbols.whereType<Note>().toList();
 
   List<Rest> get rests => symbols.whereType<Rest>().toList();

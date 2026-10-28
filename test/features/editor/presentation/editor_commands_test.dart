@@ -11,6 +11,7 @@ import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/services/playback_service.dart';
 import 'package:note_vision/features/editor/presentation/widgets/editor_command_palette.dart';
 import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.dart';
+import 'package:note_vision/features/editor/presentation/widgets/transpose_sheet.dart';
 
 import '../../../support/editor_controls_harness.dart';
 
@@ -190,6 +191,33 @@ void main() {
     expect(shown(), ['A3', '+E4', 'D4', 'rest']);
     await modified(tester, LogicalKeyboardKey.keyZ);
     expect(shown(), ['A3', '+E4', 'D4']);
+  });
+
+  testWidgets('transposes to a new key from search and undoes in one step', (
+    tester,
+  ) async {
+    await pumpControls(tester, size: const Size(390, 844));
+    await search(tester, 'transpose');
+    await tester.tap(find.byKey(const ValueKey('command-workspace.transpose')));
+    await tester.pumpAndSettle();
+    expect(find.byType(TransposeSheet), findsOneWidget);
+    final apply = find.widgetWithText(FilledButton, 'Transpose');
+    expect(tester.widget<FilledButton>(apply).onPressed, isNull);
+    await tester.tap(find.byKey(const ValueKey('transpose-key')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('D major / B minor').last);
+    await tester.pumpAndSettle();
+    await tester.tap(apply);
+    await tester.pumpAndSettle();
+    expect(find.byType(TransposeSheet), findsNothing);
+    final measure = shownControlsScore(tester).parts[0].measures[0];
+    expect(measure.keySignature?.fifths, 2);
+    // E4 becomes F#4; the new key signature writes its sharp.
+    expect([
+      for (final n in measure.symbols.whereType<Note>()) n.pitch,
+    ], ['D4', 'F4']);
+    await modified(tester, LogicalKeyboardKey.keyZ);
+    expect(selectedNote(tester).pitch, 'C4');
   });
 
   testWidgets('conversion is reachable on a phone and can be undone', (

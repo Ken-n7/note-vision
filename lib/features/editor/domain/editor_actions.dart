@@ -11,6 +11,7 @@ import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/widgets/score_notation/staff_pitch_mapper.dart';
 import 'package:note_vision/core/services/score_timeline.dart';
+import 'package:note_vision/core/services/transposer.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/model/editor_state_history.dart';
 
@@ -33,6 +34,7 @@ enum EditorEditIntent {
   createMeasure,
   createPage,
   deleteMeasure,
+  transpose,
 }
 
 const DurationSpec wholeDuration = DurationSpec('whole', 8);
@@ -653,6 +655,13 @@ extension EditorActions on EditorState {
     );
   }
 
+  /// Transposes every part as one undo step, keeping the selection.
+  EditorState transposeScore(TransposeOptions options) =>
+      _applySelectionPreservingEdit(
+        intent: EditorEditIntent.transpose,
+        score: const Transposer().transpose(score, options),
+      );
+
   // ── Keyboard note input (MuseScore-style) ────────────────────────────
 
   /// After the selected symbol and any chord tones that follow it, else at
@@ -1254,6 +1263,7 @@ extension EditorActions on EditorState {
     switch (intent) {
       case EditorEditIntent.updateMeasureMetadata:
       case EditorEditIntent.reorderWithinMeasure:
+      case EditorEditIntent.transpose:
         return applyEdit(
           score: next,
           selectedPartIndex: selectedPartIndex,

@@ -282,6 +282,16 @@ class MusicXmlExportService {
           b.element('dot');
         }
       }
+      // [Note.alter] is the accidental written before the note.
+      final accidental = switch (note.alter) {
+        -2 => 'flat-flat',
+        -1 => 'flat',
+        0 => 'natural',
+        1 => 'sharp',
+        2 => 'double-sharp',
+        _ => null,
+      };
+      if (accidental != null) b.element('accidental', nest: accidental);
       if (note.staff != null) {
         b.element('staff', nest: note.staff.toString());
       }

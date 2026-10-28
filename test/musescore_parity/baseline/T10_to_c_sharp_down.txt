@@ -1,0 +1,2 @@
+# T10_to_c_sharp_down — MuseScore4 4.7.5 vs Note Vision
+## pitches: 15/15 MuseScore facts match

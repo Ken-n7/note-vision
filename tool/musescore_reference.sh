@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Regenerates MuseScore's reference exports for test/musescore_parity.
 # Usage: tool/musescore_reference.sh [case-name ...]   (default: every case)
+# Also regenerates every transposition in transpositions.json (needs jq).
 # MSCORE overrides the MuseScore Studio executable or AppImage.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -24,5 +25,14 @@ trap 'rm -f "$jobs"' EXIT
 } > "$jobs"
 
 "$mscore" -j "$jobs"
+
+# Transposition references: MuseScore transposes the case, then exports.
+mkdir -p "$dir/reference/transpose"
+for name in $(jq -r 'keys[]' "$dir/transpositions.json"); do
+  case_name=$(jq -r --arg n "$name" '.[$n].case' "$dir/transpositions.json")
+  options=$(jq -c --arg n "$name" '.[$n].options' "$dir/transpositions.json")
+  "$mscore" --transpose "$options" -o "$PWD/$dir/reference/transpose/$name.musicxml" \
+    "$PWD/$dir/cases/$case_name.musicxml"
+done
 "$mscore" --version 2>/dev/null | tail -1 > "$dir/reference/VERSION"
 cat "$dir/reference/VERSION"
