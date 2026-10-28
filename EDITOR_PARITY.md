@@ -334,7 +334,28 @@ instruments. Rhythm, pitch, beams, chords, meters and key handling match.
   `note_input_test.dart`, voice chips in `editor_commands_test.dart`; editor
   and PDF output were checked visually.
 
-Next: 3E (range selection and clipboard), 3D
+## Stage 3E (part 1) — staves and instruments
+
+- More → Staves and instruments…, command search, or Bar tools → Clef →
+  Staves opens `StavesSheet`, MuseScore's Instruments panel for one staff per
+  part: add an instrument (name and usual clef; alto/tenor stay behind
+  `AppFeatures.cClefs`), rename, reorder and remove. The sheet edits a working
+  list; Done applies `rearrangeParts` as one undo step, Cancel changes
+  nothing. New staves copy every bar's meter, key, breaks and barlines and
+  start empty; adding one makes the parts play together.
+- Scanned scores with several staves are lines of one part read in order, so
+  adding an instrument there is refused with an explanation; renaming,
+  reordering and removing still work. A one-staff score (including a new
+  blank score) can gain instruments.
+- Fixed (affected all editing since review IDs were introduced): assigning
+  review IDs rebuilds every symbol, which silently cleared the selection after
+  any edit that added a symbol or bar. Typed notes then went to the end of
+  the bar instead of after the previous note. `_updateState` now finds the
+  selection again by position.
+- Not yet: instrument sounds (one piano channel; Stage 5 mixer), grand staff
+  (next), transposing instruments, linked parts.
+
+Next: 3E part 2 — grand staff. (range selection and clipboard), 3D
 (voices), 3E (instrument/staff management) on the Stage 2B timeline. Retained-source
 rhythm export, global timewise measure slots and richer editable notation still
 need work. Range/clipboard and advanced notation should build on this timeline

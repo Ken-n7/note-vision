@@ -48,6 +48,10 @@ const DurationSpec eighthDuration = DurationSpec('eighth', 1);
 /// stored as 1; its real length comes from its type (see [quarterLength]).
 const DurationSpec sixteenthDuration = DurationSpec('sixteenth', 1);
 
+/// One staff in a new part order: an existing part ([from] is its index) or
+/// a new empty one with [clef]. [name] may rename it.
+typedef StaffPlanEntry = ({int? from, String name, Clef? clef});
+
 /// Notes and rests copied from one part, bar by bar (empty bars included,
 /// so pasted music keeps its bar lines).
 class EditorClipboard {
@@ -909,6 +913,93 @@ extension EditorActions on EditorState {
             p == part && positions.contains((measure: m, symbol: s)),
       ),
     ).copyWith(rangeAnchor: anchor);
+  }
+
+  // ── Staves and instruments ───────────────────────────────────────────
+
+  /// Why a staff cannot be added, or null. A scanned score's staves are
+  /// lines of one part played in reading order; another instrument would
+  /// play them all at once.
+  String? get addStaffBlockedReason =>
+      score.playbackLayout == ScorePlaybackLayout.sequentialStaves &&
+          score.parts.length > 1
+      ? 'These scanned staves are played one after another, as lines of one part. Adding an instrument would play them together.'
+      : null;
+
+  /// Rebuilds the parts from [plan] as one undo step: keeps, reorders,
+  /// renames and removes parts, and adds empty ones whose bars copy the
+  /// meter, key, breaks and barlines of the existing music. Adding a staff
+  /// makes the parts play together.
+  EditorState rearrangeParts(List<StaffPlanEntry> plan) {
+    if (plan.isEmpty || score.parts.isEmpty) return this;
+    final adds = plan.any((e) => e.from == null);
+    if (adds && addStaffBlockedReason != null) return this;
+    final template =
+        score.parts[plan
+            .firstWhere(
+              (e) => e.from != null,
+              orElse: () => (from: 0, name: '', clef: null),
+            )
+            .from!];
+    final ids = {for (final p in score.parts) p.id};
+    String newId() {
+      var k = score.parts.length + 1;
+      while (ids.contains('P$k')) {
+        k++;
+      }
+      ids.add('P$k');
+      return 'P$k';
+    }
+
+    final parts = [
+      for (final entry in plan)
+        if (entry.from case final from?)
+          Part(
+            id: score.parts[from].id,
+            name: entry.name,
+            measures: score.parts[from].measures,
+          )
+        else
+          Part(
+            id: newId(),
+            name: entry.name,
+            measures: [
+              for (final (i, m) in template.measures.indexed)
+                Measure(
+                  number: m.number,
+                  clef: i == 0
+                      ? entry.clef ?? const Clef(sign: 'G', line: 2)
+                      : null,
+                  timeSignature: m.timeSignature,
+                  keySignature: m.keySignature,
+                  symbols: const [],
+                  startsNewPage: m.startsNewPage,
+                  startsNewSystem: m.startsNewSystem,
+                  leftBarlineType: m.leftBarlineType,
+                  rightBarlineType: m.rightBarlineType,
+                ),
+            ],
+          ),
+    ];
+    final next = score.copyWith(
+      parts: parts,
+      playbackLayout: adds ? ScorePlaybackLayout.simultaneousParts : null,
+    );
+    final kept = plan.indexWhere((e) => e.from == selectedPartIndex);
+    if (kept >= 0 && hasSymbolSelection) {
+      return applyEditWithSymbolSelection(
+        score: next,
+        partIndex: kept,
+        measureIndex: selectedMeasureIndex!,
+        symbolIndex: selectedSymbolIndex!,
+        symbol: selectedSymbol!,
+      );
+    }
+    return applyEditWithMeasureContext(
+      score: next,
+      partIndex: kept >= 0 ? kept : 0,
+      measureIndex: kept >= 0 ? (selectedMeasureIndex ?? 0) : 0,
+    );
   }
 
   /// Transposes every part as one undo step, keeping the selection.

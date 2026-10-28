@@ -11,6 +11,7 @@ import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/services/playback_service.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 import 'package:note_vision/features/editor/presentation/widgets/editor_command_palette.dart';
+import 'package:note_vision/features/editor/presentation/widgets/staves_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.dart';
 import 'package:note_vision/features/editor/presentation/widgets/transpose_sheet.dart';
 
@@ -283,6 +284,39 @@ void main() {
     expect(bar(tester), isEmpty);
   });
 
+  testWidgets('typed notes follow each other inside a bar', (tester) async {
+    await pumpControls(
+      tester,
+      score: Score(
+        id: 'middle',
+        title: 'Middle',
+        composer: '',
+        parts: [
+          Part(
+            id: 'p1',
+            name: 'Piano',
+            measures: [
+              Measure(
+                number: 1,
+                clef: const Clef(sign: 'G', line: 2),
+                timeSignature: const TimeSignature(beats: 4, beatType: 4),
+                symbols: const [
+                  Note(step: 'C', octave: 4, duration: 2, type: 'quarter'),
+                  Note(step: 'F', octave: 4, duration: 2, type: 'quarter'),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyD);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyE);
+    await tester.pumpAndSettle();
+    expect(bar(tester), ['C4', 'D4', 'E4', 'F4']);
+  });
+
   testWidgets('the voice chips write the next note into that voice', (
     tester,
   ) async {
@@ -301,6 +335,29 @@ void main() {
       tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '2')).selected,
       isTrue,
     );
+  });
+
+  testWidgets('adds an instrument from the More menu as one undo step', (
+    tester,
+  ) async {
+    await pumpControls(tester, size: const Size(390, 844));
+    await tester.tap(find.byTooltip('More'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Staves and instruments…'));
+    await tester.pumpAndSettle();
+    expect(find.byType(StavesSheet), findsOneWidget);
+    await tester.tap(find.text('Add instrument'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cello · Bass clef'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+    final parts = shownControlsScore(tester).parts;
+    expect([for (final p in parts) p.name], ['Upper staff', 'Cello']);
+    expect(parts.last.measures.first.clef?.sign, 'F');
+    await tester.tap(find.byTooltip('Undo'));
+    await tester.pumpAndSettle();
+    expect(shownControlsScore(tester).parts, hasLength(1));
   });
 
   testWidgets('conversion is reachable on a phone and can be undone', (

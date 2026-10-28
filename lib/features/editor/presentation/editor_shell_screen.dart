@@ -38,6 +38,7 @@ import 'package:note_vision/features/editor/presentation/editor_layout_policy.da
 import 'package:note_vision/features/editor/presentation/widgets/notation_check_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/notation_review_panel.dart';
 import 'package:note_vision/features/editor/presentation/widgets/beam_editor_sheet.dart';
+import 'package:note_vision/features/editor/presentation/widgets/staves_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/transpose_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/editor_tool_dock.dart';
 import 'package:note_vision/features/editor/presentation/widgets/editor_help_sheet.dart';
@@ -1251,8 +1252,18 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     setState(() {
       final prev = _editorState;
       final nextState = updater(_editorState);
+      final identified = NotationReviewService.ensureIdentity(nextState.score);
+      // Assigning review IDs rebuilds every symbol in place, so the
+      // selection is found again by its position.
       _editorState = nextState.copyWith(
-        score: NotationReviewService.ensureIdentity(nextState.score),
+        score: identified,
+        selectedSymbol: nextState.hasSymbolSelection
+            ? identified.getSymbolAt(
+                nextState.selectedPartIndex!,
+                nextState.selectedMeasureIndex!,
+                nextState.selectedSymbolIndex!,
+              )
+            : null,
         rangeAnchor: nextState.rangeAnchor,
       );
       if (!identical(prevScore, _editorState.score)) {
@@ -1480,6 +1491,38 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       return state;
     }
     return state.copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
+  }
+
+  bool get _canEditStaves =>
+      _canApplyIssueFix && !_isDraggingNote && !_isReviewMode;
+
+  /// Adds, renames, reorders or removes staves as one undo step.
+  Future<void> _showStaves() async {
+    if (!_canEditStaves || _commandEditLock != null) return;
+    final original = _editorState.score;
+    final plan = await showModalBottomSheet<List<StaffPlanEntry>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      constraints: const BoxConstraints(maxWidth: 560),
+      builder: (_) => StavesSheet(
+        staves: [
+          for (final part in original.parts)
+            (part.name, part.measures.firstOrNull?.clef),
+        ],
+        addBlockedReason: _editorState.addStaffBlockedReason,
+      ),
+    );
+    // Playback or another edit can start while the sheet is open.
+    if (!mounted ||
+        plan == null ||
+        !identical(_editorState.score, original) ||
+        _commandEditLock != null) {
+      return;
+    }
+    _updateState((state) => state.rearrangeParts(plan));
   }
 
   /// Moves every note by the interval chosen in [TransposeSheet].
@@ -1822,6 +1865,13 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 : null),
       ),
       EditorCommandChoice(
+        id: 'workspace.staves',
+        label: 'Staves and instruments…',
+        group: 'Structure',
+        description: 'Add, rename, reorder or remove staves',
+        disabledReason: lock,
+      ),
+      EditorCommandChoice(
         id: 'workspace.transpose',
         label: 'Transpose…',
         group: 'Pitch',
@@ -1896,6 +1946,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         if (_commandEditLock == null) await _showBeamEditor();
       case 'workspace.transpose':
         await _showTranspose();
+      case 'workspace.staves':
+        await _showStaves();
       case 'workspace.copy':
         _copySelection();
       case 'workspace.cut':
@@ -2489,6 +2541,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       onMoveToNext: () => _updateState(
                         (s) => s.moveSelectedSymbolToMeasureOffset(1),
                       ),
+                      onStaves: _canEditStaves ? _showStaves : null,
                       onAddMeasure: () {
                         _updateState((s) => s.appendMeasureAtEnd());
                         setState(_jumpToLastPage);
@@ -2599,6 +2652,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       ? _confirmClearAllSymbols
                       : null,
                   onTranspose: _canClearAllSymbols ? _showTranspose : null,
+                  onStaves: _canEditStaves ? _showStaves : null,
                   onSave: isReadOnly ? null : _onSave,
                   isSaving: _isSaving,
                   showSubmitButton: _isStudent && !isReadOnly,
@@ -3119,6 +3173,7 @@ enum _HeaderMenuAction {
   exportXml,
   exportPdf,
   transpose,
+  staves,
   clearAllSymbols,
 }
 
@@ -3171,6 +3226,7 @@ class _EditorHeader extends StatelessWidget {
     this.onCheckNotation,
     this.onClearAllSymbols,
     this.onTranspose,
+    this.onStaves,
     this.isSaving = false,
   });
 
@@ -3196,6 +3252,7 @@ class _EditorHeader extends StatelessWidget {
   final VoidCallback? onCheckNotation;
   final VoidCallback? onClearAllSymbols;
   final VoidCallback? onTranspose;
+  final VoidCallback? onStaves;
   final bool isSaving;
 
   static final ButtonStyle _compactIconButtonStyle = IconButton.styleFrom(
@@ -3420,6 +3477,8 @@ class _EditorHeader extends StatelessWidget {
                           onExportPdf();
                         } else if (action == _HeaderMenuAction.transpose) {
                           onTranspose?.call();
+                        } else if (action == _HeaderMenuAction.staves) {
+                          onStaves?.call();
                         } else if (action ==
                             _HeaderMenuAction.clearAllSymbols) {
                           onClearAllSymbols?.call();
@@ -3468,6 +3527,14 @@ class _EditorHeader extends StatelessWidget {
                             child: const _HeaderMenuItem(
                               icon: Icons.swap_vert_rounded,
                               label: 'Transpose…',
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: _HeaderMenuAction.staves,
+                            enabled: onStaves != null,
+                            child: const _HeaderMenuItem(
+                              icon: Icons.queue_music_rounded,
+                              label: 'Staves and instruments…',
                             ),
                           ),
                           const PopupMenuDivider(),
@@ -4536,6 +4603,7 @@ class _InspectorPanel extends StatefulWidget {
     required this.onMoveToPrev,
     required this.onMoveToNext,
     required this.onAddMeasure,
+    required this.onStaves,
     required this.onAddPage,
     required this.canDeleteMeasure,
     required this.onDeleteMeasure,
@@ -4585,6 +4653,7 @@ class _InspectorPanel extends StatefulWidget {
   final VoidCallback onMoveToPrev;
   final VoidCallback onMoveToNext;
   final VoidCallback onAddMeasure;
+  final VoidCallback? onStaves;
   final VoidCallback onAddPage;
   final bool canDeleteMeasure;
   final VoidCallback onDeleteMeasure;
@@ -5017,12 +5086,19 @@ class _InspectorPanelState extends State<_InspectorPanel> {
             children: [
               ...groups[_barGroup].children,
               if (_barGroup == 5) groups[4].children.first,
+              if (_barGroup == 2)
+                _ActionTile(
+                  icon: Icons.queue_music_rounded,
+                  label: 'Staves',
+                  tooltip: 'Add, rename, reorder or remove staves',
+                  onPressed: _wrapAction(widget.onStaves),
+                ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
             _barGroup == 2
-                ? 'Clef changes apply to this staff.'
+                ? 'Clef changes apply to this staff. Staves adds, renames or reorders instruments.'
                 : _barGroup == 3
                 ? 'Time signature starts at this bar in every staff.'
                 : 'Prev / Next moves the selected symbol to the neighboring bar.',
