@@ -95,6 +95,42 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
   /// Touch stand-in for Shift: the next tap extends the selection.
   bool _extendMode = false;
+
+  /// The voice (1–4) chosen for note entry; null follows the selection.
+  int? _inputVoice;
+
+  int get _effectiveInputVoice =>
+      _inputVoice ??
+      switch (_editorState.selectedEditableSymbol) {
+        Note(:final voice) || Rest(:final voice) => voice ?? 1,
+        _ => 1,
+      };
+
+  /// [symbol] in the chosen entry voice.
+  ScoreSymbol _inInputVoice(ScoreSymbol symbol) {
+    final voice = _inputVoice;
+    if (voice == null || voice == 1) return symbol;
+    return switch (symbol) {
+      Note() => Note(
+        step: symbol.step,
+        octave: symbol.octave,
+        alter: symbol.alter,
+        duration: symbol.duration,
+        type: symbol.type,
+        voice: voice,
+        staff: symbol.staff,
+        dots: symbol.dots,
+      ),
+      Rest() => Rest(
+        duration: symbol.duration,
+        type: symbol.type,
+        voice: voice,
+        staff: symbol.staff,
+        dots: symbol.dots,
+      ),
+      _ => symbol,
+    };
+  }
   bool _isDraggingNote = false;
   Offset _dragGlobal = Offset.zero;
   final GlobalKey _trashZoneKey = GlobalKey();
@@ -1356,7 +1392,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
   void _onInsertTap(NotationInsertTarget? target) {
     if (target == null || _insertSymbolType == null) return;
-    final symbol = _buildSymbol(_insertSymbolType!, target);
+    final symbol = _inInputVoice(_buildSymbol(_insertSymbolType!, target));
     _updateState(
       (state) => state.insertSymbolAtMeasureIndex(
         partIndex: target.partIndex,
@@ -1369,7 +1405,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
   void _onPaletteDrop(NotationInsertTarget target, Object data) {
     if (data is! PaletteDragData) return;
-    final symbol = _buildSymbol(data.type, target);
+    final symbol = _inInputVoice(_buildSymbol(data.type, target));
     _updateState(
       (state) => state.insertSymbolAtMeasureIndex(
         partIndex: target.partIndex,
@@ -1584,8 +1620,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           ? state
           : state.copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
       final next = step == null
-          ? input.enterRest(spec)
-          : input.enterNote(step, spec);
+          ? input.enterRest(spec, voice: _inputVoice)
+          : input.enterNote(step, spec, voice: _inputVoice);
       return identical(next, input) ? state : next;
     });
   }
@@ -1594,6 +1630,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     if (!_canApplyIssueFix) return;
     setState(() {
       _insertMode = !_insertMode;
+      _inputVoice = null;
       _insertSymbolType = _insertMode ? PaletteSymbolType.quarterNote : null;
     });
   }
@@ -1935,6 +1972,18 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       if (key == LogicalKeyboardKey.keyY) {
         _runEditorCommand(EditorCommand.redo);
         return KeyEventResult.handled;
+      }
+      if (keyboard.isAltPressed) {
+        final voice = const [
+          LogicalKeyboardKey.digit1,
+          LogicalKeyboardKey.digit2,
+          LogicalKeyboardKey.digit3,
+          LogicalKeyboardKey.digit4,
+        ].indexOf(key) + 1;
+        if (voice > 0) {
+          setState(() => _inputVoice = voice);
+          return KeyEventResult.handled;
+        }
       }
       if (key == LogicalKeyboardKey.keyA) {
         _runEditorCommand(EditorCommand.selectAll);
@@ -2318,6 +2367,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       isLandscape: isLandscape,
                       insertMode: _insertMode,
                       insertSymbolType: _insertSymbolType,
+                      inputVoice: _effectiveInputVoice,
+                      onVoiceSelected: (voice) =>
+                          setState(() => _inputVoice = voice),
                       onToggleInsertMode: _toggleInsertMode,
                       onPaletteTypeTap: _onPaletteTypeTap,
                       onPreviousSymbol: _adjacentSymbol(-1) == null
@@ -4447,6 +4499,8 @@ class _InspectorPanel extends StatefulWidget {
     required this.isLandscape,
     required this.insertMode,
     required this.insertSymbolType,
+    required this.inputVoice,
+    required this.onVoiceSelected,
     required this.onToggleInsertMode,
     required this.onPaletteTypeTap,
     required this.onPreviousSymbol,
@@ -4495,6 +4549,10 @@ class _InspectorPanel extends StatefulWidget {
   final bool isLandscape;
   final bool insertMode;
   final PaletteSymbolType? insertSymbolType;
+
+  /// The voice new notes go into (1–4).
+  final int inputVoice;
+  final ValueChanged<int> onVoiceSelected;
   final VoidCallback onToggleInsertMode;
   final ValueChanged<PaletteSymbolType> onPaletteTypeTap;
   final VoidCallback? onPreviousSymbol, onNextSymbol;
@@ -4889,6 +4947,35 @@ class _InspectorPanelState extends State<_InspectorPanel> {
                         ),
                 ),
               ],
+            ],
+          ),
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const Text(
+                'Voice',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              for (var voice = 1; voice <= 4; voice++)
+                Tooltip(
+                  message:
+                      'Voice $voice (Ctrl/Cmd + Alt + $voice)${voice == 1 ? '' : ' · starts where the selected note starts'}',
+                  child: ChoiceChip(
+                    avatar: CircleAvatar(
+                      radius: 5,
+                      backgroundColor: _voiceColors[voice - 1],
+                    ),
+                    label: Text('$voice'),
+                    showCheckmark: false,
+                    selected: widget.inputVoice == voice,
+                    onSelected: widget.isPlaybackActive
+                        ? null
+                        : (_) => widget.onVoiceSelected(voice),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 4),
@@ -5405,6 +5492,14 @@ double _toolTileWidth(
   painter.dispose();
   return width;
 }
+
+/// MuseScore Studio's voice colours: blue, green, orange, purple.
+const _voiceColors = [
+  Color(0xFF0065BF),
+  Color(0xFF007F00),
+  Color(0xFFC53F00),
+  Color(0xFFC31989),
+];
 
 class _ActionTile extends StatelessWidget {
   const _ActionTile({

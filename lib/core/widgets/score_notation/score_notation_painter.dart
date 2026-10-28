@@ -13,6 +13,7 @@ import '../../models/score_symbol.dart';
 import '../../models/time_signature.dart';
 import 'score_notation_metrics.dart';
 import 'staff_pitch_mapper.dart';
+import 'voice_layout.dart';
 
 class ScoreNotationPainter extends CustomPainter {
   const ScoreNotationPainter({
@@ -235,6 +236,7 @@ class ScoreNotationPainter extends CustomPainter {
               ScoreNotationMetrics.measureInnerPadding,
         );
 
+        final layout = VoiceLayout.of(measure.symbols);
         for (
           var symbolIndex = 0;
           symbolIndex < measure.symbols.length;
@@ -244,17 +246,20 @@ class ScoreNotationPainter extends CustomPainter {
           if (symbol is Note && symbol.isChordTone) {
             continue;
           }
-          final visualSlot = _visualSlotForIndex(measure.symbols, symbolIndex);
-          final slotCount = _visualSlotCount(measure.symbols);
-          final progress = (visualSlot + 1) / (slotCount + 1);
+          final progress =
+              (layout.columns[symbolIndex] + 1) / (layout.columnCount + 1);
           final x = measureStartX + inset + (drawableWidth * progress);
-          final y = _symbolCenterY(
-            symbol,
-            row.staffTop,
-            row.staffBottom,
-            row.clefSign,
-            clefLine: row.clefLine,
-          );
+          final y =
+              _symbolCenterY(
+                symbol,
+                row.staffTop,
+                row.staffBottom,
+                row.clefSign,
+                clefLine: row.clefLine,
+              ) +
+              (symbol is Rest
+                  ? layout.restOffset(symbolIndex) * staffLineSpacing
+                  : 0);
           targets.add(
             NotationSymbolTarget(
               partIndex: row.partIndex,
@@ -508,7 +513,8 @@ class ScoreNotationPainter extends CustomPainter {
     if (measure.symbols.isEmpty) return;
 
     final symbolCount = measure.symbols.length;
-    final slotCount = _visualSlotCount(measure.symbols);
+    final layout = VoiceLayout.of(measure.symbols);
+    final slotCount = layout.columnCount;
     const innerPadding = ScoreNotationMetrics.measureInnerPadding;
     final drawableWidth = math.max(
       12.0,
@@ -546,12 +552,9 @@ class ScoreNotationPainter extends CustomPainter {
     for (var i = 0; i < symbolCount; i++) {
       if (activeDrag != null && i == activeDrag.draggedSymbolIndex) continue;
       final symbol = measure.symbols[i];
-      var visualIndex = _visualSlotForIndex(measure.symbols, i);
+      var visualIndex = layout.columns[i];
       if (activeDrag != null) {
-        final draggedSlot = _visualSlotForIndex(
-          measure.symbols,
-          activeDrag.draggedSymbolIndex,
-        );
+        final draggedSlot = layout.columns[activeDrag.draggedSymbolIndex];
         final compactIndex = visualIndex > draggedSlot
             ? visualIndex - 1
             : visualIndex;
@@ -595,15 +598,19 @@ class ScoreNotationPainter extends CustomPainter {
           middleLineY: middleLineY,
           suppressFlag: beamedIndices.contains(i),
           drawStem: !beamedIndices.contains(i),
+          stemUp: layout.stemUp(i),
         );
       } else if (symbol is Rest) {
-        final y = _symbolCenterY(
-          symbol,
-          staffTop,
-          staffBottom,
-          clefSign,
-          clefLine: clefLine,
-        );
+        final restShift = layout.restOffset(i) * staffLineSpacing;
+        final y =
+            _symbolCenterY(
+              symbol,
+              staffTop,
+              staffBottom,
+              clefSign,
+              clefLine: clefLine,
+            ) +
+            restShift;
         final isSelected =
             selectedPartIndex == partIndex &&
             selectedMeasureIndex == absoluteMeasureIndex &&
@@ -619,7 +626,7 @@ class ScoreNotationPainter extends CustomPainter {
         }
         if (isSelected) _drawSelectionHighlight(canvas, Offset(x, y));
         _drawIssueMark(canvas, partIndex, absoluteMeasureIndex, i, Offset(x, y));
-        _drawRest(canvas, symbol, x: x, staffTop: staffTop);
+        _drawRest(canvas, symbol, x: x, staffTop: staffTop + restShift);
       }
     }
 
@@ -630,6 +637,7 @@ class ScoreNotationPainter extends CustomPainter {
       notePositions,
       middleLineY,
       measure.symbols,
+      layout,
     );
 
     if (!hasDragInMeasure || draggedSymbol == null || !drag.showGhostAtDrag) {
@@ -679,6 +687,7 @@ class ScoreNotationPainter extends CustomPainter {
     Map<int, Offset> notePositions,
     double middleLineY,
     List<ScoreSymbol> symbols,
+    VoiceLayout layout,
   ) {
     final beamPaint = Paint()
       ..color = const Color(0xFF111827)
@@ -702,7 +711,7 @@ class ScoreNotationPainter extends CustomPainter {
 
       final averageY =
           heads.map((p) => p.dy).reduce((a, b) => a + b) / heads.length;
-      final stemUp = averageY > middleLineY;
+      final stemUp = layout.stemUp(group.first) ?? averageY > middleLineY;
       final dir = stemUp ? -1.0 : 1.0; // from the heads towards the beam
       final xOff = stemUp
           ? ScoreNotationMetrics.stemXOffset
@@ -867,18 +876,12 @@ class ScoreNotationPainter extends CustomPainter {
     final laneStartX = measureStartX + inset;
 
     final symbols = measure.symbols;
-    final slotCount = _visualSlotCount(symbols);
-    if (slotCount == 0) return;
-
-    // Count how many non-chord-tone symbols appear before symIndex to get the slot.
+    final layout = VoiceLayout.of(symbols);
+    final slotCount = layout.columnCount;
     final effectiveSymIndex = symIndex ?? 0;
-    var slot = 0;
-    for (var i = 0; i < effectiveSymIndex && i < symbols.length; i++) {
-      final sym = symbols[i];
-      if (sym is Note && sym.isChordTone) continue;
-      slot++;
-    }
-    slot = slot.clamp(0, slotCount - 1);
+    final slot = effectiveSymIndex < symbols.length
+        ? layout.columns[effectiveSymIndex]
+        : 0;
 
     final currentX = laneStartX + dw * (slot + 1) / (slotCount + 1);
 
@@ -894,7 +897,7 @@ class ScoreNotationPainter extends CustomPainter {
       final nextInset = currentRow.laneInset(measureRelIdx + 1);
       final nextLaneStartX = nextMeasureStartX + nextInset;
       final nextDw = math.max(12.0, minMeasureWidth - nextInset - ip);
-      final nextSlotCount = _visualSlotCount(nextMeasure.symbols);
+      final nextSlotCount = VoiceLayout.of(nextMeasure.symbols).columnCount;
       nextX = nextSlotCount > 0
           ? nextLaneStartX + nextDw * 1 / (nextSlotCount + 1)
           : nextMeasureStartX + minMeasureWidth;
@@ -1047,6 +1050,7 @@ class ScoreNotationPainter extends CustomPainter {
     required double middleLineY,
     bool suppressFlag = false,
     bool drawStem = true,
+    bool? stemUp,
   }) {
     final normalizedType = note.type.trim().toLowerCase();
     final isBreve = normalizedType == 'breve';
@@ -1175,7 +1179,7 @@ class ScoreNotationPainter extends CustomPainter {
         canvas,
         x: x,
         y: y,
-        stemUp: y > middleLineY,
+        stemUp: stemUp ?? y > middleLineY,
         flags: flags,
       );
     }
@@ -1370,29 +1374,6 @@ class ScoreNotationPainter extends CustomPainter {
         paint,
       );
     }
-  }
-
-  static int _visualSlotCount(List<ScoreSymbol> symbols) {
-    var count = 0;
-    for (final symbol in symbols) {
-      if (symbol is Note && symbol.isChordTone) {
-        continue;
-      }
-      count++;
-    }
-    return math.max(count, 1);
-  }
-
-  static int _visualSlotForIndex(List<ScoreSymbol> symbols, int index) {
-    var slot = -1;
-    for (var i = 0; i <= index; i++) {
-      final symbol = symbols[i];
-      if (symbol is Note && symbol.isChordTone) {
-        continue;
-      }
-      slot++;
-    }
-    return math.max(slot, 0);
   }
 
   void _drawMeasureNumber(

@@ -314,7 +314,27 @@ instruments. Rhythm, pitch, beams, chords, meters and key handling match.
 - Tests: `range_selection_test.dart`, keyboard and touch range tests in
   `editor_commands_test.dart`; full suite passing, analysis clean.
 
-Next: 3D (range selection and clipboard), 3D
+## Stage 3D — voices
+
+- `VoiceLayout` (`lib/core/widgets/score_notation/voice_layout.dart`) is
+  shared by the editor painter, hit targets, playhead and PDF. In a bar with
+  several voices, symbols that start together share a column; odd voices stem
+  up and even voices down (beams follow); rests move two staff spaces up or
+  down. Single-voice bars keep their previous sequential columns exactly.
+- Input: Add notes has Voice 1–4 chips (MuseScore's voice colours) and
+  Ctrl/Cmd + Alt + 1–4. A different voice from the selection starts where the
+  selected symbol starts: rests fill that voice up to there (largest values
+  first, dotted allowed), as MuseScore does; later input continues that voice
+  and moves to the next bar when it is full. Tap and drag insertion use the
+  chosen voice too. The choice resets when note entry closes.
+- Not yet: moving existing notes to another voice, voice colouring of
+  selected notes, collision handling for unisons/seconds between voices, and
+  hiding or deleting the filler rests MuseScore can make invisible.
+- Tests: `test/core/widgets/voice_layout_test.dart`, voice entry in
+  `note_input_test.dart`, voice chips in `editor_commands_test.dart`; editor
+  and PDF output were checked visually.
+
+Next: 3E (range selection and clipboard), 3D
 (voices), 3E (instrument/staff management) on the Stage 2B timeline. Retained-source
 rhythm export, global timewise measure slots and richer editable notation still
 need work. Range/clipboard and advanced notation should build on this timeline

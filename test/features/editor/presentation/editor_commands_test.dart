@@ -283,6 +283,26 @@ void main() {
     expect(bar(tester), isEmpty);
   });
 
+  testWidgets('the voice chips write the next note into that voice', (
+    tester,
+  ) async {
+    await pumpControls(tester, size: const Size(390, 844));
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.widgetWithText(ChoiceChip, '2'));
+    await tester.tap(find.widgetWithText(ChoiceChip, '2'));
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyG);
+    await tester.pumpAndSettle();
+    final added =
+        shownControlsScore(tester).parts[0].measures[0].symbols.last as Note;
+    expect((added.step, added.voice), ('G', 2));
+    expect(
+      tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '2')).selected,
+      isTrue,
+    );
+  });
+
   testWidgets('conversion is reachable on a phone and can be undone', (
     tester,
   ) async {

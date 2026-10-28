@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:note_vision/core/models/beam_grouping.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/measure.dart';
@@ -936,9 +938,12 @@ extension EditorActions on EditorState {
   /// Writes [step] (C–B) as a new note of [spec] after the input position,
   /// in the octave nearest the previous note. A full bar continues at the
   /// start of the next one, adding a bar at the end of the score if needed.
-  EditorState enterNote(String step, DurationSpec spec) {
+  ///
+  /// [voice] (1–4) writes into that voice; otherwise input continues the
+  /// selected symbol's voice. See [_enterSymbol] for changing voice.
+  EditorState enterNote(String step, DurationSpec spec, {int? voice}) {
     if (!hasMeasureContext || !_stepNames.contains(step)) return this;
-    final (voice, staff) = _inputLane;
+    final (voice: inputVoice, :staff) = _inputLaneFor(voice);
     final pitch = _nearestDiatonic(step, _inputReference);
     return _enterSymbol(
       Note(
@@ -946,24 +951,35 @@ extension EditorActions on EditorState {
         octave: pitch ~/ 7,
         duration: spec.divisions,
         type: spec.type,
-        voice: voice,
+        voice: inputVoice,
         staff: staff,
       ),
     );
   }
 
   /// Writes a rest of [spec] at the input position, as [enterNote] does.
-  EditorState enterRest(DurationSpec spec) {
+  EditorState enterRest(DurationSpec spec, {int? voice}) {
     if (!hasMeasureContext) return this;
-    final (voice, staff) = _inputLane;
+    final (voice: inputVoice, :staff) = _inputLaneFor(voice);
     return _enterSymbol(
       Rest(
         duration: spec.divisions,
         type: spec.type,
-        voice: voice,
+        voice: inputVoice,
         staff: staff,
       ),
     );
+  }
+
+  /// The voice and staff new input goes to: [voice] when given (voice 1 is
+  /// left unwritten when the selection's voice is unwritten), else the
+  /// selection's.
+  ({int? voice, int? staff}) _inputLaneFor(int? voice) {
+    final (selectedVoice, staff) = _inputLane;
+    if (voice == null || voice == (selectedVoice ?? 1)) {
+      return (voice: selectedVoice, staff: staff);
+    }
+    return (voice: voice == 1 ? null : voice, staff: staff);
   }
 
   /// Re-pitches the selected note to [step] in the octave nearest its
@@ -1079,35 +1095,59 @@ extension EditorActions on EditorState {
     return signPitch + (3 - clef.line) * 2;
   }
 
+  /// Inserts [symbol] at the input position. In a different voice from the
+  /// selection it starts where the selected symbol starts, as in MuseScore:
+  /// rests fill that voice up to there, and the symbol goes at the end of
+  /// the bar's list (each voice keeps its own time).
   EditorState _enterSymbol(ScoreSymbol symbol) {
     final partIndex = selectedPartIndex!;
     var measureIndex = selectedMeasureIndex!;
+    final lane = ScoreTimelineBuilder.lane(symbol);
+    final selected = selectedEditableSymbol;
+    var items = [symbol];
     var index = _inputIndex;
-    var next = score;
-    if (!_canMeasureAcceptSymbol(
-      partIndex: partIndex,
-      measureIndex: measureIndex,
-      symbol: symbol,
-    )) {
-      measureIndex++;
-      index = 0;
-      if (measureIndex == score.parts[partIndex].measures.length) {
-        next = score.insertMeasureAfterInAllParts(measureIndex - 1);
-      }
-      if (!copyWith(score: next)._canMeasureAcceptSymbol(
-        partIndex: partIndex,
-        measureIndex: measureIndex,
-        symbol: symbol,
-      )) {
+    if (selected != null && ScoreTimelineBuilder.lane(selected) != lane) {
+      try {
+        final timeline = const ScoreTimelineBuilder().measure(
+          score,
+          partIndex,
+          measureIndex,
+        );
+        final start = timeline.symbols
+            .firstWhere((e) => e.symbolIndex == selectedSymbolIndex)
+            .onset;
+        final gap = (start - timeline.laneDuration(lane)).asDouble;
+        final (voice, staff) = switch (symbol) {
+          Note(:final voice, :final staff) ||
+          Rest(:final voice, :final staff) => (voice, staff),
+          _ => (null, null),
+        };
+        items = [..._restsFilling(gap, voice: voice, staff: staff), symbol];
+      } on ScoreTimelineException {
         return this;
       }
+      index = score.parts[partIndex].measures[measureIndex].symbols.length;
     }
+    var next = _insertAll(score, partIndex, measureIndex, index, items);
+    if (!_laneFits(next, partIndex, measureIndex, lane)) {
+      // Continue at the start of the next bar.
+      measureIndex++;
+      index = 0;
+      items = [symbol];
+      next = score;
+      if (measureIndex == score.parts[partIndex].measures.length) {
+        next = next.insertMeasureAfterInAllParts(measureIndex - 1);
+      }
+      next = _insertAll(next, partIndex, measureIndex, index, items);
+      if (!_laneFits(next, partIndex, measureIndex, lane)) return this;
+    }
+    final symbolIndex = index + items.length - 1;
     return _applySymbolSelectionEdit(
       intent: EditorEditIntent.insertAfterSelection,
-      score: next.insertSymbolAt(partIndex, measureIndex, index, symbol),
+      score: next,
       partIndex: partIndex,
       measureIndex: measureIndex,
-      symbolIndex: index,
+      symbolIndex: symbolIndex,
       symbol: symbol,
     );
   }
@@ -1663,6 +1703,64 @@ ScoreSymbol _pasteCopy(ScoreSymbol symbol, {bool startsChord = false}) =>
       ),
       _ => symbol,
     };
+
+Score _insertAll(
+  Score score,
+  int part,
+  int measure,
+  int index,
+  List<ScoreSymbol> symbols,
+) {
+  for (final (k, symbol) in symbols.indexed) {
+    score = score.insertSymbolAt(part, measure, index + k, symbol);
+  }
+  return score;
+}
+
+/// Whether [lane] in [measure] fits its time signature.
+bool _laneFits(Score score, int part, int measure, VoiceLane lane) {
+  try {
+    final timeline = const ScoreTimelineBuilder().measure(score, part, measure);
+    final capacity = ScoreTimelineBuilder.meterLength(
+      ScoreTimelineBuilder.activeMeter(score, part, measure),
+    );
+    return capacity.isZero ||
+        timeline.laneDuration(lane).compareTo(capacity) <= 0;
+  } on ScoreTimelineException {
+    return false;
+  }
+}
+
+/// Rests that fill [quarters] (largest first, dotted values allowed).
+List<Rest> _restsFilling(double quarters, {int? voice, int? staff}) {
+  const values = [
+    (4.0, 'whole', 0),
+    (3.0, 'half', 1),
+    (2.0, 'half', 0),
+    (1.5, 'quarter', 1),
+    (1.0, 'quarter', 0),
+    (0.75, 'eighth', 1),
+    (0.5, 'eighth', 0),
+    (0.25, 'sixteenth', 0),
+  ];
+  final rests = <Rest>[];
+  var left = quarters;
+  for (final (length, type, dots) in values) {
+    while (left >= length - 1e-9) {
+      rests.add(
+        Rest(
+          duration: math.max(1, (length * 2).round()),
+          type: type,
+          dots: dots,
+          voice: voice,
+          staff: staff,
+        ),
+      );
+      left -= length;
+    }
+  }
+  return rests;
+}
 
 /// Whether every voice in [measure] fits its time signature.
 bool _fitsMeter(Score score, int part, int measure) {

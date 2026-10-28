@@ -12,6 +12,7 @@ import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/widgets/score_notation/score_notation_metrics.dart';
 import 'package:note_vision/core/widgets/score_notation/staff_pitch_mapper.dart';
+import 'package:note_vision/core/widgets/score_notation/voice_layout.dart';
 import 'package:pdf/pdf.dart';
 
 /// Renders a [Score] as an engraved A4 PDF and returns the raw bytes.
@@ -589,7 +590,8 @@ class PdfScoreRenderer {
       (measureEndX - measureStartX) - laneInset - innerPad,
     );
     final count = measure.symbols.length;
-    final slotCount = _visualSlotCount(measure.symbols);
+    final layout = VoiceLayout.of(measure.symbols);
+    final slotCount = layout.columnCount;
     final middleLineY =
         staffTop - _ls * ScoreNotationMetrics.middleStaffLineIndex;
 
@@ -599,9 +601,7 @@ class PdfScoreRenderer {
       (i) =>
           measureStartX +
           laneInset +
-          drawableW *
-              (_visualSlotForIndex(measure.symbols, i) + 1) /
-              (slotCount + 1),
+          drawableW * (layout.columns[i] + 1) / (slotCount + 1),
     );
     final ys = <double>[];
     for (var i = 0; i < count; i++) {
@@ -647,9 +647,17 @@ class PdfScoreRenderer {
           suppressFlag: beamedIndices.contains(i),
           // A beamed note's stem is drawn with its beam, to reach it.
           drawStem: !beamedIndices.contains(i),
+          stemUp: layout.stemUp(i),
         );
       } else if (symbol is Rest) {
-        _drawRest(g, musicFont, symbol, x: x, staffTop: staffTop);
+        // PDF y points up, so the editor's upward offset is added.
+        _drawRest(
+          g,
+          musicFont,
+          symbol,
+          x: x,
+          staffTop: staffTop - layout.restOffset(i) * _ls,
+        );
       }
     }
 
@@ -663,7 +671,7 @@ class PdfScoreRenderer {
       if (group.length < 2) continue;
       final headYs = [for (final i in group) ys[i]];
       final averageY = headYs.reduce((a, b) => a + b) / headYs.length;
-      final stemUp = averageY < middleLineY;
+      final stemUp = layout.stemUp(group.first) ?? averageY < middleLineY;
       final dir = stemUp ? 1.0 : -1.0; // from the heads towards the beam
       final xOff =
           (stemUp
@@ -768,6 +776,7 @@ class PdfScoreRenderer {
     required double middleLineY,
     bool suppressFlag = false,
     bool drawStem = true,
+    bool? stemUp,
   }) {
     final type = note.type.trim().toLowerCase();
     final isBreve = type == 'breve';
@@ -841,12 +850,11 @@ class PdfScoreRenderer {
     }
 
     if (!drawStem) return;
-    final stemUp = y < middleLineY;
     _drawStem(
       g,
       x: x,
       y: y,
-      stemUp: stemUp,
+      stemUp: stemUp ?? y < middleLineY,
       flags: suppressFlag
           ? 0
           : isEighth
@@ -1552,29 +1560,6 @@ class PdfScoreRenderer {
 
   double _textWidth(PdfFont font, double size, String text) {
     return (font.stringMetrics(text) * size).advanceWidth;
-  }
-
-  int _visualSlotCount(List<dynamic> symbols) {
-    var count = 0;
-    for (final symbol in symbols) {
-      if (symbol is Note && symbol.isChordTone) {
-        continue;
-      }
-      count++;
-    }
-    return math.max(count, 1);
-  }
-
-  int _visualSlotForIndex(List<dynamic> symbols, int index) {
-    var slot = -1;
-    for (var i = 0; i <= index; i++) {
-      final symbol = symbols[i];
-      if (symbol is Note && symbol.isChordTone) {
-        continue;
-      }
-      slot++;
-    }
-    return math.max(slot, 0);
   }
 
   static String _clefSign(List<Measure> measures) {

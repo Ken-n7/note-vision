@@ -6,7 +6,9 @@ import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
+import 'package:note_vision/core/models/musical_time.dart';
 import 'package:note_vision/core/models/time_signature.dart';
+import 'package:note_vision/core/services/score_timeline.dart';
 import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/domain/editor_command.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
@@ -139,6 +141,39 @@ void main() {
     ], select: 0).deleteSelectedSymbol();
     expect(pitches(state), ['E4', '+G4', 'D4']);
     expect(state.selectedSymbolIndex, 0);
+  });
+
+  test('another voice starts where the selected note starts', () {
+    Note half(String step) =>
+        Note(step: step, octave: 5, duration: 4, type: 'half');
+    var state = bar([half('C'), half('D')], select: 1);
+    state = state.enterNote('G', quarterDuration, voice: 2);
+    final symbols = state.score.parts.first.measures.first.symbols;
+    // A half rest fills voice 2 up to beat 3, where D5 starts.
+    expect(symbols[2], isA<Rest>());
+    expect(
+      ((symbols[2] as Rest).type, (symbols[2] as Rest).voice),
+      ('half', 2),
+    );
+    expect(((symbols[3] as Note).pitch, (symbols[3] as Note).voice), ('G5', 2));
+    expect(state.selectedSymbolIndex, 3);
+    // Without a voice, input continues the selected note's voice.
+    state = state.enterNote('A', quarterDuration);
+    expect((state.selectedSymbol as Note).voice, 2);
+    final timeline = const ScoreTimelineBuilder().measure(state.score, 0, 0);
+    expect(timeline.symbols.last.onset, MusicalTime(3));
+    // Voice 2 is full, so the next note starts the next bar.
+    state = state.enterNote('B', quarterDuration);
+    expect(state.selectedMeasureIndex, 1);
+    expect((state.selectedSymbol as Note).voice, 2);
+    expect(state.undoStack, hasLength(3));
+
+    // From the first note, voice 2 starts at the bar line with no rests.
+    final fromStart = bar([
+      half('C'),
+      half('D'),
+    ], select: 0).enterNote('E', quarterDuration, voice: 2);
+    expect(fromStart.score.parts.first.measures.first.symbols, hasLength(3));
   });
 
   test('a letter re-pitches the selected note near its current pitch', () {

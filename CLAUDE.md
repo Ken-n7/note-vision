@@ -216,6 +216,7 @@ These are final unless explicitly changed:
 - **Hidden, not removed:** `AppFeatures` (`lib/core/config/app_features.dart`) switches off features the presentation build does not show: `classroomWorkflow` (teacher/student), `legacyScoreLabels` (the old rule labels), `cClefs` (alto/tenor clef tiles; the scanner reads G and F clefs only).
 - **Transpose:** More → Transpose… (and command search) opens `TransposeSheet`: to a key, by interval or diatonically, as MuseScore's dialog; `Transposer` moves sounding pitch and rewrites accidentals for the new key; whole score, one undo step. Checked against MuseScore `--transpose` output in `test/musescore_parity` (`transpositions.json`).
 - **Range selection & clipboard:** `EditorState.rangeAnchor` + selection form a range in one part (dropped by any edit/undo/plain selection). Shift+←/→ / Shift+tap / Ctrl+Shift+←/→ / Ctrl+A; Edit dock Extend, Select bar, Copy, Cut, Paste. Paste is bar-aligned, replaces a range, refuses overflowing bars, strips review IDs. Pitch/octave moves and Transpose apply to a range.
+- **Voices:** `VoiceLayout` aligns voices by onset in editor and PDF (odd voices stem up, even down; rests offset); single-voice bars unchanged. Add notes Voice 1–4 chips / Ctrl+Alt+1–4; a new voice starts at the selected note's onset, filling earlier time with rests.
 - **Note entry:** the editor dock has Edit, Add notes and Bar tools modes. Add notes starts with a quarter note ready to place; Notes/Rests switches preserve the duration. Pick one of five values and tap the staff or hold and drag a palette symbol. Re-selecting a value keeps note entry active; Edit or Esc finishes. Keyboard (MuseScore-style): A–G writes a note (nearest octave), 0 a rest; outside note entry A–G re-pitches the selection; Shift+A–G / Alt+2–9 add chord tones. `insertNoteAfterSelection()` / `insertRestAfterSelection()` remain domain helpers.
 - **Drag insert:** LongPressDraggable from palette → DragTarget on staff. Drop Y → pitch via PitchCalculator. Drop X → insert index.
 - **PDF export:** `pdf` package with programmatic Canvas drawing — replicates CustomPainter logic. `exportToDevice(Score)` opens system save dialog via `file_picker` — returns saved path or `null` if cancelled.
@@ -420,7 +421,7 @@ These are current limitations, not hard ceilings — going beyond them is fine i
 - Grace notes, ornaments
 - Dynamics, articulations, tempo markings
 - D.C., D.S., coda
-- Multiple voices on one staff
+- Multiple voices on one staff ✅ written (voices 1–4) and drawn in editor and PDF; moving notes between voices is not yet supported
 - Lyrics
 - Printed (engraved) music — the model is trained on handwriting only
 - Cloud sync, accounts, collaboration
