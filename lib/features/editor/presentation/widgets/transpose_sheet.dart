@@ -3,13 +3,22 @@ import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/services/transposer.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 
+typedef TransposeRequest = ({TransposeOptions options, bool selectionOnly});
+
 /// MuseScore Studio's Transpose dialog: to a key, by an interval, or along
-/// the scale. Pops the chosen [TransposeOptions].
+/// the scale. Pops a [TransposeRequest].
 class TransposeSheet extends StatefulWidget {
-  const TransposeSheet({super.key, required this.currentKey});
+  const TransposeSheet({
+    super.key,
+    required this.currentKey,
+    this.selectionCount,
+  });
 
   /// The opening key, in fifths; the default target.
   final int currentKey;
+
+  /// Notes in a range selection, which can be transposed on its own.
+  final int? selectionCount;
 
   @override
   State<TransposeSheet> createState() => _TransposeSheetState();
@@ -23,6 +32,7 @@ class _TransposeSheetState extends State<TransposeSheet> {
   var _steps = 1; // A second
   var _keySignatures = true;
   var _doubleAccidentals = false;
+  late var _selectionOnly = widget.selectionCount != null;
 
   static const _degrees = [
     'Second',
@@ -99,10 +109,33 @@ class _TransposeSheetState extends State<TransposeSheet> {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
-                    'Moves every note in every staff. Undo restores it.',
-                    style: TextStyle(color: AppColors.textSecondary),
+                  Text(
+                    _selectionOnly
+                        ? 'Moves the selected notes; key signatures stay. Undo restores them.'
+                        : 'Moves every note in every staff. Undo restores it.',
+                    style: const TextStyle(color: AppColors.textSecondary),
                   ),
+                  if (widget.selectionCount case final count?) ...[
+                    const SizedBox(height: 12),
+                    SegmentedButton<bool>(
+                      segments: [
+                        ButtonSegment(
+                          value: true,
+                          label: Text(
+                            '$count selected ${count == 1 ? 'note' : 'notes'}',
+                          ),
+                        ),
+                        const ButtonSegment(
+                          value: false,
+                          label: Text('Whole score'),
+                        ),
+                      ],
+                      selected: {_selectionOnly},
+                      showSelectedIcon: false,
+                      onSelectionChanged: (s) =>
+                          setState(() => _selectionOnly = s.single),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   SegmentedButton<TransposeMode>(
                     segments: const [
@@ -187,7 +220,7 @@ class _TransposeSheetState extends State<TransposeSheet> {
                     onSelectionChanged: (s) =>
                         setState(() => _direction = s.single),
                   ),
-                  if (_mode == TransposeMode.byInterval)
+                  if (_mode == TransposeMode.byInterval && !_selectionOnly)
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Transpose key signatures'),
@@ -224,7 +257,10 @@ class _TransposeSheetState extends State<TransposeSheet> {
                   child: FilledButton(
                     onPressed: unchanged
                         ? null
-                        : () => Navigator.pop(context, _options),
+                        : () => Navigator.pop<TransposeRequest>(context, (
+                            options: _options,
+                            selectionOnly: _selectionOnly,
+                          )),
                     style: FilledButton.styleFrom(
                       minimumSize: const Size(48, 48),
                     ),

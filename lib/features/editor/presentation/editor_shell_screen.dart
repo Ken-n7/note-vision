@@ -45,7 +45,6 @@ import 'package:note_vision/features/editor/presentation/widgets/editor_command_
 import 'package:note_vision/features/editor/presentation/widgets/playback_controls_bar.dart';
 import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.dart';
 import 'package:note_vision/core/services/usage_stats_service.dart';
-import 'package:note_vision/core/services/transposer.dart';
 import 'package:note_vision/features/musicXML/musicxml_export_service.dart';
 import 'package:note_vision/features/musicXML/musicxml_preserving_exporter.dart';
 import 'package:note_vision/features/pdf/pdf_export_service.dart';
@@ -90,6 +89,12 @@ class EditorShellScreen extends StatefulWidget {
 class _EditorShellScreenState extends State<EditorShellScreen> {
   late EditorState _editorState;
   bool _insertMode = false;
+
+  /// Copied notes and rests; kept for this editing session.
+  EditorClipboard? _clipboard;
+
+  /// Touch stand-in for Shift: the next tap extends the selection.
+  bool _extendMode = false;
   bool _isDraggingNote = false;
   Offset _dragGlobal = Offset.zero;
   final GlobalKey _trashZoneKey = GlobalKey();
@@ -435,6 +440,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           _currentProject = project;
           _savedScoreJson = project.scoreJson;
           _editorState = _editorState.copyWith(
+            rangeAnchor: _editorState.rangeAnchor,
             hasUnsavedChanges:
                 jsonEncode(_editorState.score.toJson()) != _savedScoreJson,
           );
@@ -451,6 +457,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           _currentProject = updated;
           _savedScoreJson = updated.scoreJson;
           _editorState = _editorState.copyWith(
+            rangeAnchor: _editorState.rangeAnchor,
             hasUnsavedChanges:
                 jsonEncode(_editorState.score.toJson()) != _savedScoreJson,
           );
@@ -1210,6 +1217,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       final nextState = updater(_editorState);
       _editorState = nextState.copyWith(
         score: NotationReviewService.ensureIdentity(nextState.score),
+        rangeAnchor: nextState.rangeAnchor,
       );
       if (!identical(prevScore, _editorState.score)) {
         if (_clearSymbolsUndoScore != null &&
@@ -1219,6 +1227,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           _clearSymbolsUndoScore = null;
         }
         _editorState = _editorState.copyWith(
+          rangeAnchor: _editorState.rangeAnchor,
           hasUnsavedChanges:
               jsonEncode(_editorState.score.toJson()) != _savedScoreJson,
         );
@@ -1319,6 +1328,17 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   }
 
   void _onNotationSymbolTap(int partIndex, int measureIndex, int symbolIndex) {
+    if (_extendMode || HardwareKeyboard.instance.isShiftPressed) {
+      _extendMode = false;
+      _updateState(
+        (state) => state.extendSelectionTo(
+          partIndex: partIndex,
+          measureIndex: measureIndex,
+          symbolIndex: symbolIndex,
+        ),
+      );
+      return;
+    }
     _updateState((state) {
       final isSame =
           state.selectedPartIndex == partIndex &&
@@ -1430,7 +1450,20 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   Future<void> _showTranspose() async {
     if (!_canClearAllSymbols || _commandEditLock != null) return;
     final original = _editorState.score;
-    final options = await showModalBottomSheet<TransposeOptions>(
+    final selection = _editorState.hasRange
+        ? _editorState.selectionPositions
+              .where(
+                (p) =>
+                    original.getSymbolAt(
+                      _editorState.selectedPartIndex!,
+                      p.measure,
+                      p.symbol,
+                    )
+                    is Note,
+              )
+              .length
+        : null;
+    final request = await showModalBottomSheet<TransposeRequest>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -1438,6 +1471,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       backgroundColor: AppColors.surface,
       constraints: const BoxConstraints(maxWidth: 560),
       builder: (_) => TransposeSheet(
+        selectionCount: selection == 0 ? null : selection,
         currentKey:
             original.parts.firstOrNull?.measures.firstOrNull?.keySignature
                 ?.fifths ??
@@ -1446,12 +1480,16 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     );
     // Playback or another edit can start while the sheet is open.
     if (!mounted ||
-        options == null ||
+        request == null ||
         !identical(_editorState.score, original) ||
         _commandEditLock != null) {
       return;
     }
-    _updateState((state) => state.transposeScore(options));
+    _updateState(
+      (state) => request.selectionOnly
+          ? state.transposeSelection(request.options)
+          : state.transposeScore(request.options),
+    );
   }
 
   Future<void> _showBeamEditor() async {
@@ -1629,6 +1667,44 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     return null;
   }
 
+  void _copySelection() {
+    final clipboard = _editorState.copySelection();
+    if (clipboard == null) return;
+    setState(() => _clipboard = clipboard);
+    _showEditorBanner(
+      _EditorBannerData.success(
+        'Copied ${clipboard.symbolCount} '
+        '${clipboard.symbolCount == 1 ? 'symbol' : 'symbols'}',
+      ),
+    );
+  }
+
+  void _cutSelection() {
+    if (_commandEditLock != null || !_editorState.hasEditableSelection) return;
+    _copySelection();
+    _runEditorCommand(EditorCommand.delete);
+  }
+
+  /// Pastes after the selection, over a range, or into the selected bar.
+  void _pasteClipboard() {
+    final clipboard = _clipboard;
+    if (_commandEditLock != null || clipboard == null) return;
+    final next = _editorState.paste(clipboard);
+    if (identical(next, _editorState)) {
+      _showEditorBanner(
+        _EditorBannerData(
+          message: _editorState.hasMeasureContext
+              ? 'Not enough room to paste here. Select a bar with space, or a range to replace.'
+              : 'Select a bar or symbol to paste into.',
+          backgroundColor: AppColors.surfaceAlt,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+    _updateState((_) => next);
+  }
+
   void _runEditorCommand(EditorCommand command) {
     if (_commandEditLock != null) return;
     _updateState(command.execute);
@@ -1672,6 +1748,40 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       .symbols
                       .any(BeamGrouping.eligible)
                 ? 'Select a bar with eighth or sixteenth notes'
+                : null),
+      ),
+      EditorCommandChoice(
+        id: 'workspace.copy',
+        label: 'Copy',
+        group: 'Selection',
+        description: 'Copy the selected notes and rests',
+        shortcut: 'Ctrl / ⌘ + C',
+        disabledReason: state.hasEditableSelection
+            ? null
+            : 'Select notes or rests',
+      ),
+      EditorCommandChoice(
+        id: 'workspace.cut',
+        label: 'Cut',
+        group: 'Selection',
+        description: 'Copy the selection, then delete it',
+        shortcut: 'Ctrl / ⌘ + X',
+        disabledReason:
+            lock ??
+            (state.hasEditableSelection ? null : 'Select notes or rests'),
+      ),
+      EditorCommandChoice(
+        id: 'workspace.paste',
+        label: 'Paste',
+        group: 'Selection',
+        description: 'Paste after the selection, over a range, or into a bar',
+        shortcut: 'Ctrl / ⌘ + V',
+        disabledReason:
+            lock ??
+            (_clipboard == null
+                ? 'Copy notes or rests first'
+                : !state.hasMeasureContext
+                ? 'Select a bar or symbol'
                 : null),
       ),
       EditorCommandChoice(
@@ -1749,6 +1859,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         if (_commandEditLock == null) await _showBeamEditor();
       case 'workspace.transpose':
         await _showTranspose();
+      case 'workspace.copy':
+        _copySelection();
+      case 'workspace.cut':
+        _cutSelection();
+      case 'workspace.paste':
+        _pasteClipboard();
       case 'workspace.addBar':
         if (_commandEditLock == null) {
           _updateState((s) => s.appendMeasureAtEnd());
@@ -1820,6 +1936,32 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         _runEditorCommand(EditorCommand.redo);
         return KeyEventResult.handled;
       }
+      if (key == LogicalKeyboardKey.keyA) {
+        _runEditorCommand(EditorCommand.selectAll);
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.keyC) {
+        _copySelection();
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.keyX) {
+        _cutSelection();
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.keyV) {
+        _pasteClipboard();
+        return KeyEventResult.handled;
+      }
+      if (keyboard.isShiftPressed &&
+          (key == LogicalKeyboardKey.arrowLeft ||
+              key == LogicalKeyboardKey.arrowRight)) {
+        _updateState(
+          (s) => s.extendSelectionByBar(
+            key == LogicalKeyboardKey.arrowLeft ? -1 : 1,
+          ),
+        );
+        return KeyEventResult.handled;
+      }
       if (!keyboard.isAltPressed &&
           !keyboard.isShiftPressed &&
           (key == LogicalKeyboardKey.arrowUp ||
@@ -1838,6 +1980,15 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       final interval = _intervalDigits[key];
       if (interval == null) return KeyEventResult.ignored;
       _updateState((s) => s.addChordInterval(interval));
+      return KeyEventResult.handled;
+    }
+    if (keyboard.isShiftPressed &&
+        !keyboard.isAltPressed &&
+        (key == LogicalKeyboardKey.arrowLeft ||
+            key == LogicalKeyboardKey.arrowRight)) {
+      _updateState(
+        (s) => s.extendSelection(key == LogicalKeyboardKey.arrowLeft ? -1 : 1),
+      );
       return KeyEventResult.handled;
     }
     if (keyboard.isShiftPressed && !keyboard.isAltPressed && letter != null) {
@@ -1865,6 +2016,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       setState(() {
         _insertMode = false;
         _insertSymbolType = null;
+        _extendMode = false;
       });
       _updateState((s) => s.clearSymbolSelectionPreservingMeasureContext());
     } else if (key == LogicalKeyboardKey.keyN) {
@@ -2196,10 +2348,39 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                               null
                           ? () => _runEditorCommand(EditorCommand.octaveDown)
                           : null,
-                      onAddThird: _editorState.canAddChordTone
+                      onAddThird:
+                          EditorCommand.addThird.unavailableReason(
+                                _editorState,
+                              ) ==
+                              null
                           ? () => _runEditorCommand(EditorCommand.addThird)
                           : null,
-                      onConvertSymbol: selected is Rest
+                      rangeCount: _editorState.hasRange
+                          ? _editorState.selectionPositions.length
+                          : 0,
+                      extendMode: _extendMode,
+                      onToggleExtend: () =>
+                          setState(() => _extendMode = !_extendMode),
+                      onSelectBar:
+                          EditorCommand.selectBar.unavailableReason(
+                                _editorState,
+                              ) ==
+                              null
+                          ? () => _runEditorCommand(EditorCommand.selectBar)
+                          : null,
+                      onCopy: _editorState.hasEditableSelection
+                          ? _copySelection
+                          : null,
+                      onCut: _editorState.hasEditableSelection
+                          ? _cutSelection
+                          : null,
+                      onPaste:
+                          _clipboard != null && _editorState.hasMeasureContext
+                          ? _pasteClipboard
+                          : null,
+                      onConvertSymbol: _editorState.hasRange
+                          ? null
+                          : selected is Rest
                           ? () => _runEditorCommand(EditorCommand.restToNote)
                           : _editorState.canConvertSelectedNoteToRest
                           ? () => _runEditorCommand(EditorCommand.noteToRest)
@@ -2214,17 +2395,20 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                         (s) => s.setSelectedNoteAccidental(alter),
                       ),
                       allowedDurations: {
-                        for (final spec in [
-                          wholeDuration,
-                          halfDuration,
-                          quarterDuration,
-                          eighthDuration,
-                          sixteenthDuration,
-                        ])
-                          if (_editorState.canSetSelectedDuration(spec))
-                            spec.type,
+                        if (!_editorState.hasRange)
+                          for (final spec in [
+                            wholeDuration,
+                            halfDuration,
+                            quarterDuration,
+                            eighthDuration,
+                            sixteenthDuration,
+                          ])
+                            if (_editorState.canSetSelectedDuration(spec))
+                              spec.type,
                       },
-                      canToggleDot: _editorState.canToggleSelectedDot,
+                      canToggleDot:
+                          !_editorState.hasRange &&
+                          _editorState.canToggleSelectedDot,
                       onBeams:
                           hasMeasureContext &&
                               _editorState
@@ -3567,6 +3751,11 @@ class _NotationAreaState extends State<_NotationArea>
       pageMeasureCount: widget.pageMeasureCount,
       selectedMeasureIndex: _rel(widget.editorState.selectedMeasureIndex),
       selectedSymbolIndex: widget.editorState.selectedSymbolIndex,
+      rangeSymbols: {
+        if (widget.editorState.hasRange)
+          for (final p in widget.editorState.selectionPositions)
+            if (_rel(p.measure) case final measure?) (measure, p.symbol),
+      },
       playbackPartIndex: widget.playbackPosition.isNone
           ? null
           : widget.playbackPosition.partIndex,
@@ -4273,6 +4462,13 @@ class _InspectorPanel extends StatefulWidget {
     required this.onOctaveDown,
     required this.onConvertSymbol,
     required this.onAddThird,
+    required this.rangeCount,
+    required this.extendMode,
+    required this.onToggleExtend,
+    required this.onSelectBar,
+    required this.onCopy,
+    required this.onCut,
+    required this.onPaste,
     required this.onWhole,
     required this.onHalf,
     required this.onQuarter,
@@ -4310,6 +4506,14 @@ class _InspectorPanel extends StatefulWidget {
   final VoidCallback onMoveUp;
   final VoidCallback onMoveDown;
   final VoidCallback? onOctaveUp, onOctaveDown, onConvertSymbol, onAddThird;
+
+  /// Symbols in a range selection; 0 without one.
+  final int rangeCount;
+
+  /// Whether the next tap extends the selection (touch stand-in for Shift).
+  final bool extendMode;
+  final VoidCallback onToggleExtend;
+  final VoidCallback? onSelectBar, onCopy, onCut, onPaste;
   final VoidCallback onWhole;
   final VoidCallback onHalf;
   final VoidCallback onQuarter;
@@ -4344,7 +4548,10 @@ class _InspectorPanelState extends State<_InspectorPanel> {
       widget.isPlaybackActive ? null : action;
 
   List<_ActionGroup> _buildGroups() {
-    final isNoteSelected = widget.selected is Note;
+    // Pitch moves apply to a whole range; single-note edits do not.
+    final hasRange = widget.rangeCount > 1;
+    final canMovePitch = hasRange || widget.selected is Note;
+    final isNoteSelected = !hasRange && widget.selected is Note;
     final currentAlter = isNoteSelected
         ? (widget.selected as Note).alter
         : null;
@@ -4372,13 +4579,13 @@ class _InspectorPanelState extends State<_InspectorPanel> {
             icon: Icons.keyboard_arrow_up_rounded,
             label: 'Up',
             tooltip: 'Raise pitch by one step (↑)',
-            onPressed: _wrapAction(isNoteSelected ? widget.onMoveUp : null),
+            onPressed: _wrapAction(canMovePitch ? widget.onMoveUp : null),
           ),
           _ActionTile(
             icon: Icons.keyboard_arrow_down_rounded,
             label: 'Down',
             tooltip: 'Lower pitch by one step (↓)',
-            onPressed: _wrapAction(isNoteSelected ? widget.onMoveDown : null),
+            onPressed: _wrapAction(canMovePitch ? widget.onMoveDown : null),
           ),
           _ActionTile(
             icon: Icons.delete_rounded,
@@ -4740,16 +4947,33 @@ class _InspectorPanelState extends State<_InspectorPanel> {
         ],
       );
     } else if (!widget.hasSelection) {
-      content = const Padding(
-        padding: EdgeInsets.symmetric(vertical: 10),
-        child: Text(
-          'Tap a note or rest on the score to change it. To write music, choose Add notes, then tap the staff. Hold a symbol to drag it.',
-          style: TextStyle(
-            fontSize: 12,
-            height: 1.5,
-            color: AppColors.textSecondary,
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: Text(
+              'Tap a note or rest on the score to change it. To write music, choose Add notes, then tap the staff. Hold a symbol to drag it.',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.5,
+                color: AppColors.textSecondary,
+              ),
+            ),
           ),
-        ),
+          if (widget.onPaste != null)
+            EditorToolRow(
+              wrap: widget.isLandscape,
+              children: [
+                _ActionTile(
+                  icon: Icons.content_paste_rounded,
+                  label: 'Paste',
+                  tooltip: 'Paste into this bar (Ctrl/Cmd + V)',
+                  onPressed: _wrapAction(widget.onPaste),
+                ),
+              ],
+            ),
+        ],
       );
     } else {
       final durationTools = groups[4].children;
@@ -4798,6 +5022,46 @@ class _InspectorPanelState extends State<_InspectorPanel> {
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          EditorToolRow(
+            wrap: widget.isLandscape,
+            children: [
+              _ActionTile(
+                icon: Icons.linear_scale_rounded,
+                label: 'Extend',
+                tooltip: widget.extendMode
+                    ? 'Tap a note or rest to extend the selection to it'
+                    : 'Then tap a note or rest to select everything up to it (Shift + tap)',
+                selected: widget.extendMode,
+                onPressed: _wrapAction(widget.onToggleExtend),
+              ),
+              _ActionTile(
+                icon: Icons.select_all_rounded,
+                label: 'Select bar',
+                tooltip: 'Select every note and rest in this bar',
+                onPressed: _wrapAction(widget.onSelectBar),
+              ),
+              _ActionTile(
+                icon: Icons.copy_rounded,
+                label: 'Copy',
+                tooltip: 'Copy the selection (Ctrl/Cmd + C)',
+                onPressed: _wrapAction(widget.onCopy),
+              ),
+              _ActionTile(
+                icon: Icons.content_cut_rounded,
+                label: 'Cut',
+                tooltip: 'Copy the selection, then delete it (Ctrl/Cmd + X)',
+                onPressed: _wrapAction(widget.onCut),
+              ),
+              _ActionTile(
+                icon: Icons.content_paste_rounded,
+                label: 'Paste',
+                tooltip:
+                    'Paste after the selection, or over a range (Ctrl/Cmd + V)',
+                onPressed: _wrapAction(widget.onPaste),
+              ),
+            ],
+          ),
         ],
       );
     }
@@ -4816,7 +5080,9 @@ class _InspectorPanelState extends State<_InspectorPanel> {
           'Tap the staff or type A–G · hold a symbol to drag',
         EditorToolMode.measure => 'Structure and staff settings',
         EditorToolMode.edit =>
-          widget.hasSelection
+          widget.rangeCount > 1
+              ? '${widget.rangeCount} symbols selected · pitch moves apply to all'
+              : widget.hasSelection
               ? '${dots > 0 ? 'Dotted ' : ''}$duration ${selected is Note ? 'note' : 'rest'} · Bar ${widget.selectedMeasureNumber}'
               : 'Tap the score to select a symbol',
       },
@@ -5147,6 +5413,7 @@ class _ActionTile extends StatelessWidget {
     required this.onPressed,
     this.tooltip,
     this.danger = false,
+    this.selected,
   });
 
   final IconData icon;
@@ -5154,6 +5421,9 @@ class _ActionTile extends StatelessWidget {
   final VoidCallback? onPressed;
   final String? tooltip;
   final bool danger;
+
+  /// Non-null for a toggle; true draws it switched on.
+  final bool? selected;
 
   @override
   Widget build(BuildContext context) {
@@ -5165,45 +5435,55 @@ class _ActionTile extends StatelessWidget {
         ? (danger ? const Color(0xFFEF4444) : AppColors.textPrimary)
         : AppColors.textSecondary.withValues(alpha: 0.35);
 
+    final on = selected ?? false;
     return Tooltip(
       message: tooltip ?? label,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(8),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          width: _toolTileWidth(context, label, minimum: 52),
-          constraints: const BoxConstraints(minHeight: 48),
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-          decoration: BoxDecoration(
-            color: enabled ? AppColors.surfaceAlt : AppColors.background,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: enabled
-                  ? (danger
-                        ? const Color(0xFFEF4444).withValues(alpha: 0.4)
-                        : AppColors.border)
-                  : AppColors.border.withValues(alpha: 0.4),
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 17, color: iconColor),
-              const SizedBox(height: 3),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: enabled
-                      ? activeColor
-                      : AppColors.textSecondary.withValues(alpha: 0.3),
-                  fontWeight: FontWeight.w500,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+      child: Semantics(
+        toggled: selected,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(8),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            width: _toolTileWidth(context, label, minimum: 52),
+            constraints: const BoxConstraints(minHeight: 48),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            decoration: BoxDecoration(
+              color: on
+                  ? AppColors.accent.withValues(alpha: 0.18)
+                  : enabled
+                  ? AppColors.surfaceAlt
+                  : AppColors.background,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: on
+                    ? AppColors.accent
+                    : enabled
+                    ? (danger
+                          ? const Color(0xFFEF4444).withValues(alpha: 0.4)
+                          : AppColors.border)
+                    : AppColors.border.withValues(alpha: 0.4),
               ),
-            ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 17, color: iconColor),
+                const SizedBox(height: 3),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: enabled
+                        ? activeColor
+                        : AppColors.textSecondary.withValues(alpha: 0.3),
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ),
       ),

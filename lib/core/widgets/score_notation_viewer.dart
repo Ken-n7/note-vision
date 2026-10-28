@@ -116,6 +116,7 @@ class ScoreNotationViewer extends StatefulWidget {
     this.selectedMeasureIndex,
     this.selectedSymbolIndex,
     this.selectedSymbolIndices = const {},
+    this.rangeSymbols = const {},
     this.playbackPartIndex,
     this.playbackMeasureIndex,
     this.playbackSymbolIndex,
@@ -159,6 +160,9 @@ class ScoreNotationViewer extends StatefulWidget {
   final int? selectedMeasureIndex;
   final int? selectedSymbolIndex;
   final Set<int> selectedSymbolIndices;
+
+  /// A range selection in [selectedPartIndex]: (absolute measure, symbol).
+  final Set<(int, int)> rangeSymbols;
 
   final int? playbackPartIndex;
   final int? playbackMeasureIndex;
@@ -343,6 +347,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
         selectedMeasureIndex: widget.selectedMeasureIndex,
         selectedSymbolIndex: widget.selectedSymbolIndex,
         selectedSymbolIndices: widget.selectedSymbolIndices,
+        rangeSymbols: widget.rangeSymbols,
         playbackPartIndex: widget.playbackPartIndex,
         playbackMeasureIndex: widget.playbackMeasureIndex,
         playbackSymbolIndex: widget.playbackSymbolIndex,

@@ -31,7 +31,7 @@ class EditorHelpSheet extends StatelessWidget {
           (
             Icons.touch_app_outlined,
             'Edit a symbol',
-            'Tap a note or rest. Change its duration, pitch or accidental in Edit. Use the arrows to select the next symbol.',
+            'Tap a note or rest. Change its duration, pitch or accidental in Edit. Use the arrows to select the next symbol. To select several, choose Extend, then tap the last one; Copy, Cut, Paste, Delete and pitch moves then apply to all of them.',
           ),
           (
             Icons.add_rounded,
@@ -100,6 +100,10 @@ class EditorHelpSheet extends StatelessWidget {
           ('3 / 4 / 5 / 6 / 7', '16th / eighth / quarter / half / whole'),
           ('.', 'Toggle duration dot on the selection'),
           ('← / →', 'Previous / next symbol'),
+          ('Shift + ← / → or Shift + tap', 'Extend the selection'),
+          ('Ctrl / ⌘ + Shift + ← / →', 'Extend the selection by a bar'),
+          ('Ctrl / ⌘ + A', 'Select every note and rest in the staff'),
+          ('Ctrl / ⌘ + C / X / V', 'Copy / cut / paste'),
           ('Delete / Backspace', 'Delete selection'),
           ('N / Esc', 'Toggle note entry / finish editing'),
           ('A–G', 'Write that note (note entry) or change the selected note'),

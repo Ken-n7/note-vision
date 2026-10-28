@@ -79,7 +79,14 @@ class Transposer {
   static const _naturalSemitones = [0, 2, 4, 5, 7, 9, 11];
   static const _steps = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
-  Score transpose(Score score, TransposeOptions options) {
+  /// With [only], moves just the notes it accepts (part, measure and symbol
+  /// indexes) and leaves key signatures; other notes keep their pitch but may
+  /// gain or lose an accidental.
+  Score transpose(
+    Score score,
+    TransposeOptions options, {
+    bool Function(int part, int measure, int symbol)? only,
+  }) {
     final firstKey =
         score.parts.firstOrNull?.measures.firstOrNull?.keySignature?.fifths ??
         0;
@@ -94,7 +101,7 @@ class Transposer {
         if (options.direction == TransposeDirection.down) {
           interval = (steps: -interval.steps, semitones: -interval.semitones);
         }
-        if (options.keySignatures) {
+        if (options.keySignatures && only == null) {
           keyShift = 7 * interval.semitones - 12 * interval.steps;
         }
       case TransposeMode.diatonic:
@@ -103,10 +110,17 @@ class Transposer {
             : options.interval;
         interval = (steps: steps, semitones: 0);
     }
+    if (only != null) keyShift = 0;
     return score.copyWith(
       parts: [
-        for (final part in score.parts)
-          _part(part, options, interval, keyShift),
+        for (final (index, part) in score.parts.indexed)
+          _part(
+            part,
+            options,
+            interval,
+            keyShift,
+            only == null ? null : (m, s) => only(index, m, s),
+          ),
       ],
     );
   }
@@ -116,6 +130,7 @@ class Transposer {
     TransposeOptions options,
     Interval interval,
     int keyShift,
+    bool Function(int measure, int symbol)? only,
   ) {
     final reading = Accidentals();
     final writing = Accidentals();
@@ -146,10 +161,17 @@ class Transposer {
         next.withContent(
           keySignature: key,
           symbols: [
-            for (final symbol in measure.symbols)
+            for (final (i, symbol) in measure.symbols.indexed)
               if (symbol is Note)
                 () {
                   final sounding = reading.sounding(symbol);
+                  if (only != null && !only(index, i)) {
+                    return symbol.withPitch(
+                      symbol.step,
+                      symbol.octave,
+                      writing.written(symbol, sounding),
+                    );
+                  }
                   final from = symbol.octave * 7 + _steps.indexOf(symbol.step);
                   final to = from + interval.steps;
                   final semitone = diatonic

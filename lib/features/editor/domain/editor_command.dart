@@ -1,5 +1,6 @@
 import '../../../core/models/note.dart';
 import '../../../core/models/rest.dart';
+import '../../../core/services/transposer.dart';
 import '../model/editor_state.dart';
 import 'editor_actions.dart';
 
@@ -38,7 +39,19 @@ enum EditorCommand {
     'Add a chord note a third above the selected note',
     'Alt + 3',
   ),
-  delete('Delete symbol', 'Edit', 'Remove the selected note or rest', 'Delete');
+  selectAll(
+    'Select all',
+    'Selection',
+    'Select every note and rest in this staff',
+    'Ctrl/Cmd + A',
+  ),
+  selectBar('Select bar', 'Selection', 'Select every note and rest in the bar'),
+  delete(
+    'Delete selection',
+    'Edit',
+    'Remove the selected notes and rests',
+    'Delete',
+  );
 
   const EditorCommand(
     this.label,
@@ -71,7 +84,21 @@ enum EditorCommand {
   String? unavailableReason(EditorState state) {
     if (this == undo) return state.canUndo ? null : 'No edits to undo';
     if (this == redo) return state.canRedo ? null : 'No edits to redo';
+    if (this == selectAll) {
+      return state.musicSymbolCount == 0 ? 'Add notes first' : null;
+    }
+    if (this == selectBar) {
+      return identical(state.selectBar(), state)
+          ? 'Select a bar with notes or rests'
+          : null;
+    }
     if (!state.hasEditableSymbolSelection) return 'Select a note or rest';
+    if (state.hasRange) {
+      // Pitch moves apply to the whole range, as in MuseScore Studio.
+      return this == delete || pitchSteps != null
+          ? null
+          : 'Select a single note or rest';
+    }
     if (this == restToNote) {
       return state.selectedSymbol is Rest ? null : 'Select a rest';
     }
@@ -99,6 +126,19 @@ enum EditorCommand {
   EditorState execute(EditorState state) {
     if (unavailableReason(state) != null) return state;
     if (duration case final spec?) return state.setSelectedDuration(spec);
+    if (pitchSteps case final steps? when state.hasRange) {
+      return state.transposeSelection(
+        TransposeOptions(
+          mode: steps.abs() == 7
+              ? TransposeMode.byInterval
+              : TransposeMode.diatonic,
+          interval: steps.abs() == 7 ? 25 : 1,
+          direction: steps > 0
+              ? TransposeDirection.up
+              : TransposeDirection.down,
+        ),
+      );
+    }
     if (pitchSteps case final steps?) return state.moveSelectedPitch(steps);
     return switch (this) {
       undo => state.applyUndo(),
@@ -111,7 +151,9 @@ enum EditorCommand {
       noteToRest => state.convertSelectedNoteToRest(),
       restToNote => state.convertSelectedRestToNote(),
       addThird => state.addChordInterval(3),
-      delete => state.deleteSelectedSymbol(),
+      selectAll => state.selectAllInPart(),
+      selectBar => state.selectBar(),
+      delete => state.deleteSelection(),
       _ => state,
     };
   }

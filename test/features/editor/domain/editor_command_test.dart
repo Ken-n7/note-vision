@@ -195,9 +195,15 @@ void main() {
     () {
       final noSelection = select([note]).copyWith(clearSelection: true);
       for (final command in EditorCommand.values) {
+        if (command == EditorCommand.selectAll) continue;
         expect(command.unavailableReason(noSelection), isNotNull);
         expect(command.execute(noSelection), same(noSelection));
       }
+      // Select all, like Ctrl + A in MuseScore Studio, needs no selection.
+      expect(
+        EditorCommand.selectAll.execute(noSelection).hasEditableSelection,
+        isTrue,
+      );
       final rest = select(const [Rest(duration: 2, type: 'quarter')]);
       expect(EditorCommand.octaveUp.execute(rest), same(rest));
       expect(EditorCommand.sharp.execute(rest), same(rest));

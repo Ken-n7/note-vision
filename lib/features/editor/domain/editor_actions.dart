@@ -46,6 +46,14 @@ const DurationSpec eighthDuration = DurationSpec('eighth', 1);
 /// stored as 1; its real length comes from its type (see [quarterLength]).
 const DurationSpec sixteenthDuration = DurationSpec('sixteenth', 1);
 
+/// Notes and rests copied from one part, bar by bar (empty bars included,
+/// so pasted music keeps its bar lines).
+class EditorClipboard {
+  const EditorClipboard(this.bars);
+  final List<List<ScoreSymbol>> bars;
+  int get symbolCount => bars.fold(0, (n, bar) => n + bar.length);
+}
+
 extension EditorActions on EditorState {
   bool get hasSelection => hasSymbolSelection;
 
@@ -653,6 +661,252 @@ extension EditorActions on EditorState {
       symbolIndex: nextIndex,
       symbol: symbols[nextIndex],
     );
+  }
+
+  // ── Range selection and clipboard ────────────────────────────────────
+
+  bool get hasRange => rangeAnchor != null;
+
+  /// Notes and rests from the range anchor to the selection in reading
+  /// order, with the chord tones of the last chord; else the selected symbol
+  /// and its chord tones. Empty without a selection.
+  List<SymbolPosition> get selectionPositions {
+    if (!hasEditableSelection) return const [];
+    final measures = score.parts[selectedPartIndex!].measures;
+    final current = (
+      measure: selectedMeasureIndex!,
+      symbol: selectedSymbolIndex!,
+    );
+    var (start, end) = (rangeAnchor ?? current, current);
+    if (start.measure > end.measure ||
+        (start.measure == end.measure && start.symbol > end.symbol)) {
+      (start, end) = (end, start);
+    }
+    final positions = <SymbolPosition>[];
+    for (var m = start.measure; m <= end.measure; m++) {
+      final symbols = measures[m].symbols;
+      var last = m == end.measure ? end.symbol : symbols.length - 1;
+      if (m == end.measure) {
+        while (last + 1 < symbols.length &&
+            symbols[last + 1] is Note &&
+            (symbols[last + 1] as Note).isChordTone) {
+          last++;
+        }
+      }
+      for (var i = m == start.measure ? start.symbol : 0; i <= last; i++) {
+        if (symbols[i] is Note || symbols[i] is Rest) {
+          positions.add((measure: m, symbol: i));
+        }
+      }
+    }
+    return positions;
+  }
+
+  /// Every note and rest of [partIndex] in reading order.
+  List<SymbolPosition> _editablePositions(int partIndex) => [
+    for (final (m, measure) in score.parts[partIndex].measures.indexed)
+      for (final (i, symbol) in measure.symbols.indexed)
+        if (symbol is Note || symbol is Rest) (measure: m, symbol: i),
+  ];
+
+  /// Moves the selected end of the range to [to], anchoring the other end at
+  /// the current selection when there is no range yet.
+  EditorState _extendTo(SymbolPosition to) {
+    final anchor =
+        rangeAnchor ??
+        (measure: selectedMeasureIndex!, symbol: selectedSymbolIndex!);
+    return copyWith(
+      selectedMeasureIndex: to.measure,
+      selectedSymbolIndex: to.symbol,
+      selectedSymbol: score
+          .parts[selectedPartIndex!]
+          .measures[to.measure]
+          .symbols[to.symbol],
+      rangeAnchor: anchor,
+    );
+  }
+
+  EditorState _selectSpan(
+    int partIndex,
+    SymbolPosition from,
+    SymbolPosition to,
+  ) {
+    final selected = selectSymbolAt(
+      partIndex: partIndex,
+      measureIndex: from.measure,
+      symbolIndex: from.symbol,
+    );
+    return from == to ? selected : selected._extendTo(to);
+  }
+
+  /// Shift + arrow: extends the range by one note or rest.
+  EditorState extendSelection(int direction) {
+    if (!hasEditableSelection) return this;
+    final positions = _editablePositions(selectedPartIndex!);
+    final index =
+        positions.indexOf((
+          measure: selectedMeasureIndex!,
+          symbol: selectedSymbolIndex!,
+        )) +
+        direction;
+    if (index < 0 || index >= positions.length) return this;
+    return _extendTo(positions[index]);
+  }
+
+  /// Ctrl + Shift + arrow: extends to the edge of this bar, then by bars.
+  EditorState extendSelectionByBar(int direction) {
+    if (!hasEditableSelection) return this;
+    final positions = _editablePositions(selectedPartIndex!);
+    var measure = selectedMeasureIndex!;
+    while (true) {
+      final inBar = positions.where((p) => p.measure == measure);
+      if (inBar.isNotEmpty) {
+        final edge = direction > 0 ? inBar.last : inBar.first;
+        if (edge.symbol != selectedSymbolIndex ||
+            measure != selectedMeasureIndex) {
+          return _extendTo(edge);
+        }
+      }
+      measure += direction;
+      if (measure < 0 || measure > positions.last.measure) return this;
+    }
+  }
+
+  /// Shift + tap: extends the range to a symbol in the same part.
+  EditorState extendSelectionTo({
+    required int partIndex,
+    required int measureIndex,
+    required int symbolIndex,
+  }) {
+    final symbol = score.getSymbolAt(partIndex, measureIndex, symbolIndex);
+    if (symbol is! Note && symbol is! Rest) return this;
+    if (!hasEditableSelection || partIndex != selectedPartIndex) {
+      return selectSymbolAt(
+        partIndex: partIndex,
+        measureIndex: measureIndex,
+        symbolIndex: symbolIndex,
+      );
+    }
+    return _extendTo((measure: measureIndex, symbol: symbolIndex));
+  }
+
+  /// Ctrl + A: every note and rest in the selected part (the first part
+  /// when nothing is selected).
+  EditorState selectAllInPart() {
+    if (score.parts.isEmpty) return this;
+    final part = selectedPartIndex ?? 0;
+    final positions = _editablePositions(part);
+    if (positions.isEmpty) return this;
+    return _selectSpan(part, positions.first, positions.last);
+  }
+
+  /// Every note and rest in the selected bar.
+  EditorState selectBar() {
+    if (!hasMeasureContext) return this;
+    final positions = _editablePositions(
+      selectedPartIndex!,
+    ).where((p) => p.measure == selectedMeasureIndex).toList();
+    if (positions.isEmpty) return this;
+    return _selectSpan(selectedPartIndex!, positions.first, positions.last);
+  }
+
+  /// The selected notes and rests, bar by bar; null without a selection.
+  EditorClipboard? copySelection() {
+    final positions = selectionPositions;
+    if (positions.isEmpty) return null;
+    final measures = score.parts[selectedPartIndex!].measures;
+    final picked = positions.toSet();
+    return EditorClipboard([
+      for (var m = positions.first.measure; m <= positions.last.measure; m++)
+        [
+          for (final (i, symbol) in measures[m].symbols.indexed)
+            if (picked.contains((measure: m, symbol: i)))
+              // A copy starting inside a chord starts a new chord.
+              _pasteCopy(
+                symbol,
+                startsChord: (measure: m, symbol: i) == positions.first,
+              ),
+        ],
+    ]);
+  }
+
+  /// Removes every selected note and rest as one undo step, keeping the
+  /// first bar as context.
+  EditorState deleteSelection() {
+    if (!hasRange) return deleteSelectedSymbol();
+    final positions = selectionPositions;
+    return applyEditWithMeasureContext(
+      score: _repairEditedBeams(_without(positions)),
+      partIndex: selectedPartIndex!,
+      measureIndex: positions.first.measure,
+    );
+  }
+
+  Score _without(List<SymbolPosition> positions) {
+    var next = score;
+    for (final p in positions.reversed) {
+      next = next.deleteSymbolAt(selectedPartIndex!, p.measure, p.symbol);
+    }
+    return next;
+  }
+
+  /// Pastes [clipboard] bar by bar: over the range when there is one, else
+  /// after the selection (or at the end of the selected bar); later bars
+  /// start the following bars, which are added at the end of the score as
+  /// needed. Returns this state unchanged when a bar would overflow. The
+  /// pasted music is selected, as one undo step.
+  EditorState paste(EditorClipboard clipboard) {
+    if (!hasMeasureContext || clipboard.symbolCount == 0) return this;
+    final part = selectedPartIndex!;
+    final firstBar = hasRange
+        ? selectionPositions.first.measure
+        : selectedMeasureIndex!;
+    var index = hasRange ? selectionPositions.first.symbol : _inputIndex;
+    var next = hasRange ? _without(selectionPositions) : score;
+    SymbolPosition? first, last;
+    for (final (k, bar) in clipboard.bars.indexed) {
+      final measure = firstBar + k;
+      while (measure >= next.parts[part].measures.length) {
+        next = next.insertMeasureAfterInAllParts(
+          next.parts[part].measures.length - 1,
+        );
+      }
+      if (k > 0) index = 0;
+      for (final symbol in bar) {
+        next = next.insertSymbolAt(part, measure, index, _pasteCopy(symbol));
+        first ??= (measure: measure, symbol: index);
+        last = (measure: measure, symbol: index);
+        index++;
+      }
+      if (bar.isNotEmpty && !_fitsMeter(next, part, measure)) return this;
+    }
+    next = _repairEditedBeams(next);
+    final pasted = applyEditWithSymbolSelection(
+      score: next,
+      partIndex: part,
+      measureIndex: last!.measure,
+      symbolIndex: last.symbol,
+      symbol: next.getSymbolAt(part, last.measure, last.symbol)!,
+    );
+    return pasted.copyWith(rangeAnchor: first);
+  }
+
+  /// Transposes the selected notes only, keeping key signatures and the
+  /// range; one undo step.
+  EditorState transposeSelection(TransposeOptions options) {
+    final positions = selectionPositions.toSet();
+    if (positions.isEmpty) return this;
+    final part = selectedPartIndex!;
+    final anchor = rangeAnchor;
+    return _applySelectionPreservingEdit(
+      intent: EditorEditIntent.transpose,
+      score: const Transposer().transpose(
+        score,
+        options,
+        only: (p, m, s) =>
+            p == part && positions.contains((measure: m, symbol: s)),
+      ),
+    ).copyWith(rangeAnchor: anchor);
   }
 
   /// Transposes every part as one undo step, keeping the selection.
@@ -1384,6 +1638,47 @@ extension EditorActions on EditorState {
 }
 
 const _stepNames = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+
+/// A pasted copy: no scan evidence or review identity of its own.
+ScoreSymbol _pasteCopy(ScoreSymbol symbol, {bool startsChord = false}) =>
+    switch (symbol) {
+      Note() => Note(
+        step: symbol.step,
+        octave: symbol.octave,
+        alter: symbol.alter,
+        duration: symbol.duration,
+        type: symbol.type,
+        voice: symbol.voice,
+        staff: symbol.staff,
+        beams: symbol.beams,
+        dots: symbol.dots,
+        isChordTone: symbol.isChordTone && !startsChord,
+      ),
+      Rest() => Rest(
+        duration: symbol.duration,
+        type: symbol.type,
+        voice: symbol.voice,
+        staff: symbol.staff,
+        dots: symbol.dots,
+      ),
+      _ => symbol,
+    };
+
+/// Whether every voice in [measure] fits its time signature.
+bool _fitsMeter(Score score, int part, int measure) {
+  try {
+    final timeline = const ScoreTimelineBuilder().measure(score, part, measure);
+    final capacity = ScoreTimelineBuilder.meterLength(
+      ScoreTimelineBuilder.activeMeter(score, part, measure),
+    );
+    return capacity.isZero ||
+        timeline.symbols.every(
+          (e) => timeline.laneDuration(e.lane).compareTo(capacity) <= 0,
+        );
+  } on ScoreTimelineException {
+    return false;
+  }
+}
 
 /// Octaves 1–7, the range the editor shows.
 const _minDiatonic = 7, _maxDiatonic = 7 * 7 + 6;

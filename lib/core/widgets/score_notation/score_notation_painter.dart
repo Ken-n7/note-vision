@@ -26,6 +26,7 @@ class ScoreNotationPainter extends CustomPainter {
     this.selectedMeasureIndex,
     this.selectedSymbolIndex,
     this.selectedSymbolIndices = const {},
+    this.rangeSymbols = const {},
     this.playbackPartIndex,
     this.playbackMeasureIndex,
     this.playbackSymbolIndex,
@@ -59,6 +60,9 @@ class ScoreNotationPainter extends CustomPainter {
   final int? selectedMeasureIndex;
   final int? selectedSymbolIndex;
   final Set<int> selectedSymbolIndices;
+
+  /// A range selection in [selectedPartIndex]: (absolute measure, symbol).
+  final Set<(int, int)> rangeSymbols;
 
   /// Currently playing symbol position emitted by PlaybackService.
   /// All three must be non-null for the playback highlight to render.
@@ -571,7 +575,9 @@ class ScoreNotationPainter extends CustomPainter {
         final isSelected =
             selectedPartIndex == partIndex &&
             selectedMeasureIndex == absoluteMeasureIndex &&
-            (selectedSymbolIndex == i || selectedSymbolIndices.contains(i));
+            (selectedSymbolIndex == i || selectedSymbolIndices.contains(i)) ||
+            selectedPartIndex == partIndex &&
+                rangeSymbols.contains((absoluteMeasureIndex, i));
         final isPlaying =
             playbackPartIndex == partIndex &&
             playbackMeasureIndex == absoluteMeasureIndex &&
@@ -601,7 +607,9 @@ class ScoreNotationPainter extends CustomPainter {
         final isSelected =
             selectedPartIndex == partIndex &&
             selectedMeasureIndex == absoluteMeasureIndex &&
-            (selectedSymbolIndex == i || selectedSymbolIndices.contains(i));
+            (selectedSymbolIndex == i || selectedSymbolIndices.contains(i)) ||
+            selectedPartIndex == partIndex &&
+                rangeSymbols.contains((absoluteMeasureIndex, i));
         final isPlaying =
             playbackPartIndex == partIndex &&
             playbackMeasureIndex == absoluteMeasureIndex &&
@@ -1743,6 +1751,7 @@ class ScoreNotationPainter extends CustomPainter {
         oldDelegate.selectedMeasureIndex != selectedMeasureIndex ||
         oldDelegate.selectedSymbolIndex != selectedSymbolIndex ||
         !setEquals(oldDelegate.selectedSymbolIndices, selectedSymbolIndices) ||
+        !setEquals(oldDelegate.rangeSymbols, rangeSymbols) ||
         oldDelegate.playbackPartIndex != playbackPartIndex ||
         oldDelegate.playbackMeasureIndex != playbackMeasureIndex ||
         oldDelegate.playbackSymbolIndex != playbackSymbolIndex ||

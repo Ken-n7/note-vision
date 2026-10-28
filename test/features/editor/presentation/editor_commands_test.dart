@@ -9,6 +9,7 @@ import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/services/playback_service.dart';
+import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 import 'package:note_vision/features/editor/presentation/widgets/editor_command_palette.dart';
 import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.dart';
 import 'package:note_vision/features/editor/presentation/widgets/transpose_sheet.dart';
@@ -213,11 +214,73 @@ void main() {
     final measure = shownControlsScore(tester).parts[0].measures[0];
     expect(measure.keySignature?.fifths, 2);
     // E4 becomes F#4; the new key signature writes its sharp.
-    expect([
-      for (final n in measure.symbols.whereType<Note>()) n.pitch,
-    ], ['D4', 'F4']);
+    expect(
+      [for (final n in measure.symbols.whereType<Note>()) n.pitch],
+      ['D4', 'F4'],
+    );
     await modified(tester, LogicalKeyboardKey.keyZ);
     expect(selectedNote(tester).pitch, 'C4');
+  });
+
+  List<String> bar(WidgetTester tester, [int measure = 0]) => [
+    for (final s in shownControlsScore(
+      tester,
+    ).parts[0].measures[measure].symbols)
+      s is Note ? s.pitch : 'rest',
+  ];
+
+  testWidgets('shift extends a range that cut and paste move as a block', (
+    tester,
+  ) async {
+    await pumpControls(tester);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer))
+          .rangeSymbols,
+      {(0, 0), (0, 1)},
+    );
+    await modified(tester, LogicalKeyboardKey.keyX);
+    expect(bar(tester), ['rest']);
+    await modified(tester, LogicalKeyboardKey.keyV);
+    expect(bar(tester), ['rest', 'C4', 'E4']);
+    await modified(tester, LogicalKeyboardKey.keyZ);
+    await modified(tester, LogicalKeyboardKey.keyZ);
+    expect(bar(tester), ['C4', 'E4', 'rest']);
+  });
+
+  testWidgets('touch selects a bar, copies it and pastes into an empty bar', (
+    tester,
+  ) async {
+    await pumpControls(tester, size: const Size(390, 844));
+    Future<void> tapTile(String label) async {
+      await tester.ensureVisible(find.text(label).last);
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+    }
+
+    await tapTile('Select bar');
+    expect(
+      find.text('3 symbols selected · pitch moves apply to all'),
+      findsOneWidget,
+    );
+    await search(tester, 'transpose');
+    await tester.tap(find.byKey(const ValueKey('command-workspace.transpose')));
+    await tester.pumpAndSettle();
+    expect(find.text('2 selected notes'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    await tapTile('Copy');
+    await tapTile('Cut');
+    expect(bar(tester), isEmpty);
+    await tapTile('Paste');
+    expect(bar(tester), ['C4', 'E4', 'rest']);
+    await tester.tap(find.byTooltip('Undo'));
+    await tester.pumpAndSettle();
+    expect(bar(tester), isEmpty);
   });
 
   testWidgets('conversion is reachable on a phone and can be undone', (

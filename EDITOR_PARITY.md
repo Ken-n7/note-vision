@@ -285,7 +285,36 @@ instruments. Rhythm, pitch, beams, chords, meters and key handling match.
 - Not yet: transposing only a selection (needs range selection, 3C), chord
   symbols (not in the model), transposing instruments.
 
-Next: 3C (range selection and clipboard), 3D
+## Stage 3C — range selection and clipboard
+
+- `EditorState.rangeAnchor` holds the other end of a range in the selected
+  part; every edit, undo or plain selection drops it (only range-aware
+  actions pass it on). `selectionPositions` lists the range in reading order
+  with the last chord's tones. The painter highlights every symbol in it.
+- Keys: Shift + ←/→ and Shift + tap extend by a symbol, Ctrl/Cmd + Shift +
+  ←/→ by bar, Ctrl/Cmd + A selects the staff, Ctrl/Cmd + C/X/V copy, cut,
+  paste, Delete removes the range. Touch: Edit dock Selection row (Extend —
+  a one-shot stand-in for Shift — Select bar, Copy, Cut, Paste; Paste also
+  when a bar without a selection is chosen). Commands: Select all, Select
+  bar, Copy, Cut, Paste in search.
+- Paste goes bar by bar (empty bars kept): over a range (replacing it), else
+  after the selection or at the end of the selected bar; later clipboard bars
+  start the following bars, appended as needed. A bar that would overflow its
+  time signature refuses the whole paste with a message. Copies carry no
+  review ID or scan evidence; a copy starting inside a chord starts a chord.
+  The pasted music is selected; one undo step. The clipboard lasts for the
+  editing session.
+- With a range, pitch and octave moves apply to every note (diatonic / octave
+  transposition), and Transpose offers the selection: notes outside it keep
+  their pitch but their written accidentals are recomputed (an unselected F
+  after a transposed F# gains a natural). Single-note tools are disabled.
+- Not yet: MuseScore's overwrite paste into occupied bars (we insert),
+  multi-staff ranges, system clipboard / MusicXML interchange, range-wide
+  duration and accidental edits.
+- Tests: `range_selection_test.dart`, keyboard and touch range tests in
+  `editor_commands_test.dart`; full suite passing, analysis clean.
+
+Next: 3D (range selection and clipboard), 3D
 (voices), 3E (instrument/staff management) on the Stage 2B timeline. Retained-source
 rhythm export, global timewise measure slots and richer editable notation still
 need work. Range/clipboard and advanced notation should build on this timeline
