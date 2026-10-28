@@ -5,8 +5,12 @@
 - P1 m4 barline left ending=2:start
 - P1 m4 barline right light-heavy ending=2:discontinue
 + P1 m3 barline right light-heavy repeat=backward
-## playback: 4/7 MuseScore facts match, 1 differ in Note Vision
+## playback: 7/13 MuseScore facts match, 2 differ in Note Vision
 - @12 key=60 dur=4
+- @12 key=60 vel=80
 - @16 key=62 dur=4
+- @16 key=62 vel=80
 - @20 key=65 dur=4
+- @20 key=65 vel=80
 + @12 key=65 dur=4
++ @12 key=65 vel=80

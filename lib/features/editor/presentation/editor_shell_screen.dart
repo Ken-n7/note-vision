@@ -1821,6 +1821,16 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 ? 'Select a bar with eighth or sixteenth notes'
                 : null),
       ),
+      for (final mark in editorDynamics)
+        EditorCommandChoice(
+          id: 'workspace.dynamic.$mark',
+          label: 'Dynamic $mark',
+          group: 'Dynamics',
+          description: 'Put $mark on the first selected note or rest',
+          disabledReason:
+              lock ??
+              state.hairpinUnavailableReason(SpannerKind.crescendo),
+        ),
       EditorCommandChoice(
         id: 'workspace.copy',
         label: 'Copy',
@@ -1939,6 +1949,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         await _showTranspose();
       case 'workspace.staves':
         await _showStaves();
+      case final id when id.startsWith('workspace.dynamic.'):
+        if (_commandEditLock == null) {
+          _updateState(
+            (s) => s.setDynamic(id.substring('workspace.dynamic.'.length)),
+          );
+        }
       case 'workspace.copy':
         _copySelection();
       case 'workspace.cut':
@@ -2126,6 +2142,19 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         : null;
     if (markCommand != null) {
       _runEditorCommand(markCommand);
+      return KeyEventResult.handled;
+    }
+    // MuseScore's < and >: hairpins.
+    final hairpinCommand =
+        key == LogicalKeyboardKey.less ||
+            (keyboard.isShiftPressed && key == LogicalKeyboardKey.comma)
+        ? EditorCommand.crescendo
+        : key == LogicalKeyboardKey.greater ||
+              (keyboard.isShiftPressed && key == LogicalKeyboardKey.period)
+        ? EditorCommand.diminuendo
+        : null;
+    if (hairpinCommand != null) {
+      _runEditorCommand(hairpinCommand);
       return KeyEventResult.handled;
     }
     if (keyboard.isShiftPressed && !keyboard.isAltPressed && letter != null) {
@@ -2516,6 +2545,25 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       },
                       onToggleMark: (mark) =>
                           _updateState((s) => s.toggleMark(mark)),
+                      dynamicMark: _editorState.selectedDynamic,
+                      onDynamic:
+                          _editorState.hairpinUnavailableReason(
+                                SpannerKind.crescendo,
+                              ) ==
+                              null
+                          ? (mark) => _updateState((s) => s.setDynamic(mark))
+                          : null,
+                      onHairpin:
+                          _editorState.hairpinUnavailableReason(
+                                SpannerKind.crescendo,
+                              ) ==
+                              null
+                          ? (kind) => _runEditorCommand(
+                              kind == SpannerKind.crescendo
+                                  ? EditorCommand.crescendo
+                                  : EditorCommand.diminuendo,
+                            )
+                          : null,
                       rangeCount: _editorState.hasRange
                           ? _editorState.selectionPositions.length
                           : 0,
@@ -4646,6 +4694,9 @@ class _InspectorPanel extends StatefulWidget {
     required this.rangeCount,
     required this.markStates,
     required this.onToggleMark,
+    required this.dynamicMark,
+    required this.onDynamic,
+    required this.onHairpin,
     required this.extendMode,
     required this.onToggleExtend,
     required this.onSelectBar,
@@ -4703,6 +4754,11 @@ class _InspectorPanel extends StatefulWidget {
   /// be added.
   final Map<Articulation, bool?> markStates;
   final ValueChanged<Articulation> onToggleMark;
+
+  /// The selection's dynamic, and null callbacks when none can be added.
+  final String? dynamicMark;
+  final ValueChanged<String>? onDynamic;
+  final ValueChanged<SpannerKind>? onHairpin;
 
   /// Whether the next tap extends the selection (touch stand-in for Shift).
   final bool extendMode;
@@ -5343,6 +5399,48 @@ class _InspectorPanelState extends State<_InspectorPanel> {
                 ),
             ],
           ),
+          const SizedBox(height: 8),
+          EditorToolRow(
+            wrap: widget.isLandscape,
+            children: [
+              for (final mark in editorDynamics)
+                ChoiceChip(
+                  label: Text(
+                    mark,
+                    style: const TextStyle(
+                      fontStyle: FontStyle.italic,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  tooltip: 'Dynamic $mark on the first selected note',
+                  showCheckmark: false,
+                  selected: widget.dynamicMark == mark,
+                  onSelected: widget.onDynamic == null || widget.isPlaybackActive
+                      ? null
+                      : (_) => widget.onDynamic!(mark),
+                ),
+              _ActionTile(
+                icon: Icons.trending_up_rounded,
+                label: 'Cresc.',
+                tooltip: 'Crescendo hairpin over the selection (<)',
+                onPressed: _wrapAction(
+                  widget.onHairpin == null
+                      ? null
+                      : () => widget.onHairpin!(SpannerKind.crescendo),
+                ),
+              ),
+              _ActionTile(
+                icon: Icons.trending_down_rounded,
+                label: 'Dim.',
+                tooltip: 'Diminuendo hairpin over the selection (>)',
+                onPressed: _wrapAction(
+                  widget.onHairpin == null
+                      ? null
+                      : () => widget.onHairpin!(SpannerKind.diminuendo),
+                ),
+              ),
+            ],
+          ),
         ],
       );
     }
@@ -5694,6 +5792,9 @@ const _voiceColors = [
   Color(0xFFC53F00),
   Color(0xFFC31989),
 ];
+
+/// The dynamics the Edit dock and search offer.
+const editorDynamics = ['pp', 'p', 'mp', 'mf', 'f', 'ff', 'sfz'];
 
 class _ActionTile extends StatelessWidget {
   const _ActionTile({

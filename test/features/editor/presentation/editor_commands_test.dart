@@ -395,7 +395,10 @@ void main() {
     expect(
       tester.getSemantics(
         find
-            .ancestor(of: find.text('Staccato'), matching: find.byType(Semantics))
+            .ancestor(
+              of: find.text('Staccato'),
+              matching: find.byType(Semantics),
+            )
             .first,
       ),
       containsSemantics(isToggled: true),
@@ -403,6 +406,24 @@ void main() {
     await tester.tap(find.text('Staccato'));
     await tester.pumpAndSettle();
     expect(selectedNote(tester).marks, isEmpty);
+  });
+
+  testWidgets('< adds a crescendo and the Dynamics row sets mf', (
+    tester,
+  ) async {
+    await pumpControls(tester, size: const Size(390, 844));
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.comma);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pumpAndSettle();
+    expect(
+      shownControlsScore(tester).spanners.single.kind,
+      SpannerKind.crescendo,
+    );
+    await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'mf'));
+    await tester.tap(find.widgetWithText(ChoiceChip, 'mf'));
+    await tester.pumpAndSettle();
+    expect(selectedNote(tester).dynamicMark, 'mf');
   });
 
   testWidgets('conversion is reachable on a phone and can be undone', (

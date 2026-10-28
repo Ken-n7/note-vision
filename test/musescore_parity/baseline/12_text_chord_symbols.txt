@@ -9,22 +9,40 @@
 - P1 m2 @0 harmony F major /A
 - P1 m2 @0 s=1 rehearsal "A"
 - P1 m2 @2 harmony G dominant
-## playback: 8/26 MuseScore facts match
+## playback: 15/51 MuseScore facts match
 - @0 key=36 dur=2
+- @0 key=36 vel=80
 - @0 key=60 dur=2
+- @0 key=60 vel=80
 - @0 key=64 dur=2
+- @0 key=64 vel=80
 - @0 key=67 dur=2
+- @0 key=67 vel=80
 - @2 key=45 dur=2
+- @2 key=45 vel=80
 - @2 key=60 dur=2
+- @2 key=60 vel=80
 - @2 key=64 dur=2
+- @2 key=64 vel=80
 - @2 key=67 dur=2
+- @2 key=67 vel=80
 - @2 key=69 dur=2
+- @2 key=69 vel=80
 - @4 key=45 dur=2
+- @4 key=45 vel=80
 - @4 key=60 dur=2
+- @4 key=60 vel=80
 - @4 key=65 dur=2
+- @4 key=65 vel=80
 - @4 key=69 dur=2
+- @4 key=69 vel=80
 - @6 key=43 dur=2
+- @6 key=43 vel=80
 - @6 key=62 dur=2
+- @6 key=62 vel=80
 - @6 key=65 dur=2
+- @6 key=65 vel=80
 - @6 key=67 dur=2
+- @6 key=67 vel=80
 - @6 key=71 dur=2
+- @6 key=71 vel=80

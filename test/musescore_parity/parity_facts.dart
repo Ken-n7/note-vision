@@ -241,8 +241,8 @@ List<String> pitchFacts(List<String> facts) => [
       '${m[1]} ${m[2]}${RegExp(r' acc=\S+').firstMatch(fact)?[0] ?? ''}',
 ];
 
-/// Sounding notes as `@onset key dur` in quarter notes, so tempo marks do not
-/// matter. Instruments are separate facts. Times are rounded to 1/96 quarter:
+/// Sounding notes as `@onset key dur` and `@onset key vel` (loudness) in
+/// quarter notes, so tempo marks do not matter. Instruments are separate facts. Times are rounded to 1/96 quarter:
 /// MuseScore releases each note one tick early.
 List<String> midiFacts(Uint8List bytes) {
   final data = ByteData.sublistView(bytes);
@@ -295,6 +295,7 @@ List<String> midiFacts(Uint8List bytes) {
       final key = channel << 8 | a;
       if (kind == 0x9 && b > 0) {
         open.putIfAbsent(key, () => []).add(tick);
+        facts.add('@${q(tick)} key=$a vel=$b');
       } else if (kind == 0x8 || kind == 0x9) {
         final starts = open[key];
         if (starts == null || starts.isEmpty) continue;
@@ -314,9 +315,11 @@ MusicalTime _quarters(num quarters) => MusicalTime((quarters * 96).round(), 96);
 /// for every part.
 List<String> playbackFacts(PlaybackPlan plan) => [
   for (final e in plan.events)
-    if (!e.isRest)
+    if (!e.isRest) ...[
       '@${_quarters(e.baseOnsetMs / 500)} key=${e.midiNote} '
           'dur=${_quarters(e.baseDurationMs / 500)}',
+      '@${_quarters(e.baseOnsetMs / 500)} key=${e.midiNote} vel=${e.velocity}',
+    ],
   if (plan.events.any((e) => !e.isRest)) 'program 0',
 ];
 

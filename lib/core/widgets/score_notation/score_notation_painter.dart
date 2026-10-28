@@ -624,6 +624,19 @@ class ScoreNotationPainter extends CustomPainter {
             Offset(x, y),
             stemUp: layout.stemUp(i) ?? y > middleLineY,
             row: row,
+            dynamic: symbol.dynamicMark != null,
+          );
+        }
+        if (symbol.dynamicMark case final mark?) {
+          final up = layout.stemUp(i) ?? y > middleLineY;
+          final lowest = up
+              ? y + 6
+              : y + ScoreNotationMetrics.stemLengthFor(staffLineSpacing);
+          _drawDynamic(
+            canvas,
+            mark,
+            x,
+            math.max(staffBottom + _dynamicsBelow, lowest + 12),
           );
         }
         final isSelected =
@@ -679,6 +692,17 @@ class ScoreNotationPainter extends CustomPainter {
         _drawIssueMark(canvas, partIndex, absoluteMeasureIndex, i, Offset(x, y));
         _drawRest(canvas, symbol, x: x, staffTop: staffTop + restShift);
         tupletPoints[i] = (Offset(x, y), 10.0);
+        if ((symbol.reviewId, row) case (final id?, final row?)) {
+          _notePoints[id] = _NotePoint(
+            Offset(x, y),
+            stemUp: false,
+            row: row,
+            dynamic: symbol.dynamicMark != null,
+          );
+        }
+        if (symbol.dynamicMark case final mark?) {
+          _drawDynamic(canvas, mark, x, staffBottom + _dynamicsBelow);
+        }
         if (symbol.marks.isNotEmpty) {
           _drawMarkShapes(
             canvas,
@@ -1519,6 +1543,30 @@ class ScoreNotationPainter extends CustomPainter {
 
   /// Draws a thin vertical line on the far left connecting all staves that
   /// belong to the same system (multi-part scores only).
+  /// How far below the bottom line dynamics and hairpins sit.
+  static const _dynamicsBelow = 22.0;
+
+  /// [mark] centred at ([x], [y]).
+  void _drawDynamic(Canvas canvas, String mark, double x, double y) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: mark,
+        style: const TextStyle(
+          color: Color(0xFF111827),
+          fontSize: 14,
+          fontStyle: FontStyle.italic,
+          fontWeight: FontWeight.w800,
+          fontFamily: ScoreNotationMetrics.textFontFamily,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    painter.paint(
+      canvas,
+      Offset(x - painter.width / 2, y - painter.height / 2),
+    );
+  }
+
   void _drawMarkShapes(Canvas canvas, List<MarkShape> shapes, Offset at) {
     const ink = Color(0xFF111827);
     Offset point((double, double) q) => at + Offset(q.$1, q.$2);
@@ -1649,6 +1697,10 @@ class ScoreNotationPainter extends CustomPainter {
       final a = _notePoints[spanner.from];
       final b = _notePoints[spanner.to];
       if (a == null && b == null) continue;
+      if (spanner.kind.isHairpin) {
+        _drawHairpin(canvas, spanner.kind == SpannerKind.crescendo, a, b);
+        continue;
+      }
       final tie = spanner.kind == SpannerKind.tie;
       final dir = (a ?? b)!.stemUp ? 1.0 : -1.0; // 1 draws below the heads
       final lift = tie ? 5.0 : 9.0;
@@ -1702,6 +1754,38 @@ class ScoreNotationPainter extends CustomPainter {
         final p = end(b);
         arc(Offset(b.row.contentStartX + 4, p.dy), p);
       }
+    }
+  }
+
+  /// A hairpin on the dynamics line, from its first note (after a dynamic
+  /// there) to past its last; across a line break each half is open at the
+  /// row edge, half way open.
+  void _drawHairpin(Canvas canvas, bool crescendo, _NotePoint? a, _NotePoint? b) {
+    final ink = Paint()
+      ..color = const Color(0xFF111827)
+      ..strokeWidth = 1.2;
+    const open = 4.0;
+    void wedge(_RowMetrics row, double x1, double x2, double from, double to) {
+      if (x2 - x1 < 4) return;
+      final y = row.staffBottom + _dynamicsBelow;
+      canvas
+        ..drawLine(Offset(x1, y - from), Offset(x2, y - to), ink)
+        ..drawLine(Offset(x1, y + from), Offset(x2, y + to), ink);
+    }
+
+    double startX(_NotePoint p) => p.head.dx - 4 + (p.dynamic ? 12 : 0);
+    double endX(_NotePoint p) => p.head.dx + 12;
+    final (narrow, wide) = crescendo ? (0.0, open) : (open, 0.0);
+    if (a != null && b != null && identical(a.row, b.row)) {
+      wedge(a.row, startX(a), endX(b), narrow, wide);
+      return;
+    }
+    const half = open / 2;
+    if (a != null) {
+      wedge(a.row, startX(a), a.row.rowEndX - 2, narrow, half);
+    }
+    if (b != null) {
+      wedge(b.row, b.row.contentStartX + 4, endX(b), half, wide);
     }
   }
 
@@ -2166,10 +2250,18 @@ class NotationInsertTarget {
 
 /// A drawn note, for ties and slurs.
 class _NotePoint {
-  const _NotePoint(this.head, {required this.stemUp, required this.row});
+  const _NotePoint(
+    this.head, {
+    required this.stemUp,
+    required this.row,
+    this.dynamic = false,
+  });
   final Offset head;
   final bool stemUp;
   final _RowMetrics row;
+
+  /// Whether a dynamic is written under it.
+  final bool dynamic;
 }
 
 class _RowMetrics {

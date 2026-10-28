@@ -10,4 +10,4 @@
 + P1 m1 @2 v=1 s=1 note D4 dur=1 quarter
 + P1 m2 @0 v=1 s=1 note C4 dur=1 quarter
 + P1 m2 @1 v=1 s=1 note F4 dur=2 half
-## playback: 6/6 MuseScore facts match
+## playback: 11/11 MuseScore facts match

@@ -1,5 +1,5 @@
 # 10_articulations — MuseScore4 4.7.5 vs Note Vision
 ## notation: 16/16 MuseScore facts match
-## playback: 31/32 MuseScore facts match, 1 differ in Note Vision
+## playback: 62/63 MuseScore facts match, 1 differ in Note Vision
 - @4 key=79 dur=31/96
 + @4 key=79 dur=1/3

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../models/note.dart';
 import '../models/note_value.dart';
 import '../models/rest.dart';
@@ -23,7 +25,11 @@ class PlaybackEvent {
     this.baseOnsetMs = 0,
     this.baseMeasureOnsetMs = 0,
     this.baseMeasureDurationMs = 0,
+    this.velocity = PlaybackConverter.defaultVelocity,
   });
+
+  /// MIDI velocity (loudness), from dynamics and hairpins.
+  final int velocity;
 
   final int partIndex;
   final int measureIndex;
@@ -52,7 +58,8 @@ class PlaybackEvent {
       other.isChordTone == isChordTone &&
       other.baseOnsetMs == baseOnsetMs &&
       other.baseMeasureOnsetMs == baseMeasureOnsetMs &&
-      other.baseMeasureDurationMs == baseMeasureDurationMs;
+      other.baseMeasureDurationMs == baseMeasureDurationMs &&
+      other.velocity == velocity;
 
   @override
   int get hashCode => Object.hash(
@@ -65,6 +72,7 @@ class PlaybackEvent {
     baseOnsetMs,
     baseMeasureOnsetMs,
     baseMeasureDurationMs,
+    velocity,
   );
 
   @override
@@ -88,6 +96,43 @@ class PlaybackConverter {
 
   /// Reference BPM used for [PlaybackEvent.baseDurationMs].
   static const int defaultTempo = 120;
+
+  /// Velocity without a dynamic: mf, as in MuseScore Studio.
+  static const int defaultVelocity = 80;
+
+  /// MuseScore Studio's velocity for each sustained dynamic.
+  static const _levels = {
+    'pppppp': 1,
+    'ppppp': 5,
+    'pppp': 10,
+    'ppp': 16,
+    'pp': 33,
+    'p': 49,
+    'mp': 64,
+    'mf': 80,
+    'f': 96,
+    'ff': 112,
+    'fff': 126,
+    'ffff': 127,
+    'fffff': 127,
+    'ffffff': 127,
+  };
+
+  /// Dynamics that stress one note: its velocity, then the level after it
+  /// (null keeps the level before).
+  static const _accents = <String, (int, int?)>{
+    'sf': (112, null),
+    'sfz': (112, null),
+    'sffz': (126, null),
+    'fz': (112, null),
+    'rf': (112, null),
+    'rfz': (112, null),
+    'fp': (96, 49),
+    'sfp': (112, 49),
+    'sfpp': (112, 33),
+    'pf': (49, 96),
+    'sfzp': (112, 49),
+  };
 
   // Step → semitone offset from C (chromatic scale).
   static const Map<String, int> _stepOffset = {
@@ -201,6 +246,7 @@ class PlaybackConverter {
       }
     }
     _mergeTies(score, events);
+    _applyDynamics(score, events);
     _applyMarks(score, events);
     events.sort((a, b) {
       final time = a.baseOnsetMs.compareTo(b.baseOnsetMs);
@@ -213,8 +259,90 @@ class PlaybackConverter {
     return PlaybackPlan(events: List.unmodifiable(events), timeline: timeline);
   }
 
+  /// Velocities from dynamics and hairpins, per staff, as MuseScore Studio
+  /// plays them: a dynamic holds until the next; sfz and the like stress
+  /// one note; a hairpin glides over time to the next dynamic in its
+  /// direction, or one level further when there is none.
+  void _applyDynamics(Score score, List<PlaybackEvent> events) {
+    final hairpins = [
+      for (final h in SpannerIndex(score).live)
+        if (h.$1.kind.isHairpin) h,
+    ];
+    final steps = _levels.values.toSet().toList()..sort();
+    for (var p = 0; p < score.parts.length; p++) {
+      final order = [
+        for (final (i, e) in events.indexed)
+          if (e.partIndex == p) i,
+      ]..sort((a, b) => events[a].baseOnsetMs - events[b].baseOnsetMs);
+      if (order.isEmpty) continue;
+      var level = defaultVelocity;
+      int? stressAt;
+      int? stress;
+      final velocity = <int, int>{};
+      final sustained = <(int, int)>[]; // (onset, level)
+      for (final i in order) {
+        final e = events[i];
+        final mark = switch (score.parts[p].measures[e.measureIndex].symbols[e
+            .symbolIndex]) {
+          Note(:final dynamicMark) || Rest(:final dynamicMark) => dynamicMark,
+          _ => null,
+        };
+        if (_levels[mark] case final next?) {
+          level = next;
+          sustained.add((e.baseOnsetMs, level));
+        } else if (_accents[mark] case (final hit, final after)) {
+          (stressAt, stress) = (e.baseOnsetMs, hit);
+          if (after != null) {
+            level = after;
+            sustained.add((e.baseOnsetMs, level));
+          }
+        }
+        velocity[i] = e.baseOnsetMs == stressAt ? stress! : level;
+      }
+      final at = {
+        for (final i in order)
+          (
+            part: p,
+            measure: events[i].measureIndex,
+            symbol: events[i].symbolIndex,
+          ): i,
+      };
+      for (final (spanner, from, to) in hairpins) {
+        final (a, b) = (at[from], at[to]);
+        if (from.part != p || a == null || b == null) continue;
+        final start = events[a].baseOnsetMs;
+        final end = events[b].baseEndMs;
+        final startLevel = velocity[a]!;
+        final louder = spanner.kind == SpannerKind.crescendo;
+        final next = sustained
+            .where((s) => s.$1 >= end - 1)
+            .map((s) => s.$2)
+            .firstOrNull;
+        final target =
+            next != null && (louder ? next > startLevel : next < startLevel)
+            ? next
+            : louder
+            ? steps.firstWhere((v) => v > startLevel, orElse: () => 127)
+            : steps.lastWhere((v) => v < startLevel, orElse: () => 1);
+        for (final i in order) {
+          final t = events[i].baseOnsetMs;
+          if (t < start || t >= end || end == start) continue;
+          velocity[i] =
+              (startLevel + (target - startLevel) * (t - start) / (end - start))
+                  .toInt(); // MuseScore truncates
+        }
+      }
+      for (final i in order) {
+        if (velocity[i] != events[i].velocity) {
+          events[i] = _with(events[i], velocity: velocity[i]);
+        }
+      }
+    }
+  }
+
   /// Articulations and ornaments as MuseScore Studio plays them: staccato
-  /// sounds half the note, staccatissimo 33%, marcato two thirds; trills,
+  /// sounds half the note, staccatissimo 33%, marcato two thirds; accents
+  /// and marcatos one dynamic level louder; trills,
   /// mordents and turns play 32nd notes (an eighth of a beat) with the
   /// neighbouring notes of the key.
   void _applyMarks(Score score, List<PlaybackEvent> events) {
@@ -237,6 +365,15 @@ class PlaybackConverter {
           : 1.0;
       if (gate < 1) {
         events[i] = _with(e, durationMs: (e.baseDurationMs * gate).round());
+      }
+      // An accent or marcato plays one dynamic level louder.
+      if (marks.contains(Articulation.accent) ||
+          marks.contains(Articulation.marcato)) {
+        final louder = _levels.values.where((v) => v > e.velocity);
+        events[i] = _with(
+          events[i],
+          velocity: louder.isEmpty ? 127 : louder.reduce(math.min),
+        );
       }
       // Steps from the written note, one per 32nd; the last holds on.
       final List<int>? pattern = marks.contains(Articulation.trill)
@@ -326,6 +463,7 @@ class PlaybackConverter {
     int? midiNote,
     int? durationMs,
     int? onsetMs,
+    int? velocity,
   }) => PlaybackEvent(
     partIndex: e.partIndex,
     measureIndex: e.measureIndex,
@@ -334,6 +472,7 @@ class PlaybackConverter {
     baseDurationMs: durationMs ?? e.baseDurationMs,
     isChordTone: e.isChordTone,
     baseOnsetMs: onsetMs ?? e.baseOnsetMs,
+    velocity: velocity ?? e.velocity,
     baseMeasureOnsetMs: e.baseMeasureOnsetMs,
     baseMeasureDurationMs: e.baseMeasureDurationMs,
   );

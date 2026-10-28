@@ -4,9 +4,14 @@
 - P1 m1 @1 v=1 s=1 note B4 grace 16th
 - P1 m1 @2 v=1 s=1 note E5 grace 16th beam=1:begin,2:begin
 - P1 m1 @2 v=1 s=1 note F5 grace 16th beam=1:end,2:end
-## playback: 2/5 MuseScore facts match, 2 differ in Note Vision
+## playback: 3/9 MuseScore facts match, 4 differ in Note Vision
 - @0 key=74 dur=0
+- @0 key=74 vel=80
 - @5/4 key=69 dur=3/4
+- @5/4 key=69 vel=80
 - @9/4 key=79 dur=7/4
+- @9/4 key=79 vel=80
 + @1 key=69 dur=1
++ @1 key=69 vel=80
 + @2 key=79 dur=2
++ @2 key=79 vel=80

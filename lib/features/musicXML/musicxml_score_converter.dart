@@ -77,8 +77,10 @@ class MusicXmlScoreConverter {
         }
       }
     }
-    final notated = score.copyWith(
-      spanners: _readSpanners(root, score, bindings),
+    final dynamics = <String, String>{};
+    final notated = _withDynamics(
+      score.copyWith(spanners: _readSpanners(root, score, bindings, dynamics)),
+      dynamics,
     );
     return notated.copyWith(
       musicXmlSource: MusicXmlSource(
@@ -104,10 +106,16 @@ class MusicXmlScoreConverter {
   /// Ties and slurs between imported notes. Slurs pair by `number` within a
   /// `<part>`; a tie joins the next note in the same voice with the same
   /// pitch that ends a tie.
+  ///
+  /// Dynamics and hairpins come from `<direction>`s: a dynamic belongs to the
+  /// next note or rest on its staff (collected in [dynamics] by review ID); a
+  /// hairpin runs from the next note after its start to the last one before
+  /// its stop.
   List<Spanner> _readSpanners(
     XmlElement root,
     Score score,
     List<MusicXmlSymbolBinding> bindings,
+    Map<String, String> dynamics,
   ) {
     final ids = {
       for (final b in bindings) (b.partId, b.measureIndex, b.noteIndex): b.symbolId,
@@ -124,10 +132,61 @@ class MusicXmlScoreConverter {
     for (final MapEntry(key: partId, value: measures)
         in musicXmlSourceParts(root).entries) {
       final open = <String, String>{};
+      final pendingDynamic = <int, String>{};
+      final pendingWedges = <int, List<(SpannerKind, String)>>{};
+      final openWedges = <String, (SpannerKind, String)>{};
+      final lastId = <int, String>{};
+      int staffOf(XmlElement e) =>
+          int.tryParse(_firstInnerText(e, 'staff') ?? '') ?? 1;
       for (final (m, measure) in measures.indexed) {
-        for (final (n, note) in measure.findElements('note').indexed) {
+        var n = -1;
+        for (final element in measure.childElements) {
+          if (element.name.local == 'direction') {
+            final staff = staffOf(element);
+            for (final type in element.findElements('direction-type')) {
+              for (final dynamics in type.findElements('dynamics')) {
+                final name = dynamics.childElements.firstOrNull?.name.local;
+                if (name != null) pendingDynamic[staff] = name;
+              }
+              for (final wedge in type.findElements('wedge')) {
+                final number = wedge.getAttribute('number') ?? '1';
+                final kind = switch (wedge.getAttribute('type')) {
+                  'crescendo' => SpannerKind.crescendo,
+                  'diminuendo' => SpannerKind.diminuendo,
+                  _ => null,
+                };
+                if (kind != null) {
+                  pendingWedges.putIfAbsent(staff, () => []).add((
+                    kind,
+                    number,
+                  ));
+                } else if (wedge.getAttribute('type') == 'stop') {
+                  final start = openWedges.remove(number);
+                  final end = lastId[staff];
+                  if (start != null && end != null) {
+                    spanners.add(Spanner(start.$1, start.$2, end));
+                  }
+                }
+              }
+            }
+            continue;
+          }
+          if (element.name.local != 'note') continue;
+          n++;
+          final note = element;
           final id = ids[(partId, m, n)];
           if (id == null) continue;
+          final staff = staffOf(note);
+          if (note.findElements('chord').isEmpty) {
+            if (pendingDynamic.remove(staff) case final name?) {
+              dynamics[id] = name;
+            }
+            for (final (kind, number)
+                in pendingWedges.remove(staff) ?? <(SpannerKind, String)>[]) {
+              openWedges[number] = (kind, id);
+            }
+            lastId[staff] = id;
+          }
           if (tie(note, 'start')) tieStarts.add(id);
           if (tie(note, 'stop')) tieStops.add(id);
           final slurs = note
@@ -153,7 +212,7 @@ class MusicXmlScoreConverter {
     final index = SpannerIndex(score);
     for (final id in tieStarts) {
       final from = index.notes[id]!;
-      final start = index.noteAt(from);
+      final start = index.noteAt(from)!;
       final lane = ScoreTimelineBuilder.lane(start);
       final measures = score.parts[from.part].measures;
       String? target;
@@ -174,6 +233,38 @@ class MusicXmlScoreConverter {
     }
     return spanners;
   }
+
+  static Score _withDynamics(Score score, Map<String, String> dynamics) =>
+      dynamics.isEmpty
+      ? score
+      : score.copyWith(
+          parts: [
+            for (final part in score.parts)
+              Part(
+                id: part.id,
+                name: part.name,
+                staff: part.staff,
+                measures: [
+                  for (final m in part.measures)
+                    m.withContent(
+                      keySignature: m.keySignature,
+                      symbols: [
+                        for (final s in m.symbols)
+                          switch (s) {
+                            Note(:final reviewId?)
+                                when dynamics.containsKey(reviewId) =>
+                              s.copyWith(dynamicMark: dynamics[reviewId]),
+                            Rest(:final reviewId?)
+                                when dynamics.containsKey(reviewId) =>
+                              s.copyWith(dynamicMark: dynamics[reviewId]),
+                            _ => s,
+                          },
+                      ],
+                    ),
+                ],
+              ),
+          ],
+        );
 
   /// A part written on several staves (a piano) becomes one linked part per
   /// staff ([Part.staff]), so every editing tool works per staff. Symbols

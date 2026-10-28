@@ -3,4 +3,4 @@
 - P1 m4 @0 v=1 s=1 rest(measure) dur=4 -
 - P1 m5 barline right light-heavy
 + P1 m4 @0 v=1 s=1 rest dur=4 whole
-## playback: 9/9 MuseScore facts match
+## playback: 17/17 MuseScore facts match

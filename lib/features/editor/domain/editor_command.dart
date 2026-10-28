@@ -1,4 +1,5 @@
 import '../../../core/models/note.dart';
+import '../../../core/models/spanner.dart';
 import '../../../core/models/rest.dart';
 import '../../../core/services/transposer.dart';
 import '../model/editor_state.dart';
@@ -52,6 +53,8 @@ enum EditorCommand {
   trill('Trill', 'Ornaments', 'Alternate with the note above'),
   mordent('Mordent', 'Ornaments', 'The note, the note below, the note'),
   turn('Turn', 'Ornaments', 'Above, the note, below, the note'),
+  crescendo('Crescendo', 'Dynamics', 'A hairpin growing louder', '<'),
+  diminuendo('Diminuendo', 'Dynamics', 'A hairpin growing softer', '>'),
   triplet(
     'Triplet',
     'Rhythm',
@@ -103,6 +106,12 @@ enum EditorCommand {
     _ => null,
   };
 
+  SpannerKind? get hairpin => switch (this) {
+    crescendo => SpannerKind.crescendo,
+    diminuendo => SpannerKind.diminuendo,
+    _ => null,
+  };
+
   /// The articulation or ornament this command toggles.
   Articulation? get mark => switch (this) {
     staccato => Articulation.staccato,
@@ -138,6 +147,7 @@ enum EditorCommand {
           : null;
     }
     if (mark case final mark?) return state.markUnavailableReason(mark);
+    if (hairpin case final kind?) return state.hairpinUnavailableReason(kind);
     if (this == triplet) return state.tupletUnavailableReason(3);
     if (this == tie) return state.tieUnavailableReason;
     if (this == slur) return state.slurUnavailableReason;
@@ -175,6 +185,7 @@ enum EditorCommand {
   EditorState execute(EditorState state) {
     if (unavailableReason(state) != null) return state;
     if (mark case final mark?) return state.toggleMark(mark);
+    if (hairpin case final kind?) return state.toggleHairpin(kind);
     if (duration case final spec?) return state.setSelectedDuration(spec);
     if (pitchSteps case final steps? when state.hasRange) {
       return state.transposeSelection(

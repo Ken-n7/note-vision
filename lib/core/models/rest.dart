@@ -26,6 +26,7 @@ class Rest extends ScoreSymbol {
     this.source,
     this.tuplet,
     this.marks = const [],
+    this.dynamicMark,
   });
 
   /// The tuplet this rest belongs to, if any.
@@ -33,6 +34,10 @@ class Rest extends ScoreSymbol {
 
   /// Articulations, ornaments and fermatas on this rest.
   final List<Articulation> marks;
+
+  /// A dynamic starting at this rest, named as MusicXML names it (p, mf,
+  /// sfz…).
+  final String? dynamicMark;
 
   static const Object _keep = Object();
 
@@ -48,6 +53,7 @@ class Rest extends ScoreSymbol {
     Object? source = _keep,
     Object? tuplet = _keep,
     List<Articulation>? marks,
+    Object? dynamicMark = _keep,
   }) => Rest(
     duration: duration ?? this.duration,
     type: type ?? this.type,
@@ -61,6 +67,9 @@ class Rest extends ScoreSymbol {
     source: identical(source, _keep) ? this.source : source as SourceRegion?,
     tuplet: identical(tuplet, _keep) ? this.tuplet : tuplet as Tuplet?,
     marks: marks ?? this.marks,
+    dynamicMark: identical(dynamicMark, _keep)
+        ? this.dynamicMark
+        : dynamicMark as String?,
   );
 
   @override
@@ -76,11 +85,13 @@ class Rest extends ScoreSymbol {
     if (source != null) 'source': source!.toJson(),
     if (tuplet != null) 'tuplet': tuplet!.toJson(),
     if (marks.isNotEmpty) 'marks': [for (final m in marks) m.name],
+    if (dynamicMark != null) 'dynamic': dynamicMark,
   };
 
   factory Rest.fromJson(Map<String, dynamic> json) => Rest(
     tuplet: Tuplet.fromJson(json['tuplet']),
     marks: Articulation.listFromJson(json['marks']),
+    dynamicMark: json['dynamic'] as String?,
     duration: json['duration'] as int,
     type: json['type'] as String,
     voice: json['voice'] as int?,

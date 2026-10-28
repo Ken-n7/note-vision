@@ -2,4 +2,4 @@
 ## notation: 16/17 MuseScore facts match, 1 differ in Note Vision
 - P1 m3 @2 v=2 s=1 note A4 dur=2 half
 + P1 m3 @0 v=2 s=1 note A4 dur=2 half
-## playback: 12/12 MuseScore facts match
+## playback: 23/23 MuseScore facts match

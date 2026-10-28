@@ -368,6 +368,16 @@ class PdfScoreRenderer {
     _drawSpanners(g, score.spanners, notePoints);
   }
 
+  /// How far below the bottom line dynamics and hairpins sit.
+  double get _dynamicsBelow => 22 * _scale;
+
+  /// [mark] centred at ([x], [y]), as in the editor.
+  void _drawDynamic(PdfGraphics g, PdfFont font, String mark, double x, double y) {
+    final size = 14 * _scale;
+    final width = font.stringMetrics(mark).width * size;
+    _text(g, font, size, mark, x - width / 2, y - size * 0.35);
+  }
+
   /// The editor's mark shapes, scaled, with y flipped (PDF y points up).
   void _drawMarkShapes(
     PdfGraphics g,
@@ -426,6 +436,35 @@ class PdfScoreRenderer {
           _text(g, font, scaled, text, px(dx) - width / 2, py(dy) - scaled * 0.35);
       }
     }
+  }
+
+  /// Hairpins as in the editor (PDF y points up).
+  void _drawHairpin(
+    PdfGraphics g,
+    bool crescendo,
+    _PdfNotePoint? a,
+    _PdfNotePoint? b,
+  ) {
+    final open = 4 * _scale;
+    final width = 1.2 * _scale;
+    void wedge(double rowTop, double x1, double x2, double from, double to) {
+      if (x2 - x1 < 4 * _scale) return;
+      final y = rowTop - _staffH - _dynamicsBelow;
+      _line(g, x1, y + from, x2, y + to, width);
+      _line(g, x1, y - from, x2, y - to, width);
+    }
+
+    double startX(_PdfNotePoint p) =>
+        p.x - 4 * _scale + (p.dynamic ? 12 * _scale : 0);
+    double endX(_PdfNotePoint p) => p.x + 12 * _scale;
+    final (narrow, wide) = crescendo ? (0.0, open) : (open, 0.0);
+    if (a != null && b != null && a.rowTop == b.rowTop) {
+      wedge(a.rowTop, startX(a), endX(b), narrow, wide);
+      return;
+    }
+    final half = open / 2;
+    if (a != null) wedge(a.rowTop, startX(a), a.rowEndX - 2 * _scale, narrow, half);
+    if (b != null) wedge(b.rowTop, b.rowStartX + 4 * _scale, endX(b), half, wide);
   }
 
   /// Tuplet numbers and brackets as in the editor (PDF y points up).
@@ -490,6 +529,10 @@ class PdfScoreRenderer {
       final a = points[spanner.from];
       final b = points[spanner.to];
       if (a == null && b == null) continue;
+      if (spanner.kind.isHairpin) {
+        _drawHairpin(g, spanner.kind == SpannerKind.crescendo, a, b);
+        continue;
+      }
       final tie = spanner.kind == SpannerKind.tie;
       final dir = (a ?? b)!.stemUp ? -1.0 : 1.0; // -1 draws below the heads
       final lift = (tie ? 5.0 : 9.0) * _scale;
@@ -866,6 +909,20 @@ class PdfScoreRenderer {
             rowTop: staffTop,
             rowStartX: rowStartX,
             rowEndX: rowEndX,
+            dynamic: symbol.dynamicMark != null,
+          );
+        }
+        if ((symbol.dynamicMark, textFont) case (final mark?, final font?)) {
+          final up = layout.stemUp(i) ?? y < middleLineY;
+          final lowest = up
+              ? y - 6 * _scale
+              : y - ScoreNotationMetrics.stemLengthFor(_ls);
+          _drawDynamic(
+            g,
+            font,
+            mark,
+            x,
+            math.min(staffBottom - _dynamicsBelow, lowest - 12 * _scale),
           );
         }
         _drawNote(
@@ -906,6 +963,20 @@ class PdfScoreRenderer {
           x: x,
           staffTop: staffTop - layout.restOffset(i) * _ls,
         );
+        if (symbol.reviewId case final id? when notePoints != null) {
+          notePoints[id] = _PdfNotePoint(
+            x: x,
+            y: y,
+            stemUp: false,
+            rowTop: staffTop,
+            rowStartX: rowStartX,
+            rowEndX: rowEndX,
+            dynamic: symbol.dynamicMark != null,
+          );
+        }
+        if ((symbol.dynamicMark, textFont) case (final mark?, final font?)) {
+          _drawDynamic(g, font, mark, x, staffBottom - _dynamicsBelow);
+        }
         if (symbol.marks.isNotEmpty && textFont != null) {
           _drawMarkShapes(
             g,
@@ -1919,7 +1990,11 @@ class _PdfNotePoint {
     required this.rowTop,
     required this.rowStartX,
     required this.rowEndX,
+    this.dynamic = false,
   });
   final double x, y, rowTop, rowStartX, rowEndX;
   final bool stemUp;
+
+  /// Whether a dynamic is written under it.
+  final bool dynamic;
 }

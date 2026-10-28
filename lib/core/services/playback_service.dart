@@ -143,7 +143,6 @@ class PlaybackService {
   static const int _midiChannel = 0;
   static const int _bank = 0;
   static const int _program = 0; // acoustic grand piano
-  static const int _velocity = 90;
 
   // ── Dependencies ────────────────────────────────────────────────────────
   final MidiPro _midi;
@@ -529,7 +528,7 @@ class PlaybackService {
             sfId: _sfId!,
             channel: _midiChannel,
             key: event.midiNote,
-            velocity: _velocity,
+            velocity: event.velocity,
           )
           .catchError((Object error) {
             if (run == _loopRun && _shouldPlay) {

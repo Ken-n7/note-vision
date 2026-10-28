@@ -1,5 +1,13 @@
-/// What a [Spanner] draws.
-enum SpannerKind { tie, slur }
+/// What a [Spanner] draws. A hairpin runs from its first note's start to
+/// its last note's end.
+enum SpannerKind {
+  tie,
+  slur,
+  crescendo,
+  diminuendo;
+
+  bool get isHairpin => this == crescendo || this == diminuendo;
+}
 
 /// A tie or slur from one note to a later one, by their review IDs (stable
 /// through edits, undo and saving). A spanner whose notes are gone is

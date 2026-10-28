@@ -241,7 +241,7 @@ and hidden gaps within a voice (`<forward>`; no invisible rests) are lost in
 the model's export. Fixed since: the exporter writes `<staves>` and
 `<backup>`/`<forward>` between voice/staff lanes, and the importer no longer
 invents composer "Unknown composer", and written accidentals are exported.
-Playback lacks grace notes, repeats, articulation lengths, chord-symbol playback and
+Playback (now compared with velocities) lacks grace notes, repeats, articulation lengths, chord-symbol playback and
 instruments. Rhythm, pitch, beams, chords, meters and key handling match.
 
 ## Stage 3A — keyboard note input and chords
@@ -469,7 +469,34 @@ release 2004 played the same project with no errors. No iOS device test.
   trill with accidental, technical marks (bowings, fingerings), marks on
   individual chord tones.
 
-Next: Stage 4D — dynamics and hairpins, then lyrics and repeats. (range selection and clipboard), 3D
+## Stage 4D — dynamics and hairpins
+
+- `Note.dynamicMark` / `Rest.dynamicMark` (MusicXML names: p, mf, sfz…);
+  hairpins are `SpannerKind.crescendo` / `diminuendo` spanners from their
+  first note to their last (one note allowed; rests can be ends).
+- Import: a `<direction>` dynamic belongs to the next note or rest on its
+  staff; a wedge runs from the next note after its start to the last note
+  before its stop. Export writes them as `<direction>`s before the note, and
+  a wedge stop after its last note, as MuseScore writes it.
+- Playback velocity (new `PlaybackEvent.velocity`), matched to MuseScore's
+  MIDI: levels pp 33, p 49, mp 64, mf 80 (also the default, was a flat 90), f
+  96, ff 112; sfz/sf/fz stress one note (112), fp/sfp drop to p after it; a
+  hairpin glides over time to the next dynamic in its direction, else one
+  level further, truncating like MuseScore; accents and marcatos play one
+  level louder. The comparison tests now also compare every note's velocity
+  with MuseScore's MIDI.
+- Editor: < and > (crescendo / diminuendo over the selection or the
+  selected note, toggling), an Edit-dock Dynamics row (pp p mp mf f ff sfz on
+  the first selected note, toggling; Cresc. / Dim.), and search commands.
+- Drawing (editor and PDF): dynamics in bold italic below the staff (lower
+  under low notes), hairpins on the same line; split across line breaks.
+- Parity: `11_dynamics` notation 23/23 and playback 19/19 (velocities
+  included); `10_articulations` playback 62/63.
+- Not yet: dynamics on a separate line aligned across a system, expressive
+  text (cresc., dim. words), crescendo of a single held note in playback
+  (MuseScore uses controller 2), dynamics for chord tones individually.
+
+Next: Stage 4G — repeats, voltas and jumps (then lyrics and text). (range selection and clipboard), 3D
 (voices), 3E (instrument/staff management) on the Stage 2B timeline. Retained-source
 rhythm export, global timewise measure slots and richer editable notation still
 need work. Range/clipboard and advanced notation should build on this timeline

@@ -1,6 +1,6 @@
 # 15_ensemble — MuseScore4 4.7.5 vs Note Vision
 ## notation: 16/16 MuseScore facts match
-## playback: 3/11 MuseScore facts match, 5 differ in Note Vision
+## playback: 10/18 MuseScore facts match, 5 differ in Note Vision
 - @0 key=81 dur=91/96
 - @1 key=79 dur=91/96
 - @2 key=77 dur=91/48

@@ -113,6 +113,7 @@ class EditorHelpSheet extends StatelessWidget {
           ('S', 'Slur the selection, or this note to the next'),
           ('Ctrl / ⌘ + 3, 5, 6, 7', 'Turn the selection into a tuplet'),
           ('Shift + S / N / V / O', 'Staccato / tenuto / accent / marcato'),
+          ('< / >', 'Crescendo / diminuendo over the selection'),
           ('Shift + A–G', 'Add that note to the selected chord'),
           ('Alt + 2–9', 'Add an interval above the selected note'),
           ('Space', 'Play / pause'),

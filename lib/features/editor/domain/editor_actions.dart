@@ -978,6 +978,84 @@ extension EditorActions on EditorState {
     ).copyWith(rangeAnchor: rangeAnchor);
   }
 
+  // ── Dynamics and hairpins ────────────────────────────────────────────
+
+  /// The notes and rests of the selection outside chords, in reading order.
+  List<SymbolPosition> get _dynamicTargets {
+    if (!hasMeasureContext) return const [];
+    final measures = score.parts[selectedPartIndex!].measures;
+    return [
+      for (final p in selectionPositions)
+        if (measures[p.measure].symbols[p.symbol] case final s
+            when (s is Note && !s.isChordTone) || s is Rest)
+          p,
+    ];
+  }
+
+  ScoreSymbol _symbolAt(SymbolPosition p) =>
+      score.parts[selectedPartIndex!].measures[p.measure].symbols[p.symbol];
+
+  /// The dynamic on the first selected note or rest.
+  String? get selectedDynamic => switch (_dynamicTargets.firstOrNull) {
+    final p? => switch (_symbolAt(p)) {
+      Note(:final dynamicMark) || Rest(:final dynamicMark) => dynamicMark,
+      _ => null,
+    },
+    null => null,
+  };
+
+  /// Puts [mark] (p, mf, sfz…) on the first selected note or rest, or
+  /// removes it when it is already there; one undo step.
+  EditorState setDynamic(String mark) {
+    final p = _dynamicTargets.firstOrNull;
+    if (p == null) return this;
+    final value = selectedDynamic == mark ? null : mark;
+    final symbol = _symbolAt(p);
+    return _applySelectionPreservingEdit(
+      intent: EditorEditIntent.updateMeasureMetadata,
+      score: score.replaceSymbolAt(
+        selectedPartIndex!,
+        p.measure,
+        p.symbol,
+        switch (symbol) {
+          final Note n => n.copyWith(dynamicMark: value),
+          final Rest r => r.copyWith(dynamicMark: value),
+          _ => symbol,
+        },
+      ),
+    ).copyWith(rangeAnchor: rangeAnchor);
+  }
+
+  /// A hairpin over the selected range, or under the selected note.
+  Spanner? _hairpin(SpannerKind kind) {
+    final targets = _dynamicTargets;
+    if (targets.isEmpty) return null;
+    String? id(SymbolPosition p) => switch (_symbolAt(p)) {
+      Note(:final reviewId) || Rest(:final reviewId) => reviewId,
+      _ => null,
+    };
+    final (from, to) = (id(targets.first), id(targets.last));
+    return from == null || to == null ? null : Spanner(kind, from, to);
+  }
+
+  String? hairpinUnavailableReason(SpannerKind kind) =>
+      _hairpin(kind) == null ? 'Select notes or rests' : null;
+
+  /// MuseScore's < and >: adds a crescendo or diminuendo over the
+  /// selection, replacing a hairpin on the same notes, or removes it when it
+  /// is already there.
+  EditorState toggleHairpin(SpannerKind kind) {
+    final hairpin = _hairpin(kind);
+    if (hairpin == null) return this;
+    final existing = score.spanners.contains(hairpin);
+    return _withSpanners([
+      for (final s in score.spanners)
+        if (!(s.kind.isHairpin && s.from == hairpin.from && s.to == hairpin.to))
+          s,
+      if (!existing) hairpin,
+    ]);
+  }
+
   // ── Tuplets ──────────────────────────────────────────────────────────
 
   static const _tupletValues = [

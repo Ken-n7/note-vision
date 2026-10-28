@@ -288,6 +288,7 @@ class MusicXmlExportService {
               }
               cursor = onset + length;
               laneEnds[lane] = cursor;
+              _buildDirections(b, symbol, marks, before: true);
             }
             if (symbol is Note) {
               _buildNote(
@@ -299,6 +300,9 @@ class MusicXmlExportService {
               );
             } else if (symbol is Rest) {
               _buildRest(b, symbol, marks);
+            }
+            if (length != null) {
+              _buildDirections(b, symbol, marks, before: false);
             }
           }
         }
@@ -392,6 +396,45 @@ class MusicXmlExportService {
         });
       }
     });
+  }
+
+  /// A note or rest's dynamic and hairpin starts (before it), or the
+  /// hairpins it ends (after it).
+  void _buildDirections(
+    XmlBuilder b,
+    ScoreSymbol symbol,
+    _Marks marks, {
+    required bool before,
+  }) {
+    final (id, dynamic, staff) = switch (symbol) {
+      Note(:final reviewId, :final dynamicMark, :final staff) ||
+      Rest(:final reviewId, :final dynamicMark, :final staff) => (
+        reviewId,
+        dynamicMark,
+        staff,
+      ),
+      _ => (null, null, null),
+    };
+    void direction(void Function() type) =>
+        b.element('direction', attributes: {'placement': 'below'}, nest: () {
+          b.element('direction-type', nest: type);
+          if (staff != null) b.element('staff', nest: '$staff');
+        });
+    void wedge(String type, int number) => direction(
+      () => b.element('wedge', attributes: {'type': type, 'number': '$number'}),
+    );
+    if (!before) {
+      for (final number in marks.wedgeStops[id] ?? const <int>[]) {
+        wedge('stop', number);
+      }
+      return;
+    }
+    if (dynamic != null) {
+      direction(() => b.element('dynamics', nest: () => b.element(dynamic)));
+    }
+    for (final (type, number) in marks.wedgeStarts[id] ?? const <(String, int)>[]) {
+      wedge(type, number);
+    }
   }
 
   void _buildMarks(XmlBuilder b, List<Articulation> marks) {
@@ -519,7 +562,31 @@ class _Marks {
       this.slurs.putIfAbsent(spanner.from, () => []).add(('start', number));
       this.slurs.putIfAbsent(spanner.to, () => []).add(('stop', number));
     }
+    // A hairpin's stop goes after its last note, as MuseScore writes it.
+    final hairpins = [
+      for (final s in live)
+        if (s.$1.kind == SpannerKind.crescendo ||
+            s.$1.kind == SpannerKind.diminuendo)
+          s,
+    ]..sort((a, b) => _compare(a.$2, b.$2));
+    final open = <(int, NotePosition)>[];
+    for (final (spanner, from, to) in hairpins) {
+      open.removeWhere((a) => _compare(a.$2, from) < 0);
+      var number = 1;
+      while (open.any((a) => a.$1 == number)) {
+        number++;
+      }
+      open.add((number, to));
+      wedgeStarts.putIfAbsent(spanner.from, () => []).add((
+        spanner.kind == SpannerKind.crescendo ? 'crescendo' : 'diminuendo',
+        number,
+      ));
+      wedgeStops.putIfAbsent(spanner.to, () => []).add(number);
+    }
   }
+
+  final wedgeStarts = <String, List<(String, int)>>{};
+  final wedgeStops = <String, List<int>>{};
 
   static int _compare(NotePosition a, NotePosition b) =>
       a.part != b.part
