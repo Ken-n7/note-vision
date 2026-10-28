@@ -13,6 +13,7 @@ import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/utils/export_file_name.dart';
 import 'package:note_vision/core/services/accidentals.dart';
 import 'package:xml/xml.dart';
+import 'musicxml_preserving_exporter.dart';
 
 /// Converts a [Score] to a valid MusicXML 3.1 string and saves it to a
 /// user-chosen location via the system file picker.
@@ -40,6 +41,8 @@ class MusicXmlExportService {
   /// Returns a valid MusicXML 3.1 string for the given [score].
   /// Pure function — no I/O, fully unit-testable.
   String toMusicXml(Score score) {
+    final preserved = const MusicXmlPreservingExporter().export(score);
+    if (preserved != null) return preserved;
     final builder = XmlBuilder();
     builder.element(
       'score-partwise',

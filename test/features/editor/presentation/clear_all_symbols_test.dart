@@ -122,9 +122,11 @@ void main() {
     await tester.tap(find.text('Clear all symbols'));
     await tester.pumpAndSettle();
     expect(find.text('All notes and rests cleared'), findsOneWidget);
-    await tester.ensureVisible(find.text('Add'));
+    await tester.tap(find.byKey(const ValueKey('editor-mode-measure')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Add'));
+    await tester.ensureVisible(find.text('Add bar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Add bar'));
     await tester.pumpAndSettle();
     expect(find.text('All notes and rests cleared'), findsNothing);
     expect(shownControlsScore(tester).parts.first.measures, hasLength(5));

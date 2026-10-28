@@ -27,13 +27,11 @@ void main() {
       final layoutError = tester.takeException();
       await captureControls(tester, name);
       expect(layoutError, isNull);
-      if (size.width < size.height) {
-        await tester.tap(find.byTooltip('Duration tools'));
+      for (final mode in ['insert', 'measure', 'edit']) {
+        await tester.tap(find.byKey(ValueKey('editor-mode-$mode')));
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull);
-        final popup = tester.getRect(find.text('DURATION'));
-        expect(popup.top, greaterThanOrEqualTo(0));
-        await captureControls(tester, '$name-duration');
+        await captureControls(tester, '$name-$mode');
       }
     });
   }
@@ -54,13 +52,17 @@ void main() {
         size: const Size(390, 844),
         selectedSymbol: null,
       );
-      final tab = tester.getSemantics(find.bySemanticsLabel('Pitch tools'));
+      final tab = tester.getSemantics(find.bySemanticsLabel('Add notes'));
       expect(tab.getSemanticsData().hasAction(ui.SemanticsAction.tap), isTrue);
       tab.owner!.performAction(tab.id, ui.SemanticsAction.tap);
       await tester.pumpAndSettle();
-      expect(find.text('PITCH'), findsOneWidget);
 
-      final note = tester.getSemantics(find.bySemanticsLabel('Quarter note'));
+      final note = tester.getSemantics(
+        find.descendant(
+          of: find.byType(SymbolPalette),
+          matching: find.bySemanticsLabel('Quarter note'),
+        ),
+      );
       expect(note.getSemanticsData().hasAction(ui.SemanticsAction.tap), isTrue);
       note.owner!.performAction(note.id, ui.SemanticsAction.tap);
       await tester.pumpAndSettle();
@@ -78,16 +80,16 @@ void main() {
   ) async {
     final (playback, _) = await pumpControls(tester);
     expect(find.byType(SymbolPalette), findsNothing);
-    await tester.tap(find.text('Insert'));
+    await tester.tap(find.byKey(const ValueKey('editor-mode-insert')));
     await tester.pumpAndSettle();
     expect(find.byType(SymbolPalette), findsOneWidget);
-    await tester.tap(find.text('Done'));
+    await tester.tap(find.byKey(const ValueKey('editor-mode-edit')));
     await tester.pumpAndSettle();
     expect(find.byType(SymbolPalette), findsNothing);
     playback.emit(PlaybackStatus.playing);
     await tester.pumpAndSettle();
     final insert = tester.widget<TextButton>(
-      find.ancestor(of: find.text('Insert'), matching: find.byType(TextButton)),
+      find.byKey(const ValueKey('editor-mode-insert')),
     );
     expect(insert.onPressed, isNull);
   });
@@ -130,7 +132,7 @@ void main() {
   ) async {
     await pumpControls(tester);
     expect(controlsAction(tester, 'Half').onTap, isNull);
-    expect(controlsAction(tester, '8th').onTap, isNotNull);
+    expect(controlsAction(tester, 'Eighth').onTap, isNotNull);
     expect(controlsAction(tester, 'Dot').onTap, isNull);
   });
 

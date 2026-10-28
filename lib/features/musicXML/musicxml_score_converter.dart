@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:note_vision/core/models/barline_type.dart';
+import 'package:note_vision/core/models/musicxml_source.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/models/measure.dart';
@@ -10,7 +13,10 @@ import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/services/accidentals.dart';
+import 'package:note_vision/core/services/notation_review_service.dart';
 import 'package:xml/xml.dart';
+
+import 'musicxml_source_reader.dart';
 
 /// Converts a validated MusicXML document into internal score models.
 class MusicXmlScoreConverter {
@@ -22,27 +28,87 @@ class MusicXmlScoreConverter {
     final title = _readTitle(root);
     final composer = _readComposer(root);
     final partNamesById = _readPartNames(root);
+    final sourceIndexes = <String, List<List<int>>>{};
+    const reader = MusicXmlSourceReader();
+    final events = reader.readTimeline(document);
     final parts = root.name.local == 'score-timewise'
-        ? _buildTimewiseParts(root, partNamesById)
-        : _buildPartwiseParts(root, partNamesById);
+        ? _buildTimewiseParts(root, partNamesById, sourceIndexes)
+        : _buildPartwiseParts(root, partNamesById, sourceIndexes);
 
-    return Score(
-      id: root.getAttribute('id') ?? root.name.local,
-      title: title,
-      composer: composer,
-      // <alter> is the pitch heard; notes store the accidental written.
-      parts: parts.map(Accidentals.writtenFromSounding).toList(),
+    final score = NotationReviewService.ensureIdentity(
+      Score(
+        id: root.getAttribute('id') ?? root.name.local,
+        title: title,
+        composer: composer,
+        // <alter> is the pitch heard; notes store the accidental written.
+        parts: parts.map(Accidentals.writtenFromSounding).toList(),
+      ),
+    );
+    final bindings = <MusicXmlSymbolBinding>[];
+    final representedDurations = <String, double>{};
+    for (final part in score.parts) {
+      for (final (measureIndex, measure) in part.measures.indexed) {
+        final indexes = sourceIndexes[part.id]![measureIndex];
+        for (final (symbolIndex, symbol) in measure.symbols.indexed) {
+          final id = switch (symbol) {
+            Note(:final reviewId) || Rest(:final reviewId) => reviewId!,
+            _ => throw StateError('Unexpected imported symbol'),
+          };
+          bindings.add(
+            MusicXmlSymbolBinding(
+              symbolId: id,
+              partId: part.id,
+              measureIndex: measureIndex,
+              noteIndex: indexes[symbolIndex],
+            ),
+          );
+          final (type, dots, duration) = switch (symbol) {
+            Note(:final type, :final dots, :final duration) ||
+            Rest(
+              :final type,
+              :final dots,
+              :final duration,
+            ) => (type, dots, duration),
+            _ => throw StateError('Unexpected imported symbol'),
+          };
+          representedDurations['${part.id}:$measureIndex:${indexes[symbolIndex]}'] =
+              quarterLength(type, dots, duration);
+        }
+      }
+    }
+    return score.copyWith(
+      musicXmlSource: MusicXmlSource(
+        xml: document.toXmlString(),
+        baselineJson: jsonEncode(score.notationProjection()),
+        bindings: bindings,
+        events: events,
+        requiresPreservation:
+            reader.requiresPreservation(document) ||
+            events.length != bindings.length ||
+            events.any(
+              (e) =>
+                  ((representedDurations['${e.partId}:${e.measureIndex}:${e.noteIndex}'] ??
+                              -1) -
+                          e.duration.asDouble)
+                      .abs() >
+                  1e-10,
+            ),
+      ),
     );
   }
 
   List<Part> _buildPartwiseParts(
     XmlElement root,
     Map<String, String> partNamesById,
+    Map<String, List<List<int>>> sourceIndexes,
   ) {
     return root.findElements('part').map((partElement) {
       final partId = partElement.getAttribute('id') ?? 'unknown-part';
       final partName = partNamesById[partId] ?? partId;
-      final measures = _buildPartMeasures(partElement.findElements('measure'));
+      final measures = _buildPartMeasures(
+        partElement.findElements('measure'),
+        sourceNoteIndexes: sourceIndexes.putIfAbsent(partId, () => []),
+      );
       return Part(id: partId, name: partName, measures: measures);
     }).toList();
   }
@@ -50,47 +116,53 @@ class MusicXmlScoreConverter {
   List<Measure> _buildPartMeasures(
     Iterable<XmlElement> measureElements, {
     int? explicitNumberOverride,
+    required List<List<int>> sourceNoteIndexes,
   }) {
-    var divisionsPerQuarter = 2;
+    var divisionsPerQuarter = 2.0;
     return measureElements.map((m) {
-      final attrs = _firstOrNull(m.findElements('attributes'));
-      final divEl = attrs == null ? null : _firstOrNull(attrs.findElements('divisions'));
-      if (divEl != null) {
-        divisionsPerQuarter = int.tryParse(divEl.innerText) ?? divisionsPerQuarter;
-      }
-      return _buildMeasure(
+      final indexes = <int>[];
+      sourceNoteIndexes.add(indexes);
+      final measure = _buildMeasure(
         m,
         divisionsPerQuarter: divisionsPerQuarter,
         explicitNumber: explicitNumberOverride,
+        sourceNoteIndexes: indexes,
       );
+      divisionsPerQuarter = _endingDivisions(m, divisionsPerQuarter);
+      return measure;
     }).toList();
   }
 
   List<Part> _buildTimewiseParts(
     XmlElement root,
     Map<String, String> partNamesById,
+    Map<String, List<List<int>>> sourceIndexes,
   ) {
     final measuresByPartId = <String, List<Measure>>{};
-    final divisionsPerQuarterByPartId = <String, int>{};
+    final divisionsPerQuarterByPartId = <String, double>{};
 
     for (final measureElement in root.findElements('measure')) {
-      final measureNumber = int.tryParse(measureElement.getAttribute('number') ?? '') ?? 0;
+      final measureNumber =
+          int.tryParse(measureElement.getAttribute('number') ?? '') ?? 0;
 
       for (final partInMeasure in measureElement.findElements('part')) {
         final partId = partInMeasure.getAttribute('id') ?? 'unknown-part';
-        var divisionsPerQuarter = divisionsPerQuarterByPartId[partId] ?? 2;
-        final attrs = _firstOrNull(partInMeasure.findElements('attributes'));
-        final divEl = attrs == null ? null : _firstOrNull(attrs.findElements('divisions'));
-        if (divEl != null) {
-          divisionsPerQuarter = int.tryParse(divEl.innerText) ?? divisionsPerQuarter;
-          divisionsPerQuarterByPartId[partId] = divisionsPerQuarter;
-        }
+        final divisionsPerQuarter = divisionsPerQuarterByPartId[partId] ?? 2.0;
+        final indexes = <int>[];
+        sourceIndexes.putIfAbsent(partId, () => []).add(indexes);
         final rebuiltMeasure = _buildMeasure(
           partInMeasure,
           explicitNumber: measureNumber,
           divisionsPerQuarter: divisionsPerQuarter,
+          sourceNoteIndexes: indexes,
         );
-        measuresByPartId.putIfAbsent(partId, () => <Measure>[]).add(rebuiltMeasure);
+        divisionsPerQuarterByPartId[partId] = _endingDivisions(
+          partInMeasure,
+          divisionsPerQuarter,
+        );
+        measuresByPartId
+            .putIfAbsent(partId, () => <Measure>[])
+            .add(rebuiltMeasure);
       }
     }
 
@@ -147,7 +219,10 @@ class MusicXmlScoreConverter {
     for (final scorePart in partList.findElements('score-part')) {
       final id = scorePart.getAttribute('id');
       final partName = _firstInnerText(scorePart, 'part-name')?.trim();
-      if (id != null && id.isNotEmpty && partName != null && partName.isNotEmpty) {
+      if (id != null &&
+          id.isNotEmpty &&
+          partName != null &&
+          partName.isNotEmpty) {
         partNamesById[id] = partName;
       }
     }
@@ -158,9 +233,13 @@ class MusicXmlScoreConverter {
   Measure _buildMeasure(
     XmlElement measureElement, {
     int? explicitNumber,
-    int divisionsPerQuarter = 2,
+    double divisionsPerQuarter = 2,
+    required List<int> sourceNoteIndexes,
   }) {
-    final number = explicitNumber ?? int.tryParse(measureElement.getAttribute('number') ?? '') ?? 0;
+    final number =
+        explicitNumber ??
+        int.tryParse(measureElement.getAttribute('number') ?? '') ??
+        0;
 
     final attributes = _firstOrNull(measureElement.findElements('attributes'));
     final clef = _buildClef(attributes);
@@ -171,11 +250,25 @@ class MusicXmlScoreConverter {
 
     final symbols = <ScoreSymbol>[];
 
-    for (final noteElement in measureElement.findElements('note')) {
-      final symbol = _buildSymbol(noteElement, divisionsPerQuarter: divisionsPerQuarter);
+    var noteIndex = 0;
+    for (final noteElement in measureElement.childElements) {
+      if (noteElement.name.local == 'attributes') {
+        divisionsPerQuarter = _endingDivisions(
+          measureElement,
+          divisionsPerQuarter,
+          attributes: noteElement,
+        );
+      }
+      if (noteElement.name.local != 'note') continue;
+      final symbol = _buildSymbol(
+        noteElement,
+        divisionsPerQuarter: divisionsPerQuarter,
+      );
       if (symbol != null) {
         symbols.add(symbol);
+        sourceNoteIndexes.add(noteIndex);
       }
+      noteIndex++;
     }
 
     final printEl = _firstOrNull(measureElement.findElements('print'));
@@ -195,9 +288,33 @@ class MusicXmlScoreConverter {
     );
   }
 
-  ScoreSymbol? _buildSymbol(XmlElement noteElement, {int divisionsPerQuarter = 2}) {
-    final rawDuration = int.tryParse(_firstInnerText(noteElement, 'duration') ?? '');
-    final duration = rawDuration == null ? null : (rawDuration * 2 / divisionsPerQuarter).round();
+  double _endingDivisions(
+    XmlElement measure,
+    double current, {
+    XmlElement? attributes,
+  }) {
+    for (final attrs
+        in attributes == null
+            ? measure.findElements('attributes')
+            : [attributes]) {
+      final value = double.tryParse(
+        attrs.getElement('divisions')?.innerText ?? '',
+      );
+      if (value != null) current = value;
+    }
+    return current;
+  }
+
+  ScoreSymbol? _buildSymbol(
+    XmlElement noteElement, {
+    double divisionsPerQuarter = 2,
+  }) {
+    final rawDuration = double.tryParse(
+      _firstInnerText(noteElement, 'duration') ?? '',
+    );
+    final duration = rawDuration == null
+        ? null
+        : (rawDuration * 2 / divisionsPerQuarter).round();
     var type = _firstInnerText(noteElement, 'type')?.trim();
     var dots = noteElement.findElements('dot').length;
     if (duration == null) return null;
@@ -277,7 +394,13 @@ class MusicXmlScoreConverter {
   /// The written value (type and dots) that lasts [quarters] quarter notes,
   /// or null when no single note value does.
   (String, int)? _valueForQuarters(double quarters) {
-    for (final type in const ['whole', 'half', 'quarter', 'eighth', 'sixteenth']) {
+    for (final type in const [
+      'whole',
+      'half',
+      'quarter',
+      'eighth',
+      'sixteenth',
+    ]) {
       for (var dots = 0; dots <= 2; dots++) {
         if ((quarterLength(type, dots, 0) - quarters).abs() < 1e-6) {
           return (type, dots);
@@ -288,7 +411,9 @@ class MusicXmlScoreConverter {
   }
 
   Clef? _buildClef(XmlElement? attributes) {
-    final clefElement = attributes == null ? null : _firstOrNull(attributes.findElements('clef'));
+    final clefElement = attributes == null
+        ? null
+        : _firstOrNull(attributes.findElements('clef'));
     if (clefElement == null) {
       return null;
     }
@@ -303,13 +428,17 @@ class MusicXmlScoreConverter {
   }
 
   TimeSignature? _buildTimeSignature(XmlElement? attributes) {
-    final timeElement = attributes == null ? null : _firstOrNull(attributes.findElements('time'));
+    final timeElement = attributes == null
+        ? null
+        : _firstOrNull(attributes.findElements('time'));
     if (timeElement == null) {
       return null;
     }
 
     final beats = int.tryParse(_firstInnerText(timeElement, 'beats') ?? '');
-    final beatType = int.tryParse(_firstInnerText(timeElement, 'beat-type') ?? '');
+    final beatType = int.tryParse(
+      _firstInnerText(timeElement, 'beat-type') ?? '',
+    );
     if (beats == null || beatType == null) {
       return null;
     }
@@ -318,7 +447,9 @@ class MusicXmlScoreConverter {
   }
 
   KeySignature? _buildKeySignature(XmlElement? attributes) {
-    final keyElement = attributes == null ? null : _firstOrNull(attributes.findElements('key'));
+    final keyElement = attributes == null
+        ? null
+        : _firstOrNull(attributes.findElements('key'));
     if (keyElement == null) {
       return null;
     }
@@ -333,7 +464,8 @@ class MusicXmlScoreConverter {
 
   BarlineType? _buildBarlineType(XmlElement measureElement, String location) {
     for (final barline in measureElement.findElements('barline')) {
-      final barlineLocation = barline.getAttribute('location')?.trim();
+      final barlineLocation =
+          barline.getAttribute('location')?.trim() ?? 'right';
       if (barlineLocation != location) {
         continue;
       }

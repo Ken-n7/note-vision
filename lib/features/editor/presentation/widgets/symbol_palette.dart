@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/widgets/score_notation/score_notation_metrics.dart';
@@ -32,10 +34,18 @@ class PaletteDragData {
 }
 
 class SymbolPalette extends StatefulWidget {
-  const SymbolPalette({super.key, this.selectedType, this.onTypeTap});
+  const SymbolPalette({
+    super.key,
+    this.selectedType,
+    this.onTypeTap,
+    this.restsOnly,
+  });
 
   final PaletteSymbolType? selectedType;
   final ValueChanged<PaletteSymbolType>? onTypeTap;
+
+  /// Null shows the full palette; the editor separates notes and rests.
+  final bool? restsOnly;
 
   static const List<_PaletteItemData> _items = [
     _PaletteItemData(type: PaletteSymbolType.wholeNote, label: 'Whole'),
@@ -59,6 +69,17 @@ class _SymbolPaletteState extends State<SymbolPalette> {
 
   bool _showLeftArrow = false;
   bool _showRightArrow = false;
+
+  @override
+  void didUpdateWidget(SymbolPalette oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.restsOnly != widget.restsOnly) {
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _updateArrowVisibility();
+      });
+    }
+  }
 
   @override
   void initState() {
@@ -114,21 +135,33 @@ class _SymbolPaletteState extends State<SymbolPalette> {
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _updateArrowVisibility();
+          });
           final scrollStep = constraints.maxWidth * 0.56;
+          final horizontalPadding =
+              widget.restsOnly != null && constraints.maxWidth >= 354
+              ? 12.0
+              : _kPaletteScrollPadding;
           return Stack(
             children: [
               SingleChildScrollView(
                 controller: _scrollController,
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: _kPaletteScrollPadding,
+                padding: EdgeInsets.symmetric(
+                  horizontal: horizontalPadding,
                   vertical: 8,
                 ),
                 child: Row(
                   children: [
-                    for (final item in SymbolPalette._items) ...[
+                    for (final item in SymbolPalette._items.where(
+                      (item) =>
+                          widget.restsOnly == null ||
+                          item.type.isRest == widget.restsOnly,
+                    )) ...[
                       // Notes first, then the rests after a divider.
-                      if (item.type == PaletteSymbolType.wholeRest)
+                      if (widget.restsOnly == null &&
+                          item.type == PaletteSymbolType.wholeRest)
                         Container(
                           width: 1,
                           height: 52,
@@ -297,9 +330,21 @@ class _PaletteVisual extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final labelMetrics = TextPainter(
+      text: TextSpan(
+        text: item.label,
+        style: DefaultTextStyle.of(
+          context,
+        ).style.copyWith(fontSize: 10, fontWeight: FontWeight.w600),
+      ),
+      textScaler: MediaQuery.textScalerOf(context),
+      textDirection: Directionality.of(context),
+    )..layout();
+    final width = math.max(58.0, labelMetrics.width + 12);
+    labelMetrics.dispose();
     return AnimatedContainer(
       duration: const Duration(milliseconds: 150),
-      width: 58,
+      width: width,
       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
       decoration: BoxDecoration(
         color: isSelected

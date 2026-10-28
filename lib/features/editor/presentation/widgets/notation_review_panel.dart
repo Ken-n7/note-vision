@@ -119,6 +119,95 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
         final compact =
             constraints.maxHeight < 340 ||
             MediaQuery.textScalerOf(context).scale(1) > 1.5;
+        final chrome = <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 4, 0),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.fact_check_outlined,
+                  color: AppColors.accent,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'Review & Correct',
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: widget.onClose,
+                  child: const Text('Done'),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Semantics(
+              liveRegion: true,
+              child: Text(
+                '${widget.issues.length} remaining · $applied applied · $kept kept original',
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Row(
+                children: [
+                  _tabButton('Review', _ReviewTab.focused, Icons.tune_rounded),
+                  _tabButton(
+                    'All (${widget.issues.length})',
+                    _ReviewTab.overview,
+                    Icons.list_rounded,
+                  ),
+                  _tabButton(
+                    'Batch',
+                    _ReviewTab.batch,
+                    Icons.checklist_rounded,
+                  ),
+                  _tabButton(
+                    'History',
+                    _ReviewTab.history,
+                    Icons.history_rounded,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_plan != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+              child: _versionToggle(),
+            ),
+          const Divider(height: 1, color: AppColors.border),
+        ];
+        final details = Padding(
+          padding: const EdgeInsets.all(16),
+          child: switch (_tab) {
+            _ReviewTab.focused =>
+              _focused == null ? _complete(applied, kept) : _issue(_focused!),
+            _ReviewTab.overview => _overview(),
+            _ReviewTab.batch => _batch(),
+            _ReviewTab.history => _history(),
+          },
+        );
+        final actions = <Widget>[
+          if (_tab == _ReviewTab.focused && _focused != null)
+            _actions(_focused!),
+          if (_tab == _ReviewTab.batch && _plan != null) _batchActions(),
+        ];
         return Material(
           color: AppColors.surface,
           shape: RoundedRectangleBorder(
@@ -126,117 +215,27 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
             side: const BorderSide(color: AppColors.border),
           ),
           clipBehavior: Clip.antiAlias,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 4, 0),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.fact_check_outlined,
-                      color: AppColors.accent,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'Review & Correct',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: widget.onClose,
-                      child: const Text('Done'),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                child: Semantics(
-                  liveRegion: true,
-                  child: Text(
-                    '${widget.issues.length} remaining · $applied applied · $kept kept original',
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                    ),
-                  ),
-                ),
-              ),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Row(
-                    children: [
-                      _tabButton(
-                        'Review',
-                        _ReviewTab.focused,
-                        Icons.tune_rounded,
-                      ),
-                      _tabButton(
-                        'All (${widget.issues.length})',
-                        _ReviewTab.overview,
-                        Icons.list_rounded,
-                      ),
-                      _tabButton(
-                        'Batch',
-                        _ReviewTab.batch,
-                        Icons.checklist_rounded,
-                      ),
-                      _tabButton(
-                        'History',
-                        _ReviewTab.history,
-                        Icons.history_rounded,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (_plan != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-                  child: _versionToggle(),
-                ),
-              const Divider(height: 1, color: AppColors.border),
-              Expanded(
-                child: SingleChildScrollView(
+          child: compact
+              ? SingleChildScrollView(
                   controller: _scroll,
-                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      switch (_tab) {
-                        _ReviewTab.focused =>
-                          _focused == null
-                              ? _complete(applied, kept)
-                              : _issue(_focused!),
-                        _ReviewTab.overview => _overview(),
-                        _ReviewTab.batch => _batch(),
-                        _ReviewTab.history => _history(),
-                      },
-                      if (compact &&
-                          _tab == _ReviewTab.focused &&
-                          _focused != null)
-                        _actions(_focused!),
-                      if (compact && _tab == _ReviewTab.batch && _plan != null)
-                        _batchActions(),
-                    ],
+                    children: [...chrome, details, ...actions],
                   ),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ...chrome,
+                    Expanded(
+                      child: SingleChildScrollView(
+                        controller: _scroll,
+                        child: details,
+                      ),
+                    ),
+                    ...actions,
+                  ],
                 ),
-              ),
-              if (!compact && _tab == _ReviewTab.focused && _focused != null)
-                _actions(_focused!),
-              if (!compact && _tab == _ReviewTab.batch && _plan != null)
-                _batchActions(),
-            ],
-          ),
         );
       },
     );
@@ -569,23 +568,19 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
     ),
   );
 
-  Widget _versionToggle() => SegmentedButton<bool>(
-    segments: const [
-      ButtonSegment(
-        value: false,
-        label: Text('Current'),
-        icon: Icon(Icons.music_note_outlined, size: 16),
-      ),
-      ButtonSegment(
-        value: true,
-        label: Text('Proposed'),
-        icon: Icon(Icons.auto_fix_high_outlined, size: 16),
-      ),
+  Widget _versionToggle() => Wrap(
+    spacing: 8,
+    runSpacing: 4,
+    children: [
+      for (final (proposed, label) in [(false, 'Current'), (true, 'Proposed')])
+        ChoiceChip(
+          label: Text(label),
+          selected: widget.previewing == proposed,
+          onSelected: widget.listening
+              ? null
+              : (_) => widget.onPreviewChanged(proposed),
+        ),
     ],
-    selected: {widget.previewing},
-    onSelectionChanged: widget.listening
-        ? null
-        : (v) => widget.onPreviewChanged(v.first),
   );
 
   Widget _previewControls() => Column(

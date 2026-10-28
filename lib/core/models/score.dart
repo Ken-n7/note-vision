@@ -9,6 +9,7 @@ import 'part.dart';
 import 'rest.dart';
 import 'score_symbol.dart';
 import 'time_signature.dart';
+import 'musicxml_source.dart';
 
 class Score {
   static const Object _keep = Object();
@@ -19,6 +20,7 @@ class Score {
   final List<Part> parts;
   final List<ScoreSourcePage> sourcePages;
   final List<ScoreReviewEntry> reviewHistory;
+  final MusicXmlSource? musicXmlSource;
 
   const Score({
     required this.id,
@@ -27,6 +29,7 @@ class Score {
     required this.parts,
     this.sourcePages = const [],
     this.reviewHistory = const [],
+    this.musicXmlSource,
   });
 
   Map<String, dynamic> toJson() => {
@@ -38,12 +41,18 @@ class Score {
       'sourcePages': sourcePages.map((p) => p.toJson()).toList(),
     if (reviewHistory.isNotEmpty)
       'reviewHistory': reviewHistory.map((e) => e.toJson()).toList(),
+    if (musicXmlSource != null) 'musicXmlSource': musicXmlSource!.toJson(),
   };
 
   factory Score.fromJson(Map<String, dynamic> json) => Score(
     id: json['id'] as String,
     title: json['title'] as String,
     composer: (json['composer'] as String?) ?? '',
+    musicXmlSource: json['musicXmlSource'] == null
+        ? null
+        : MusicXmlSource.fromJson(
+            Map<String, dynamic>.from(json['musicXmlSource'] as Map),
+          ),
     sourcePages: (json['sourcePages'] as List? ?? [])
         .map(
           (p) => ScoreSourcePage.fromJson(Map<String, dynamic>.from(p as Map)),
@@ -65,6 +74,7 @@ class Score {
     List<Part>? parts,
     List<ScoreSourcePage>? sourcePages,
     List<ScoreReviewEntry>? reviewHistory,
+    MusicXmlSource? musicXmlSource,
   }) => Score(
     id: id,
     title: title ?? this.title,
@@ -72,7 +82,17 @@ class Score {
     parts: parts ?? this.parts,
     sourcePages: sourcePages ?? this.sourcePages,
     reviewHistory: reviewHistory ?? this.reviewHistory,
+    musicXmlSource: musicXmlSource ?? this.musicXmlSource,
   );
+
+  /// The editable projection excludes retained source and review decisions.
+  /// It is the baseline against which preservation-aware export compares edits.
+  Map<String, dynamic> notationProjection() => {
+    'id': id,
+    'title': title,
+    'composer': composer,
+    'parts': parts.map((p) => p.toJson()).toList(),
+  };
 
   int get partCount => parts.length;
 

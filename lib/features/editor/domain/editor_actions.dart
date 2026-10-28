@@ -147,6 +147,73 @@ extension EditorActions on EditorState {
     );
   }
 
+  bool canMoveSelectedPitch(int steps) {
+    final note = selectedSymbol;
+    return hasEditableSelection &&
+        note is Note &&
+        !identical(_moveNoteByScaleStep(note, steps), note);
+  }
+
+  /// Diatonic movement keeps the written accidental and all rhythm evidence.
+  EditorState moveSelectedPitch(int steps) {
+    if (!canMoveSelectedPitch(steps)) return this;
+    return _replaceSelectedSymbol(
+      _moveNoteByScaleStep(selectedSymbol as Note, steps),
+      intent: EditorEditIntent.replaceSelection,
+    );
+  }
+
+  /// Replacing one member of a chord with a rest would change its timeline.
+  /// Chord-wide replacement belongs to the upcoming range-editing commands.
+  bool get canConvertSelectedNoteToRest {
+    final note = selectedSymbol;
+    if (!hasEditableSelection || note is! Note || note.isChordTone) {
+      return false;
+    }
+    final symbols =
+        score.parts[selectedPartIndex!].measures[selectedMeasureIndex!].symbols;
+    final nextIndex = selectedSymbolIndex! + 1;
+    return nextIndex >= symbols.length ||
+        symbols[nextIndex] is! Note ||
+        !(symbols[nextIndex] as Note).isChordTone;
+  }
+
+  EditorState convertSelectedNoteToRest() {
+    if (!canConvertSelectedNoteToRest) return this;
+    final note = selectedSymbol as Note;
+    return _replaceSelectedSymbol(
+      Rest(
+        duration: note.duration,
+        type: note.type,
+        dots: note.dots,
+        voice: note.voice,
+        staff: note.staff,
+        reviewId: note.reviewId,
+        source: note.source,
+      ),
+      intent: EditorEditIntent.replaceSelection,
+    );
+  }
+
+  EditorState convertSelectedRestToNote() {
+    if (!hasEditableSelection || selectedSymbol is! Rest) return this;
+    final rest = selectedSymbol as Rest;
+    return _replaceSelectedSymbol(
+      Note(
+        step: 'C',
+        octave: 4,
+        duration: rest.duration,
+        type: rest.type,
+        dots: rest.dots,
+        voice: rest.voice,
+        staff: rest.staff,
+        reviewId: rest.reviewId,
+        source: rest.source,
+      ),
+      intent: EditorEditIntent.replaceSelection,
+    );
+  }
+
   bool canSetSelectedDuration(DurationSpec spec) =>
       hasEditableSelection &&
       _canReplaceSelectedSymbolWith(
@@ -935,10 +1002,11 @@ extension EditorActions on EditorState {
     required ScoreSymbol symbol,
   }) {
     final changedValue =
-        selectedSymbol is Note &&
-        symbol is Note &&
-        BeamGrouping.levels(selectedSymbol as Note) !=
-            BeamGrouping.levels(symbol);
+        (selectedSymbol is Note) != (symbol is Note) ||
+        (selectedSymbol is Note &&
+            symbol is Note &&
+            BeamGrouping.levels(selectedSymbol as Note) !=
+                BeamGrouping.levels(symbol));
     final next = intent != EditorEditIntent.replaceSelection || changedValue
         ? _repairEditedBeams(score)
         : score;
