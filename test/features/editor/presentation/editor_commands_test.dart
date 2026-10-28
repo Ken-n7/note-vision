@@ -360,6 +360,28 @@ void main() {
     expect(shownControlsScore(tester).parts, hasLength(1));
   });
 
+  testWidgets('S slurs to the next note; the Tie tile explains itself', (
+    tester,
+  ) async {
+    await pumpControls(tester, size: const Size(390, 844));
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
+    await tester.pumpAndSettle();
+    final score = shownControlsScore(tester);
+    final notes = score.parts[0].measures[0].symbols.whereType<Note>();
+    expect(score.spanners.single.kind, SpannerKind.slur);
+    expect(score.spanners.single.to, notes.elementAt(1).reviewId);
+    // C4 is followed by E4, so there is nothing to tie to.
+    await tester.ensureVisible(find.text('Tie'));
+    expect(
+      tester
+          .widget<InkWell>(
+            find.ancestor(of: find.text('Tie'), matching: find.byType(InkWell)),
+          )
+          .onTap,
+      isNull,
+    );
+  });
+
   testWidgets('conversion is reachable on a phone and can be undone', (
     tester,
   ) async {

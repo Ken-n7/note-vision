@@ -136,6 +136,7 @@ Score _modelOnly(Score score) => Score(
   title: score.title,
   composer: score.composer,
   parts: score.parts,
+  spanners: score.spanners,
 );
 
 String parityReport(String name, String referenceXml, List<int> referenceMidi) {

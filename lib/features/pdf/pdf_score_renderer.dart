@@ -316,6 +316,7 @@ class PdfScoreRenderer {
       _drawScoreHeader(g, score, font, fontBold, fmt);
     }
 
+    final notePoints = <String, _PdfNotePoint>{};
     for (var s = 0; s < systemCount; s++) {
       final startM = s * page.measuresPerSystem;
 
@@ -351,6 +352,7 @@ class PdfScoreRenderer {
           clefSign: _clefSign(rowMeasures),
           clefLine: _clefLine(rowMeasures),
           numberBars: !joined,
+          notePoints: notePoints,
         );
         if (joined) {
           _drawGrandStaff(
@@ -360,6 +362,58 @@ class PdfScoreRenderer {
             measures: rowMeasures.length,
           );
         }
+      }
+    }
+    _drawSpanners(g, score.spanners, notePoints);
+  }
+
+  /// Ties and slurs as in the editor (PDF y points up): thin crescents on
+  /// the side away from the stems, split into halves across rows.
+  void _drawSpanners(
+    PdfGraphics g,
+    List<Spanner> spanners,
+    Map<String, _PdfNotePoint> points,
+  ) {
+    for (final spanner in spanners) {
+      final a = points[spanner.from];
+      final b = points[spanner.to];
+      if (a == null && b == null) continue;
+      final tie = spanner.kind == SpannerKind.tie;
+      final dir = (a ?? b)!.stemUp ? -1.0 : 1.0; // -1 draws below the heads
+      final lift = (tie ? 5.0 : 9.0) * _scale;
+      final inset = (tie ? 5.0 : 0.0) * _scale;
+      void arc(double x1, double y1, double x2, double y2) {
+        final length = (x2 - x1).abs();
+        if (length < 2 * _scale) return;
+        final height =
+            (tie
+                ? (3 + length / _scale * 0.04).clamp(3.0, 7.0)
+                : (length / _scale * 0.12).clamp(5.0, 16.0)) *
+            _scale *
+            1.3;
+        final inner = height - 1.6 * _scale;
+        double x(double t) => x1 + (x2 - x1) * t;
+        double y(double t, double h) => y1 + (y2 - y1) * t + dir * h;
+        g
+          ..setColor(_ink)
+          ..moveTo(x1, y1)
+          ..curveTo(x(.25), y(.25, height), x(.75), y(.75, height), x2, y2)
+          ..curveTo(x(.75), y(.75, inner), x(.25), y(.25, inner), x1, y1)
+          ..closePath()
+          ..fillPath();
+      }
+
+      if (a != null && b != null && a.rowTop == b.rowTop) {
+        arc(a.x + inset, a.y + dir * lift, b.x - inset, b.y + dir * lift);
+        continue;
+      }
+      if (a != null) {
+        final y = a.y + dir * lift;
+        arc(a.x + inset, y, a.rowEndX - 2 * _scale, y);
+      }
+      if (b != null) {
+        final y = b.y + dir * lift;
+        arc(b.rowStartX + 4 * _scale, y, b.x - inset, y);
       }
     }
   }
@@ -456,6 +510,7 @@ class PdfScoreRenderer {
     required String clefSign,
     required int clefLine,
     bool numberBars = true,
+    Map<String, _PdfNotePoint>? notePoints,
   }) {
     // staffTop = y of top staff line (PDF: y from bottom)
     // staffBottom = y of bottom staff line
@@ -609,6 +664,9 @@ class PdfScoreRenderer {
         staffBottom: staffBottom,
         clefSign: clefSign,
         clefLine: clefLine,
+        notePoints: notePoints,
+        rowStartX: contentStartX,
+        rowEndX: staffEndX,
       );
     }
   }
@@ -627,6 +685,9 @@ class PdfScoreRenderer {
     required double staffBottom,
     required String clefSign,
     int clefLine = 2,
+    Map<String, _PdfNotePoint>? notePoints,
+    double rowStartX = 0,
+    double rowEndX = 0,
   }) {
     if (measure.symbols.isEmpty) return;
 
@@ -683,6 +744,16 @@ class PdfScoreRenderer {
       final y = ys[i];
 
       if (symbol is Note) {
+        if (symbol.reviewId case final id? when notePoints != null) {
+          notePoints[id] = _PdfNotePoint(
+            x: x,
+            y: y,
+            stemUp: layout.stemUp(i) ?? y < middleLineY,
+            rowTop: staffTop,
+            rowStartX: rowStartX,
+            rowEndX: rowEndX,
+          );
+        }
         _drawNote(
           g,
           musicFont,
@@ -1679,4 +1750,18 @@ class _PdfPoint {
 
   final double x;
   final double y;
+}
+
+/// A drawn note, for ties and slurs.
+class _PdfNotePoint {
+  const _PdfNotePoint({
+    required this.x,
+    required this.y,
+    required this.stemUp,
+    required this.rowTop,
+    required this.rowStartX,
+    required this.rowEndX,
+  });
+  final double x, y, rowTop, rowStartX, rowEndX;
+  final bool stemUp;
 }

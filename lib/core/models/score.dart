@@ -6,10 +6,13 @@ import 'clef.dart';
 import 'measure.dart';
 import 'note.dart';
 import 'part.dart';
+import 'spanner.dart';
 import 'rest.dart';
 import 'score_symbol.dart';
 import 'time_signature.dart';
 import 'musicxml_source.dart';
+
+export 'spanner.dart';
 
 enum ScorePlaybackLayout { sequentialStaves, simultaneousParts }
 
@@ -39,7 +42,11 @@ class Score {
     this.reviewHistory = const [],
     this.musicXmlSource,
     ScorePlaybackLayout? playbackLayout,
+    this.spanners = const [],
   }) : _playbackLayout = playbackLayout;
+
+  /// Ties and slurs between notes.
+  final List<Spanner> spanners;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -53,6 +60,8 @@ class Score {
     if (musicXmlSource != null) 'musicXmlSource': musicXmlSource!.toJson(),
     if (_playbackLayout != null || musicXmlSource != null)
       'playbackLayout': playbackLayout.name,
+    if (spanners.isNotEmpty)
+      'spanners': spanners.map((s) => s.toJson()).toList(),
   };
 
   factory Score.fromJson(Map<String, dynamic> json) => Score(
@@ -84,6 +93,9 @@ class Score {
     parts: (json['parts'] as List<dynamic>)
         .map((p) => Part.fromJson(p as Map<String, dynamic>))
         .toList(),
+    spanners: (json['spanners'] as List? ?? [])
+        .map((s) => Spanner.fromJson(Map<String, dynamic>.from(s as Map)))
+        .toList(),
   );
 
   Score copyWith({
@@ -94,6 +106,7 @@ class Score {
     List<ScoreReviewEntry>? reviewHistory,
     MusicXmlSource? musicXmlSource,
     ScorePlaybackLayout? playbackLayout,
+    List<Spanner>? spanners,
   }) => Score(
     id: id,
     title: title ?? this.title,
@@ -103,6 +116,7 @@ class Score {
     reviewHistory: reviewHistory ?? this.reviewHistory,
     musicXmlSource: musicXmlSource ?? this.musicXmlSource,
     playbackLayout: playbackLayout ?? _playbackLayout,
+    spanners: spanners ?? this.spanners,
   );
 
   /// The editable projection excludes retained source and review decisions.
@@ -112,6 +126,8 @@ class Score {
     'title': title,
     'composer': composer,
     'parts': parts.map((p) => p.toJson()).toList(),
+    if (spanners.isNotEmpty)
+      'spanners': spanners.map((s) => s.toJson()).toList(),
   };
 
   int get partCount => parts.length;

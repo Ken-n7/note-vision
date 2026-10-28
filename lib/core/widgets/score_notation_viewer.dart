@@ -348,6 +348,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
         selectedSymbolIndex: widget.selectedSymbolIndex,
         selectedSymbolIndices: widget.selectedSymbolIndices,
         rangeSymbols: widget.rangeSymbols,
+        spanners: widget.score?.spanners ?? const [],
         joinedParts: {
           for (final (i, part) in (widget.score?.parts ?? const []).indexed)
             if (part.joinsPrevious) i,

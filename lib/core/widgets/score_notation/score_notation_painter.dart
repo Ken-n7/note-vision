@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show mapEquals, setEquals;
+import 'package:flutter/foundation.dart' show listEquals, mapEquals, setEquals;
 import 'package:flutter/material.dart';
 
 import '../../models/beam_grouping.dart';
@@ -10,6 +10,7 @@ import '../../models/measure.dart';
 import '../../models/note.dart';
 import '../../models/rest.dart';
 import '../../models/score_symbol.dart';
+import '../../models/spanner.dart';
 import '../../models/time_signature.dart';
 import 'score_notation_metrics.dart';
 import 'staff_pitch_mapper.dart';
@@ -29,6 +30,7 @@ class ScoreNotationPainter extends CustomPainter {
     this.selectedSymbolIndices = const {},
     this.rangeSymbols = const {},
     this.joinedParts = const {},
+    this.spanners = const [],
     this.playbackPartIndex,
     this.playbackMeasureIndex,
     this.playbackSymbolIndex,
@@ -70,6 +72,14 @@ class ScoreNotationPainter extends CustomPainter {
   /// two are braced and their barlines run through both.
   final Set<int> joinedParts;
 
+  /// Ties and slurs, drawn between the notes they join.
+  final List<Spanner> spanners;
+
+  /// Where each note with a review ID was drawn during this paint (kept
+  /// outside the const painter).
+  static final _drawnNotes = Expando<Map<String, _NotePoint>>();
+  Map<String, _NotePoint> get _notePoints => _drawnNotes[this] ??= {};
+
   /// Currently playing symbol position emitted by PlaybackService.
   /// All three must be non-null for the playback highlight to render.
   final int? playbackPartIndex;
@@ -96,9 +106,11 @@ class ScoreNotationPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final metrics = _buildRowMetrics();
+    _notePoints.clear();
     for (final row in metrics) {
       _drawRow(canvas, row);
     }
+    if (spanners.isNotEmpty) _drawSpanners(canvas);
     if (parts.length > 1) _drawSystemConnectors(canvas, metrics);
     if (joinedParts.isNotEmpty) _drawGrandStaves(canvas, metrics);
     _drawPlaybackPlayhead(canvas, metrics);
@@ -463,6 +475,7 @@ class ScoreNotationPainter extends CustomPainter {
         staffBottom: row.staffBottom,
         clefSign: row.clefSign,
         clefLine: row.clefLine,
+        row: row,
       );
     }
   }
@@ -479,6 +492,7 @@ class ScoreNotationPainter extends CustomPainter {
     required double staffBottom,
     required String clefSign,
     int clefLine = 2,
+    _RowMetrics? row,
   }) {
     final middleLineY =
         staffTop + staffLineSpacing * ScoreNotationMetrics.middleStaffLineIndex;
@@ -584,6 +598,13 @@ class ScoreNotationPainter extends CustomPainter {
           clefLine: clefLine,
         );
         notePositions[i] = Offset(x, y);
+        if ((symbol.reviewId, row) case (final id?, final row?)) {
+          _notePoints[id] = _NotePoint(
+            Offset(x, y),
+            stemUp: layout.stemUp(i) ?? y > middleLineY,
+            row: row,
+          );
+        }
         final isSelected =
             selectedPartIndex == partIndex &&
             selectedMeasureIndex == absoluteMeasureIndex &&
@@ -1457,6 +1478,71 @@ class ScoreNotationPainter extends CustomPainter {
 
   /// Draws a thin vertical line on the far left connecting all staves that
   /// belong to the same system (multi-part scores only).
+  /// Ties and slurs as thin crescents on the side away from the stems. One
+  /// that crosses into another row is drawn as two halves, each open at the
+  /// row edge.
+  void _drawSpanners(Canvas canvas) {
+    final paint = Paint()..color = const Color(0xFF111827);
+    for (final spanner in spanners) {
+      final a = _notePoints[spanner.from];
+      final b = _notePoints[spanner.to];
+      if (a == null && b == null) continue;
+      final tie = spanner.kind == SpannerKind.tie;
+      final dir = (a ?? b)!.stemUp ? 1.0 : -1.0; // 1 draws below the heads
+      final lift = tie ? 5.0 : 9.0;
+      Offset start(_NotePoint p) => p.head + Offset(tie ? 5 : 0, dir * lift);
+      Offset end(_NotePoint p) => p.head + Offset(tie ? -5 : 0, dir * lift);
+      void arc(Offset p1, Offset p2) {
+        final length = (p2.dx - p1.dx).abs();
+        if (length < 2) return;
+        final height = tie
+            ? (3 + length * 0.04).clamp(3.0, 7.0)
+            : (length * 0.12).clamp(5.0, 16.0);
+        Offset at(double t, double h) => Offset(
+          p1.dx + (p2.dx - p1.dx) * t,
+          p1.dy + (p2.dy - p1.dy) * t + dir * h,
+        );
+        final outer = height * 1.3;
+        final inner = outer - 1.6;
+        canvas.drawPath(
+          Path()
+            ..moveTo(p1.dx, p1.dy)
+            ..cubicTo(
+              at(.25, outer).dx,
+              at(.25, outer).dy,
+              at(.75, outer).dx,
+              at(.75, outer).dy,
+              p2.dx,
+              p2.dy,
+            )
+            ..cubicTo(
+              at(.75, inner).dx,
+              at(.75, inner).dy,
+              at(.25, inner).dx,
+              at(.25, inner).dy,
+              p1.dx,
+              p1.dy,
+            )
+            ..close(),
+          paint,
+        );
+      }
+
+      if (a != null && b != null && identical(a.row, b.row)) {
+        arc(start(a), end(b));
+        continue;
+      }
+      if (a != null) {
+        final p = start(a);
+        arc(p, Offset(a.row.rowEndX - 2, p.dy));
+      }
+      if (b != null) {
+        final p = end(b);
+        arc(Offset(b.row.contentStartX + 4, p.dy), p);
+      }
+    }
+  }
+
   /// Braces each joined staff to the one above and runs barlines between
   /// them.
   void _drawGrandStaves(Canvas canvas, List<_RowMetrics> metrics) {
@@ -1793,6 +1879,7 @@ class ScoreNotationPainter extends CustomPainter {
         !setEquals(oldDelegate.selectedSymbolIndices, selectedSymbolIndices) ||
         !setEquals(oldDelegate.rangeSymbols, rangeSymbols) ||
         !setEquals(oldDelegate.joinedParts, joinedParts) ||
+        !listEquals(oldDelegate.spanners, spanners) ||
         oldDelegate.playbackPartIndex != playbackPartIndex ||
         oldDelegate.playbackMeasureIndex != playbackMeasureIndex ||
         oldDelegate.playbackSymbolIndex != playbackSymbolIndex ||
@@ -1913,6 +2000,14 @@ class NotationInsertTarget {
       indicatorX.hashCode ^
       step.hashCode ^
       octave.hashCode;
+}
+
+/// A drawn note, for ties and slurs.
+class _NotePoint {
+  const _NotePoint(this.head, {required this.stemUp, required this.row});
+  final Offset head;
+  final bool stemUp;
+  final _RowMetrics row;
 }
 
 class _RowMetrics {

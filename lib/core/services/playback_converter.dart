@@ -5,6 +5,7 @@ import '../models/score.dart';
 import '../models/musical_time.dart';
 import 'accidentals.dart';
 import 'score_timeline.dart';
+import 'spanners.dart';
 
 // ---------------------------------------------------------------------------
 // PlaybackEvent
@@ -199,6 +200,7 @@ class PlaybackConverter {
         );
       }
     }
+    _mergeTies(score, events);
     events.sort((a, b) {
       final time = a.baseOnsetMs.compareTo(b.baseOnsetMs);
       if (time != 0) return time;
@@ -209,6 +211,55 @@ class PlaybackConverter {
     });
     return PlaybackPlan(events: List.unmodifiable(events), timeline: timeline);
   }
+
+  /// A tied note sounds once, held to the end of the last note it is tied
+  /// to; the notes it continues into are silent.
+  static void _mergeTies(Score score, List<PlaybackEvent> events) {
+    final ties = [
+      for (final t in SpannerIndex(score).live)
+        if (t.$1.kind == SpannerKind.tie) t,
+    ];
+    if (ties.isEmpty) return;
+    final at = {
+      for (final (i, e) in events.indexed)
+        (part: e.partIndex, measure: e.measureIndex, symbol: e.symbolIndex): i,
+    };
+    final head = <int, int>{};
+    ties.sort(
+      (a, b) => (events[at[a.$2] ?? 0].baseOnsetMs).compareTo(
+        events[at[b.$2] ?? 0].baseOnsetMs,
+      ),
+    );
+    for (final (_, from, to) in ties) {
+      final (a, b) = (at[from], at[to]);
+      if (a == null || b == null || events[a].midiNote != events[b].midiNote) {
+        continue;
+      }
+      final h = head[a] ?? a;
+      events[h] = _with(
+        events[h],
+        durationMs: events[b].baseEndMs - events[h].baseOnsetMs,
+      );
+      events[b] = _with(events[b], midiNote: -1);
+      head[b] = h;
+    }
+  }
+
+  static PlaybackEvent _with(
+    PlaybackEvent e, {
+    int? midiNote,
+    int? durationMs,
+  }) => PlaybackEvent(
+    partIndex: e.partIndex,
+    measureIndex: e.measureIndex,
+    symbolIndex: e.symbolIndex,
+    midiNote: midiNote ?? e.midiNote,
+    baseDurationMs: durationMs ?? e.baseDurationMs,
+    isChordTone: e.isChordTone,
+    baseOnsetMs: e.baseOnsetMs,
+    baseMeasureOnsetMs: e.baseMeasureOnsetMs,
+    baseMeasureDurationMs: e.baseMeasureDurationMs,
+  );
 
   /// Round absolute boundaries, not each tuplet in isolation.
   static int baseMilliseconds(MusicalTime time) {

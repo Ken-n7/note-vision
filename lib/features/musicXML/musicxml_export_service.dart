@@ -14,6 +14,7 @@ import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/utils/export_file_name.dart';
 import 'package:note_vision/core/services/accidentals.dart';
 import 'package:note_vision/core/services/score_timeline.dart';
+import 'package:note_vision/core/services/spanners.dart';
 import 'package:xml/xml.dart';
 import 'musicxml_preserving_exporter.dart';
 
@@ -53,9 +54,10 @@ class MusicXmlExportService {
         _buildWork(builder, score);
         _buildIdentification(builder, score);
         final instruments = _instruments(score);
+        final marks = _Marks(score);
         _buildPartList(builder, instruments);
         for (final staves in instruments) {
-          _buildPart(builder, staves);
+          _buildPart(builder, staves, marks);
         }
       },
     );
@@ -134,7 +136,7 @@ class MusicXmlExportService {
     });
   }
 
-  void _buildPart(XmlBuilder b, List<Part> parts) {
+  void _buildPart(XmlBuilder b, List<Part> parts, _Marks marks) {
     // Symbols keep their staff numbers; those of a joined staff without one
     // are on that staff, in voices 5–8 for staff 2 and so on, as MuseScore
     // writes them.
@@ -165,6 +167,7 @@ class MusicXmlExportService {
           isFirst: i == 0,
           staves: staves,
           accidentals: accidentals,
+          marks: marks,
         );
       }
     });
@@ -192,6 +195,7 @@ class MusicXmlExportService {
                   beams: s.beams,
                   dots: s.dots,
                   isChordTone: s.isChordTone,
+                  reviewId: s.reviewId,
                 ),
                 Rest() when s.staff == null => Rest(
                   duration: s.duration,
@@ -214,6 +218,7 @@ class MusicXmlExportService {
     required bool isFirst,
     required int staves,
     required List<Accidentals> accidentals,
+    required _Marks marks,
   }) {
     final measure = staffMeasures.first;
     b.element(
@@ -306,6 +311,7 @@ class MusicXmlExportService {
                 symbol,
                 soundingAlter: accidentals[k].sounding(symbol),
                 beamValues: BeamGrouping.valuesFor(symbols, i),
+                marks: marks,
               );
             } else if (symbol is Rest) {
               _buildRest(b, symbol);
@@ -331,7 +337,12 @@ class MusicXmlExportService {
     Note note, {
     required int soundingAlter,
     Map<int, BeamValue> beamValues = const {},
+    _Marks? marks,
   }) {
+    final id = note.reviewId;
+    final tieStop = id != null && (marks?.tieStops.contains(id) ?? false);
+    final tieStart = id != null && (marks?.tieStarts.contains(id) ?? false);
+    final slurs = id == null ? const <(String, int)>[] : marks?.slurs[id] ?? [];
     b.element('note', nest: () {
       if (note.isChordTone) {
         b.element('chord');
@@ -347,6 +358,8 @@ class MusicXmlExportService {
         'duration',
         nest: durationFor(note.type, note.dots, note.duration).toString(),
       );
+      if (tieStop) b.element('tie', attributes: {'type': 'stop'});
+      if (tieStart) b.element('tie', attributes: {'type': 'start'});
       if (note.voice != null) {
         b.element('voice', nest: note.voice.toString());
       }
@@ -375,6 +388,18 @@ class MusicXmlExportService {
           attributes: {'number': '${entry.key}'},
           nest: entry.value.xmlValue,
         );
+      }
+      if (tieStop || tieStart || slurs.isNotEmpty) {
+        b.element('notations', nest: () {
+          if (tieStop) b.element('tied', attributes: {'type': 'stop'});
+          if (tieStart) b.element('tied', attributes: {'type': 'start'});
+          for (final (type, number) in slurs) {
+            b.element(
+              'slur',
+              attributes: {'type': type, 'number': '$number'},
+            );
+          }
+        });
       }
     });
   }
@@ -428,4 +453,45 @@ class MusicXmlExportService {
       '  "-//Recordare//DTD MusicXML 3.1 Partwise//EN"\n'
       '  "http://www.musicxml.org/dtds/partwise.dtd">\n';
 
+}
+
+/// Ties and slurs to write, by note review ID.
+class _Marks {
+  _Marks(Score score) {
+    final live = SpannerIndex(score).live;
+    // Overlapping slurs need different numbers; a number is free again once
+    // its slur has ended.
+    final active = <(int, NotePosition)>[];
+    final slurs = [
+      for (final s in live)
+        if (s.$1.kind == SpannerKind.slur) s,
+    ]..sort((a, b) => _compare(a.$2, b.$2));
+    for (final (spanner, _, _) in live) {
+      if (spanner.kind == SpannerKind.tie) {
+        tieStarts.add(spanner.from);
+        tieStops.add(spanner.to);
+      }
+    }
+    for (final (spanner, from, to) in slurs) {
+      active.removeWhere((a) => _compare(a.$2, from) < 0);
+      var number = 1;
+      while (active.any((a) => a.$1 == number)) {
+        number++;
+      }
+      active.add((number, to));
+      this.slurs.putIfAbsent(spanner.from, () => []).add(('start', number));
+      this.slurs.putIfAbsent(spanner.to, () => []).add(('stop', number));
+    }
+  }
+
+  static int _compare(NotePosition a, NotePosition b) =>
+      a.part != b.part
+      ? a.part - b.part
+      : a.measure != b.measure
+      ? a.measure - b.measure
+      : a.symbol - b.symbol;
+
+  final tieStarts = <String>{};
+  final tieStops = <String>{};
+  final slurs = <String, List<(String, int)>>{};
 }

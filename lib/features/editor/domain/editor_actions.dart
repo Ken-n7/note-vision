@@ -12,6 +12,7 @@ import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/widgets/score_notation/staff_pitch_mapper.dart';
+import 'package:note_vision/core/services/notation_review_service.dart';
 import 'package:note_vision/core/services/score_timeline.dart';
 import 'package:note_vision/core/services/transposer.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
@@ -922,6 +923,166 @@ extension EditorActions on EditorState {
       ),
     ).copyWith(rangeAnchor: anchor);
   }
+
+  // ── Ties and slurs ───────────────────────────────────────────────────
+
+  /// The first note or rest after [from] in the same voice, in this or a
+  /// later bar, skipping chord tones of the chord at [from].
+  SymbolPosition? _nextInLane(SymbolPosition from) {
+    final measures = score.parts[selectedPartIndex!].measures;
+    final start = measures[from.measure].symbols[from.symbol];
+    final lane = ScoreTimelineBuilder.lane(start);
+    for (var m = from.measure; m < measures.length; m++) {
+      for (final (i, symbol) in measures[m].symbols.indexed) {
+        if (m == from.measure && i <= from.symbol) continue;
+        if (symbol is Note && symbol.isChordTone) continue;
+        if ((symbol is Note || symbol is Rest) &&
+            ScoreTimelineBuilder.lane(symbol) == lane) {
+          return (measure: m, symbol: i);
+        }
+      }
+    }
+    return null;
+  }
+
+  /// The note of the next chord in this voice with the selected note's
+  /// staff position.
+  Note? get _tieTarget {
+    final note = selectedSymbol;
+    if (!hasEditableSelection || note is! Note) return null;
+    final next = _nextInLane((
+      measure: selectedMeasureIndex!,
+      symbol: selectedSymbolIndex!,
+    ));
+    if (next == null) return null;
+    final symbols =
+        score.parts[selectedPartIndex!].measures[next.measure].symbols;
+    for (var i = next.symbol; i < symbols.length; i++) {
+      final candidate = symbols[i];
+      if (candidate is! Note || (i > next.symbol && !candidate.isChordTone)) {
+        break;
+      }
+      if ((candidate.step, candidate.octave) == (note.step, note.octave)) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  Spanner? _spannerFrom(SpannerKind kind, String? from) =>
+      score.spanners.where((s) => s.kind == kind && s.from == from).firstOrNull;
+
+  /// Why the selection cannot be tied, or null.
+  String? get tieUnavailableReason {
+    final note = selectedSymbol;
+    if (!hasEditableSelection || note is! Note) return 'Select a note';
+    if (hasRange) return 'Select a single note';
+    if (_spannerFrom(SpannerKind.tie, note.reviewId) != null) return null;
+    return _tieTarget?.reviewId == null
+        ? 'The next note in this voice is not the same pitch'
+        : null;
+  }
+
+  /// Ties the selected note to the next note of the same pitch in its voice,
+  /// or removes its tie (MuseScore's +).
+  EditorState toggleTie() {
+    if (tieUnavailableReason != null) return this;
+    final id = (selectedSymbol as Note).reviewId!;
+    final existing = _spannerFrom(SpannerKind.tie, id);
+    return _withSpanners([
+      for (final s in score.spanners)
+        if (s != existing) s,
+      if (existing == null) Spanner(SpannerKind.tie, id, _tieTarget!.reviewId!),
+    ]);
+  }
+
+  /// The notes a slur would join: the first and last notes of a range, or
+  /// the selected note and the next note in its voice.
+  (Note, Note)? get _slurEnds {
+    if (!hasEditableSelection) return null;
+    final symbols = score.parts[selectedPartIndex!].measures;
+    if (hasRange) {
+      final notes = [
+        for (final p in selectionPositions)
+          if (symbols[p.measure].symbols[p.symbol] case final Note n
+              when !n.isChordTone)
+            n,
+      ];
+      return notes.length < 2 ? null : (notes.first, notes.last);
+    }
+    final note = selectedSymbol;
+    if (note is! Note) return null;
+    final next = _nextInLane((
+      measure: selectedMeasureIndex!,
+      symbol: selectedSymbolIndex!,
+    ));
+    if (next == null) return null;
+    final target = symbols[next.measure].symbols[next.symbol];
+    return target is Note ? (note, target) : null;
+  }
+
+  String? get slurUnavailableReason {
+    final ends = _slurEnds;
+    if (ends == null) {
+      return hasRange
+          ? 'Select at least two notes'
+          : 'Select a note followed by another note in its voice';
+    }
+    return ends.$1.reviewId == null || ends.$2.reviewId == null
+        ? 'Save or edit the score once, then try again'
+        : null;
+  }
+
+  /// Slurs the selected range, or the selected note to the next note in its
+  /// voice; the same slur again removes it (MuseScore's S).
+  EditorState toggleSlur() {
+    if (slurUnavailableReason != null) return this;
+    final (from, to) = _slurEnds!;
+    final slur = Spanner(SpannerKind.slur, from.reviewId!, to.reviewId!);
+    return _withSpanners(
+      score.spanners.contains(slur)
+          ? [
+              for (final s in score.spanners)
+                if (s != slur) s,
+            ]
+          : [...score.spanners, slur],
+    );
+  }
+
+  /// Note input's +: writes the selected note's pitch again in [spec],
+  /// tied to it.
+  EditorState enterTiedNote(DurationSpec spec) {
+    final note = selectedSymbol;
+    if (!hasEditableSelection || note is! Note || note.reviewId == null) {
+      return this;
+    }
+    final tied = Note(
+      step: note.step,
+      octave: note.octave,
+      alter: note.alter,
+      duration: spec.divisions,
+      type: spec.type,
+      voice: note.voice,
+      staff: note.staff,
+      reviewId: NotationReviewService.newId(),
+    );
+    final next = _enterSymbol(tied);
+    if (identical(next, this)) return this;
+    return next.copyWith(
+      score: next.score.copyWith(
+        spanners: [
+          ...next.score.spanners,
+          Spanner(SpannerKind.tie, note.reviewId!, tied.reviewId!),
+        ],
+      ),
+    );
+  }
+
+  EditorState _withSpanners(List<Spanner> spanners) =>
+      _applySelectionPreservingEdit(
+        intent: EditorEditIntent.updateMeasureMetadata,
+        score: score.copyWith(spanners: spanners),
+      ).copyWith(rangeAnchor: rangeAnchor);
 
   // ── Staves and instruments ───────────────────────────────────────────
 

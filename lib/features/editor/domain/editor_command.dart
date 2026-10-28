@@ -39,6 +39,18 @@ enum EditorCommand {
     'Add a chord note a third above the selected note',
     'Alt + 3',
   ),
+  tie(
+    'Tie',
+    'Notation',
+    'Tie the selected note to the next note of the same pitch',
+    '+',
+  ),
+  slur(
+    'Slur',
+    'Notation',
+    'Slur the selected notes, or the selected note to the next',
+    'S',
+  ),
   selectAll(
     'Select all',
     'Selection',
@@ -92,6 +104,8 @@ enum EditorCommand {
           ? 'Select a bar with notes or rests'
           : null;
     }
+    if (this == tie) return state.tieUnavailableReason;
+    if (this == slur) return state.slurUnavailableReason;
     if (!state.hasEditableSymbolSelection) return 'Select a note or rest';
     if (state.hasRange) {
       // Pitch moves apply to the whole range, as in MuseScore Studio.
@@ -151,6 +165,8 @@ enum EditorCommand {
       noteToRest => state.convertSelectedNoteToRest(),
       restToNote => state.convertSelectedRestToNote(),
       addThird => state.addChordInterval(3),
+      tie => state.toggleTie(),
+      slur => state.toggleSlur(),
       selectAll => state.selectAllInPart(),
       selectBar => state.selectBar(),
       delete => state.deleteSelection(),

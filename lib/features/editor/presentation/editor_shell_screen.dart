@@ -2091,6 +2091,25 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       _updateState((s) => s.addChordInterval(interval));
       return KeyEventResult.handled;
     }
+    // MuseScore's +: tie (in note entry, a new tied note of the same pitch).
+    if (key == LogicalKeyboardKey.numpadAdd ||
+        key == LogicalKeyboardKey.add ||
+        (keyboard.isShiftPressed && key == LogicalKeyboardKey.equal)) {
+      if (_insertMode) {
+        final type = _insertSymbolType ?? PaletteSymbolType.quarterNote;
+        final spec = [
+          wholeDuration,
+          halfDuration,
+          quarterDuration,
+          eighthDuration,
+          sixteenthDuration,
+        ][type.index % 5];
+        _updateState((s) => s.enterTiedNote(spec));
+      } else {
+        _runEditorCommand(EditorCommand.tie);
+      }
+      return KeyEventResult.handled;
+    }
     if (keyboard.isShiftPressed &&
         !keyboard.isAltPressed &&
         (key == LogicalKeyboardKey.arrowLeft ||
@@ -2106,6 +2125,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     }
     if (keyboard.isAltPressed || keyboard.isShiftPressed) {
       return KeyEventResult.ignored;
+    }
+    if (key == LogicalKeyboardKey.keyS) {
+      _runEditorCommand(EditorCommand.slur);
+      return KeyEventResult.handled;
     }
     if (letter != null) {
       if (_insertMode) {
@@ -2466,6 +2489,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                               ) ==
                               null
                           ? () => _runEditorCommand(EditorCommand.addThird)
+                          : null,
+                      onTie: _editorState.tieUnavailableReason == null
+                          ? () => _runEditorCommand(EditorCommand.tie)
+                          : null,
+                      onSlur: _editorState.slurUnavailableReason == null
+                          ? () => _runEditorCommand(EditorCommand.slur)
                           : null,
                       rangeCount: _editorState.hasRange
                           ? _editorState.selectionPositions.length
@@ -4591,6 +4620,8 @@ class _InspectorPanel extends StatefulWidget {
     required this.onOctaveDown,
     required this.onConvertSymbol,
     required this.onAddThird,
+    required this.onTie,
+    required this.onSlur,
     required this.rangeCount,
     required this.extendMode,
     required this.onToggleExtend,
@@ -4640,6 +4671,7 @@ class _InspectorPanel extends StatefulWidget {
   final VoidCallback onMoveUp;
   final VoidCallback onMoveDown;
   final VoidCallback? onOctaveUp, onOctaveDown, onConvertSymbol, onAddThird;
+  final VoidCallback? onTie, onSlur;
 
   /// Symbols in a range selection; 0 without one.
   final int rangeCount;
@@ -5190,6 +5222,20 @@ class _InspectorPanelState extends State<_InspectorPanel> {
                 tooltip:
                     'Add a chord note a third above (Alt + 3; Shift + A–G adds a letter)',
                 onPressed: _wrapAction(widget.onAddThird),
+              ),
+              _ActionTile(
+                icon: Icons.link_rounded,
+                label: 'Tie',
+                tooltip:
+                    'Tie to the next note of the same pitch, or remove the tie (+)',
+                onPressed: _wrapAction(widget.onTie),
+              ),
+              _ActionTile(
+                icon: Icons.gesture_rounded,
+                label: 'Slur',
+                tooltip:
+                    'Slur the selected notes, or this note to the next (S)',
+                onPressed: _wrapAction(widget.onSlur),
               ),
             ],
           ),

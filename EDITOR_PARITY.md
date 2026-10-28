@@ -234,15 +234,14 @@ implement until its differences are gone.
 compares key signatures, pitches and written accidentals (`pitchFacts`).
 
 Initial gaps (2026-10-28): measure rests, pickups,
-cut/common symbols, final barlines, voltas, ties, slurs, tuplets, grace notes,
+cut/common symbols, final barlines, voltas, tuplets, grace notes,
 articulations, ornaments, dynamics, text, tempo, rehearsal marks, chord
 symbols, lyrics, the second staff's clef (the model has one clef per bar)
 and hidden gaps within a voice (`<forward>`; no invisible rests) are lost in
 the model's export. Fixed since: the exporter writes `<staves>` and
 `<backup>`/`<forward>` between voice/staff lanes, and the importer no longer
 invents composer "Unknown composer", and written accidentals are exported.
-Playback lacks tie merging,
-grace notes, repeats, articulation lengths, chord-symbol playback and
+Playback lacks grace notes, repeats, articulation lengths, chord-symbol playback and
 instruments. Rhythm, pitch, beams, chords, meters and key handling match.
 
 ## Stage 3A — keyboard note input and chords
@@ -389,8 +388,34 @@ it. Playback threw a RangeError on every frame in empty bars (playhead with
 symbol -1, a Stage 3D regression); fixed in `ecc0a6b` with a test, and
 release 2004 played the same project with no errors. No iOS device test.
 
-Next: Stage 4 — notation and engraving (ties, slurs, tuplets, articulations,
-dynamics, lyrics, repeats, shared layout), starting from the parity gaps. (range selection and clipboard), 3D
+## Stage 4A — ties and slurs
+
+- `Score.spanners` holds ties and slurs as MuseScore spanners: kind plus the
+  review IDs of the first and last note. Review IDs survive note rebuilds,
+  undo and saving, so no note rebuild can drop them; a spanner whose notes
+  are gone is ignored (and returns with undo). `SpannerIndex` finds the live
+  ones (same part, in order; a tie also needs the same staff position).
+  Spanners are part of `notationProjection`.
+- Import: slurs pair by `number` within a `<part>`; a tie joins the next note
+  in the same voice with the same pitch that ends a tie. Export writes
+  `<tie>`, `<tied>` and numbered `<slur>`s (overlapping slurs get different
+  numbers). A spanner change makes an imported file unpatchable, so it is
+  rebuilt from the model (simple files) or refused with an explanation
+  (complex files) instead of silently losing the change.
+- Playback: a tied chain sounds once, held to the end of its last note.
+- Editor: + ties the selected note to the next note of the same pitch in its
+  voice (or unties); in note entry + writes a tied note of the same pitch.
+  S slurs a range, or the selected note to the next note in its voice; the
+  same slur again removes it. Edit dock Tie and Slur tiles, search commands.
+- Drawing (editor and PDF): thin crescents on the side away from the stems;
+  across a line break each half is drawn open at the row edge.
+- Parity: `05_ties_slurs` now matches MuseScore in notation (15/15) and
+  playback (9/9).
+- Not yet: copying ties/slurs with copy/paste, ties for every note of a
+  selected chord at once, slur shape around high notes in between, laissez
+  vibrer and cross-staff slurs.
+
+Next: Stage 4B — tuplets, then articulations, dynamics, lyrics and repeats. (range selection and clipboard), 3D
 (voices), 3E (instrument/staff management) on the Stage 2B timeline. Retained-source
 rhythm export, global timewise measure slots and richer editable notation still
 need work. Range/clipboard and advanced notation should build on this timeline

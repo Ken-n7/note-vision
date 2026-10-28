@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show setEquals;
 import 'dart:convert';
 
 import 'package:xml/xml.dart';
@@ -191,6 +192,10 @@ class MusicXmlPreservingExporter {
   }
 
   bool _canPatch(Score before, Score after) {
+    // Ties and slurs are not patched into the source yet.
+    if (!setEquals(before.spanners.toSet(), after.spanners.toSet())) {
+      return false;
+    }
     if (before.parts.length != after.parts.length) return false;
     for (var p = 0; p < before.parts.length; p++) {
       final oldPart = before.parts[p], part = after.parts[p];

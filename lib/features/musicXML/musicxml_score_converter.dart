@@ -15,6 +15,8 @@ import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/services/accidentals.dart';
 import 'package:note_vision/core/services/notation_review_service.dart';
+import 'package:note_vision/core/services/score_timeline.dart';
+import 'package:note_vision/core/services/spanners.dart';
 import 'package:xml/xml.dart';
 
 import 'musicxml_source_reader.dart';
@@ -84,10 +86,13 @@ class MusicXmlScoreConverter {
         }
       }
     }
-    return score.copyWith(
+    final notated = score.copyWith(
+      spanners: _readSpanners(root, score, bindings),
+    );
+    return notated.copyWith(
       musicXmlSource: MusicXmlSource(
         xml: document.toXmlString(),
-        baselineJson: jsonEncode(score.notationProjection()),
+        baselineJson: jsonEncode(notated.notationProjection()),
         bindings: bindings,
         events: events,
         requiresPreservation:
@@ -103,6 +108,80 @@ class MusicXmlScoreConverter {
             ),
       ),
     );
+  }
+
+  /// Ties and slurs between imported notes. Slurs pair by `number` within a
+  /// `<part>`; a tie joins the next note in the same voice with the same
+  /// pitch that ends a tie.
+  List<Spanner> _readSpanners(
+    XmlElement root,
+    Score score,
+    List<MusicXmlSymbolBinding> bindings,
+  ) {
+    final ids = {
+      for (final b in bindings) (b.partId, b.measureIndex, b.noteIndex): b.symbolId,
+    };
+    bool tie(XmlElement note, String type) =>
+        note.findElements('tie').any((t) => t.getAttribute('type') == type) ||
+        note
+            .findElements('notations')
+            .expand((n) => n.findElements('tied'))
+            .any((t) => t.getAttribute('type') == type);
+    final spanners = <Spanner>[];
+    final tieStarts = <String>[];
+    final tieStops = <String>{};
+    for (final MapEntry(key: partId, value: measures)
+        in musicXmlSourceParts(root).entries) {
+      final open = <String, String>{};
+      for (final (m, measure) in measures.indexed) {
+        for (final (n, note) in measure.findElements('note').indexed) {
+          final id = ids[(partId, m, n)];
+          if (id == null) continue;
+          if (tie(note, 'start')) tieStarts.add(id);
+          if (tie(note, 'stop')) tieStops.add(id);
+          final slurs = note
+              .findElements('notations')
+              .expand((x) => x.findElements('slur'))
+              .toList();
+          // A note can end one slur and start the next.
+          for (final type in ['stop', 'start']) {
+            for (final slur in slurs) {
+              if (slur.getAttribute('type') != type) continue;
+              final number = slur.getAttribute('number') ?? '1';
+              if (type == 'start') {
+                open[number] = id;
+              } else if (open.remove(number) case final start?
+                  when start != id) {
+                spanners.add(Spanner(SpannerKind.slur, start, id));
+              }
+            }
+          }
+        }
+      }
+    }
+    final index = SpannerIndex(score);
+    for (final id in tieStarts) {
+      final from = index.notes[id]!;
+      final start = index.noteAt(from);
+      final lane = ScoreTimelineBuilder.lane(start);
+      final measures = score.parts[from.part].measures;
+      String? target;
+      search:
+      for (var m = from.measure; m < measures.length; m++) {
+        for (final (i, symbol) in measures[m].symbols.indexed) {
+          if (m == from.measure && i <= from.symbol) continue;
+          if (symbol is Note &&
+              tieStops.contains(symbol.reviewId) &&
+              ScoreTimelineBuilder.lane(symbol) == lane &&
+              (symbol.step, symbol.octave) == (start.step, start.octave)) {
+            target = symbol.reviewId;
+            break search;
+          }
+        }
+      }
+      if (target != null) spanners.add(Spanner(SpannerKind.tie, id, target));
+    }
+    return spanners;
   }
 
   /// A part written on several staves (a piano) becomes one linked part per
