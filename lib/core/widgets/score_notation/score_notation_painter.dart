@@ -18,6 +18,7 @@ import 'mark_glyphs.dart';
 import 'staff_pitch_mapper.dart';
 import 'voice_layout.dart';
 import 'lyric_layout.dart';
+import 'annotation_layout.dart';
 
 class ScoreNotationPainter extends CustomPainter {
   const ScoreNotationPainter({
@@ -118,6 +119,7 @@ class ScoreNotationPainter extends CustomPainter {
       _drawRow(canvas, row);
     }
     _drawLyrics(canvas, metrics);
+    _drawAnnotations(canvas, metrics);
     if (spanners.isNotEmpty) _drawSpanners(canvas);
     if (parts.length > 1) _drawSystemConnectors(canvas, metrics);
     if (joinedParts.isNotEmpty) _drawGrandStaves(canvas, metrics);
@@ -180,6 +182,98 @@ class ScoreNotationPainter extends CustomPainter {
         );
       }
     }
+  }
+
+  void _drawAnnotations(Canvas canvas, List<_RowMetrics> rows) {
+    final all = lyricParts ?? parts;
+    for (final row in rows) {
+      for (final (i, m) in row.measures.indexed) {
+        final absolute = row.globalStartMeasureIndex + i;
+        final texts = AnnotationLayout.build(
+          parts: all,
+          part: row.partIndex,
+          measure: absolute + (lyricParts == null ? 0 : firstMeasureIndex),
+          visible: m,
+          startX: row.contentStartX + i * minMeasureWidth,
+          width: minMeasureWidth,
+          staffTop: row.staffTop,
+          staffBottom: row.staffBottom,
+          inset: row.laneInset(i),
+          lyricAbove: LyricLayout.aboveHeight(all),
+        );
+        for (final t in texts) {
+          final painter = _lyricText(t.annotation.label);
+          final baseline = painter.computeDistanceToActualBaseline(
+            TextBaseline.alphabetic,
+          );
+          if (t.annotation.kind == AnnotationKind.rehearsal) {
+            canvas.drawRect(
+              Rect.fromLTWH(
+                t.x - 4,
+                t.y - baseline - 3,
+                painter.width + 8,
+                painter.height + 6,
+              ),
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1
+                ..color = const Color(0xFF111827),
+            );
+          }
+          painter.paint(canvas, Offset(t.x, t.y - baseline));
+        }
+      }
+    }
+  }
+
+  static List<(int, int, int, Rect)> buildAnnotationTargets({
+    required List<List<Measure>> parts,
+    required List<List<Measure>> allParts,
+    required int firstMeasureIndex,
+    required int measuresPerRow,
+    required double minMeasureWidth,
+    required double rowHeight,
+    required EdgeInsets padding,
+    required double rowPrefixWidth,
+  }) {
+    final rows = _buildRowMetricsStatic(
+      parts: parts,
+      measuresPerRow: measuresPerRow,
+      minMeasureWidth: minMeasureWidth,
+      rowHeight: rowHeight,
+      padding: padding,
+      rowPrefixWidth: rowPrefixWidth,
+    );
+    return [
+      for (final row in rows)
+        for (final (i, m) in row.measures.indexed)
+          for (final t in AnnotationLayout.build(
+            parts: allParts,
+            part: row.partIndex,
+            measure: firstMeasureIndex + row.globalStartMeasureIndex + i,
+            visible: m,
+            startX: row.contentStartX + i * minMeasureWidth,
+            width: minMeasureWidth,
+            staffTop: row.staffTop,
+            staffBottom: row.staffBottom,
+            inset: row.laneInset(i),
+            lyricAbove: LyricLayout.aboveHeight(allParts),
+          ))
+            (
+              t.owner,
+              row.globalStartMeasureIndex + i,
+              t.index,
+              Rect.fromLTWH(
+                t.x,
+                t.y -
+                    _lyricText(
+                      t.annotation.label,
+                    ).computeDistanceToActualBaseline(TextBaseline.alphabetic),
+                _lyricText(t.annotation.label).width,
+                _lyricText(t.annotation.label).height,
+              ).inflate(4),
+            ),
+    ];
   }
 
   List<_RowMetrics> _buildRowMetrics() {

@@ -12,6 +12,7 @@ import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/widgets/score_notation/mark_glyphs.dart';
 import 'package:note_vision/core/widgets/score_notation/lyric_layout.dart';
+import 'package:note_vision/core/widgets/score_notation/annotation_layout.dart';
 import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart'
     show endingAt;
 import 'package:note_vision/core/widgets/score_notation/score_notation_metrics.dart';
@@ -174,7 +175,11 @@ class PdfScoreRenderer {
     final partCount = score.parts.length;
     final rowsPerPage = _rowsPerPageForPartCount(
       partCount,
-      extraHeight: LyricLayout.extraHeight(score.parts.map((p) => p.measures)),
+      extraHeight:
+          (LyricLayout.extraHeight(score.parts.map((p) => p.measures)) +
+          AnnotationLayout.extraHeight(
+            score.parts.map((p) => p.measures).toList(),
+          )),
     );
     final referenceMeasures = score.parts.isEmpty
         ? const <Measure>[]
@@ -321,8 +326,15 @@ class PdfScoreRenderer {
 
     final rowHeight =
         _editorRowH +
-        LyricLayout.extraHeight(score.parts.map((p) => p.measures));
-    final above = LyricLayout.aboveHeight(score.parts.map((p) => p.measures));
+        (LyricLayout.extraHeight(score.parts.map((p) => p.measures)) +
+            AnnotationLayout.extraHeight(
+              score.parts.map((p) => p.measures).toList(),
+            ));
+    final above =
+        LyricLayout.aboveHeight(score.parts.map((p) => p.measures)) +
+        AnnotationLayout.aboveHeight(
+          score.parts.map((p) => p.measures).toList(),
+        );
     final notePoints = <String, _PdfNotePoint>{};
     for (var s = 0; s < systemCount; s++) {
       final startM = s * page.measuresPerSystem;
@@ -363,6 +375,56 @@ class PdfScoreRenderer {
           topStaff: pi == 0,
           notePoints: notePoints,
         );
+        for (final (i, m) in rowMeasures.indexed) {
+          final annotationTexts = AnnotationLayout.build(
+            parts: score.parts.map((p) => p.measures).toList(),
+            part: pi,
+            measure: page.firstMeasureIndex + startM + i,
+            visible: m,
+            startX: _editorPadX + _editorPrefixW + i * _mw / _scale,
+            width: _mw / _scale,
+            staffTop: 0,
+            staffBottom: _staffH / _scale,
+            inset: ScoreNotationMetrics.laneInset(
+              timeInMeasure: ScoreNotationMetrics.timeSignatureInMeasure(
+                partMeasures,
+                startM + i,
+                measureInRow: i,
+                rowPrefixWidth: _editorPrefixW,
+              ),
+            ),
+            lyricAbove: LyricLayout.aboveHeight(
+              score.parts.map((p) => p.measures),
+            ),
+          );
+          for (final t in annotationTexts) {
+            final x = _pageX0 + t.x * _scale, y = staffTop - t.y * _scale;
+            _text(
+              g,
+              font,
+              AnnotationLayout.fontSize * _scale,
+              t.annotation.label,
+              x,
+              y,
+            );
+            if (t.annotation.kind == AnnotationKind.rehearsal) {
+              final w =
+                  font.stringMetrics(t.annotation.label).width *
+                  AnnotationLayout.fontSize *
+                  _scale;
+              g
+                ..setColor(_ink)
+                ..setLineWidth(_scale)
+                ..drawRect(
+                  x - 4 * _scale,
+                  y - 4 * _scale,
+                  w + 8 * _scale,
+                  20 * _scale,
+                )
+                ..strokePath();
+            }
+          }
+        }
         final lyricDrawing = LyricLayout.build(
           notes: LyricLayout.anchors(
             measures: score.parts[pi].measures,

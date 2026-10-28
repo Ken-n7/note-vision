@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/widgets/score_notation/lyric_layout.dart';
+import 'package:note_vision/core/widgets/score_notation/annotation_layout.dart';
 
 class EditorLayoutPolicy {
   const EditorLayoutPolicy({
@@ -25,9 +26,11 @@ class EditorLayoutPolicy {
   factory EditorLayoutPolicy.forScore(Score score) =>
       EditorLayoutPolicy.forPartCount(
         score.parts.length,
-        extraHeight: LyricLayout.extraHeight(
-          score.parts.map((p) => p.measures),
-        ),
+        extraHeight:
+            LyricLayout.extraHeight(score.parts.map((p) => p.measures)) +
+            AnnotationLayout.extraHeight(
+              score.parts.map((p) => p.measures).toList(),
+            ),
       );
 
   factory EditorLayoutPolicy.forPartCount(

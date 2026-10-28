@@ -12,6 +12,7 @@ import '../models/score.dart';
 import '../models/time_signature.dart';
 import 'score_notation/notation_layout.dart';
 import 'score_notation/lyric_layout.dart';
+import 'score_notation/annotation_layout.dart';
 import 'score_notation/score_notation_metrics.dart';
 import 'score_notation/score_notation_painter.dart';
 import 'score_notation/staff_pitch_mapper.dart';
@@ -129,6 +130,7 @@ class ScoreNotationViewer extends StatefulWidget {
     this.issueMarks = const {},
     this.insertMode = false,
     this.onSymbolTap,
+    this.onAnnotationTap,
     this.onMeasureTap,
     this.onInsertTap,
     this.onDragStarted,
@@ -142,6 +144,7 @@ class ScoreNotationViewer extends StatefulWidget {
   });
 
   final Score? score;
+  final void Function(int part, int measure, int index)? onAnnotationTap;
   final int selectedPartIndex;
   final int measuresPerRow;
   final double minMeasureWidth;
@@ -206,26 +209,26 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   NotationInsertTarget? _externalInsertTarget;
   NotationPreviewGlyph? _externalPreviewGlyph;
 
+  List<List<Measure>> get _allParts =>
+      (widget.score?.parts ?? const <Part>[]).map((p) => p.measures).toList();
   double get _rowHeight {
-    final parts = (widget.score?.parts ?? const <Part>[]).map(
-      (p) => p.measures,
-    );
-    if (!parts
+    final parts = _allParts;
+    final extra =
+        LyricLayout.extraHeight(parts) + AnnotationLayout.extraHeight(parts);
+    final hasLyrics = parts
         .expand((p) => p)
-        .expand((m) => m.symbols)
-        .whereType<Note>()
-        .any((n) => n.lyrics.any((l) => !l.hidden))) {
-      return widget.rowHeight;
-    }
-    return math.max(widget.rowHeight, 140 + LyricLayout.extraHeight(parts));
+        .expand((m) => m.notes)
+        .any((n) => n.lyrics.any((l) => !l.hidden));
+    return extra == 0 && !hasLyrics
+        ? widget.rowHeight
+        : math.max(widget.rowHeight, 140 + extra);
   }
 
   EdgeInsets get _padding => widget.padding.copyWith(
     top:
         widget.padding.top +
-        LyricLayout.aboveHeight(
-          (widget.score?.parts ?? const <Part>[]).map((p) => p.measures),
-        ),
+        LyricLayout.aboveHeight(_allParts) +
+        AnnotationLayout.aboveHeight(_allParts),
   );
 
   @override
@@ -302,7 +305,8 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
       onTapUp:
           (widget.onSymbolTap == null &&
               widget.onMeasureTap == null &&
-              widget.onInsertTap == null)
+              widget.onInsertTap == null &&
+              widget.onAnnotationTap == null)
           ? null
           : (position) {
               if (widget.insertMode) {
@@ -313,6 +317,25 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
                 );
                 widget.onInsertTap?.call(target);
               } else {
+                if (widget.onAnnotationTap != null) {
+                  final hits = ScoreNotationPainter.buildAnnotationTargets(
+                    parts: allParts,
+                    allParts: _allParts,
+                    firstMeasureIndex: widget.firstMeasureIndex,
+                    measuresPerRow: layout.measuresPerRow,
+                    minMeasureWidth: widget.minMeasureWidth,
+                    rowHeight: _rowHeight,
+                    padding: _padding,
+                    rowPrefixWidth: layout.rowPrefixWidth,
+                  );
+                  final hit = hits
+                      .where((h) => h.$4.contains(position))
+                      .firstOrNull;
+                  if (hit != null) {
+                    widget.onAnnotationTap!(hit.$1, hit.$2, hit.$3);
+                    return;
+                  }
+                }
                 final targets = ScoreNotationPainter.buildSymbolTargets(
                   parts: allParts,
                   measuresPerRow: layout.measuresPerRow,

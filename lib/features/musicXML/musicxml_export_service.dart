@@ -20,6 +20,8 @@ import 'package:note_vision/core/services/spanners.dart';
 import 'package:xml/xml.dart';
 import 'musicxml_preserving_exporter.dart';
 import 'musicxml_lyrics.dart';
+import 'musicxml_annotations.dart';
+import '../../core/models/musical_time.dart';
 
 /// Converts a [Score] to a valid MusicXML 3.1 string and saves it to a
 /// user-chosen location via the system file picker.
@@ -41,15 +43,19 @@ class MusicXmlExportService {
   // Public API
   // ---------------------------------------------------------------------------
 
-  /// Returns a valid MusicXML 3.1 string for the given [score].
+  /// Returns MusicXML 3.1, or 4.0 for system directions and 4.0 sources.
   /// Pure function — no I/O, fully unit-testable.
   String toMusicXml(Score score) {
     final preserved = const MusicXmlPreservingExporter().export(score);
     if (preserved != null) return preserved;
+    // System directions were added in MusicXML 4.0. Keep the version honest
+    // when writing them, and when rebuilding an imported 4.0 document.
+    final version=score.parts.any((p)=>p.measures.any((m)=>m.annotations.any((a)=>a.system))) ||
+      (score.musicXmlSource!=null && XmlDocument.parse(score.musicXmlSource!.xml).rootElement.getAttribute('version')=='4.0') ? '4.0':'3.1';
     final builder = XmlBuilder();
     builder.element(
       'score-partwise',
-      attributes: {'version': '3.1'},
+      attributes: {'version': version},
       nest: () {
         _buildWork(builder, score);
         _buildIdentification(builder, score);
@@ -63,7 +69,7 @@ class MusicXmlExportService {
     );
 
     final body = builder.buildDocument().toXmlString(pretty: true, indent: '  ');
-    return _xmlHeader + body;
+    return _xmlHeader.replaceAll('3.1', version) + body;
   }
 
   /// Opens the system save dialog so the user picks a location, then writes
@@ -321,6 +327,14 @@ class MusicXmlExportService {
           }
         }
 
+        for(final (k,m) in staffMeasures.indexed) {
+          for(final a in m.annotations) {
+            b.xml(MusicXmlAnnotations.write(a,
+              cursor: MusicalTime(cursor, marks.divisions),
+              divisions: MusicalTime(marks.divisions),
+              staff: staves > 1 ? k + 1 : a.staff).toXmlString());
+          }
+        }
         _buildNavigation(b, measure, atEnd: true);
         if (measure.rightBarlineType != null || measure.endingEnd != null) {
           _buildBarline(
@@ -598,10 +612,11 @@ class _Marks {
           MusicXmlExportService.divisionsPerQuarter *
           [
             for (final p in score.parts)
-              for (final m in p.measures)
+              for (final m in p.measures) ...[
+                for (final a in m.annotations) a.offset.denominator,
                 for (final s in m.symbols)
-                  if (s case Note(:final tuplet?) || Rest(:final tuplet?))
-                    tuplet.actual,
+                  if (s case Note(:final tuplet?) || Rest(:final tuplet?)) tuplet.actual,
+              ],
           ].fold(1, (a, b) => a * b ~/ a.gcd(b)) {
     final live = SpannerIndex(score).live;
     // Overlapping slurs need different numbers; a number is free again once

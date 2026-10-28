@@ -3,6 +3,7 @@ import 'package:xml/xml.dart';
 import '../../core/models/musical_time.dart';
 import '../../core/models/musicxml_source.dart';
 import '../../core/models/note_beam.dart';
+import 'musicxml_annotations.dart';
 
 /// The same part-local source addressing works for partwise and timewise files.
 Map<String, List<XmlElement>> musicXmlSourceParts(XmlElement root) {
@@ -193,6 +194,35 @@ class MusicXmlSourceReader {
                 .where((e) => e.name.local == 'lyric')
                 .firstOrNull;
       if (lyric?.parentElement?.getElement('pitch') != null) continue;
+      final owner = {'direction', 'harmony'}.contains(name)
+          ? element
+          : element.ancestors
+                .whereType<XmlElement>()
+                .where((e) => {'direction', 'harmony'}.contains(e.name.local))
+                .firstOrNull;
+      if (owner != null &&
+          MusicXmlAnnotations.read(owner, MusicalTime.zero, 0) != null &&
+          (owner.name.local == 'harmony' ||
+              (owner
+                      .findElements('direction-type')
+                      .expand((t) => t.childElements)
+                      .every(
+                        (t) => {
+                          'words',
+                          'metronome',
+                          'rehearsal',
+                        }.contains(t.name.local),
+                      ) &&
+                  (owner
+                          .getElement('sound')
+                          ?.attributes
+                          .every((a) => a.name.local == 'tempo') ??
+                      true) &&
+                  (owner.getElement('sound')?.childElements.isEmpty ??
+                      true)))) {
+        // The complete original element is retained by the annotation model.
+        continue;
+      }
       if (!modeled.contains(name)) return true;
       if (name == 'attributes' &&
           (element.findElements('clef').length > 1 ||

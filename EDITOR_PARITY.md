@@ -579,7 +579,71 @@ release 2004 played the same project with no errors. No iOS device test.
   [MusicXML lyric](https://www.w3.org/2021/06/musicxml40/musicxml-reference/elements/lyric/)
   and [extension types](https://www.w3.org/2021/06/musicxml40/musicxml-reference/elements/extend/).
 
-Next: Stage 4F — text, tempo and chord symbols. Retained-source rhythm export,
+## Stage 4F — text, tempo and chord symbols
+
+- `Measure.annotations` contains beat-attached `ScoreAnnotation` values for
+  staff/system text, rehearsal marks, tempo and chord symbols. Offsets are exact
+  quarter-note ratios and remain independent of notes, including in empty bars.
+  JSON is additive; measure copies and ordinary edits keep annotations.
+- MusicXML import follows the source cursor, divisions, backup/forward and
+  offsets, including split grand staves. Complete original direction/harmony
+  XML is retained. Editing/removing a marking patches its source element without
+  deleting a dynamic, pedal or other direction sharing it. Simple fully modeled
+  text/harmony files can rebuild after rhythm edits. Offsets unrepresentable in
+  a complex source's original divisions fail explicitly; project saving retains
+  the exact value. Generated exports raise divisions for rational offsets.
+- System directions use **MusicXML 4.0**; generated plain notation remains 3.1,
+  and rebuilding a 4.0 source keeps version 4.0. This avoids claiming 3.1 while
+  writing the 4.0 `system` attribute.
+- Editor: Edit → Text & tempo, searchable commands, Ctrl/Cmd+Alt+T (tempo)
+  and Ctrl/Cmd+Alt+K (chords; Ctrl/Cmd+K stays command search). The draft panel
+  lists the bar's markings, with add/edit/remove, beat, text, beat unit/dots/BPM
+  and chord entry. Shortcuts edit an existing marking at that beat. Apply is
+  one undo step; Cancel/dismissal does nothing. No-op Apply, pending edits when
+  deleting another marking, selection and playback/review/stale-score locks
+  are covered. Beat numbers follow the active meter's denominator.
+- `AnnotationLayout` shares screen/PDF placement and annotation hit targets.
+  System markings route to the top staff; clicking opens their original owner.
+  Rehearsal marks are boxed; separate text lanes reserve vertical room and use
+  matching editor/PDF pagination. Header export remains available for bars with
+  annotations alone.
+- `TempoMap` integrates written quarter-note BPM over musical time, including
+  changes inside held notes, dotted/other beat units, repeats/jumps, shared
+  ensemble tempo and scanned-line reading order. Scheduler boundaries, scrubber
+  durations and seeking use the same map. With written tempos, transport shows
+  **100%** at its old 120 setting and adjusts relative speed without changing
+  the score; unmarked scores keep the existing BPM control.
+- `ChordSymbol` parses common major/minor, seventh, sixth, ninth, suspended,
+  diminished/augmented/power chords, accidentals and slash basses; `N.C.` stops
+  the previous chord. Supported kinds realize piano bass/chord voicings until
+  the next harmony or bar end, without taking over note highlights. Transpose
+  moves roots and slash basses along with notes (range edits match selected
+  onsets). Unsupported kinds/degrees retain their XML and are not guessed for
+  accompaniment.
+- MuseScore Studio 4.7.5: `12_text_chord_symbols` now matches **21/21 notation
+  facts** and **51/51 playback facts**. All 28 comparison/transposition cases
+  pass. Scheduler tests also check actual elapsed time through a mid-note
+  tempo change and the end of a review passage with later tempo changes.
+- Verification: **849 passed** with `flutter test --no-pub --concurrency=2
+  --reporter expanded`; `flutter analyze --no-pub` reports **no issues**;
+  `git diff --check` clean. This is automated/widget verification.
+- Visual inspection: phone, 320px/2× text, landscape and tablet entry panels;
+  PDF inspected visually and with text extraction. Regenerate with
+  `NV_EDITOR_SCREENSHOTS=/tmp/note-vision-4f flutter test --no-pub
+  test/features/editor/presentation/annotations_test.dart
+  test/features/pdf/annotations_test.dart`. No new on-device release was tested.
+- Not yet: inline editing, annotation-only clipboard, rich text styles,
+  proportional spacing/collision avoidance, note-glyph metronome engraving
+  (beat units are readable names), metric modulations/tempo ramps, standalone
+  measure `<sound>` tempo editing, Roman/Nashville/microtonal/polychord entry,
+  altered-degree accompaniment or configurable voicings/instruments. These
+  unsupported imported elements remain in retained source.
+- References: [MuseScore tempo](https://handbook.musescore.org/text/tempo-markings),
+  [chord symbols](https://handbook.musescore.org/text/chord-symbols),
+  [MusicXML directions](https://www.w3.org/2021/06/musicxml40/musicxml-reference/elements/direction/)
+  and [harmonies](https://www.w3.org/2021/06/musicxml40/musicxml-reference/elements/harmony/).
+
+Next: Stage 4H — engraving/layout (proportional spacing and collisions), then
+Stage 5 playback/polish. Retained-source rhythm export for complex documents,
 global timewise measure slots and richer editable notation still need work;
-advanced notation should build on the Stage 2B timeline rather than adding more
-flat-list rules.
+continue using the Stage 2B timeline rather than adding flat-list timing rules.

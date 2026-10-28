@@ -22,6 +22,7 @@ import 'package:xml/xml.dart';
 
 import 'musicxml_source_reader.dart';
 import 'musicxml_lyrics.dart';
+import 'musicxml_annotations.dart';
 
 /// Converts a validated MusicXML document into internal score models.
 class MusicXmlScoreConverter {
@@ -315,6 +316,10 @@ class MusicXmlScoreConverter {
             m.copyWith(
               clef: i < elements.length ? _staffClef(elements[i], staff) : null,
               symbols: [for (final k in keep) m.symbols[k]],
+              annotations: [
+                for (final a in m.annotations)
+                  if (a.staff == staff) a,
+              ],
             ),
           );
         }
@@ -495,6 +500,10 @@ class MusicXmlScoreConverter {
     final leftBarlineType = _buildBarlineType(measureElement, 'left');
     final rightBarlineType = _buildBarlineType(measureElement, 'right');
 
+    final annotations = MusicXmlAnnotations.readMeasure(
+      measureElement,
+      divisionsPerQuarter,
+    );
     final symbols = <ScoreSymbol>[];
 
     var noteIndex = 0;
@@ -535,6 +544,7 @@ class MusicXmlScoreConverter {
       endingStart: _endingStart(measureElement),
       endingEnd: _endingEnd(measureElement),
       navigation: _navigation(measureElement),
+      annotations: annotations,
     );
   }
 

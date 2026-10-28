@@ -8,6 +8,8 @@ import '../models/musical_time.dart';
 import 'accidentals.dart';
 import 'score_timeline.dart';
 import 'spanners.dart';
+import 'tempo_map.dart';
+import '../models/score_annotation.dart';
 
 // ---------------------------------------------------------------------------
 // PlaybackEvent
@@ -22,6 +24,7 @@ class PlaybackEvent {
     required this.midiNote,
     required this.baseDurationMs,
     this.isChordTone = false,
+    this.isHarmony = false,
     this.baseOnsetMs = 0,
     this.baseMeasureOnsetMs = 0,
     this.baseMeasureDurationMs = 0,
@@ -42,6 +45,7 @@ class PlaybackEvent {
   /// Scale by `defaultTempo / actualTempo` to get real duration.
   final int baseDurationMs;
   final bool isChordTone;
+  final bool isHarmony;
   final int baseOnsetMs, baseMeasureOnsetMs, baseMeasureDurationMs;
   int get baseEndMs => baseOnsetMs + baseDurationMs;
 
@@ -59,7 +63,8 @@ class PlaybackEvent {
       other.baseOnsetMs == baseOnsetMs &&
       other.baseMeasureOnsetMs == baseMeasureOnsetMs &&
       other.baseMeasureDurationMs == baseMeasureDurationMs &&
-      other.velocity == velocity;
+      other.velocity == velocity &&
+      other.isHarmony == isHarmony;
 
   @override
   int get hashCode => Object.hash(
@@ -73,6 +78,7 @@ class PlaybackEvent {
     baseMeasureOnsetMs,
     baseMeasureDurationMs,
     velocity,
+    isHarmony,
   );
 
   @override
@@ -253,6 +259,7 @@ class PlaybackConverter {
     _mergeTies(score, events);
     _applyDynamics(score, events);
     _applyMarks(score, events);
+    _addHarmonies(score, timeline, events);
     events.sort((a, b) {
       final time = a.baseOnsetMs.compareTo(b.baseOnsetMs);
       if (time != 0) return time;
@@ -261,7 +268,67 @@ class PlaybackConverter {
       final measure = a.measureIndex.compareTo(b.measureIndex);
       return measure != 0 ? measure : a.symbolIndex.compareTo(b.symbolIndex);
     });
-    return PlaybackPlan(events: List.unmodifiable(events), timeline: timeline);
+    return PlaybackPlan(
+      events: List.unmodifiable(events),
+      timeline: timeline,
+      tempoMap: TempoMap.forScore(score, timeline),
+    );
+  }
+
+  void _addHarmonies(
+    Score score,
+    ScoreTimeline timeline,
+    List<PlaybackEvent> events,
+  ) {
+    final notes = List<PlaybackEvent>.of(events);
+    for (final m in timeline.measures) {
+      final chords =
+          score.parts[m.partIndex].measures[m.measureIndex].annotations
+              .where((a) => a.kind == AnnotationKind.chord && a.chord != null)
+              .toList()
+            ..sort((a, b) => a.offset.compareTo(b.offset));
+      for (final (i, a) in chords.indexed) {
+        if (a.offset.isNegative || a.offset.compareTo(m.duration) >= 0) {
+          continue;
+        }
+        final next = chords
+            .skip(i + 1)
+            .where((v) => v.staff == a.staff)
+            .firstOrNull;
+        final end = next != null && next.offset.compareTo(m.duration) < 0
+            ? next.offset
+            : m.duration;
+        final start = baseMilliseconds(m.onset + a.offset),
+            stop = baseMilliseconds(m.onset + end);
+        final nearest = notes
+            .where(
+              (e) =>
+                  e.partIndex == m.partIndex &&
+                  e.measureIndex == m.measureIndex &&
+                  e.baseOnsetMs <= start,
+            )
+            .lastOrNull;
+        // Chord degrees/altered voicings outside the supported kind table stay
+        // visible and round-trip, but are not guessed for accompaniment.
+        if (a.sourceXml?.contains('<degree') ?? false) continue;
+        for (final key in a.chord!.midiNotes) {
+          events.add(
+            PlaybackEvent(
+              partIndex: m.partIndex,
+              measureIndex: m.measureIndex,
+              symbolIndex: nearest?.symbolIndex ?? -1,
+              midiNote: key,
+              baseDurationMs: stop - start,
+              baseOnsetMs: start,
+              isHarmony: true,
+              velocity: nearest?.velocity ?? defaultVelocity,
+              baseMeasureOnsetMs: baseMilliseconds(m.onset),
+              baseMeasureDurationMs: baseMilliseconds(m.duration),
+            ),
+          );
+        }
+      }
+    }
   }
 
   /// Velocities from dynamics and hairpins, per staff, as MuseScore Studio
@@ -476,6 +543,7 @@ class PlaybackConverter {
     midiNote: midiNote ?? e.midiNote,
     baseDurationMs: durationMs ?? e.baseDurationMs,
     isChordTone: e.isChordTone,
+    isHarmony: e.isHarmony,
     baseOnsetMs: onsetMs ?? e.baseOnsetMs,
     velocity: velocity ?? e.velocity,
     baseMeasureOnsetMs: e.baseMeasureOnsetMs,
@@ -493,8 +561,18 @@ class PlaybackConverter {
 }
 
 class PlaybackPlan {
-  const PlaybackPlan({required this.events, required this.timeline});
+  const PlaybackPlan({
+    required this.events,
+    required this.timeline,
+    this.tempoMap = const TempoMap(),
+  });
+  final TempoMap tempoMap;
+  int elapsedMs(int from, int to, int speed) =>
+      tempoMap.elapsed(from, to, speed);
   final List<PlaybackEvent> events;
   final ScoreTimeline timeline;
-  int get durationMs => PlaybackConverter.baseMilliseconds(timeline.duration);
+  int get durationMs => tempoMap.elapsed(
+    0,
+    PlaybackConverter.baseMilliseconds(timeline.duration),
+  );
 }

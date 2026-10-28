@@ -4,6 +4,8 @@ import '../models/note.dart';
 import '../models/part.dart';
 import '../models/score.dart';
 import 'accidentals.dart';
+import 'score_timeline.dart';
+import '../models/musical_time.dart';
 
 /// A diatonic distance and its size in semitones: a major second is (1, 2).
 typedef Interval = ({int steps, int semitones});
@@ -152,9 +154,57 @@ class Transposer {
             )
           : null;
       newKey = key ?? newKey;
-      final next = measure.withContent(
+      final selectedBeats = <MusicalTime>{};
+      final laneEnds = <VoiceLane, MusicalTime>{};
+      for (final (i, s) in measure.symbols.indexed) {
+        final lane = ScoreTimelineBuilder.lane(s),
+            at = laneEnds[ScoreTimelineBuilder.lane(s)] ?? MusicalTime.zero;
+        if (!(s is Note && s.isChordTone)) {
+          laneEnds[lane] = at + ScoreTimelineBuilder.writtenDuration(s);
+        }
+        if (only != null && only(index, i)) selectedBeats.add(at);
+      }
+      ChordSymbol transposeChord(ChordSymbol c) {
+        (String, int) move(String step, int alter) {
+          final from = 28 + _steps.indexOf(step),
+              to = 28 + _steps.indexOf(step) + interval.steps;
+          final pitch = diatonic
+              ? _natural(to) +
+                    Accidentals.keyAlter(newKey, _steps[to % 7]) +
+                    alter -
+                    Accidentals.keyAlter(oldKey, step)
+              : _natural(from) + alter + interval.semitones;
+          final (name, _, changed) = _spell(to, pitch, limit);
+          return (name, changed);
+        }
+
+        final root = move(c.root, c.alter),
+            bass = c.bass == null ? null : move(c.bass!, c.bassAlter);
+        return ChordSymbol(
+          root: root.$1,
+          alter: root.$2,
+          kind: c.kind,
+          kindText: c.kindText,
+          bass: bass?.$1,
+          bassAlter: bass?.$2 ?? 0,
+        );
+      }
+
+      final annotations = [
+        for (final a in measure.annotations)
+          if (a.chord != null &&
+              (only == null || selectedBeats.contains(a.offset)))
+            ScoreAnnotation.fromJson({
+              ...a.toJson(),
+              'chord': transposeChord(a.chord!).toJson(),
+            })
+          else
+            a,
+      ];
+      final next = measure.copyWith(
         keySignature: key,
         symbols: measure.symbols,
+        annotations: annotations,
       );
       writing.startMeasure(next);
       measures.add(

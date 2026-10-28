@@ -1,4 +1,5 @@
 import 'dart:convert';
+import '../../../core/models/musical_time.dart';
 import 'dart:math' as math;
 
 import 'package:note_vision/core/models/beam_grouping.dart';
@@ -122,6 +123,15 @@ extension EditorActions on EditorState {
                   .length,
         ),
   );
+
+  bool get hasPlaybackContent =>
+      musicSymbolCount > 0 ||
+      score.parts.any(
+        (p) => p.measures.any(
+          (m) =>
+              m.annotations.any((a) => a.chord?.midiNotes.isNotEmpty ?? false),
+        ),
+      );
 
   /// One undo step for the entire score; keep the current measure available
   /// for insertion without retaining a selection of a removed symbol.
@@ -1110,6 +1120,49 @@ extension EditorActions on EditorState {
           return m;
       }
     });
+  }
+
+  MusicalTime get selectedAnnotationOffset {
+    if (!hasSymbolSelection) return MusicalTime.zero;
+    return const ScoreTimelineBuilder()
+            .measure(score, selectedPartIndex!, selectedMeasureIndex!)
+            .symbols
+            .where((s) => s.symbolIndex == selectedSymbolIndex)
+            .firstOrNull
+            ?.onset ??
+        MusicalTime.zero;
+  }
+
+  /// Replace the selected staff's beat-attached text, tempo and harmonies in
+  /// one undo step, retaining note/measure selection and all other score data.
+  EditorState setAnnotations(List<ScoreAnnotation> annotations) {
+    if (!hasMeasureContext) return this;
+    final p = selectedPartIndex!, m = selectedMeasureIndex!;
+    if (annotations.any(
+      (a) =>
+          (a.offset.isNegative && a.sourceIndex == null) ||
+          (a.tempo != null && (!a.tempo!.isFinite || a.tempo! <= 0)),
+    )) {
+      return this;
+    }
+    final old = score.parts[p].measures[m];
+    if (jsonEncode(old.annotations.map((a) => a.toJson()).toList()) ==
+        jsonEncode(annotations.map((a) => a.toJson()).toList())) {
+      return this;
+    }
+    final parts = [...score.parts];
+    final measures = [...parts[p].measures];
+    measures[m] = old.copyWith(annotations: List.unmodifiable(annotations));
+    parts[p] = Part(
+      id: parts[p].id,
+      name: parts[p].name,
+      staff: parts[p].staff,
+      measures: measures,
+    );
+    return _applySelectionPreservingEdit(
+      intent: EditorEditIntent.updateMeasureMetadata,
+      score: score.copyWith(parts: parts),
+    );
   }
 
   /// Lyrics belong to one note, in one voice; a chord's base carries them.

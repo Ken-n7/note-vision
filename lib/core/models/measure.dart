@@ -1,4 +1,6 @@
 import 'score_review.dart';
+import 'score_annotation.dart';
+export 'score_annotation.dart';
 import 'barline_type.dart';
 import 'clef.dart';
 import 'key_signature.dart';
@@ -29,6 +31,7 @@ class Measure {
 
   /// Segno, coda, Fine, To Coda, D.C. and D.S. at this bar.
   final List<NavigationMark> navigation;
+  final List<ScoreAnnotation> annotations;
 
   const Measure({
     required this.number,
@@ -45,6 +48,7 @@ class Measure {
     this.endingStart = const [],
     this.endingEnd,
     this.navigation = const [],
+    this.annotations = const [],
   });
 
   static const Object _keep = Object();
@@ -66,6 +70,7 @@ class Measure {
     List<int>? endingStart,
     Object? endingEnd = _keep,
     List<NavigationMark>? navigation,
+    List<ScoreAnnotation>? annotations,
   }) => Measure(
     number: number ?? this.number,
     reviewId: identical(reviewId, _keep) ? this.reviewId : reviewId as String?,
@@ -91,10 +96,13 @@ class Measure {
         ? this.endingEnd
         : endingEnd as EndingEnd?,
     navigation: navigation ?? this.navigation,
+    annotations: annotations ?? this.annotations,
   );
 
   Map<String, dynamic> toJson() => {
     'number': number,
+    if (annotations.isNotEmpty)
+      'annotations': [for (final a in annotations) a.toJson()],
     if (reviewId != null) 'reviewId': reviewId,
     if (source != null) 'source': source!.toJson(),
     if (clef != null) 'clef': clef!.toJson(),
@@ -114,6 +122,10 @@ class Measure {
 
   factory Measure.fromJson(Map<String, dynamic> json) => Measure(
     number: json['number'] as int,
+    annotations: [
+      for (final a in json['annotations'] as List? ?? const [])
+        ScoreAnnotation.fromJson(Map<String, dynamic>.from(a as Map)),
+    ],
     reviewId: json['reviewId'] as String?,
     source: json['source'] == null
         ? null

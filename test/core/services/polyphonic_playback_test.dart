@@ -2,6 +2,7 @@ import 'package:flutter_midi_pro/flutter_midi_pro.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:note_vision/core/models/measure.dart';
+import 'package:note_vision/core/models/musical_time.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/score.dart';
@@ -87,6 +88,89 @@ Score voices({bool samePitch = false}) => Score(
 );
 
 void main() {
+  testWidgets('tempo changes during a held note use the written beat map', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final midi = _Midi();
+    final player = PlaybackService.forTesting(midi);
+    addTearDown(player.dispose);
+    final score = Score(
+      id: 'tempo',
+      title: '',
+      composer: '',
+      parts: [
+        Part(
+          id: 'P1',
+          name: 'Voice',
+          measures: [
+            Measure(
+              number: 1,
+              symbols: const [
+                Note(step: 'C', octave: 4, duration: 4, type: 'half'),
+              ],
+              annotations: [
+                const ScoreAnnotation(kind: AnnotationKind.tempo, tempo: 60),
+                ScoreAnnotation(
+                  kind: AnnotationKind.tempo,
+                  tempo: 120,
+                  offset: MusicalTime.one,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+    await player.play(score);
+    expect(player.position.durationMs, 1000);
+    expect(player.position.measureDurationMs, 1500);
+    await tester.pump(const Duration(milliseconds: 1000));
+    expect(midi.stops, isEmpty);
+    expect(player.position.durationMs, 500);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(player.status, PlaybackStatus.stopped);
+    expect(midi.stops, [60]);
+  });
+  testWidgets('review ends at the requested bar with later tempo changes', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final midi = _Midi();
+    final review = PlaybackService.forTesting(midi);
+    addTearDown(review.dispose);
+    final score = Score(
+      id: 'review-tempo',
+      title: '',
+      composer: '',
+      parts: [
+        Part(
+          id: 'P1',
+          name: 'Voice',
+          measures: [
+            for (var i = 0; i < 3; i++)
+              Measure(
+                number: i + 1,
+                symbols: const [
+                  Note(step: 'C', octave: 4, duration: 2, type: 'quarter'),
+                ],
+                annotations: [
+                  ScoreAnnotation(
+                    kind: AnnotationKind.tempo,
+                    tempo: i == 0 ? 60 : 90,
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ],
+    );
+    await review.play(score, throughMeasureIndex: 0);
+    await tester.pump(const Duration(milliseconds: 1000));
+    expect(review.status, PlaybackStatus.stopped);
+    expect(midi.starts, [60]);
+  });
+
   testWidgets(
     'playback can retry after correcting an unsupported score duration',
     (tester) async {

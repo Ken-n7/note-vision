@@ -22,8 +22,10 @@ class PlaybackControlsBar extends StatefulWidget {
     this.isEmpty = false,
     this.isLoading = false,
     this.playbackService,
+    this.relativeTempo = false,
   });
 
+  final bool relativeTempo;
   final VoidCallback onPlay, onResume, onPause, onStop;
   final ValueChanged<int> onTempoChanged, onSeek;
   final int totalMeasures, initialMeasure;
@@ -206,8 +208,10 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
           ],
         );
         final tempo = Semantics(
-          label: 'Tempo',
-          value: '$_tempo beats per minute',
+          label: widget.relativeTempo ? 'Playback speed' : 'Tempo',
+          value: widget.relativeTempo
+              ? '${(_tempo * 100 / 120).round()} percent'
+              : '$_tempo beats per minute',
           child: Row(
             children: [
               _TempoButton(
@@ -218,7 +222,9 @@ class _PlaybackControlsBarState extends State<PlaybackControlsBar> {
               ),
               Expanded(
                 child: Text(
-                  '$_tempo BPM',
+                  widget.relativeTempo
+                      ? '${(_tempo * 100 / 120).round()}%'
+                      : '$_tempo BPM',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: disabled

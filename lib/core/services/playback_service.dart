@@ -414,6 +414,12 @@ class PlaybackService {
         ],
       ];
       final end = boundaries.fold(0, (last, time) => time > last ? time : last);
+      final first = boundaries.fold(end, (a, b) => a < b ? a : b);
+      boundaries.addAll(
+        plan.tempoMap.points
+            .map((p) => p.$1)
+            .where((t) => t >= first && t <= end),
+      );
       _schedule = PlaybackSchedule(_events, endMs: end, boundaries: boundaries);
       _plan = plan;
       _playingScore = score;
@@ -504,7 +510,7 @@ class PlaybackService {
           schedule.primaryAt(frame.timeMs, _focusPart) ?? _currentEventIndex;
       _emitPosition(_positionAt(_frameIndex));
       final next = schedule.frames[_frameIndex + 1];
-      final ms = _converter.scaledDuration(next.timeMs - frame.timeMs, _tempo);
+      final ms = _plan!.elapsedMs(frame.timeMs, next.timeMs, _tempo);
       final completed = await _waitMs(ms);
       if (run != _loopRun) return;
       if (!completed) return;
@@ -598,9 +604,13 @@ class PlaybackService {
                   measure.partIndex != event.partIndex)
           ? -1
           : event.symbolIndex,
-      durationMs: _converter.scaledDuration(nextTime - time, _tempo),
-      measureElapsedMs: _converter.scaledDuration(time - measureStart, _tempo),
-      measureDurationMs: _converter.scaledDuration(measureDuration, _tempo),
+      durationMs: _plan!.elapsedMs(time, nextTime, _tempo),
+      measureElapsedMs: _plan!.elapsedMs(measureStart, time, _tempo),
+      measureDurationMs: _plan!.elapsedMs(
+        measureStart,
+        measureStart + measureDuration,
+        _tempo,
+      ),
       nextPartIndex: next?.partIndex,
       nextMeasureIndex: next?.measureIndex,
       nextSymbolIndex: next?.symbolIndex,

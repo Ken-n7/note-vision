@@ -50,7 +50,9 @@ class PlaybackSchedule {
   ];
 
   int? primaryAt(int timeMs, int focusPart) {
-    final active = activeAt(timeMs);
+    final all = activeAt(timeMs);
+    final ordinary = all.where((i) => !events[i].isHarmony).toList();
+    final active = ordinary.isEmpty ? all : ordinary;
     return active.where((i) => events[i].partIndex == focusPart).firstOrNull ??
         active.firstOrNull ??
         events.indexed

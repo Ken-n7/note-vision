@@ -1,5 +1,6 @@
 import 'dart:async' show StreamSubscription, Timer, unawaited;
 import 'dart:convert' show jsonEncode;
+import '../../../core/models/score_annotation.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -40,6 +41,7 @@ import 'package:note_vision/features/editor/presentation/widgets/notation_review
 import 'package:note_vision/features/editor/presentation/widgets/beam_editor_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/staves_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/lyrics_sheet.dart';
+import 'package:note_vision/features/editor/presentation/widgets/annotations_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/transpose_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/editor_tool_dock.dart';
 import 'package:note_vision/features/editor/presentation/widgets/editor_help_sheet.dart';
@@ -1483,6 +1485,50 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   bool get _canEditStaves =>
       _canApplyIssueFix && !_isDraggingNote && !_isReviewMode;
 
+  Future<void> _showAnnotations({
+    int? initialIndex,
+    AnnotationKind? kind,
+  }) async {
+    if (_commandEditLock != null || !_editorState.hasMeasureContext) return;
+    final original = _editorState.score;
+    final p = _editorState.selectedPartIndex!,
+        m = _editorState.selectedMeasureIndex!;
+    final offset = _editorState.selectedAnnotationOffset;
+    final existing = original.parts[p].measures[m].annotations.indexWhere(
+      (a) => a.kind == kind && a.offset == offset,
+    );
+    final annotations = await showModalBottomSheet<List<ScoreAnnotation>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      constraints: const BoxConstraints(maxWidth: 640),
+      builder: (_) => AnnotationsSheet(
+        annotations: original.parts[p].measures[m].annotations,
+        offset: offset,
+        beatType: _editorState.selectedMeasureTimeSignature?.beatType ?? 4,
+        initialIndex: initialIndex ?? (existing < 0 ? null : existing),
+        initialKind: kind,
+      ),
+    );
+    if (!mounted ||
+        annotations == null ||
+        !identical(original, _editorState.score) ||
+        _commandEditLock != null) {
+      return;
+    }
+    if (jsonEncode(
+          original.parts[p].measures[m].annotations
+              .map((a) => a.toJson())
+              .toList(),
+        ) ==
+        jsonEncode(annotations.map((a) => a.toJson()).toList())) {
+      return;
+    }
+    _updateState((s) => s.setAnnotations(annotations));
+  }
+
   Future<void> _showLyrics() async {
     if (_commandEditLock != null ||
         _editorState.lyricUnavailableReason != null) {
@@ -1552,8 +1598,14 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   }
 
   /// Moves every note by the interval chosen in [TransposeSheet].
+  bool get _canTranspose =>
+      _canApplyIssueFix &&
+      !_isDraggingNote &&
+      !_isReviewMode &&
+      _editorState.hasPlaybackContent;
+
   Future<void> _showTranspose() async {
-    if (!_canClearAllSymbols || _commandEditLock != null) return;
+    if (!_canTranspose || _commandEditLock != null) return;
     final original = _editorState.score;
     final selection = _editorState.hasRange
         ? _editorState.selectionPositions
@@ -1835,6 +1887,21 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           shortcut: command.shortcut,
           disabledReason: lock ?? command.unavailableReason(state),
         ),
+      for (final (id, label, keys) in const [
+        ('annotations', 'Text, tempo & chords…', null),
+        ('tempo', 'Tempo marking…', 'Ctrl/Cmd + Alt + T'),
+        ('chord', 'Chord symbol…', 'Ctrl/Cmd + Alt + K'),
+        ('rehearsal', 'Rehearsal mark…', null),
+      ])
+        EditorCommandChoice(
+          id: 'workspace.$id',
+          label: label,
+          group: 'Text',
+          description: 'Add or edit beat-attached score markings',
+          shortcut: keys,
+          disabledReason:
+              lock ?? (state.hasMeasureContext ? null : 'Select a bar'),
+        ),
       EditorCommandChoice(
         id: 'workspace.lyrics',
         label: 'Lyrics…',
@@ -1934,7 +2001,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         group: 'Pitch',
         description: 'Move the score to another key or by an interval',
         disabledReason:
-            lock ?? (state.musicSymbolCount == 0 ? 'Add notes first' : null),
+            lock ??
+            (state.hasPlaybackContent
+                ? null
+                : 'Add notes or chord symbols first'),
       ),
       EditorCommandChoice(
         id: 'workspace.addBar',
@@ -1997,6 +2067,14 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     }
     // Recheck state after dismissal: playback can have changed with search open.
     switch (id) {
+      case 'workspace.annotations':
+        await _showAnnotations();
+      case 'workspace.tempo':
+        await _showAnnotations(kind: AnnotationKind.tempo);
+      case 'workspace.chord':
+        await _showAnnotations(kind: AnnotationKind.chord);
+      case 'workspace.rehearsal':
+        await _showAnnotations(kind: AnnotationKind.rehearsal);
       case 'workspace.lyrics':
         await _showLyrics();
       case 'workspace.entry':
@@ -2062,6 +2140,18 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     final key = event.logicalKey;
     final keyboard = HardwareKeyboard.instance;
     final command = keyboard.isControlPressed || keyboard.isMetaPressed;
+    if (command &&
+        keyboard.isAltPressed &&
+        (key == LogicalKeyboardKey.keyT || key == LogicalKeyboardKey.keyK)) {
+      unawaited(
+        _showAnnotations(
+          kind: key == LogicalKeyboardKey.keyT
+              ? AnnotationKind.tempo
+              : AnnotationKind.chord,
+        ),
+      );
+      return KeyEventResult.handled;
+    }
     if (command && key == LogicalKeyboardKey.keyK && !keyboard.isAltPressed) {
       unawaited(_showScoreCommands());
       return KeyEventResult.handled;
@@ -2075,7 +2165,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         _playback.pause();
       } else if (_playbackStatus == PlaybackStatus.paused) {
         _playback.resume(score: _editorState.score);
-      } else if (!_playbackPending && _editorState.musicSymbolCount > 0) {
+      } else if (!_playbackPending && _editorState.hasPlaybackContent) {
         unawaited(
           _playFromMeasure(
             _editorState.selectedMeasureIndex ?? 0,
@@ -2407,6 +2497,18 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 isPlaybackActive: isPlaybackActive,
                 isReadOnly: isReadOnly || _reviewOpen,
                 suppressCanvasDragGhost: _dragSymbolType != null,
+                onAnnotationTap: (p, m, i) {
+                  if (_commandEditLock != null) return;
+                  setState(
+                    () => _editorState = _editorState.copyWith(
+                      selectedPartIndex: p,
+                      selectedMeasureIndex: m,
+                      selectedSymbolIndex: null,
+                      selectedSymbol: null,
+                    ),
+                  );
+                  unawaited(_showAnnotations(initialIndex: i));
+                },
                 onMeasureTap: (target) {
                   if (_reviewOpen &&
                       target != null &&
@@ -2603,6 +2705,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       onSlur: _editorState.slurUnavailableReason == null
                           ? () => _runEditorCommand(EditorCommand.slur)
                           : null,
+                      onAnnotations: _editorState.hasMeasureContext
+                          ? () => _showAnnotations()
+                          : null,
                       onLyrics: _editorState.lyricUnavailableReason == null
                           ? _showLyrics
                           : null,
@@ -2741,7 +2846,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               final scoreIsEmpty =
                   _editorState.score.parts.isEmpty ||
                   _editorState.score.parts.every(
-                    (p) => p.measures.every((m) => m.symbols.isEmpty),
+                    (p) => p.measures.every(
+                      (m) => m.symbols.isEmpty && m.annotations.isEmpty,
+                    ),
                   );
 
               return _EditorWorkspace(
@@ -2831,7 +2938,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   onClearAllSymbols: _canClearAllSymbols
                       ? _confirmClearAllSymbols
                       : null,
-                  onTranspose: _canClearAllSymbols ? _showTranspose : null,
+                  onTranspose: _canTranspose ? _showTranspose : null,
                   onStaves: _canEditStaves ? _showStaves : null,
                   onSave: isReadOnly ? null : _onSave,
                   isSaving: _isSaving,
@@ -2873,6 +2980,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 notationArea: notationArea,
                 inspectorPanel: inspectorPanel,
                 playbackControls: PlaybackControlsBar(
+                  relativeTempo: _editorState.score.parts.any(
+                    (p) => p.measures.any(
+                      (m) => m.annotations.any((a) => a.tempo != null),
+                    ),
+                  ),
                   playbackService: _playback,
                   isLoading: _playbackPending,
                   initialMeasure: simultaneousParts
@@ -2890,7 +3002,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                           for (final part in _editorState.score.parts)
                             part.measures.length,
                         ],
-                  isEmpty: scoreIsEmpty,
+                  isEmpty: !_editorState.hasPlaybackContent,
                   // The scrubber covers every staff in reading order.
                   measuresPerPart: simultaneousParts ? null : measuresPerPart,
                   totalMeasures: simultaneousParts
@@ -3777,6 +3889,7 @@ class _NotationArea extends StatefulWidget {
     required this.isPlaybackActive,
     required this.isReadOnly,
     this.suppressCanvasDragGhost = false,
+    this.onAnnotationTap,
     required this.onMeasureTap,
     required this.onSymbolTap,
     required this.onInsertTap,
@@ -3813,6 +3926,7 @@ class _NotationArea extends StatefulWidget {
   final bool isPlaybackActive;
   final bool isReadOnly;
   final bool suppressCanvasDragGhost;
+  final void Function(int, int, int)? onAnnotationTap;
   final ValueChanged<NotationMeasureTarget?> onMeasureTap;
   final ValueChanged<NotationSymbolTarget?> onSymbolTap;
   final ValueChanged<NotationInsertTarget?> onInsertTap;
@@ -4098,6 +4212,11 @@ class _NotationAreaState extends State<_NotationArea>
               ),
               data,
             ),
+      onAnnotationTap:
+          !widget.insertMode && canEdit && widget.onAnnotationTap != null
+          ? (p, m, i) =>
+                widget.onAnnotationTap!(p, m + widget.pageFirstMeasure, i)
+          : null,
       onMeasureTap: !widget.insertMode && !widget.isPlaybackActive
           ? widget.onMeasureTap
           : null,
@@ -4767,6 +4886,7 @@ class _InspectorPanel extends StatefulWidget {
     required this.onSlur,
     required this.onTriplet,
     required this.onLyrics,
+    required this.onAnnotations,
     required this.rangeCount,
     required this.markStates,
     required this.onToggleMark,
@@ -4823,7 +4943,7 @@ class _InspectorPanel extends StatefulWidget {
   final VoidCallback onMoveUp;
   final VoidCallback onMoveDown;
   final VoidCallback? onOctaveUp, onOctaveDown, onConvertSymbol, onAddThird;
-  final VoidCallback? onTie, onSlur, onTriplet, onLyrics;
+  final VoidCallback? onTie, onSlur, onTriplet, onLyrics, onAnnotations;
 
   /// Symbols in a range selection; 0 without one.
   final int rangeCount;
@@ -5531,6 +5651,12 @@ class _InspectorPanelState extends State<_InspectorPanel> {
           EditorToolRow(
             wrap: widget.isLandscape,
             children: [
+              _ActionTile(
+                icon: Icons.text_fields,
+                label: 'Text & tempo',
+                tooltip: 'Text, tempo and chord symbols in this bar',
+                onPressed: _wrapAction(widget.onAnnotations),
+              ),
               _ActionTile(
                 icon: Icons.lyrics_outlined,
                 label: 'Lyrics',

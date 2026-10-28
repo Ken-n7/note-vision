@@ -11,6 +11,9 @@ import '../../core/models/score_symbol.dart';
 import '../../core/services/accidentals.dart';
 import 'musicxml_source_reader.dart';
 import 'musicxml_lyrics.dart';
+import 'musicxml_annotations.dart';
+import '../../core/models/musical_time.dart';
+import '../../core/models/score_annotation.dart';
 
 class MusicXmlPreservationException implements Exception {
   const MusicXmlPreservationException([
@@ -67,6 +70,50 @@ class MusicXmlPreservingExporter {
         throw const FormatException('Invalid retained MusicXML note binding');
       }
       sourceNotes[binding.symbolId] = notes[binding.noteIndex];
+    }
+    final changes =
+        <(String, int), (List<ScoreAnnotation>, List<ScoreAnnotation>)>{};
+    for (final (p, part) in score.parts.indexed) {
+      final ids = baseline.parts[p].measures
+          .expand((m) => m.symbols)
+          .map(_id)
+          .toSet();
+      final sourceId =
+          source.bindings
+              .where((b) => ids.contains(b.symbolId))
+              .firstOrNull
+              ?.partId ??
+          part.id.replaceFirst(RegExp(r'-staff\d+$'), '');
+      for (final (m, measure) in part.measures.indexed) {
+        final lists = changes.putIfAbsent((
+          sourceId,
+          m,
+        ), () => (<ScoreAnnotation>[], <ScoreAnnotation>[]));
+        lists.$1.addAll(baseline.parts[p].measures[m].annotations);
+        lists.$2.addAll(measure.annotations);
+      }
+    }
+    for (final entry in parts.entries) {
+      var divisions = MusicalTime(2);
+      for (final (m, measure) in entry.value.indexed) {
+        final positions = MusicXmlAnnotations.positions(measure, divisions);
+        if (positions.isNotEmpty) divisions = positions.values.last.$2;
+        final change = changes[(entry.key, m)];
+        if (change != null && !MusicXmlAnnotations.same(change.$1, change.$2)) {
+          try {
+            _patchAnnotations(
+              measure,
+              change.$1,
+              change.$2,
+              positions,
+              divisions,
+            );
+          } on FormatException catch (error) {
+            if (!source.requiresPreservation) return null;
+            throw MusicXmlPreservationException(error.message);
+          }
+        }
+      }
     }
     if (baseline.title != score.title) _patchTitle(root, score.title);
     if (baseline.composer != score.composer) {
@@ -204,6 +251,74 @@ class MusicXmlPreservingExporter {
     return document.toXmlString();
   }
 
+  void _patchAnnotations(
+    XmlElement measure,
+    List<ScoreAnnotation> before,
+    List<ScoreAnnotation> after,
+    Map<XmlElement, (MusicalTime, MusicalTime)> positions,
+    MusicalTime divisions,
+  ) {
+    final original = measure.childElements.toList();
+    for (final a in before) {
+      if (a.sourceIndex == null || a.sourceIndex! >= original.length) continue;
+      final element = original[a.sourceIndex!];
+      final next = after
+          .where((v) => v.sourceIndex == a.sourceIndex)
+          .firstOrNull;
+      if (next != null && MusicXmlAnnotations.same([a], [next])) continue;
+      final index = measure.children.indexOf(element);
+      if (next != null) {
+        final place = positions[element]!;
+        measure.children[index] = MusicXmlAnnotations.write(
+          next,
+          cursor: place.$1,
+          divisions: place.$2,
+        );
+      } else if (element.name.local == 'harmony') {
+        measure.children.remove(element);
+      } else {
+        // Removing text/tempo must not remove a dynamic, wedge, pedal or
+        // another direction that happened to share the source element.
+        for (final type in element.findElements('direction-type').toList()) {
+          type.children.removeWhere(
+            (n) =>
+                n is XmlElement &&
+                {'words', 'rehearsal', 'metronome'}.contains(n.name.local),
+          );
+          if (type.childElements.isEmpty) element.children.remove(type);
+        }
+        element.getElement('sound')?.setAttribute('tempo', null);
+        if (element.findElements('direction-type').isEmpty &&
+            (element.getElement('sound')?.attributes.isEmpty ?? true)) {
+          measure.children.remove(element);
+        }
+      }
+    }
+    final last = original.lastOrNull;
+    var end = MusicalTime.zero;
+    if (last != null) {
+      final place = positions[last]!;
+      end = place.$1;
+      final duration =
+          MusicalTime.decimal(
+            MusicXmlAnnotations.text(last, 'duration') ?? '0',
+          ) /
+          place.$2;
+      if (last.name.local == 'forward' ||
+          (last.name.local == 'note' &&
+              last.getElement('chord') == null &&
+              last.getElement('grace') == null)) {
+        end += duration;
+      }
+      if (last.name.local == 'backup') end -= duration;
+    }
+    for (final a in after.where((a) => a.sourceIndex == null)) {
+      measure.children.add(
+        MusicXmlAnnotations.write(a, cursor: end, divisions: divisions),
+      );
+    }
+  }
+
   bool _canPatch(Score before, Score after) {
     // Ties and slurs are not patched into the source yet.
     if (!setEquals(before.spanners.toSet(), after.spanners.toSet())) {
@@ -220,10 +335,12 @@ class MusicXmlPreservingExporter {
         final oldMeasure = oldPart.measures[m], measure = part.measures[m];
         final oldMeta = oldMeasure.toJson()
           ..remove('symbols')
-          ..remove('source');
+          ..remove('source')
+          ..remove('annotations');
         final newMeta = measure.toJson()
           ..remove('symbols')
-          ..remove('source');
+          ..remove('source')
+          ..remove('annotations');
         if (jsonEncode(oldMeta) != jsonEncode(newMeta) ||
             oldMeasure.symbols.length != measure.symbols.length) {
           return false;

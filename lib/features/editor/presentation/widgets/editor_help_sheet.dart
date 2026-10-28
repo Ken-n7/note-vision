@@ -99,6 +99,8 @@ class EditorHelpSheet extends StatelessWidget {
             'Ctrl / ⌘ + L',
             'Lyrics: Space for words, - for syllables, _ to extend',
           ),
+          ('Ctrl / ⌘ + Alt + T', 'Tempo marking at the selected beat'),
+          ('Ctrl / ⌘ + Alt + K', 'Chord symbol at the selected beat'),
           ('↑ / ↓', 'Raise / lower pitch'),
           ('Ctrl / ⌘ + ↑ / ↓', 'Raise / lower an octave'),
           ('3 / 4 / 5 / 6 / 7', '16th / eighth / quarter / half / whole'),
