@@ -108,7 +108,7 @@ class _ScanScreenState extends State<ScanScreen> {
         const Score(
           id: 'scan-score',
           title: 'Scanned Score',
-          composer: 'Unknown',
+          composer: '',
           parts: [
             Part(
               id: 'P1',

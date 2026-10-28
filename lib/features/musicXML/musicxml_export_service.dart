@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -12,6 +13,7 @@ import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/utils/export_file_name.dart';
 import 'package:note_vision/core/services/accidentals.dart';
+import 'package:note_vision/core/services/score_timeline.dart';
 import 'package:xml/xml.dart';
 import 'musicxml_preserving_exporter.dart';
 
@@ -90,11 +92,13 @@ class MusicXmlExportService {
 
   void _buildIdentification(XmlBuilder b, Score score) {
     b.element('identification', nest: () {
-      b.element(
-        'creator',
-        attributes: {'type': 'composer'},
-        nest: score.composer,
-      );
+      if (score.composer.trim().isNotEmpty) {
+        b.element(
+          'creator',
+          attributes: {'type': 'composer'},
+          nest: score.composer,
+        );
+      }
       b.element('encoding', nest: () {
         b.element('software', nest: 'Note Vision');
         b.element(
@@ -119,9 +123,18 @@ class MusicXmlExportService {
     b.element('part', attributes: {'id': part.id}, nest: () {
       final measures = part.measures;
       final accidentals = Accidentals();
+      final staves = measures
+          .expand((m) => m.symbols)
+          .fold(1, (n, s) => max(n, ScoreTimelineBuilder.lane(s).$2));
       for (var i = 0; i < measures.length; i++) {
         accidentals.startMeasure(measures[i]);
-        _buildMeasure(b, measures[i], isFirst: i == 0, accidentals: accidentals);
+        _buildMeasure(
+          b,
+          measures[i],
+          isFirst: i == 0,
+          staves: staves,
+          accidentals: accidentals,
+        );
       }
     });
   }
@@ -130,6 +143,7 @@ class MusicXmlExportService {
     XmlBuilder b,
     Measure measure, {
     required bool isFirst,
+    required int staves,
     required Accidentals accidentals,
   }) {
     b.element(
@@ -165,8 +179,14 @@ class MusicXmlExportService {
               });
             }
 
+            if (isFirst && staves > 1) {
+              b.element('staves', nest: '$staves');
+            }
+
             if (measure.clef != null) {
-              b.element('clef', nest: () {
+              b.element('clef', attributes: {
+                if (staves > 1) 'number': '1',
+              }, nest: () {
                 b.element('sign', nest: measure.clef!.sign);
                 b.element('line', nest: measure.clef!.line.toString());
               });
@@ -182,9 +202,31 @@ class MusicXmlExportService {
           );
         }
 
+        // Each voice/staff lane starts at the bar line; <backup> and
+        // <forward> move the cursor to where the next lane's symbol starts.
         final symbols = measure.symbols;
+        final laneEnds = <VoiceLane, int>{};
+        var cursor = 0;
         for (var i = 0; i < symbols.length; i++) {
           final symbol = symbols[i];
+          final length = switch (symbol) {
+            Note(isChordTone: true) => null,
+            Note(:final type, :final dots, :final duration) ||
+            Rest(:final type, :final dots, :final duration) =>
+              durationFor(type, dots, duration),
+            _ => null,
+          };
+          if (length != null) {
+            final lane = ScoreTimelineBuilder.lane(symbol);
+            final onset = laneEnds[lane] ?? 0;
+            if (onset != cursor) {
+              b.element(onset < cursor ? 'backup' : 'forward', nest: () {
+                b.element('duration', nest: '${(cursor - onset).abs()}');
+              });
+            }
+            cursor = onset + length;
+            laneEnds[lane] = cursor;
+          }
           if (symbol is Note) {
             _buildNote(
               b,

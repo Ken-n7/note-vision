@@ -1,5 +1,5 @@
 # 10_articulations — MuseScore4 4.7.5 vs Note Vision
-## notation: 5/16 MuseScore facts match, 12 differ in Note Vision
+## notation: 5/16 MuseScore facts match, 11 differ in Note Vision
 - P1 m1 @0 v=1 s=1 note C5 dur=1 quarter marks=staccato
 - P1 m1 @1 v=1 s=1 note D5 dur=1 quarter marks=accent
 - P1 m1 @2 v=1 s=1 note E5 dur=1 quarter marks=tenuto
@@ -22,7 +22,6 @@
 + P1 m3 @2 v=1 s=1 note D5 dur=1 quarter
 + P1 m3 @3 v=1 s=1 note E5 dur=1 quarter
 + P1 m4 @0 v=1 s=1 note C5 dur=4 whole
-+ creator composer "Unknown composer"
 ## playback: 5/32 MuseScore facts match, 7 differ in Note Vision
 - @0 key=72 dur=1/2
 - @10 key=74 dur=1/8

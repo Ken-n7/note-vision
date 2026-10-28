@@ -130,7 +130,7 @@ void main() {
       final score = converter.convert(parseResult.document!);
 
       expect(score.title, 'Untitled');
-      expect(score.composer, 'Unknown composer');
+      expect(score.composer, isEmpty);
       expect(score.parts.single.measureCount, 1);
     });
 

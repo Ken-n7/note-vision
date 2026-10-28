@@ -193,7 +193,7 @@ class MusicXmlScoreConverter {
   String _readComposer(XmlElement root) {
     final identification = _firstOrNull(root.findElements('identification'));
     if (identification == null) {
-      return 'Unknown composer';
+      return '';
     }
 
     for (final creator in identification.findElements('creator')) {
@@ -205,7 +205,7 @@ class MusicXmlScoreConverter {
       }
     }
 
-    return 'Unknown composer';
+    return '';
   }
 
   Map<String, String> _readPartNames(XmlElement root) {

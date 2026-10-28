@@ -1,11 +1,10 @@
 # 14_repeats_voltas — MuseScore4 4.7.5 vs Note Vision
-## notation: 10/14 MuseScore facts match, 2 differ in Note Vision
+## notation: 10/14 MuseScore facts match, 1 differ in Note Vision
 - P1 m3 barline left ending=1:start
 - P1 m3 barline right light-heavy repeat=backward ending=1:stop
 - P1 m4 barline left ending=2:start
 - P1 m4 barline right light-heavy ending=2:discontinue
 + P1 m3 barline right light-heavy repeat=backward
-+ creator composer "Unknown composer"
 ## playback: 4/7 MuseScore facts match, 1 differ in Note Vision
 - @12 key=60 dur=4
 - @16 key=62 dur=4

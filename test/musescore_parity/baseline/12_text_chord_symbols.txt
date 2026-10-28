@@ -1,5 +1,5 @@
 # 12_text_chord_symbols — MuseScore4 4.7.5 vs Note Vision
-## notation: 12/21 MuseScore facts match, 1 differ in Note Vision
+## notation: 12/21 MuseScore facts match
 - P1 m1 @0 harmony C major
 - P1 m1 @0 s=1 metronome quarter=132
 - P1 m1 @0 s=1 words "Allegro"
@@ -9,7 +9,6 @@
 - P1 m2 @0 harmony F major /A
 - P1 m2 @0 s=1 rehearsal "A"
 - P1 m2 @2 harmony G dominant
-+ creator composer "Unknown composer"
 ## playback: 8/26 MuseScore facts match
 - @0 key=36 dur=2
 - @0 key=60 dur=2

@@ -1,5 +1,5 @@
 # 02_accidentals_keys — MuseScore4 4.7.5 vs Note Vision
-## notation: 10/18 MuseScore facts match, 9 differ in Note Vision
+## notation: 10/18 MuseScore facts match, 8 differ in Note Vision
 - P1 m1 @1 v=1 s=1 note C5 dur=1 quarter acc=natural
 - P1 m1 @3 v=1 s=1 note G#4 dur=1 quarter acc=sharp
 - P1 m2 @1 v=1 s=1 note Bb4 dur=1 quarter acc=flat
@@ -16,5 +16,4 @@
 + P1 m3 @1 v=1 s=1 note A4 dur=1 quarter
 + P1 m3 @2 v=1 s=1 note Ab4 dur=1 quarter
 + P1 m3 @3 v=1 s=1 note Db5 dur=1 quarter
-+ creator composer "Unknown composer"
 ## playback: 13/13 MuseScore facts match

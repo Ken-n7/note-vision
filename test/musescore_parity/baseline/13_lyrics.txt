@@ -1,5 +1,5 @@
 # 13_lyrics — MuseScore4 4.7.5 vs Note Vision
-## notation: 5/10 MuseScore facts match, 6 differ in Note Vision
+## notation: 5/10 MuseScore facts match, 5 differ in Note Vision
 - P1 m1 @0 v=1 s=1 note C4 dur=1 quarter lyric1=begin:Hap lyric2=single:Good
 - P1 m1 @1 v=1 s=1 note C4 dur=1 quarter lyric1=end:py lyric2=single:night
 - P1 m1 @2 v=1 s=1 note D4 dur=1 quarter lyric1=begin:birth
@@ -10,5 +10,4 @@
 + P1 m1 @2 v=1 s=1 note D4 dur=1 quarter
 + P1 m2 @0 v=1 s=1 note C4 dur=1 quarter
 + P1 m2 @1 v=1 s=1 note F4 dur=2 half
-+ creator composer "Unknown composer"
 ## playback: 6/6 MuseScore facts match

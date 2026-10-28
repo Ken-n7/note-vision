@@ -1,5 +1,5 @@
 # 11_dynamics — MuseScore4 4.7.5 vs Note Vision
-## notation: 14/23 MuseScore facts match, 1 differ in Note Vision
+## notation: 14/23 MuseScore facts match
 - P1 m1 @0 s=1 dynamics p
 - P1 m1 @1 s=1 wedge crescendo
 - P1 m1 @4 s=1 wedge stop
@@ -9,5 +9,4 @@
 - P1 m3 @0 s=1 dynamics sfz
 - P1 m3 @1 s=1 dynamics mp
 - P1 m3 @2 s=1 dynamics mf
-+ creator composer "Unknown composer"
 ## playback: 10/10 MuseScore facts match

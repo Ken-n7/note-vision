@@ -230,9 +230,11 @@ implement until its differences are gone.
 Initial gaps (2026-10-28): written accidentals, measure rests, pickups,
 cut/common symbols, final barlines, voltas, ties, slurs, tuplets, grace notes,
 articulations, ornaments, dynamics, text, tempo, rehearsal marks, chord
-symbols, lyrics, grand-staff export (no `<staves>`/second clef/`<backup>`),
-and second-voice export (no `<backup>`) are lost in the model's export; the
-importer invents composer "Unknown composer". Playback lacks tie merging,
+symbols, lyrics, the second staff's clef (the model has one clef per bar)
+and hidden gaps within a voice (`<forward>`; no invisible rests) are lost in
+the model's export. Fixed since: the exporter writes `<staves>` and
+`<backup>`/`<forward>` between voice/staff lanes, and the importer no longer
+invents composer "Unknown composer". Playback lacks tie merging,
 grace notes, repeats, articulation lengths, chord-symbol playback and
 instruments. Rhythm, pitch, beams, chords, meters and key handling match.
 
