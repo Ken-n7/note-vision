@@ -904,6 +904,80 @@ extension EditorActions on EditorState {
     ).copyWith(rangeAnchor: anchor);
   }
 
+  // ── Articulations and ornaments ──────────────────────────────────────
+
+  /// The selected notes (and rests, for a fermata) a mark goes on: chord
+  /// tones share their chord's marks.
+  List<SymbolPosition> _markTargets(Articulation mark) {
+    final measures = hasMeasureContext
+        ? score.parts[selectedPartIndex!].measures
+        : const <Measure>[];
+    return [
+      for (final p in selectionPositions)
+        if (measures[p.measure].symbols[p.symbol] case final s
+            when (s is Note && !s.isChordTone) ||
+                (s is Rest && mark == Articulation.fermata))
+          p,
+    ];
+  }
+
+  List<Articulation> _marksAt(SymbolPosition p) =>
+      switch (score.parts[selectedPartIndex!].measures[p.measure].symbols[p
+          .symbol]) {
+        Note(:final marks) || Rest(:final marks) => marks,
+        _ => const [],
+      };
+
+  String? markUnavailableReason(Articulation mark) =>
+      _markTargets(mark).isNotEmpty
+      ? null
+      : mark == Articulation.fermata
+      ? 'Select a note or rest'
+      : 'Select a note';
+
+  /// Whether every selected note already has [mark].
+  bool hasMark(Articulation mark) {
+    final targets = _markTargets(mark);
+    return targets.isNotEmpty &&
+        targets.every((p) => _marksAt(p).contains(mark));
+  }
+
+  /// Adds [mark] to every selected note, or removes it when they all have it
+  /// (MuseScore's palette toggle); one undo step.
+  EditorState toggleMark(Articulation mark) {
+    final targets = _markTargets(mark);
+    if (targets.isEmpty) return this;
+    final remove = hasMark(mark);
+    var next = score;
+    for (final p in targets) {
+      final marks = _marksAt(p);
+      final updated = remove
+          ? [
+              for (final m in marks)
+                if (m != mark) m,
+            ]
+          : ([
+              ...marks.where((m) => m != mark),
+              mark,
+            ]..sort((a, b) => a.index - b.index));
+      final symbol = next.getSymbolAt(selectedPartIndex!, p.measure, p.symbol);
+      next = next.replaceSymbolAt(
+        selectedPartIndex!,
+        p.measure,
+        p.symbol,
+        switch (symbol) {
+          final Note n => n.copyWith(marks: updated),
+          final Rest r => r.copyWith(marks: updated),
+          _ => symbol!,
+        },
+      );
+    }
+    return _applySelectionPreservingEdit(
+      intent: EditorEditIntent.updateMeasureMetadata,
+      score: next,
+    ).copyWith(rangeAnchor: rangeAnchor);
+  }
+
   // ── Tuplets ──────────────────────────────────────────────────────────
 
   static const _tupletValues = [

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:xml/xml.dart';
 
+import '../models/key_signature.dart';
 import '../models/measure.dart';
 import '../models/musical_time.dart';
 import '../models/musicxml_source.dart';
@@ -151,6 +152,14 @@ class ScoreTimelineBuilder {
     final measures = score.parts[part].measures;
     for (var i = measure; i >= 0; i--) {
       if (measures[i].timeSignature case final meter?) return meter;
+    }
+    return null;
+  }
+
+  static KeySignature? activeKey(Score score, int part, int measure) {
+    final measures = score.parts[part].measures;
+    for (var i = measure; i >= 0; i--) {
+      if (measures[i].keySignature case final key?) return key;
     }
     return null;
   }

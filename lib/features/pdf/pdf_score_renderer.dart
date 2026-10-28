@@ -10,6 +10,7 @@ import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/models/time_signature.dart';
+import 'package:note_vision/core/widgets/score_notation/mark_glyphs.dart';
 import 'package:note_vision/core/widgets/score_notation/score_notation_metrics.dart';
 import 'package:note_vision/core/widgets/score_notation/staff_pitch_mapper.dart';
 import 'package:note_vision/core/widgets/score_notation/voice_layout.dart';
@@ -365,6 +366,66 @@ class PdfScoreRenderer {
       }
     }
     _drawSpanners(g, score.spanners, notePoints);
+  }
+
+  /// The editor's mark shapes, scaled, with y flipped (PDF y points up).
+  void _drawMarkShapes(
+    PdfGraphics g,
+    PdfFont font,
+    List<MarkShape> shapes,
+    double x,
+    double y,
+  ) {
+    double px(double dx) => x + dx * _scale;
+    double py(double dy) => y - dy * _scale;
+    g.setColor(_ink);
+    for (final shape in shapes) {
+      switch (shape) {
+        case MarkDot(x: final dx, y: final dy, :final radius):
+          g
+            ..drawEllipse(px(dx), py(dy), radius * _scale, radius * _scale)
+            ..fillPath();
+        case MarkLines(:final points, :final width, :final filled):
+          g.moveTo(px(points.first.$1), py(points.first.$2));
+          for (final (dx, dy) in points.skip(1)) {
+            g.lineTo(px(dx), py(dy));
+          }
+          if (filled) {
+            g
+              ..closePath()
+              ..fillPath();
+          } else {
+            g
+              ..setLineWidth(width * _scale)
+              ..strokePath();
+          }
+        case MarkCurve(:final start, :final segments, :final width, :final filled):
+          g.moveTo(px(start.$1), py(start.$2));
+          for (final (c1, c2, end) in segments) {
+            g.curveTo(
+              px(c1.$1),
+              py(c1.$2),
+              px(c2.$1),
+              py(c2.$2),
+              px(end.$1),
+              py(end.$2),
+            );
+          }
+          if (filled) {
+            g
+              ..closePath()
+              ..fillPath();
+          } else {
+            g
+              ..setLineWidth(width * _scale)
+              ..strokePath();
+          }
+        case MarkText(:final text, x: final dx, y: final dy, :final size):
+          final scaled = size * _scale;
+          final width = font.stringMetrics(text).width * scaled;
+          _text(g, font, scaled, text, px(dx) - width / 2, py(dy) - scaled * 0.35);
+      }
+    }
   }
 
   /// Tuplet numbers and brackets as in the editor (PDF y points up).
@@ -819,6 +880,23 @@ class PdfScoreRenderer {
           drawStem: !beamedIndices.contains(i),
           stemUp: layout.stemUp(i),
         );
+        if (symbol.marks.isNotEmpty && textFont != null) {
+          final up = layout.stemUp(i) ?? y < middleLineY;
+          _drawMarkShapes(
+            g,
+            textFont,
+            markShapes(
+              symbol.marks,
+              stemUp: up,
+              staffTop: (y - staffTop) / _scale,
+              stemReach: up
+                  ? ScoreNotationMetrics.stemLengthFor(_ls) / _scale
+                  : 8,
+            ),
+            x,
+            y,
+          );
+        }
       } else if (symbol is Rest) {
         // PDF y points up, so the editor's upward offset is added.
         _drawRest(
@@ -828,6 +906,20 @@ class PdfScoreRenderer {
           x: x,
           staffTop: staffTop - layout.restOffset(i) * _ls,
         );
+        if (symbol.marks.isNotEmpty && textFont != null) {
+          _drawMarkShapes(
+            g,
+            textFont,
+            markShapes(
+              symbol.marks,
+              stemUp: false,
+              staffTop: (y - staffTop) / _scale,
+              stemReach: 10,
+            ),
+            x,
+            y,
+          );
+        }
       }
     }
 

@@ -39,6 +39,19 @@ enum EditorCommand {
     'Add a chord note a third above the selected note',
     'Alt + 3',
   ),
+  staccato('Staccato', 'Articulations', 'Play the note short', 'Shift + S'),
+  staccatissimo(
+    'Staccatissimo',
+    'Articulations',
+    'Play the note very short',
+  ),
+  tenuto('Tenuto', 'Articulations', 'Hold the note full length', 'Shift + N'),
+  accent('Accent', 'Articulations', 'Stress the note', 'Shift + V'),
+  marcato('Marcato', 'Articulations', 'Stress the note strongly', 'Shift + O'),
+  fermata('Fermata', 'Articulations', 'Hold the note or rest longer'),
+  trill('Trill', 'Ornaments', 'Alternate with the note above'),
+  mordent('Mordent', 'Ornaments', 'The note, the note below, the note'),
+  turn('Turn', 'Ornaments', 'Above, the note, below, the note'),
   triplet(
     'Triplet',
     'Rhythm',
@@ -90,6 +103,20 @@ enum EditorCommand {
     _ => null,
   };
 
+  /// The articulation or ornament this command toggles.
+  Articulation? get mark => switch (this) {
+    staccato => Articulation.staccato,
+    staccatissimo => Articulation.staccatissimo,
+    tenuto => Articulation.tenuto,
+    accent => Articulation.accent,
+    marcato => Articulation.marcato,
+    fermata => Articulation.fermata,
+    trill => Articulation.trill,
+    mordent => Articulation.mordent,
+    turn => Articulation.turn,
+    _ => null,
+  };
+
   int? get pitchSteps => switch (this) {
     pitchUp => 1,
     pitchDown => -1,
@@ -110,6 +137,7 @@ enum EditorCommand {
           ? 'Select a bar with notes or rests'
           : null;
     }
+    if (mark case final mark?) return state.markUnavailableReason(mark);
     if (this == triplet) return state.tupletUnavailableReason(3);
     if (this == tie) return state.tieUnavailableReason;
     if (this == slur) return state.slurUnavailableReason;
@@ -146,6 +174,7 @@ enum EditorCommand {
 
   EditorState execute(EditorState state) {
     if (unavailableReason(state) != null) return state;
+    if (mark case final mark?) return state.toggleMark(mark);
     if (duration case final spec?) return state.setSelectedDuration(spec);
     if (pitchSteps case final steps? when state.hasRange) {
       return state.transposeSelection(

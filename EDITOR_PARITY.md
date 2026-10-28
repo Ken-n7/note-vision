@@ -444,8 +444,32 @@ release 2004 played the same project with no errors. No iOS device test.
   time, removing a tuplet in one step, proportional spacing (a bar of
   triplets is crowded in the fixed grid).
 
-Next: Stage 4C — articulations and ornaments, then dynamics, lyrics,
-repeats. (range selection and clipboard), 3D
+## Stage 4C — articulations and ornaments
+
+- `Note.marks` / `Rest.marks` (`Articulation`: staccato, staccatissimo,
+  tenuto, accent, marcato, fermata, trill, mordent, inverted mordent, turn),
+  kept in a fixed order. Import reads `<articulations>`, `<ornaments>` and
+  `<fermata>`; export writes them. Changing marks makes an imported file
+  rebuild rather than patch.
+- Playback as MuseScore plays them (checked against its MIDI): staccato half,
+  staccatissimo 33%, marcato two thirds; trills alternate with the note above
+  in 32nds; mordent note–below–note, inverted mordent note–above–note, turn
+  above–note–below–note; neighbours follow the key signature.
+- Editor: Shift+S / N / V / O (staccato, tenuto, accent, marcato), search
+  commands for all, and an Edit-dock Marks row whose tiles show when the
+  whole selection has a mark. Marks toggle on every selected note (chord
+  tones share their chord's); a fermata also goes on rests.
+- Drawing: `mark_glyphs.dart` gives shared shapes and placement — near-head
+  marks on the side away from the stem, ornaments and fermatas above the
+  staff and stems — drawn by both the editor and the PDF.
+- Parity: `10_articulations` notation 16/16, playback 31/32; the remaining
+  difference is under 2 ms (MuseScore releases each note a tick early, which
+  moves its 33% staccatissimo across the comparison grid).
+- Not yet: dynamics-driven velocity, accent loudness, fermata hold time,
+  trill with accidental, technical marks (bowings, fingerings), marks on
+  individual chord tones.
+
+Next: Stage 4D — dynamics and hairpins, then lyrics and repeats. (range selection and clipboard), 3D
 (voices), 3E (instrument/staff management) on the Stage 2B timeline. Retained-source
 rhythm export, global timewise measure slots and richer editable notation still
 need work. Range/clipboard and advanced notation should build on this timeline

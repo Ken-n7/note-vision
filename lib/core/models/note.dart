@@ -1,9 +1,11 @@
 import 'score_review.dart';
 import 'score_symbol.dart';
 import 'note_beam.dart';
+import 'articulation.dart';
 import 'tuplet.dart';
 
 export 'note_beam.dart';
+export 'articulation.dart';
 export 'tuplet.dart';
 
 class Note extends ScoreSymbol {
@@ -44,10 +46,14 @@ class Note extends ScoreSymbol {
     this.reviewId,
     this.source,
     this.tuplet,
+    this.marks = const [],
   }) : _legacyBeamed = beamed;
 
   /// The tuplet this note belongs to, if any.
   final Tuplet? tuplet;
+
+  /// Articulations, ornaments and fermatas on this note.
+  final List<Articulation> marks;
 
   static const Object _keep = Object();
 
@@ -69,6 +75,7 @@ class Note extends ScoreSymbol {
     Object? reviewId = _keep,
     Object? source = _keep,
     Object? tuplet = _keep,
+    List<Articulation>? marks,
   }) => Note(
     step: step ?? this.step,
     octave: octave ?? this.octave,
@@ -87,6 +94,7 @@ class Note extends ScoreSymbol {
     reviewId: identical(reviewId, _keep) ? this.reviewId : reviewId as String?,
     source: identical(source, _keep) ? this.source : source as SourceRegion?,
     tuplet: identical(tuplet, _keep) ? this.tuplet : tuplet as Tuplet?,
+    marks: marks ?? this.marks,
   );
 
   @override
@@ -110,10 +118,12 @@ class Note extends ScoreSymbol {
     if (reviewId != null) 'reviewId': reviewId,
     if (source != null) 'source': source!.toJson(),
     if (tuplet != null) 'tuplet': tuplet!.toJson(),
+    if (marks.isNotEmpty) 'marks': [for (final m in marks) m.name],
   };
 
   factory Note.fromJson(Map<String, dynamic> json) => Note(
     tuplet: Tuplet.fromJson(json['tuplet']),
+    marks: Articulation.listFromJson(json['marks']),
     step: json['step'] as String,
     octave: json['octave'] as int,
     alter: json['alter'] as int?,

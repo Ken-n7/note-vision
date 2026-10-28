@@ -373,7 +373,11 @@ class MusicXmlExportService {
       }
       final bracket = note.tuplet != null &&
           (note.tuplet!.start || note.tuplet!.stop);
-      if (tieStop || tieStart || slurs.isNotEmpty || bracket) {
+      if (tieStop ||
+          tieStart ||
+          slurs.isNotEmpty ||
+          bracket ||
+          note.marks.isNotEmpty) {
         b.element('notations', nest: () {
           if (tieStop) b.element('tied', attributes: {'type': 'stop'});
           if (tieStart) b.element('tied', attributes: {'type': 'start'});
@@ -384,9 +388,28 @@ class MusicXmlExportService {
             );
           }
           _buildTupletMarks(b, note.tuplet);
+          _buildMarks(b, note.marks);
         });
       }
     });
+  }
+
+  void _buildMarks(XmlBuilder b, List<Articulation> marks) {
+    for (final group in ['ornaments', 'articulations']) {
+      final members = [
+        for (final m in marks)
+          if (m.group == group) m,
+      ];
+      if (members.isEmpty) continue;
+      b.element(group, nest: () {
+        for (final m in members) {
+          b.element(m.xmlName);
+        }
+      });
+    }
+    if (marks.contains(Articulation.fermata)) {
+      b.element('fermata', attributes: {'type': 'upright'});
+    }
   }
 
   void _buildTimeModification(XmlBuilder b, Tuplet? tuplet) {
@@ -420,9 +443,13 @@ class MusicXmlExportService {
       if (rest.staff != null) {
         b.element('staff', nest: rest.staff.toString());
       }
-      if (rest.tuplet case Tuplet(:final start, :final stop)
-          when start || stop) {
-        b.element('notations', nest: () => _buildTupletMarks(b, rest.tuplet));
+      final bracket = rest.tuplet != null &&
+          (rest.tuplet!.start || rest.tuplet!.stop);
+      if (bracket || rest.marks.isNotEmpty) {
+        b.element('notations', nest: () {
+          _buildTupletMarks(b, rest.tuplet);
+          _buildMarks(b, rest.marks);
+        });
       }
     });
   }

@@ -201,6 +201,7 @@ class PlaybackConverter {
       }
     }
     _mergeTies(score, events);
+    _applyMarks(score, events);
     events.sort((a, b) {
       final time = a.baseOnsetMs.compareTo(b.baseOnsetMs);
       if (time != 0) return time;
@@ -210,6 +211,81 @@ class PlaybackConverter {
       return measure != 0 ? measure : a.symbolIndex.compareTo(b.symbolIndex);
     });
     return PlaybackPlan(events: List.unmodifiable(events), timeline: timeline);
+  }
+
+  /// Articulations and ornaments as MuseScore Studio plays them: staccato
+  /// sounds half the note, staccatissimo 33%, marcato two thirds; trills,
+  /// mordents and turns play 32nd notes (an eighth of a beat) with the
+  /// neighbouring notes of the key.
+  void _applyMarks(Score score, List<PlaybackEvent> events) {
+    const thirtySecond = 62.5; // ms at the base tempo
+    for (var i = events.length - 1; i >= 0; i--) {
+      final e = events[i];
+      if (e.isRest) continue;
+      final symbol = score
+          .parts[e.partIndex]
+          .measures[e.measureIndex]
+          .symbols[e.symbolIndex];
+      if (symbol is! Note || symbol.marks.isEmpty) continue;
+      final marks = symbol.marks;
+      final gate = marks.contains(Articulation.staccatissimo)
+          ? 0.33
+          : marks.contains(Articulation.staccato)
+          ? 1 / 2
+          : marks.contains(Articulation.marcato)
+          ? 2 / 3
+          : 1.0;
+      if (gate < 1) {
+        events[i] = _with(e, durationMs: (e.baseDurationMs * gate).round());
+      }
+      // Steps from the written note, one per 32nd; the last holds on.
+      final List<int>? pattern = marks.contains(Articulation.trill)
+          ? [
+              for (var k = 0; k < e.baseDurationMs ~/ thirtySecond; k++)
+                k.isEven ? 0 : 1,
+            ]
+          : marks.contains(Articulation.mordent)
+          ? [0, -1, 0]
+          : marks.contains(Articulation.invertedMordent)
+          ? [0, 1, 0]
+          : marks.contains(Articulation.turn)
+          ? [1, 0, -1, 0]
+          : null;
+      if (pattern == null || pattern.length < 2) continue;
+      final key = ScoreTimelineBuilder.activeKey(
+        score,
+        e.partIndex,
+        e.measureIndex,
+      );
+      int neighbour(int steps) {
+        if (steps == 0) return e.midiNote;
+        const names = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+        final d = symbol.octave * 7 + names.indexOf(symbol.step) + steps;
+        final step = names[d % 7];
+        return noteToMidi(
+          Note(
+            step: step,
+            octave: d ~/ 7,
+            alter: Accidentals.keyAlter(key, step),
+            duration: 1,
+            type: 'quarter',
+          ),
+        );
+      }
+
+      final notes = [
+        for (final (k, steps) in pattern.indexed)
+          _with(
+            e,
+            midiNote: neighbour(steps),
+            onsetMs: e.baseOnsetMs + (k * thirtySecond).round(),
+            durationMs: k == pattern.length - 1
+                ? e.baseEndMs - e.baseOnsetMs - (k * thirtySecond).round()
+                : ((k + 1) * thirtySecond).round() - (k * thirtySecond).round(),
+          ),
+      ];
+      events.replaceRange(i, i + 1, notes);
+    }
   }
 
   /// A tied note sounds once, held to the end of the last note it is tied
@@ -249,6 +325,7 @@ class PlaybackConverter {
     PlaybackEvent e, {
     int? midiNote,
     int? durationMs,
+    int? onsetMs,
   }) => PlaybackEvent(
     partIndex: e.partIndex,
     measureIndex: e.measureIndex,
@@ -256,7 +333,7 @@ class PlaybackConverter {
     midiNote: midiNote ?? e.midiNote,
     baseDurationMs: durationMs ?? e.baseDurationMs,
     isChordTone: e.isChordTone,
-    baseOnsetMs: e.baseOnsetMs,
+    baseOnsetMs: onsetMs ?? e.baseOnsetMs,
     baseMeasureOnsetMs: e.baseMeasureOnsetMs,
     baseMeasureDurationMs: e.baseMeasureDurationMs,
   );

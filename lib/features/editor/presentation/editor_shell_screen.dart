@@ -2115,6 +2115,19 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       );
       return KeyEventResult.handled;
     }
+    // MuseScore's articulation shortcuts.
+    final markCommand = keyboard.isShiftPressed && !keyboard.isAltPressed
+        ? {
+            LogicalKeyboardKey.keyS: EditorCommand.staccato,
+            LogicalKeyboardKey.keyN: EditorCommand.tenuto,
+            LogicalKeyboardKey.keyV: EditorCommand.accent,
+            LogicalKeyboardKey.keyO: EditorCommand.marcato,
+          }[key]
+        : null;
+    if (markCommand != null) {
+      _runEditorCommand(markCommand);
+      return KeyEventResult.handled;
+    }
     if (keyboard.isShiftPressed && !keyboard.isAltPressed && letter != null) {
       _updateState((s) => s.addChordStep(letter));
       return KeyEventResult.handled;
@@ -2495,6 +2508,14 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       onTriplet: _editorState.tupletUnavailableReason(3) == null
                           ? () => _runEditorCommand(EditorCommand.triplet)
                           : null,
+                      markStates: {
+                        for (final mark in Articulation.values)
+                          mark: _editorState.markUnavailableReason(mark) == null
+                              ? _editorState.hasMark(mark)
+                              : null,
+                      },
+                      onToggleMark: (mark) =>
+                          _updateState((s) => s.toggleMark(mark)),
                       rangeCount: _editorState.hasRange
                           ? _editorState.selectionPositions.length
                           : 0,
@@ -4623,6 +4644,8 @@ class _InspectorPanel extends StatefulWidget {
     required this.onSlur,
     required this.onTriplet,
     required this.rangeCount,
+    required this.markStates,
+    required this.onToggleMark,
     required this.extendMode,
     required this.onToggleExtend,
     required this.onSelectBar,
@@ -4675,6 +4698,11 @@ class _InspectorPanel extends StatefulWidget {
 
   /// Symbols in a range selection; 0 without one.
   final int rangeCount;
+
+  /// Each mark's state for the selection: on, off, or null when it cannot
+  /// be added.
+  final Map<Articulation, bool?> markStates;
+  final ValueChanged<Articulation> onToggleMark;
 
   /// Whether the next tap extends the selection (touch stand-in for Shift).
   final bool extendMode;
@@ -5287,6 +5315,32 @@ class _InspectorPanelState extends State<_InspectorPanel> {
                     'Paste after the selection, or over a range (Ctrl/Cmd + V)',
                 onPressed: _wrapAction(widget.onPaste),
               ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          EditorToolRow(
+            wrap: widget.isLandscape,
+            children: [
+              for (final (mark, icon, label, keys) in const [
+                (Articulation.staccato, Icons.fiber_manual_record, 'Staccato', 'Shift + S'),
+                (Articulation.staccatissimo, Icons.change_history, 'Staccatiss.', null),
+                (Articulation.tenuto, Icons.horizontal_rule, 'Tenuto', 'Shift + N'),
+                (Articulation.accent, Icons.chevron_right, 'Accent', 'Shift + V'),
+                (Articulation.marcato, Icons.keyboard_arrow_up, 'Marcato', 'Shift + O'),
+                (Articulation.fermata, Icons.remove_red_eye_outlined, 'Fermata', null),
+                (Articulation.trill, Icons.waves, 'Trill', null),
+                (Articulation.mordent, Icons.show_chart, 'Mordent', null),
+                (Articulation.turn, Icons.all_inclusive, 'Turn', null),
+              ])
+                _ActionTile(
+                  icon: icon,
+                  label: label,
+                  tooltip: keys == null ? label : '$label ($keys)',
+                  selected: widget.markStates[mark] ?? false,
+                  onPressed: widget.markStates[mark] == null
+                      ? null
+                      : _wrapAction(() => widget.onToggleMark(mark)),
+                ),
             ],
           ),
         ],

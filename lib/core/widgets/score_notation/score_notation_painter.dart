@@ -13,6 +13,7 @@ import '../../models/score_symbol.dart';
 import '../../models/spanner.dart';
 import '../../models/time_signature.dart';
 import 'score_notation_metrics.dart';
+import 'mark_glyphs.dart';
 import 'staff_pitch_mapper.dart';
 import 'voice_layout.dart';
 
@@ -606,6 +607,18 @@ class ScoreNotationPainter extends CustomPainter {
               ? ScoreNotationMetrics.stemLengthFor(staffLineSpacing)
               : 8.0,
         );
+        if (symbol.marks.isNotEmpty) {
+          _drawMarkShapes(
+            canvas,
+            markShapes(
+              symbol.marks,
+              stemUp: layout.stemUp(i) ?? y > middleLineY,
+              staffTop: staffTop - y,
+              stemReach: tupletPoints[i]!.$2,
+            ),
+            Offset(x, y),
+          );
+        }
         if ((symbol.reviewId, row) case (final id?, final row?)) {
           _notePoints[id] = _NotePoint(
             Offset(x, y),
@@ -666,6 +679,18 @@ class ScoreNotationPainter extends CustomPainter {
         _drawIssueMark(canvas, partIndex, absoluteMeasureIndex, i, Offset(x, y));
         _drawRest(canvas, symbol, x: x, staffTop: staffTop + restShift);
         tupletPoints[i] = (Offset(x, y), 10.0);
+        if (symbol.marks.isNotEmpty) {
+          _drawMarkShapes(
+            canvas,
+            markShapes(
+              symbol.marks,
+              stemUp: false,
+              staffTop: staffTop - y,
+              stemReach: 10,
+            ),
+            Offset(x, y),
+          );
+        }
       }
     }
     _drawTuplets(
@@ -1494,6 +1519,69 @@ class ScoreNotationPainter extends CustomPainter {
 
   /// Draws a thin vertical line on the far left connecting all staves that
   /// belong to the same system (multi-part scores only).
+  void _drawMarkShapes(Canvas canvas, List<MarkShape> shapes, Offset at) {
+    const ink = Color(0xFF111827);
+    Offset point((double, double) q) => at + Offset(q.$1, q.$2);
+    for (final shape in shapes) {
+      switch (shape) {
+        case MarkDot(:final x, :final y, :final radius):
+          canvas.drawCircle(point((x, y)), radius, Paint()..color = ink);
+        case MarkLines(:final points, :final width, :final filled):
+          final path = Path()..moveTo(point(points.first).dx, point(points.first).dy);
+          for (final q in points.skip(1)) {
+            path.lineTo(point(q).dx, point(q).dy);
+          }
+          if (filled) path.close();
+          canvas.drawPath(
+            path,
+            Paint()
+              ..color = ink
+              ..style = filled ? PaintingStyle.fill : PaintingStyle.stroke
+              ..strokeWidth = width
+              ..strokeJoin = StrokeJoin.round,
+          );
+        case MarkCurve(:final start, :final segments, :final width, :final filled):
+          final path = Path()..moveTo(point(start).dx, point(start).dy);
+          for (final (c1, c2, end) in segments) {
+            path.cubicTo(
+              point(c1).dx,
+              point(c1).dy,
+              point(c2).dx,
+              point(c2).dy,
+              point(end).dx,
+              point(end).dy,
+            );
+          }
+          if (filled) path.close();
+          canvas.drawPath(
+            path,
+            Paint()
+              ..color = ink
+              ..style = filled ? PaintingStyle.fill : PaintingStyle.stroke
+              ..strokeWidth = width,
+          );
+        case MarkText(:final text, :final x, :final y, :final size):
+          final painter = TextPainter(
+            text: TextSpan(
+              text: text,
+              style: TextStyle(
+                color: ink,
+                fontSize: size,
+                fontStyle: FontStyle.italic,
+                fontWeight: FontWeight.w700,
+                fontFamily: ScoreNotationMetrics.textFontFamily,
+              ),
+            ),
+            textDirection: TextDirection.ltr,
+          )..layout();
+          painter.paint(
+            canvas,
+            point((x, y)) - Offset(painter.width / 2, painter.height / 2),
+          );
+      }
+    }
+  }
+
   /// Each tuplet's number above its notes, with a bracket unless all of its
   /// notes are beamed together (as MuseScore shows them).
   void _drawTuplets(

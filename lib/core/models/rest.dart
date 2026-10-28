@@ -1,5 +1,6 @@
 import 'score_review.dart';
 import 'score_symbol.dart';
+import 'articulation.dart';
 import 'tuplet.dart';
 
 class Rest extends ScoreSymbol {
@@ -24,10 +25,14 @@ class Rest extends ScoreSymbol {
     this.reviewId,
     this.source,
     this.tuplet,
+    this.marks = const [],
   });
 
   /// The tuplet this rest belongs to, if any.
   final Tuplet? tuplet;
+
+  /// Articulations, ornaments and fermatas on this rest.
+  final List<Articulation> marks;
 
   static const Object _keep = Object();
 
@@ -42,6 +47,7 @@ class Rest extends ScoreSymbol {
     Object? reviewId = _keep,
     Object? source = _keep,
     Object? tuplet = _keep,
+    List<Articulation>? marks,
   }) => Rest(
     duration: duration ?? this.duration,
     type: type ?? this.type,
@@ -54,6 +60,7 @@ class Rest extends ScoreSymbol {
     reviewId: identical(reviewId, _keep) ? this.reviewId : reviewId as String?,
     source: identical(source, _keep) ? this.source : source as SourceRegion?,
     tuplet: identical(tuplet, _keep) ? this.tuplet : tuplet as Tuplet?,
+    marks: marks ?? this.marks,
   );
 
   @override
@@ -68,10 +75,12 @@ class Rest extends ScoreSymbol {
     if (reviewId != null) 'reviewId': reviewId,
     if (source != null) 'source': source!.toJson(),
     if (tuplet != null) 'tuplet': tuplet!.toJson(),
+    if (marks.isNotEmpty) 'marks': [for (final m in marks) m.name],
   };
 
   factory Rest.fromJson(Map<String, dynamic> json) => Rest(
     tuplet: Tuplet.fromJson(json['tuplet']),
+    marks: Articulation.listFromJson(json['marks']),
     duration: json['duration'] as int,
     type: json['type'] as String,
     voice: json['voice'] as int?,

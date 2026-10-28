@@ -382,6 +382,29 @@ void main() {
     );
   });
 
+  testWidgets('Shift+S adds staccato; the Marks row shows it is on', (
+    tester,
+  ) async {
+    await pumpControls(tester, size: const Size(390, 844));
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pumpAndSettle();
+    expect(selectedNote(tester).marks, [Articulation.staccato]);
+    await tester.ensureVisible(find.text('Staccato'));
+    expect(
+      tester.getSemantics(
+        find
+            .ancestor(of: find.text('Staccato'), matching: find.byType(Semantics))
+            .first,
+      ),
+      containsSemantics(isToggled: true),
+    );
+    await tester.tap(find.text('Staccato'));
+    await tester.pumpAndSettle();
+    expect(selectedNote(tester).marks, isEmpty);
+  });
+
   testWidgets('conversion is reachable on a phone and can be undone', (
     tester,
   ) async {

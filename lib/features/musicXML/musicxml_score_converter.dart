@@ -504,6 +504,7 @@ class MusicXmlScoreConverter {
     final staff = int.tryParse(_firstInnerText(noteElement, 'staff') ?? '');
     final isChordTone = noteElement.findElements('chord').isNotEmpty;
     final tuplet = _readTuplet(noteElement);
+    final marks = _readMarks(noteElement);
 
     if (noteElement.findElements('rest').isNotEmpty) {
       return Rest(
@@ -513,6 +514,7 @@ class MusicXmlScoreConverter {
         staff: staff,
         dots: dots,
         tuplet: tuplet,
+        marks: marks,
       );
     }
 
@@ -542,8 +544,22 @@ class MusicXmlScoreConverter {
       dots: dots,
       isChordTone: isChordTone,
       tuplet: tuplet,
+      marks: marks,
     );
   }
+
+  /// Articulations, ornaments and fermatas the app knows, in the editor's
+  /// order; others stay only in the retained source.
+  List<Articulation> _readMarks(XmlElement note) => {
+    for (final notations in note.findElements('notations'))
+      for (final child in notations.childElements)
+        if (child.name.local == 'fermata')
+          Articulation.fermata
+        else if (child.name.local == 'articulations' ||
+            child.name.local == 'ornaments')
+          for (final mark in child.childElements)
+            ?Articulation.fromXml(mark.name.local),
+  }.toList()..sort((a, b) => a.index - b.index);
 
   /// `<time-modification>` gives the ratio; `<tuplet>` notations mark the
   /// first and last notes of the bracket.
