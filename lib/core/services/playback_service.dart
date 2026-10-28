@@ -5,6 +5,8 @@ import 'package:flutter_midi_pro/flutter_midi_pro.dart';
 
 import '../models/score.dart';
 import 'playback_converter.dart';
+import 'playback_schedule.dart';
+import 'score_timeline.dart';
 import 'usage_stats_service.dart';
 
 export 'playback_converter.dart' show PlaybackEvent, PlaybackConverter;
@@ -165,13 +167,20 @@ class PlaybackService {
   Score? _playingScore;
   PlaybackPosition _position = PlaybackPosition.none;
   int _currentEventIndex = 0;
+  PlaybackPlan? _plan;
+  PlaybackSchedule? _schedule;
+  int _frameIndex = 0;
+  int _focusPart = 0;
+  int? _throughMeasure;
+  int _reviewFirstMeasure = 0;
+  int _reviewPart = 0;
 
   /// Counts playback loops. A loop that wakes up after a newer one started
   /// (play() while playing, as when seeking) must leave the notes and the
   /// state to the newer loop.
   int _loopRun = 0;
   int _playRequest = 0;
-  final List<int> _activeMidiNotes = <int>[];
+  final Map<int, int> _activeMidiNotes = <int, int>{};
 
   // ── Streams ────────────────────────────────────────────────────────────
   final _stateController = StreamController<PlaybackState>.broadcast();
@@ -259,7 +268,7 @@ class PlaybackService {
   }
 
   /// Starts playback from measure [fromMeasureIndex] of part [fromPartIndex]
-  /// (default: the beginning), then carries on through the later parts.
+  /// (default: the beginning), following the score's ensemble or staff layout.
   /// Safe to call while already playing (stops previous playback first).
   Future<void> play(
     Score score, {
@@ -272,27 +281,15 @@ class PlaybackService {
     }
     final request = ++_playRequest;
     if (!_initialized) await init();
-    if (request != _playRequest || _status == PlaybackStatus.error) return;
+    if (request != _playRequest || !_initialized) return;
+    if (_status == PlaybackStatus.error) _emitState(PlaybackStatus.stopped);
 
-    _playingScore = score;
-    _events = _converter.buildEvents(score);
-    if (throughMeasureIndex != null) {
-      _events = _events
-          .where(
-            (event) =>
-                event.partIndex == fromPartIndex &&
-                event.measureIndex >= fromMeasureIndex &&
-                event.measureIndex <= throughMeasureIndex,
-          )
-          .toList();
-    }
-    if (_events.isEmpty) return;
-
-    _currentEventIndex = startIndex(
-      _events,
-      partIndex: fromPartIndex,
-      measureIndex: fromMeasureIndex,
-    );
+    _throughMeasure = throughMeasureIndex;
+    _reviewFirstMeasure = fromMeasureIndex;
+    _reviewPart = fromPartIndex;
+    _focusPart = fromPartIndex;
+    if (!_prepareScore(score)) return;
+    _cue(fromPartIndex, fromMeasureIndex);
 
     _shouldPlay = true;
     _emitState(PlaybackStatus.playing);
@@ -302,6 +299,7 @@ class PlaybackService {
 
   void pause() {
     if (_status != PlaybackStatus.playing) return;
+    _loopRun++;
     _shouldPlay = false;
     _interruptWait();
     _stopCurrentNote();
@@ -324,35 +322,30 @@ class PlaybackService {
     }
     _playRequest++;
     _loopRun++;
-    _playingScore = score;
-    _events = _converter.buildEvents(score);
-    if (_events.isEmpty) {
-      stop();
-      return;
-    }
-    _currentEventIndex = startIndex(
-      _events,
-      partIndex: fromPartIndex,
-      measureIndex: fromMeasureIndex,
-    );
-    _emitPosition(_positionAt(_currentEventIndex));
+    _throughMeasure = null;
+    _focusPart = fromPartIndex;
+    if (!_prepareScore(score)) return;
+    _cue(fromPartIndex, fromMeasureIndex);
+    _emitPosition(_positionAt(_frameIndex));
   }
 
   void resume({Score? score}) {
     if (_status != PlaybackStatus.paused) return;
     if (score != null && _currentEventIndex < _events.length) {
       final previous = _events[_currentEventIndex];
-      final symbolId = _playingScore
+      final elapsed =
+          _schedule!.frames[_frameIndex].timeMs - previous.baseOnsetMs;
+      final id = _playingScore
           ?.getSymbolAt(
             previous.partIndex,
             previous.measureIndex,
             previous.symbolIndex,
           )
           ?.toJson()['reviewId'];
-      final events = _converter.buildEvents(score);
-      var index = symbolId == null
+      if (!_prepareScore(score)) return;
+      var index = id == null
           ? -1
-          : events.indexWhere(
+          : _events.indexWhere(
               (event) =>
                   score
                       .getSymbolAt(
@@ -361,37 +354,107 @@ class PlaybackService {
                         event.symbolIndex,
                       )
                       ?.toJson()['reviewId'] ==
-                  symbolId,
+                  id,
             );
       if (index < 0) {
-        index = events.indexWhere(
+        index = _events.indexWhere(
           (event) =>
-              event.partIndex > previous.partIndex ||
-              (event.partIndex == previous.partIndex &&
-                  (event.measureIndex > previous.measureIndex ||
-                      (event.measureIndex == previous.measureIndex &&
-                          event.symbolIndex >= previous.symbolIndex))),
+              event.partIndex == previous.partIndex &&
+              (event.measureIndex > previous.measureIndex ||
+                  event.measureIndex == previous.measureIndex &&
+                      event.symbolIndex >= previous.symbolIndex),
         );
       }
       if (index < 0) {
         stop();
         return;
       }
-      _events = events;
       _currentEventIndex = index;
-      _playingScore = score;
+      final phase = _events[index].baseOnsetMs + elapsed;
+      final phaseIndex = _schedule!.frames.indexWhere((f) => f.timeMs == phase);
+      _frameIndex = phaseIndex >= 0 && phase < _events[index].baseEndMs
+          ? phaseIndex
+          : _schedule!.frameAt(_events[index].baseOnsetMs);
     }
     _shouldPlay = true;
     _emitState(PlaybackStatus.playing);
     _runLoop();
   }
 
+  bool _prepareScore(Score score) {
+    try {
+      final plan = _converter.buildPlan(score);
+      _events = _throughMeasure == null
+          ? plan.events
+          : plan.events
+                .where(
+                  (event) =>
+                      event.partIndex == _reviewPart &&
+                      event.measureIndex >= _reviewFirstMeasure &&
+                      event.measureIndex <= _throughMeasure!,
+                )
+                .toList();
+      if (_events.isEmpty) {
+        stop();
+        return false;
+      }
+      final measures = plan.timeline.measures.where(
+        (measure) =>
+            _throughMeasure == null ||
+            measure.partIndex == _reviewPart &&
+                measure.measureIndex >= _reviewFirstMeasure &&
+                measure.measureIndex <= _throughMeasure!,
+      );
+      final boundaries = [
+        for (final measure in measures) ...[
+          PlaybackConverter.baseMilliseconds(measure.onset),
+          PlaybackConverter.baseMilliseconds(measure.onset + measure.duration),
+        ],
+      ];
+      final end = boundaries.fold(0, (last, time) => time > last ? time : last);
+      _schedule = PlaybackSchedule(_events, endMs: end, boundaries: boundaries);
+      _plan = plan;
+      _playingScore = score;
+      return true;
+    } on ScoreTimelineException catch (error) {
+      stop();
+      _emitState(PlaybackStatus.error, error: error.message);
+      return false;
+    } on FormatException {
+      stop();
+      _emitState(
+        PlaybackStatus.error,
+        error: 'This score has timing that cannot be played yet.',
+      );
+      return false;
+    }
+  }
+
+  void _cue(int part, int measure) {
+    final simultaneous =
+        _playingScore!.playbackLayout == ScorePlaybackLayout.simultaneousParts;
+    final target = _plan!.timeline.measures
+        .where(
+          (m) => simultaneous
+              ? m.measureIndex >= measure
+              : m.partIndex > part ||
+                    m.partIndex == part && m.measureIndex >= measure,
+        )
+        .firstOrNull;
+    final time = target == null
+        ? 0
+        : PlaybackConverter.baseMilliseconds(target.onset);
+    _frameIndex = _schedule!.frameAt(time);
+    _currentEventIndex = _schedule!.primaryAt(time, _focusPart) ?? 0;
+  }
+
   void stop() {
     _playRequest++;
-    if (_status == PlaybackStatus.stopped && _position.isNone) return;
+    _loopRun++;
     _shouldPlay = false;
     _interruptWait();
     _stopCurrentNote();
+    if (_status == PlaybackStatus.stopped && _position.isNone) return;
     _currentEventIndex = 0;
     _emitState(PlaybackStatus.stopped);
     _emitPosition(PlaybackPosition.none);
@@ -417,55 +480,81 @@ class PlaybackService {
 
   void _runLoop() async {
     final run = ++_loopRun;
-    while (_shouldPlay && _currentEventIndex < _events.length) {
-      final event = _events[_currentEventIndex];
-      final groupEnd = _eventGroupEnd(_currentEventIndex);
-      final ms = _converter.scaledDuration(event.baseDurationMs, _tempo);
-      _emitPosition(_positionAt(_currentEventIndex));
-
-      _activeMidiNotes.clear();
-
-      // Fire all notes in the current rhythmic group without awaiting.
-      // Awaiting playNote() blocks for ~10–20 ms per call (MIDI platform
-      // overhead), which would delay _waitMs() and make the visual clock
-      // run ahead of the audio by that amount on every note boundary.
-      // Fire-and-forget keeps the wall-clock timer aligned with the audio.
-      if (_sfId != null) {
-        for (var i = _currentEventIndex; i < groupEnd; i++) {
-          final groupedEvent = _events[i];
-          if (groupedEvent.isRest) continue;
-          unawaited(
-            _midi.playNote(
-              sfId: _sfId!,
-              channel: _midiChannel,
-              key: groupedEvent.midiNote,
-              velocity: _velocity,
-            ),
-          );
-          _activeMidiNotes.add(groupedEvent.midiNote);
+    final schedule = _schedule;
+    if (schedule == null) return;
+    var restarting = true;
+    while (_shouldPlay && _frameIndex < schedule.frames.length) {
+      final frame = schedule.frames[_frameIndex];
+      if (!restarting) {
+        for (final i in frame.stops) {
+          _releaseNote(_events[i]);
         }
       }
-
-      // Wait for duration, scaled to current tempo.
+      final starts = restarting
+          ? schedule.activeAt(frame.timeMs)
+          : frame.starts;
+      for (final i in starts) {
+        _startNote(_events[i], run);
+      }
+      restarting = false;
+      if (_frameIndex + 1 >= schedule.frames.length) break;
+      _currentEventIndex =
+          schedule.primaryAt(frame.timeMs, _focusPart) ?? _currentEventIndex;
+      _emitPosition(_positionAt(_frameIndex));
+      final next = schedule.frames[_frameIndex + 1];
+      final ms = _converter.scaledDuration(next.timeMs - frame.timeMs, _tempo);
       final completed = await _waitMs(ms);
-      if (run != _loopRun) return; // a newer loop owns playback now
-
-      // Stop notes without awaiting — same reason as playNote above.
-      // _stopActiveNotes() copies _activeMidiNotes before clearing it so the
-      // next group can safely populate the list while stops are in flight.
-      unawaited(_stopActiveNotes());
-
-      if (!completed) break; // paused or stopped mid-note
-      _currentEventIndex = groupEnd;
+      if (run != _loopRun) return;
+      if (!completed) return;
+      _frameIndex++;
     }
-
-    // Natural end — reset to stopped.
-    if (_shouldPlay) {
+    if (_shouldPlay && run == _loopRun) {
       _shouldPlay = false;
+      _stopCurrentNote();
       _currentEventIndex = 0;
+      _frameIndex = 0;
       _emitState(PlaybackStatus.stopped);
       _emitPosition(PlaybackPosition.none);
     }
+  }
+
+  void _startNote(PlaybackEvent event, int run) {
+    if (event.isRest || _sfId == null) return;
+    final count = _activeMidiNotes[event.midiNote] ?? 0;
+    _activeMidiNotes[event.midiNote] = count + 1;
+    if (count > 0) return;
+    unawaited(
+      _midi
+          .playNote(
+            sfId: _sfId!,
+            channel: _midiChannel,
+            key: event.midiNote,
+            velocity: _velocity,
+          )
+          .catchError((Object error) {
+            if (run == _loopRun && _shouldPlay) {
+              stop();
+              _emitState(
+                PlaybackStatus.error,
+                error: 'Audio playback failed. Try again.',
+              );
+            }
+          }),
+    );
+  }
+
+  void _releaseNote(PlaybackEvent event) {
+    if (event.isRest || _sfId == null) return;
+    final count = _activeMidiNotes[event.midiNote];
+    if (count == null) return;
+    if (count > 1) {
+      _activeMidiNotes[event.midiNote] = count - 1;
+      return;
+    }
+    _activeMidiNotes.remove(event.midiNote);
+    unawaited(
+      _midi.stopNote(sfId: _sfId!, channel: _midiChannel, key: event.midiNote),
+    );
   }
 
   void _emitPosition(PlaybackPosition position) {
@@ -473,23 +562,43 @@ class PlaybackService {
     _positionController.add(position);
   }
 
-  PlaybackPosition _positionAt(int index) {
+  PlaybackPosition _positionAt(int frameIndex) {
+    final schedule = _schedule!;
+    final time = schedule.frames[frameIndex].timeMs;
+    final index = schedule.primaryAt(time, _focusPart) ?? _currentEventIndex;
     final event = _events[index];
-    final end = _eventGroupEnd(index);
-    final next = end < _events.length ? _events[end] : null;
+    final measure = _plan!.timeline.measures
+        .where(
+          (m) =>
+              m.partIndex == _focusPart &&
+              PlaybackConverter.baseMilliseconds(m.onset) <= time &&
+              PlaybackConverter.baseMilliseconds(m.onset + m.duration) > time,
+        )
+        .firstOrNull;
+    final nextTime = frameIndex + 1 < schedule.frames.length
+        ? schedule.frames[frameIndex + 1].timeMs
+        : time;
+    final nextIndex = schedule.primaryAt(nextTime, _focusPart);
+    final next = nextIndex == null ? null : _events[nextIndex];
+    final measureStart = measure == null
+        ? event.baseMeasureOnsetMs
+        : PlaybackConverter.baseMilliseconds(measure.onset);
+    final measureDuration = measure == null
+        ? event.baseMeasureDurationMs
+        : PlaybackConverter.baseMilliseconds(measure.onset + measure.duration) -
+              measureStart;
     return PlaybackPosition(
-      partIndex: event.partIndex,
-      measureIndex: event.measureIndex,
-      symbolIndex: event.symbolIndex,
-      durationMs: _converter.scaledDuration(event.baseDurationMs, _tempo),
-      measureElapsedMs: _converter.scaledDuration(
-        _measureElapsedBaseDuration(index),
-        _tempo,
-      ),
-      measureDurationMs: _converter.scaledDuration(
-        _measureBaseDuration(index),
-        _tempo,
-      ),
+      partIndex: measure?.partIndex ?? event.partIndex,
+      measureIndex: measure?.measureIndex ?? event.measureIndex,
+      symbolIndex:
+          measure != null &&
+              (measure.measureIndex != event.measureIndex ||
+                  measure.partIndex != event.partIndex)
+          ? -1
+          : event.symbolIndex,
+      durationMs: _converter.scaledDuration(nextTime - time, _tempo),
+      measureElapsedMs: _converter.scaledDuration(time - measureStart, _tempo),
+      measureDurationMs: _converter.scaledDuration(measureDuration, _tempo),
       nextPartIndex: next?.partIndex,
       nextMeasureIndex: next?.measureIndex,
       nextSymbolIndex: next?.symbolIndex,
@@ -504,7 +613,7 @@ class PlaybackService {
     if (!_shouldPlay) return Future.value(false);
     final completer = Completer<bool>();
     _waitCompleter = completer;
-    _noteTimer = Timer(Duration(milliseconds: ms.clamp(10, 60000)), () {
+    _noteTimer = Timer(Duration(milliseconds: ms.clamp(1, 60000)), () {
       if (!completer.isCompleted) completer.complete(true);
     });
     return completer.future;
@@ -523,48 +632,15 @@ class PlaybackService {
     unawaited(_stopActiveNotes());
   }
 
-  int _eventGroupEnd(int startIndex) {
-    var index = startIndex + 1;
-    while (index < _events.length && _events[index].isChordTone) {
-      index++;
-    }
-    return index;
-  }
-
-  int _measureElapsedBaseDuration(int eventIndex) {
-    final current = _events[eventIndex];
-    var elapsed = 0;
-    for (var i = 0; i < eventIndex; i++) {
-      final event = _events[i];
-      if (event.partIndex != current.partIndex ||
-          event.measureIndex != current.measureIndex) {
-        continue;
-      }
-      if (!event.isChordTone) elapsed += event.baseDurationMs;
-    }
-    return elapsed;
-  }
-
-  int _measureBaseDuration(int eventIndex) {
-    final current = _events[eventIndex];
-    var duration = 0;
-    for (final event in _events) {
-      if (event.partIndex != current.partIndex ||
-          event.measureIndex != current.measureIndex) {
-        continue;
-      }
-      if (!event.isChordTone) duration += event.baseDurationMs;
-    }
-    return duration > 0 ? duration : current.baseDurationMs;
-  }
-
   Future<void> _stopActiveNotes() async {
     if (_sfId == null || _activeMidiNotes.isEmpty) return;
-    final keys = List<int>.from(_activeMidiNotes);
+    final keys = List<int>.from(_activeMidiNotes.keys);
     _activeMidiNotes.clear();
-    for (final key in keys) {
-      await _midi.stopNote(sfId: _sfId!, channel: _midiChannel, key: key);
-    }
+    // Queue every stop before a subsequent play/resume can queue new attacks.
+    await Future.wait([
+      for (final key in keys)
+        _midi.stopNote(sfId: _sfId!, channel: _midiChannel, key: key),
+    ]);
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────

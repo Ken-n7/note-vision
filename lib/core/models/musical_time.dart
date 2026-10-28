@@ -73,6 +73,10 @@ class MusicalTime implements Comparable<MusicalTime> {
     BigInt.from(numerator) * BigInt.from(other.denominator),
     BigInt.from(denominator) * BigInt.from(other.numerator),
   );
+  MusicalTime operator *(MusicalTime other) => MusicalTime._ratio(
+    BigInt.from(numerator) * BigInt.from(other.numerator),
+    BigInt.from(denominator) * BigInt.from(other.denominator),
+  );
   double get asDouble => numerator / denominator;
   bool get isNegative => numerator < 0;
   bool get isZero => numerator == 0;

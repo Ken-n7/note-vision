@@ -11,6 +11,8 @@ import 'score_symbol.dart';
 import 'time_signature.dart';
 import 'musicxml_source.dart';
 
+enum ScorePlaybackLayout { sequentialStaves, simultaneousParts }
+
 class Score {
   static const Object _keep = Object();
 
@@ -21,6 +23,12 @@ class Score {
   final List<ScoreSourcePage> sourcePages;
   final List<ScoreReviewEntry> reviewHistory;
   final MusicXmlSource? musicXmlSource;
+  final ScorePlaybackLayout? _playbackLayout;
+  ScorePlaybackLayout get playbackLayout =>
+      _playbackLayout ??
+      (musicXmlSource == null
+          ? ScorePlaybackLayout.sequentialStaves
+          : ScorePlaybackLayout.simultaneousParts);
 
   const Score({
     required this.id,
@@ -30,7 +38,8 @@ class Score {
     this.sourcePages = const [],
     this.reviewHistory = const [],
     this.musicXmlSource,
-  });
+    ScorePlaybackLayout? playbackLayout,
+  }) : _playbackLayout = playbackLayout;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -42,12 +51,21 @@ class Score {
     if (reviewHistory.isNotEmpty)
       'reviewHistory': reviewHistory.map((e) => e.toJson()).toList(),
     if (musicXmlSource != null) 'musicXmlSource': musicXmlSource!.toJson(),
+    if (_playbackLayout != null || musicXmlSource != null)
+      'playbackLayout': playbackLayout.name,
   };
 
   factory Score.fromJson(Map<String, dynamic> json) => Score(
     id: json['id'] as String,
     title: json['title'] as String,
     composer: (json['composer'] as String?) ?? '',
+    playbackLayout: json['playbackLayout'] == null
+        ? null
+        : ScorePlaybackLayout.values.firstWhere(
+            (v) => v.name == json['playbackLayout'],
+            orElse: () =>
+                throw const FormatException('Unknown score playback layout'),
+          ),
     musicXmlSource: json['musicXmlSource'] == null
         ? null
         : MusicXmlSource.fromJson(
@@ -75,6 +93,7 @@ class Score {
     List<ScoreSourcePage>? sourcePages,
     List<ScoreReviewEntry>? reviewHistory,
     MusicXmlSource? musicXmlSource,
+    ScorePlaybackLayout? playbackLayout,
   }) => Score(
     id: id,
     title: title ?? this.title,
@@ -83,6 +102,7 @@ class Score {
     sourcePages: sourcePages ?? this.sourcePages,
     reviewHistory: reviewHistory ?? this.reviewHistory,
     musicXmlSource: musicXmlSource ?? this.musicXmlSource,
+    playbackLayout: playbackLayout ?? _playbackLayout,
   );
 
   /// The editable projection excludes retained source and review decisions.

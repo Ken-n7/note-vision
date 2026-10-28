@@ -1,6 +1,7 @@
 import 'package:note_vision/core/models/beam_grouping.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/measure.dart';
+import 'package:note_vision/core/models/musical_time.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/note_value.dart';
 import 'package:note_vision/core/models/part.dart';
@@ -9,6 +10,7 @@ import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/widgets/score_notation/staff_pitch_mapper.dart';
+import 'package:note_vision/core/services/score_timeline.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/model/editor_state_history.dart';
 
@@ -217,15 +219,12 @@ extension EditorActions on EditorState {
   bool canSetSelectedDuration(DurationSpec spec) =>
       hasEditableSelection &&
       _canReplaceSelectedSymbolWith(
-        selectedSymbol is Note && (selectedSymbol as Note).isChordTone
-            ? 0
-            : quarterLength(spec.type, 0, spec.divisions),
+        quarterLength(spec.type, 0, spec.divisions),
       );
 
   bool get canToggleSelectedDot {
     final symbol = selectedEditableSymbol;
     if (symbol == null) return false;
-    if (symbol is Note && symbol.isChordTone) return true;
     final (type, dots, duration) = switch (symbol) {
       Note(:final type, :final dots, :final duration) ||
       Rest(:final type, :final dots, :final duration) => (type, dots, duration),
@@ -1090,16 +1089,31 @@ extension EditorActions on EditorState {
   }
 
   bool _canReplaceSelectedSymbolWith(double nextQuarters) {
-    if (!hasEditableSelection) {
+    if (!hasEditableSelection) return false;
+    try {
+      final timeline = const ScoreTimelineBuilder().measure(
+        score,
+        selectedPartIndex!,
+        selectedMeasureIndex!,
+        writtenOverrides: {
+          selectedSymbolIndex!: MusicalTime.decimal('$nextQuarters'),
+        },
+      );
+      final selected = timeline.symbols
+          .where((e) => e.symbolIndex == selectedSymbolIndex)
+          .firstOrNull;
+      if (selected == null) return false;
+      final capacity = ScoreTimelineBuilder.meterLength(
+        _activeTimeSignatureForMeasure(
+          partIndex: selectedPartIndex!,
+          measureIndex: selectedMeasureIndex!,
+        ),
+      );
+      return capacity.isZero ||
+          timeline.laneDuration(selected.lane).compareTo(capacity) <= 0;
+    } on ScoreTimelineException {
       return false;
     }
-
-    return _canMeasureAcceptQuarters(
-      partIndex: selectedPartIndex!,
-      measureIndex: selectedMeasureIndex!,
-      nextQuarters: nextQuarters,
-      replacingQuarters: _symbolQuarters(selectedSymbol!),
-    );
   }
 
   bool _canMeasureAcceptSymbol({
@@ -1107,51 +1121,30 @@ extension EditorActions on EditorState {
     required int measureIndex,
     required ScoreSymbol symbol,
   }) {
-    return _canMeasureAcceptQuarters(
-      partIndex: partIndex,
-      measureIndex: measureIndex,
-      nextQuarters: _symbolQuarters(symbol),
-      replacingQuarters: 0,
-    );
-  }
-
-  bool _canMeasureAcceptQuarters({
-    required int partIndex,
-    required int measureIndex,
-    required double nextQuarters,
-    required double replacingQuarters,
-  }) {
-    final timeSignature = _activeTimeSignatureForMeasure(
-      partIndex: partIndex,
-      measureIndex: measureIndex,
-    );
-    if (timeSignature == null || nextQuarters <= 0) {
-      return true;
+    if (symbol is! Note && symbol is! Rest) return true;
+    final symbols = score.parts[partIndex].measures[measureIndex].symbols;
+    try {
+      final timeline = const ScoreTimelineBuilder().measure(
+        score,
+        partIndex,
+        measureIndex,
+        symbols: [...symbols, symbol],
+      );
+      final inserted = timeline.symbols
+          .where((e) => e.symbolIndex == symbols.length)
+          .firstOrNull;
+      if (inserted == null) return false;
+      final capacity = ScoreTimelineBuilder.meterLength(
+        _activeTimeSignatureForMeasure(
+          partIndex: partIndex,
+          measureIndex: measureIndex,
+        ),
+      );
+      return capacity.isZero ||
+          timeline.laneDuration(inserted.lane).compareTo(capacity) <= 0;
+    } on ScoreTimelineException {
+      return false;
     }
-
-    final capacity = timeSignature.beats * 4 / timeSignature.beatType;
-    final used = score.parts[partIndex].measures[measureIndex].symbols
-        .fold<double>(0, (sum, symbol) => sum + _symbolQuarters(symbol));
-    return used - replacingQuarters + nextQuarters <= capacity + 1e-9;
-  }
-
-  /// Time a symbol takes in its measure, in quarter notes. A chord tone
-  /// sounds with the note before it, so it takes none.
-  double _symbolQuarters(ScoreSymbol symbol) {
-    return switch (symbol) {
-      Note(isChordTone: true) => 0,
-      Note(:final type, :final dots, :final duration) => quarterLength(
-        type,
-        dots,
-        duration,
-      ),
-      Rest(:final type, :final dots, :final duration) => quarterLength(
-        type,
-        dots,
-        duration,
-      ),
-      _ => 0,
-    };
   }
 
   TimeSignature? _activeTimeSignatureForMeasure({

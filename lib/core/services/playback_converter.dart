@@ -2,7 +2,9 @@ import '../models/note.dart';
 import '../models/note_value.dart';
 import '../models/rest.dart';
 import '../models/score.dart';
+import '../models/musical_time.dart';
 import 'accidentals.dart';
+import 'score_timeline.dart';
 
 // ---------------------------------------------------------------------------
 // PlaybackEvent
@@ -17,6 +19,9 @@ class PlaybackEvent {
     required this.midiNote,
     required this.baseDurationMs,
     this.isChordTone = false,
+    this.baseOnsetMs = 0,
+    this.baseMeasureOnsetMs = 0,
+    this.baseMeasureDurationMs = 0,
   });
 
   final int partIndex;
@@ -30,6 +35,8 @@ class PlaybackEvent {
   /// Scale by `defaultTempo / actualTempo` to get real duration.
   final int baseDurationMs;
   final bool isChordTone;
+  final int baseOnsetMs, baseMeasureOnsetMs, baseMeasureDurationMs;
+  int get baseEndMs => baseOnsetMs + baseDurationMs;
 
   bool get isRest => midiNote < 0;
 
@@ -41,11 +48,23 @@ class PlaybackEvent {
       other.symbolIndex == symbolIndex &&
       other.midiNote == midiNote &&
       other.baseDurationMs == baseDurationMs &&
-      other.isChordTone == isChordTone;
+      other.isChordTone == isChordTone &&
+      other.baseOnsetMs == baseOnsetMs &&
+      other.baseMeasureOnsetMs == baseMeasureOnsetMs &&
+      other.baseMeasureDurationMs == baseMeasureDurationMs;
 
   @override
-  int get hashCode =>
-      Object.hash(partIndex, measureIndex, symbolIndex, midiNote, baseDurationMs, isChordTone);
+  int get hashCode => Object.hash(
+    partIndex,
+    measureIndex,
+    symbolIndex,
+    midiNote,
+    baseDurationMs,
+    isChordTone,
+    baseOnsetMs,
+    baseMeasureOnsetMs,
+    baseMeasureDurationMs,
+  );
 
   @override
   String toString() =>
@@ -71,7 +90,13 @@ class PlaybackConverter {
 
   // Step → semitone offset from C (chromatic scale).
   static const Map<String, int> _stepOffset = {
-    'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11,
+    'C': 0,
+    'D': 2,
+    'E': 4,
+    'F': 5,
+    'G': 7,
+    'A': 9,
+    'B': 11,
   };
 
   // ── Public API ─────────────────────────────────────────────────────────
@@ -122,58 +147,82 @@ class PlaybackConverter {
   int scaledDuration(int baseDurationMs, int actualTempo) =>
       (baseDurationMs * defaultTempo / actualTempo).round();
 
-  /// Flattens [score] into a sequential list of [PlaybackEvent]s.
-  ///
-  /// Iteration order: parts in index order, each part fully before the next.
-  /// Within a part: measures in order, symbols in order.
-  /// Notes with unresolvable pitch (unknown step) are skipped silently.
-  ///
-  /// Notes sound as written on the page: a note without its own accidental
-  /// takes the key signature, unless an earlier note of the same pitch in the
-  /// same measure carried an accidental, which holds to the barline.
-  List<PlaybackEvent> buildEvents(Score score) {
+  /// Current events sorted by absolute onset. Scanned staves retain reading
+  /// order; imported instrument parts share bar starts. Voices share time.
+  List<PlaybackEvent> buildEvents(Score score) => buildPlan(score).events;
+
+  PlaybackPlan buildPlan(Score score) {
+    final timeline = const ScoreTimelineBuilder().build(score);
     final events = <PlaybackEvent>[];
-    for (var pi = 0; pi < score.parts.length; pi++) {
-      final part = score.parts[pi];
-      final accidentals = Accidentals();
-      for (var mi = 0; mi < part.measures.length; mi++) {
-        final measure = part.measures[mi];
-        accidentals.startMeasure(measure);
-        for (var si = 0; si < measure.symbols.length; si++) {
-          final symbol = measure.symbols[si];
-          if (symbol is Note) {
-            final midi = noteToMidi(
-              Note(
-                step: symbol.step,
-                octave: symbol.octave,
-                alter: accidentals.sounding(symbol),
-                duration: symbol.duration,
-                type: symbol.type,
-              ),
-            );
-            events.add(PlaybackEvent(
-              partIndex: pi,
-              measureIndex: mi,
-              symbolIndex: si,
-              midiNote: midi,
-              baseDurationMs:
-                  symbolMs(symbol.type, symbol.dots, symbol.duration),
-              isChordTone: symbol.isChordTone,
-            ));
-          } else if (symbol is Rest) {
-            events.add(PlaybackEvent(
-              partIndex: pi,
-              measureIndex: mi,
-              symbolIndex: si,
-              midiNote: -1,
-              baseDurationMs:
-                  symbolMs(symbol.type, symbol.dots, symbol.duration),
-            ));
-          }
+    final accidentalStates = <int, Accidentals>{};
+    for (final measure in timeline.measures) {
+      final accidentals = accidentalStates.putIfAbsent(
+        measure.partIndex,
+        Accidentals.new,
+      );
+      accidentals.startMeasure(
+        score.parts[measure.partIndex].measures[measure.measureIndex],
+      );
+      for (final timed in measure.timeline.symbols) {
+        final symbol = timed.symbol;
+        if (timed.symbolIndex == null || (symbol is! Note && symbol is! Rest)) {
+          continue;
         }
+        var midi = -1;
+        if (symbol is Note) {
+          midi = noteToMidi(
+            Note(
+              step: symbol.step,
+              octave: symbol.octave,
+              alter: accidentals.sounding(symbol),
+              duration: symbol.duration,
+              type: symbol.type,
+            ),
+          );
+        }
+        final start = baseMilliseconds(measure.onset + timed.onset);
+        final end = baseMilliseconds(measure.onset + timed.end);
+        events.add(
+          PlaybackEvent(
+            partIndex: measure.partIndex,
+            measureIndex: measure.measureIndex,
+            symbolIndex: timed.symbolIndex!,
+            midiNote: midi,
+            baseDurationMs: (end - start).clamp(1, 60000),
+            baseOnsetMs: start,
+            baseMeasureOnsetMs: baseMilliseconds(measure.onset),
+            baseMeasureDurationMs:
+                baseMilliseconds(measure.onset + measure.duration) -
+                baseMilliseconds(measure.onset),
+            isChordTone: timed.isChordTone,
+          ),
+        );
       }
     }
-    return events;
+    events.sort((a, b) {
+      final time = a.baseOnsetMs.compareTo(b.baseOnsetMs);
+      if (time != 0) return time;
+      final part = a.partIndex.compareTo(b.partIndex);
+      if (part != 0) return part;
+      final measure = a.measureIndex.compareTo(b.measureIndex);
+      return measure != 0 ? measure : a.symbolIndex.compareTo(b.symbolIndex);
+    });
+    return PlaybackPlan(events: List.unmodifiable(events), timeline: timeline);
   }
 
+  /// Round absolute boundaries, not each tuplet in isolation.
+  static int baseMilliseconds(MusicalTime time) {
+    final numerator = BigInt.from(time.numerator) * BigInt.from(500);
+    final denominator = BigInt.from(time.denominator);
+    return ((numerator * BigInt.two + denominator) ~/
+            (denominator * BigInt.two))
+        .toInt();
+  }
+}
+
+class PlaybackPlan {
+  const PlaybackPlan({required this.events, required this.timeline});
+  final List<PlaybackEvent> events;
+  final ScoreTimeline timeline;
+  int get durationMs => PlaybackConverter.baseMilliseconds(timeline.duration);
 }

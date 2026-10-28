@@ -256,7 +256,13 @@ Stage 2A retains imported MusicXML and exact source timing in optional
 `Score.musicXmlSource`. Imported source events are not a live edited timeline.
 Preserving export patches supported pitch/beam/metadata edits; complex rhythm or
 structure changes fail explicitly instead of losing notation. See the checkpoint
-for remaining engine/timeline work and verification.
+for remaining engine work and verification. Stage 2B adds a live rational
+voice/staff timeline, lane-aware capacity checks, independent MIDI note-offs
+and shared-bar playback for imported ensembles. Scanned projects keep sequential
+staff reading order. Complex source structure changes and sparse timewise bars
+fail playback explicitly. Release build 2002 was tested on Android 11, including
+import, playback, editing/undo and project save/reopen. Engraving and full
+MuseScore parity remain incomplete.
 
 `EditorState` is immutable. Every edit returns a new instance via `copyWith`.
 

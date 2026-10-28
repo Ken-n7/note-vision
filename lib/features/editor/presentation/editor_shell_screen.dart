@@ -1110,6 +1110,28 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   }
 
   Future<void> _seekPlayback(int step) async {
+    if (_editorState.score.playbackLayout ==
+        ScorePlaybackLayout.simultaneousParts) {
+      final parts = _editorState.score.parts;
+      var part = _editorState.selectedPartIndex ?? 0;
+      if (part >= parts.length || step >= parts[part].measures.length) {
+        part = parts.indexWhere((p) => step < p.measures.length);
+      }
+      if (part < 0) return;
+      if (_playbackStatus == PlaybackStatus.playing) {
+        await _playFromMeasure(step, partIndex: part);
+      } else {
+        _selectMeasureForReview(
+          NotationMeasureTarget(partIndex: part, measureIndex: step),
+        );
+        await _playback.seek(
+          _editorState.score,
+          fromMeasureIndex: step,
+          fromPartIndex: part,
+        );
+      }
+      return;
+    }
     var remaining = step;
     for (var part = 0; part < _editorState.score.parts.length; part++) {
       final count = _editorState.score.parts[part].measures.length;
@@ -1794,6 +1816,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         _playbackPending;
     final isReadOnly = _isReviewMode;
     final selected = _editorState.selectedSymbol;
+    final simultaneousParts =
+        _editorState.score.playbackLayout ==
+        ScorePlaybackLayout.simultaneousParts;
     final hasSelection = _editorState.hasSelection;
     final hasMeasureContext =
         _editorState.selectedPartIndex != null &&
@@ -2265,19 +2290,27 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 playbackControls: PlaybackControlsBar(
                   playbackService: _playback,
                   isLoading: _playbackPending,
-                  initialMeasure:
-                      _editorState.score.parts
-                          .take(selectedPartIndex)
-                          .fold(0, (sum, part) => sum + part.measures.length) +
-                      selectedMeasureIndex,
-                  measureCounts: [
-                    for (final part in _editorState.score.parts)
-                      part.measures.length,
-                  ],
+                  initialMeasure: simultaneousParts
+                      ? selectedMeasureIndex
+                      : _editorState.score.parts
+                                .take(selectedPartIndex)
+                                .fold(
+                                  0,
+                                  (sum, part) => sum + part.measures.length,
+                                ) +
+                            selectedMeasureIndex,
+                  measureCounts: simultaneousParts
+                      ? null
+                      : [
+                          for (final part in _editorState.score.parts)
+                            part.measures.length,
+                        ],
                   isEmpty: scoreIsEmpty,
                   // The scrubber covers every staff in reading order.
-                  measuresPerPart: measuresPerPart,
-                  totalMeasures: _editorState.score.totalMeasures,
+                  measuresPerPart: simultaneousParts ? null : measuresPerPart,
+                  totalMeasures: simultaneousParts
+                      ? measuresPerPart
+                      : _editorState.score.totalMeasures,
                   onPlay: () => unawaited(
                     _playFromMeasure(
                       _editorState.selectedMeasureIndex ?? 0,

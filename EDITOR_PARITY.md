@@ -28,13 +28,13 @@ silently disappear; preservation is a prerequisite for complex score editing.
 | Workspace | Adaptive dark dock, paper canvas, pan/zoom, guide | Searchable commands, richer properties/palettes, touch and keyboard parity, timeline/navigation |
 | Note input | Tap/drag whole through 16th notes/rests | Step input, pitch keys, octave/duration shortcuts, chords, voices, MIDI, additional values |
 | Selection/editing | One symbol or measure context, 50-step undo | Ranges, multiple selection, clipboard, repeat, transpose, filters and atomic batch edits |
-| Rhythm | Basic values/dots, explicit beams and beat grouping | Tuplets, grace notes, measure rests, pickups, voice-aware timeline, ties |
+| Rhythm | Basic values/dots, beams, exact live voice timing and source ratios | Editable tuplets/grace notes, measure rests, explicit pickups and ties |
 | Pitch | Diatonic moves and accidentals; partial key/clef support | Octave moves, full key/clef editing, chromatic/enharmonic transpose, concert/transposed pitch |
 | Expression | Limited symbol model | Slurs, articulations, dynamics/hairpins, ornaments, tremolo, lines/pedal and playback semantics |
 | Text | Title/composer | Lyrics, chord symbols, tempo/rehearsal marks, staff/system text, fingering |
 | Structure | Parts and bars, page breaks | Instrument/staff management, linked parts, staff groups, repeats/voltas/jumps |
 | Engraving | Fixed-grid CustomPainter plus separate PDF renderer | Shared layout, collisions, proportional spacing, chord/voice engraving, styles and page/system controls |
-| Playback | Sequential MIDI events, transport/tempo | Simultaneous voices/parts, mixer, loops, metronome, repeats, expression and MIDI/audio export |
+| Playback | Simultaneous voices/imported parts, sequential scanned staves, transport/tempo | Mixer, loops, metronome, repeats, expression and MIDI/audio export |
 | Interchange | MusicXML subset and local project JSON | Lossless preservation/migration, complex round-trip fixtures, additional exports |
 | Specialized notation | Not implemented | Tablature, percussion, cross-staff, alternate staff types and instrument-specific notation |
 | Platform integrations | Offline Android/iOS primary, desktop builds | Assess desktop plugins/sound engines separately; do not silently exclude them from the requested scope |
@@ -139,6 +139,59 @@ and an explicit list of any platform-dependent differences.
   test/features/editor/presentation/preserved_source_export_test.dart`.
   No on-device Android/iOS build was performed in this stage.
 
+## Stage 2B — live voice timing and ensemble playback
+
+- Stage 1 and 2A were committed as `80decb7` (`feat(editor): add commands and
+  source retention`). This stage builds on that checkpoint.
+- `ScoreTimelineBuilder` derives exact rational onsets and durations from the
+  current score. Voice/staff lanes have separate cursors; chord tones share
+  their base onset. Capacity checks use the edited lane rather than summing
+  every voice. Duration/dot changes and insertion retain undo behavior.
+- Stable source bindings overlay supported rhythm edits onto original exact
+  timing: written-duration ratios adjust source durations and reflow the same
+  lane while retaining gaps and other voices. Original source events remain
+  immutable. Complex add/remove/reorder and voice/chord-structure changes fail
+  playback explicitly rather than silently using stale timing. Complex rhythm
+  export still has the stage 2A restrictions.
+- Playback layout is optional in project JSON. Existing projects without a
+  source envelope retain sequential scanned-staff reading order; retained
+  MusicXML imports default to simultaneous parts. Explicit layout persists.
+  Shared ensemble bars align to the longest part/meter, with short-opening
+  pickup handling and inherited meter changes. Timewise sources with omitted
+  part bars fail playback explicitly until global measure slots are modeled.
+- Playback schedules independent note-on and note-off boundaries, so short
+  voice notes can end while long notes continue. Exact absolute boundary
+  rounding avoids accumulated tuplet drift. Pause/resume, seeking, review
+  audition, editing while paused and stale-timer cancellation remain covered.
+  Playback errors allow retry after correcting the score.
+- Ensemble transport scrubs shared bars instead of counting every staff's
+  bars. It falls back to another part if the selected part lacks the target
+  bar. Scanned-score transport keeps its existing staff order.
+- Limitations: the current painter/PDF still use the earlier engraving rules;
+  triplet symbols can crowd together and tuplet brackets are not drawn.
+  Unrepresented grace/unpitched source events retain time but do not sound.
+  All parts still use one piano channel; overlapping unisons share a held note
+  until their last voice ends. Instrument routing, independent unison attacks,
+  full voice/staff accidental semantics, ties/repeats/expression and mixer
+  controls remain pending. This is timing/playback foundation, not complete
+  notation or MuseScore parity.
+- Automated verification: the final full suite passed **712 tests** with
+  `flutter test --no-pub --concurrency=2 --reporter expanded`. The focused
+  timeline, polyphonic playback, review and ensemble-transport run passed
+  **21 tests**. Static analysis across `lib` and the new tests reported
+  **no issues**; formatting and `git diff --check` passed.
+- Physical validation on the connected Realme RMX1851 (Android 11/API 30):
+  release build **2002**, installed as an update with app data retained. Imported
+  a two-part, four-bar MusicXML score containing whole notes, quarters and
+  triplet eighths; checked shared-bar scrubbing, play/pause/stop, keyboard
+  command search with the soft keyboard, focus-selected-bar, pitch editing,
+  undo, local project save and reopen. Android's audio service showed an active
+  NoteVision speaker track with zero underruns at capture; this does not
+  establish subjective sound quality. No app exception or overflow appeared
+  in the inspected process log. Saved test project: `NV Ensemble Timing QA`.
+  Native DocumentsUI search is unsupported on this device; keyboard navigation
+  selected the test file successfully. No iOS device test was performed.
+
 ## Engine adapter assessment and next step
 
 The inspected upstream [engraving build](https://github.com/musescore/MuseScore/blob/main/src/engraving/CMakeLists.txt)
@@ -153,8 +206,7 @@ working mobile port. No MuseScore source or assets have been copied into the app
 
 Next, prototype the engine boundary against the complex fixture before choosing
 a full model rewrite: loading/saving, layout/hit testing, pitch edits and undo
-through a narrow adapter. In parallel with that design work, the document layer
-needs a live, editable rational timeline for legacy/scanned scores and imported
-source overlays, with voice-aware capacity checks and correct simultaneous
-playback. These remain required stage 2 work; range/clipboard and advanced
-notation should build on that timeline rather than adding more flat-list rules.
+through a narrow adapter. Stage 2B supplies live timing and polyphonic scheduling
+for the current model; retained-source rhythm export, global timewise measure
+slots and richer editable notation still need work. Range/clipboard and advanced
+notation should build on this timeline rather than adding more flat-list rules.
