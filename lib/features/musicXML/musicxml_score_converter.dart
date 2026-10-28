@@ -21,6 +21,7 @@ import 'package:note_vision/core/services/spanners.dart';
 import 'package:xml/xml.dart';
 
 import 'musicxml_source_reader.dart';
+import 'musicxml_lyrics.dart';
 
 /// Converts a validated MusicXML document into internal score models.
 class MusicXmlScoreConverter {
@@ -708,6 +709,10 @@ class MusicXmlScoreConverter {
       staff: staff,
       beamed: noteElement.findElements('beam').isNotEmpty,
       beams: _readBeams(noteElement),
+      lyrics: noteElement
+          .findElements('lyric')
+          .map(MusicXmlLyrics.read)
+          .toList(),
       dots: dots,
       isChordTone: isChordTone,
       tuplet: tuplet,

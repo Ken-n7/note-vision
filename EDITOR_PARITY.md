@@ -532,7 +532,54 @@ release 2004 played the same project with no errors. No iOS device test.
   endings from the editor (import keeps them), custom jump text, repeat counts
   other than ending numbers (MuseScore's "play count").
 
-Next: Stage 4E — lyrics, then 4F text, tempo and chord symbols. Retained-source
-rhythm export, global timewise measure slots and richer editable notation still
-need work; advanced notation should build on the Stage 2B timeline rather than
-adding more flat-list rules.
+## Stage 4E — lyrics
+
+- `Note.lyrics` contains `Lyric` values: verse number/name, Unicode text,
+  single/begin/middle/end syllabic state, start/continue/stop extension lines,
+  above/below placement and visibility. JSON is additive: older projects still
+  open with no lyrics. Note copies, pitch edits and the clipboard keep lyrics.
+- MusicXML reads/writes multiple `<lyric>` elements per note. Each imported
+  lyric also retains its XML, preserving elisions, formatting, named verses and
+  extra lyric metadata through saves and generated export. Replacing a syllable
+  keeps its first text run's formatting; other verses stay intact. Lyric edits
+  patch the retained document, keeping unrelated unsupported notation. Simple
+  files containing lyrics can also rebuild after rhythm edits.
+- Editor: Edit → Lyrics, Ctrl/Cmd+L, or command search opens a draft entry
+  panel with a selected-bar preview. Space/Next word advances; `-`/Hyphen links
+  syllables; `_`/Extend holds across notes. Pasting several words/syllables
+  fills successive notes. Entry stays in the selected voice/staff, skips rests
+  and chord tones, and skips tied continuations except when extending. Verse
+  number/name, syllabic state and extension endpoints can be edited directly.
+  Apply commits the session as one undo step; Cancel/dismissal keeps the score.
+  Applying retains note selection and rechecks playback/review/stale-score locks.
+- `LyricLayout` shares text/connector geometry between screen and PDF: centered
+  syllables, verse rows, hyphens and melismas split at system/page boundaries.
+  Clicking lyric text selects its note. Additional verse/voice rows reserve
+  vertical space and reduce systems per page consistently in editor and PDF;
+  pagination also reserves room for the first-page heading.
+- MuseScore Studio 4.7.5: `13_lyrics` now matches **10/10 notation facts** and
+  **11/11 playback facts**. Separate tests cover explicit extension endpoints,
+  retained-source edits, rich lyric XML, project saves, copy/pitch preservation,
+  voice/tie navigation, undo/cancel, paste, text selection and responsive entry.
+- Verification: full Flutter suite **822 passed** (`flutter test --no-pub
+  --concurrency=2 --reporter expanded`); `flutter analyze --no-pub` reports
+  **no issues**; `git diff --check` clean. This is automated/widget verification;
+  no new on-device mobile release was tested for this stage.
+- Visual inspection: phone, 320px/2× text, landscape and tablet entry panels;
+  generated PDF checked visually and with text extraction. Artifacts can be
+  regenerated with `NV_EDITOR_SCREENSHOTS=/tmp/note-vision-lyrics flutter test
+  --no-pub test/features/editor/presentation/lyrics_test.dart
+  test/features/pdf/lyrics_test.dart`.
+- Not yet: lyrics on rests, inline text editing, lyric-only clipboard commands,
+  style/formatting controls, reserved-character shortcuts, or proportional
+  spacing/collision avoidance for long syllables in dense fixed-grid bars.
+  Rich imported text formatting is preserved in XML; the canvas/PDF use the
+  common lyric font. Scanning does not recognize lyrics.
+- References: [MuseScore lyrics workflow](https://handbook.musescore.org/text/lyrics),
+  [MusicXML lyric](https://www.w3.org/2021/06/musicxml40/musicxml-reference/elements/lyric/)
+  and [extension types](https://www.w3.org/2021/06/musicxml40/musicxml-reference/elements/extend/).
+
+Next: Stage 4F — text, tempo and chord symbols. Retained-source rhythm export,
+global timewise measure slots and richer editable notation still need work;
+advanced notation should build on the Stage 2B timeline rather than adding more
+flat-list rules.

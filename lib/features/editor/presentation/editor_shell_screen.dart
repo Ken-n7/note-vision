@@ -39,6 +39,7 @@ import 'package:note_vision/features/editor/presentation/widgets/notation_check_
 import 'package:note_vision/features/editor/presentation/widgets/notation_review_panel.dart';
 import 'package:note_vision/features/editor/presentation/widgets/beam_editor_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/staves_sheet.dart';
+import 'package:note_vision/features/editor/presentation/widgets/lyrics_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/transpose_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/editor_tool_dock.dart';
 import 'package:note_vision/features/editor/presentation/widgets/editor_help_sheet.dart';
@@ -179,7 +180,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   int _currentPageIndex = 0;
 
   EditorLayoutPolicy get _layoutPolicy =>
-      EditorLayoutPolicy.forPartCount(_editorState.score.parts.length);
+      EditorLayoutPolicy.forScore(_editorState.score);
 
   bool get _isReviewMode =>
       AppFeatures.classroomWorkflow && widget.args.reviewMode;
@@ -1482,6 +1483,45 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   bool get _canEditStaves =>
       _canApplyIssueFix && !_isDraggingNote && !_isReviewMode;
 
+  Future<void> _showLyrics() async {
+    if (_commandEditLock != null ||
+        _editorState.lyricUnavailableReason != null) {
+      return;
+    }
+    final original = _editorState.score;
+    final edited = await showModalBottomSheet<Score>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      constraints: const BoxConstraints(maxWidth: 640),
+      builder: (_) => LyricsSheet(initialState: _editorState),
+    );
+    if (!mounted ||
+        edited == null ||
+        (identical(edited, original) ||
+            jsonEncode(edited.notationProjection()) ==
+                jsonEncode(original.notationProjection())) ||
+        !identical(_editorState.score, original) ||
+        _commandEditLock != null) {
+      return;
+    }
+    _updateState(
+      (s) => s.applyEditWithSymbolSelection(
+        score: edited,
+        partIndex: s.selectedPartIndex!,
+        measureIndex: s.selectedMeasureIndex!,
+        symbolIndex: s.selectedSymbolIndex!,
+        symbol: edited.getSymbolAt(
+          s.selectedPartIndex!,
+          s.selectedMeasureIndex!,
+          s.selectedSymbolIndex!,
+        )!,
+      ),
+    );
+  }
+
   /// Adds, renames, reorders or removes staves as one undo step.
   Future<void> _showStaves() async {
     if (!_canEditStaves || _commandEditLock != null) return;
@@ -1796,6 +1836,14 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           disabledReason: lock ?? command.unavailableReason(state),
         ),
       EditorCommandChoice(
+        id: 'workspace.lyrics',
+        label: 'Lyrics…',
+        group: 'Text',
+        description: 'Enter syllables, verses and extension lines on notes',
+        shortcut: 'Ctrl / ⌘ + L',
+        disabledReason: lock ?? state.lyricUnavailableReason,
+      ),
+      EditorCommandChoice(
         id: 'workspace.entry',
         label: 'Toggle note entry',
         group: 'Input',
@@ -1949,6 +1997,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     }
     // Recheck state after dismissal: playback can have changed with search open.
     switch (id) {
+      case 'workspace.lyrics':
+        await _showLyrics();
       case 'workspace.entry':
         if (_commandEditLock == null) _toggleInsertMode();
       case 'workspace.beams':
@@ -2037,6 +2087,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     }
     if (_commandEditLock != null) return KeyEventResult.ignored;
     if (command) {
+      if (key == LogicalKeyboardKey.keyL) {
+        unawaited(_showLyrics());
+        return KeyEventResult.handled;
+      }
       if (key == LogicalKeyboardKey.keyZ) {
         _runEditorCommand(
           keyboard.isShiftPressed ? EditorCommand.redo : EditorCommand.undo,
@@ -2548,6 +2602,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                           : null,
                       onSlur: _editorState.slurUnavailableReason == null
                           ? () => _runEditorCommand(EditorCommand.slur)
+                          : null,
+                      onLyrics: _editorState.lyricUnavailableReason == null
+                          ? _showLyrics
                           : null,
                       onTriplet: _editorState.tupletUnavailableReason(3) == null
                           ? () => _runEditorCommand(EditorCommand.triplet)
@@ -4709,6 +4766,7 @@ class _InspectorPanel extends StatefulWidget {
     required this.onTie,
     required this.onSlur,
     required this.onTriplet,
+    required this.onLyrics,
     required this.rangeCount,
     required this.markStates,
     required this.onToggleMark,
@@ -4765,7 +4823,7 @@ class _InspectorPanel extends StatefulWidget {
   final VoidCallback onMoveUp;
   final VoidCallback onMoveDown;
   final VoidCallback? onOctaveUp, onOctaveDown, onConvertSymbol, onAddThird;
-  final VoidCallback? onTie, onSlur, onTriplet;
+  final VoidCallback? onTie, onSlur, onTriplet, onLyrics;
 
   /// Symbols in a range selection; 0 without one.
   final int rangeCount;
@@ -5473,6 +5531,12 @@ class _InspectorPanelState extends State<_InspectorPanel> {
           EditorToolRow(
             wrap: widget.isLandscape,
             children: [
+              _ActionTile(
+                icon: Icons.lyrics_outlined,
+                label: 'Lyrics',
+                tooltip: 'Lyrics on the selected note (Ctrl/Cmd + L)',
+                onPressed: _wrapAction(widget.onLyrics),
+              ),
               for (final mark in editorDynamics)
                 ChoiceChip(
                   label: Text(

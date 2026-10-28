@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:note_vision/core/models/beam_grouping.dart';
@@ -1109,6 +1110,93 @@ extension EditorActions on EditorState {
           return m;
       }
     });
+  }
+
+  /// Lyrics belong to one note, in one voice; a chord's base carries them.
+  String? get lyricUnavailableReason =>
+      !hasSymbolSelection || selectedSymbol is! Note
+      ? 'Select a note for lyrics'
+      : (selectedSymbol as Note).isChordTone
+      ? 'Select the chord’s first note'
+      : null;
+
+  Lyric? selectedLyric(String verse) => selectedSymbol is Note
+      ? (selectedSymbol as Note).lyrics
+            .where((l) => l.verse == verse)
+            .firstOrNull
+      : null;
+
+  /// Replace one verse without changing any of the others; empty text removes
+  /// it unless it is an explicit melisma continuation/stop.
+  EditorState setLyric(String verse, Lyric? value) {
+    if (lyricUnavailableReason != null ||
+        verse.trim().isEmpty ||
+        (value != null && value.verse != verse)) {
+      return this;
+    }
+    final note = selectedSymbol as Note;
+    if (jsonEncode(selectedLyric(verse)?.toJson()) ==
+        jsonEncode(value?.toJson())) {
+      return this;
+    }
+    final replacement =
+        value != null && (value.text.isNotEmpty || value.extend != null)
+        ? value
+        : null;
+    final updated = [
+      for (final l in note.lyrics)
+        if (l.verse != verse) l else ?replacement,
+      if (!note.lyrics.any((l) => l.verse == verse) && replacement != null)
+        replacement,
+    ];
+    if (jsonEncode(updated.map((l) => l.toJson()).toList()) ==
+        jsonEncode(note.lyrics.map((l) => l.toJson()).toList())) {
+      return this;
+    }
+    return _applySelectionPreservingEdit(
+      intent: EditorEditIntent.updateMeasureMetadata,
+      score: score.replaceSymbolAt(
+        selectedPartIndex!,
+        selectedMeasureIndex!,
+        selectedSymbolIndex!,
+        note.copyWith(lyrics: List.unmodifiable(updated)),
+      ),
+    );
+  }
+
+  /// Move within the current voice and staff, crossing bars, without history.
+  /// Word/syllable entry skips rests, chord tones and tied continuations;
+  /// extending a syllable can include tied continuations.
+  EditorState nextLyricNote(int delta, {bool includeTied = false}) {
+    if (lyricUnavailableReason != null || delta == 0) return this;
+    final lane = ScoreTimelineBuilder.lane(selectedSymbol!);
+    final tied = {
+      for (final s in score.spanners)
+        if (s.kind == SpannerKind.tie) s.to,
+    };
+    final notes = <SymbolPosition>[
+      for (final (m, measure)
+          in score.parts[selectedPartIndex!].measures.indexed)
+        for (final (n, symbol) in measure.symbols.indexed)
+          if (symbol is Note &&
+              !symbol.isChordTone &&
+              ScoreTimelineBuilder.lane(symbol) == lane &&
+              (includeTied ||
+                  !tied.contains(symbol.reviewId) ||
+                  (m == selectedMeasureIndex && n == selectedSymbolIndex)))
+            (measure: m, symbol: n),
+    ];
+    final current = notes.indexOf((
+      measure: selectedMeasureIndex!,
+      symbol: selectedSymbolIndex!,
+    ));
+    final target = current + (delta < 0 ? -1 : 1);
+    if (current < 0 || target < 0 || target >= notes.length) return this;
+    return selectSymbolAt(
+      partIndex: selectedPartIndex!,
+      measureIndex: notes[target].measure,
+      symbolIndex: notes[target].symbol,
+    );
   }
 
   // ── Dynamics and hairpins ────────────────────────────────────────────

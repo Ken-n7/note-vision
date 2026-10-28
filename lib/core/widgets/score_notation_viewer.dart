@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -5,9 +7,11 @@ import '../models/clef.dart';
 import '../models/key_signature.dart';
 import '../models/measure.dart';
 import '../models/note.dart';
+import '../models/part.dart';
 import '../models/score.dart';
 import '../models/time_signature.dart';
 import 'score_notation/notation_layout.dart';
+import 'score_notation/lyric_layout.dart';
 import 'score_notation/score_notation_metrics.dart';
 import 'score_notation/score_notation_painter.dart';
 import 'score_notation/staff_pitch_mapper.dart';
@@ -202,6 +206,28 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   NotationInsertTarget? _externalInsertTarget;
   NotationPreviewGlyph? _externalPreviewGlyph;
 
+  double get _rowHeight {
+    final parts = (widget.score?.parts ?? const <Part>[]).map(
+      (p) => p.measures,
+    );
+    if (!parts
+        .expand((p) => p)
+        .expand((m) => m.symbols)
+        .whereType<Note>()
+        .any((n) => n.lyrics.any((l) => !l.hidden))) {
+      return widget.rowHeight;
+    }
+    return math.max(widget.rowHeight, 140 + LyricLayout.extraHeight(parts));
+  }
+
+  EdgeInsets get _padding => widget.padding.copyWith(
+    top:
+        widget.padding.top +
+        LyricLayout.aboveHeight(
+          (widget.score?.parts ?? const <Part>[]).map((p) => p.measures),
+        ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final pageSlice = sliceScoreForLayout(
@@ -221,8 +247,8 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
       measures: activeMeasures,
       measuresPerRow: widget.measuresPerRow,
       minMeasureWidth: widget.minMeasureWidth,
-      rowHeight: widget.rowHeight,
-      padding: widget.padding,
+      rowHeight: _rowHeight,
+      padding: _padding,
       partCount: partCount,
     );
 
@@ -291,9 +317,23 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
                   parts: allParts,
                   measuresPerRow: layout.measuresPerRow,
                   minMeasureWidth: widget.minMeasureWidth,
-                  rowHeight: widget.rowHeight,
-                  padding: widget.padding,
+                  rowHeight: _rowHeight,
+                  padding: _padding,
                   rowPrefixWidth: layout.rowPrefixWidth,
+                );
+                targets.addAll(
+                  ScoreNotationPainter.buildLyricTargets(
+                    parts: allParts,
+                    lyricParts: (widget.score?.parts ?? const <Part>[])
+                        .map((p) => p.measures)
+                        .toList(),
+                    firstMeasureIndex: widget.firstMeasureIndex,
+                    measuresPerRow: layout.measuresPerRow,
+                    minMeasureWidth: widget.minMeasureWidth,
+                    rowHeight: _rowHeight,
+                    padding: _padding,
+                    rowPrefixWidth: layout.rowPrefixWidth,
+                  ),
                 );
                 final tapped = _nearestTarget(position, targets);
                 widget.onSymbolTap?.call(tapped);
@@ -331,11 +371,15 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
             ),
       onLongPressCancel: widget.onDragCompleted == null ? null : _cancelDrag,
       painter: ScoreNotationPainter(
+        lyricParts: (widget.score?.parts ?? const <Part>[])
+            .map((p) => p.measures)
+            .toList(),
+        firstMeasureIndex: widget.firstMeasureIndex,
         parts: allParts,
         measuresPerRow: layout.measuresPerRow,
         minMeasureWidth: widget.minMeasureWidth,
-        rowHeight: widget.rowHeight,
-        padding: widget.padding,
+        rowHeight: _rowHeight,
+        padding: _padding,
         rowPrefixWidth: layout.rowPrefixWidth,
         selectedPartIndex: widget.selectedPartIndex,
         selectedMeasureIndex: widget.selectedMeasureIndex,
@@ -386,8 +430,8 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
       parts: allParts,
       measuresPerRow: layout.measuresPerRow,
       minMeasureWidth: widget.minMeasureWidth,
-      rowHeight: widget.rowHeight,
-      padding: widget.padding,
+      rowHeight: _rowHeight,
+      padding: _padding,
       rowPrefixWidth: layout.rowPrefixWidth,
     );
     final pressed = _nearestTarget(position, targets);
@@ -559,8 +603,8 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
           parts: [measures],
           measuresPerRow: layout.measuresPerRow,
           minMeasureWidth: widget.minMeasureWidth,
-          rowHeight: widget.rowHeight,
-          padding: widget.padding,
+          rowHeight: _rowHeight,
+          padding: _padding,
           rowPrefixWidth: layout.rowPrefixWidth,
         ).where(
           (target) =>
@@ -601,7 +645,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   }) {
     if (allParts.isEmpty) return null;
     final partCount = allParts.length;
-    final contentStartX = widget.padding.left + layout.rowPrefixWidth;
+    final contentStartX = _padding.left + layout.rowPrefixWidth;
     const innerPadding = 16.0;
 
     for (final system in layout.systems) {
@@ -617,9 +661,9 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
         }
 
         final staffTop =
-            widget.padding.top +
-            system.systemIndex * (partCount * widget.rowHeight) +
-            partIdx * widget.rowHeight +
+            _padding.top +
+            system.systemIndex * (partCount * _rowHeight) +
+            partIdx * _rowHeight +
             28;
         final staffBottom =
             staffTop + ScoreNotationPainter.staffLineSpacing * 4;

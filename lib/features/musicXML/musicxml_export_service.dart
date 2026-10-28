@@ -19,6 +19,7 @@ import 'package:note_vision/core/services/score_timeline.dart';
 import 'package:note_vision/core/services/spanners.dart';
 import 'package:xml/xml.dart';
 import 'musicxml_preserving_exporter.dart';
+import 'musicxml_lyrics.dart';
 
 /// Converts a [Score] to a valid MusicXML 3.1 string and saves it to a
 /// user-chosen location via the system file picker.
@@ -415,6 +416,9 @@ class MusicXmlExportService {
           _buildTupletMarks(b, note.tuplet);
           _buildMarks(b, note.marks);
         });
+      }
+      for (final lyric in note.lyrics) {
+        b.xml(MusicXmlLyrics.write(lyric).toXmlString());
       }
     });
   }

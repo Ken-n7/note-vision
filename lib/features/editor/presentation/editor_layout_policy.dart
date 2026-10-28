@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:note_vision/core/models/measure.dart';
+import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/widgets/score_notation/lyric_layout.dart';
 
 class EditorLayoutPolicy {
   const EditorLayoutPolicy({
@@ -20,16 +22,26 @@ class EditorLayoutPolicy {
     rowsPerPage: 5,
   );
 
-  factory EditorLayoutPolicy.forPartCount(int partCount) {
+  factory EditorLayoutPolicy.forScore(Score score) =>
+      EditorLayoutPolicy.forPartCount(
+        score.parts.length,
+        extraHeight: LyricLayout.extraHeight(
+          score.parts.map((p) => p.measures),
+        ),
+      );
+
+  factory EditorLayoutPolicy.forPartCount(
+    int partCount, {
+    double extraHeight = 0,
+  }) {
     const base = EditorLayoutPolicy.standard;
     final normalizedPartCount = math.max(1, partCount);
-    final availableHeight = base.pageHeight - (base.verticalPadding * 2);
+    final availableHeight = base.pageHeight - (base.verticalPadding * 2) - 88;
     final maxRowsThatFit =
-        (availableHeight / (normalizedPartCount * base.rowHeight)).floor();
-    final rowsPerPage = math.max(
-      1,
-      math.min(base.rowsPerPage, maxRowsThatFit),
-    );
+        (availableHeight /
+                (normalizedPartCount * (base.rowHeight + extraHeight)))
+            .floor();
+    final rowsPerPage = math.max(1, math.min(base.rowsPerPage, maxRowsThatFit));
 
     return EditorLayoutPolicy(
       measuresPerRow: base.measuresPerRow,
@@ -38,7 +50,7 @@ class EditorLayoutPolicy {
       pageHeight: base.pageHeight,
       horizontalPadding: base.horizontalPadding,
       verticalPadding: base.verticalPadding,
-      rowHeight: base.rowHeight,
+      rowHeight: base.rowHeight + extraHeight,
       rowPrefixWidth: base.rowPrefixWidth,
     );
   }

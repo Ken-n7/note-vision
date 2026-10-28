@@ -17,6 +17,7 @@ import 'score_notation_metrics.dart';
 import 'mark_glyphs.dart';
 import 'staff_pitch_mapper.dart';
 import 'voice_layout.dart';
+import 'lyric_layout.dart';
 
 class ScoreNotationPainter extends CustomPainter {
   const ScoreNotationPainter({
@@ -33,6 +34,8 @@ class ScoreNotationPainter extends CustomPainter {
     this.rangeSymbols = const {},
     this.joinedParts = const {},
     this.spanners = const [],
+    this.lyricParts,
+    this.firstMeasureIndex = 0,
     this.playbackPartIndex,
     this.playbackMeasureIndex,
     this.playbackSymbolIndex,
@@ -57,6 +60,8 @@ class ScoreNotationPainter extends CustomPainter {
 
   /// All parts — one inner list per part, each containing that part's measures.
   final List<List<Measure>> parts;
+  final List<List<Measure>>? lyricParts;
+  final int firstMeasureIndex;
   final int measuresPerRow;
   final double minMeasureWidth;
   final double rowHeight;
@@ -112,10 +117,69 @@ class ScoreNotationPainter extends CustomPainter {
     for (final row in metrics) {
       _drawRow(canvas, row);
     }
+    _drawLyrics(canvas, metrics);
     if (spanners.isNotEmpty) _drawSpanners(canvas);
     if (parts.length > 1) _drawSystemConnectors(canvas, metrics);
     if (joinedParts.isNotEmpty) _drawGrandStaves(canvas, metrics);
     _drawPlaybackPlayhead(canvas, metrics);
+  }
+
+  static TextPainter _lyricText(String value) => TextPainter(
+    text: TextSpan(
+      text: value,
+      style: const TextStyle(
+        fontFamily: ScoreNotationMetrics.textFontFamily,
+        fontSize: LyricLayout.fontSize,
+        color: Color(0xFF111827),
+      ),
+    ),
+    textDirection: TextDirection.ltr,
+  )..layout();
+
+  void _drawLyrics(Canvas canvas, List<_RowMetrics> rows) {
+    if (!(lyricParts ?? parts)
+        .expand((p) => p)
+        .expand((m) => m.symbols)
+        .whereType<Note>()
+        .any((n) => n.lyrics.isNotEmpty)) {
+      return;
+    }
+    for (final row in rows) {
+      final part = row.partIndex;
+      final drawing = LyricLayout.build(
+        notes: LyricLayout.anchors(
+          measures: lyricParts?[part] ?? parts[part],
+          pageMeasures: parts[part],
+          firstMeasure: lyricParts == null ? 0 : firstMeasureIndex,
+          perRow: measuresPerRow,
+          contentX: padding.left + rowPrefixWidth,
+          measureWidth: minMeasureWidth,
+          prefixWidth: rowPrefixWidth,
+        ),
+        system: row.rowIndex,
+        staffTop: row.staffTop,
+        staffBottom: row.staffBottom,
+        left: padding.left + rowPrefixWidth,
+        right: row.rowEndX - 4,
+        textWidth: (v) => _lyricText(v).width,
+      );
+      for (final t in drawing.texts) {
+        final painter = _lyricText(t.text);
+        final baseline = painter.computeDistanceToActualBaseline(
+          TextBaseline.alphabetic,
+        );
+        painter.paint(canvas, Offset(t.x, t.y - baseline));
+      }
+      for (final line in drawing.lines) {
+        canvas.drawLine(
+          Offset(line.x1, line.y),
+          Offset(line.x2, line.y),
+          Paint()
+            ..color = const Color(0xFF111827)
+            ..strokeWidth = 0.8,
+        );
+      }
+    }
   }
 
   List<_RowMetrics> _buildRowMetrics() {
@@ -297,6 +361,84 @@ class ScoreNotationPainter extends CustomPainter {
       }
     }
     return targets;
+  }
+
+  /// Text underlays are selectable through the same note callback as their
+  /// noteheads. They do not become drag handles or insertion targets.
+  static List<NotationSymbolTarget> buildLyricTargets({
+    required List<List<Measure>> parts,
+    required List<List<Measure>> lyricParts,
+    required int firstMeasureIndex,
+    required int measuresPerRow,
+    required double minMeasureWidth,
+    required double rowHeight,
+    required EdgeInsets padding,
+    required double rowPrefixWidth,
+  }) {
+    if (!lyricParts
+        .expand((p) => p)
+        .expand((m) => m.symbols)
+        .whereType<Note>()
+        .any((n) => n.lyrics.isNotEmpty)) {
+      return const [];
+    }
+    final rows = _buildRowMetricsStatic(
+      parts: parts,
+      measuresPerRow: measuresPerRow,
+      rowHeight: rowHeight,
+      padding: padding,
+      rowPrefixWidth: rowPrefixWidth,
+      minMeasureWidth: minMeasureWidth,
+    );
+    final result = <NotationSymbolTarget>[];
+    for (final row in rows) {
+      final locations = <Note, (int, int)>{
+        for (final (m, measure) in parts[row.partIndex].indexed)
+          for (final (n, symbol) in measure.symbols.indexed)
+            if (symbol is Note) symbol: (m, n),
+      };
+      final drawing = LyricLayout.build(
+        notes: LyricLayout.anchors(
+          measures: lyricParts[row.partIndex],
+          pageMeasures: parts[row.partIndex],
+          firstMeasure: firstMeasureIndex,
+          perRow: measuresPerRow,
+          contentX: padding.left + rowPrefixWidth,
+          measureWidth: minMeasureWidth,
+          prefixWidth: rowPrefixWidth,
+        ),
+        system: row.rowIndex,
+        staffTop: row.staffTop,
+        staffBottom: row.staffBottom,
+        left: row.contentStartX,
+        right: row.rowEndX - 4,
+        textWidth: (v) => _lyricText(v).width,
+      );
+      for (final text in drawing.texts) {
+        final location = locations[text.note];
+        if (location == null) continue;
+        final painter = _lyricText(text.text);
+        final baseline = painter.computeDistanceToActualBaseline(
+          TextBaseline.alphabetic,
+        );
+        final rect = Rect.fromLTWH(
+          text.x,
+          text.y - baseline,
+          painter.width,
+          painter.height,
+        ).inflate(3);
+        result.add(
+          NotationSymbolTarget(
+            partIndex: row.partIndex,
+            measureIndex: location.$1,
+            symbolIndex: location.$2,
+            center: rect.center,
+            hitRect: rect,
+          ),
+        );
+      }
+    }
+    return result;
   }
 
   static double _symbolCenterY(
@@ -976,7 +1118,9 @@ class ScoreNotationPainter extends CustomPainter {
 
     // Locate the measure and compute its slot geometry.
     final measureRelIdx = measureIndex - currentRow.globalStartMeasureIndex;
-    if (measureRelIdx < 0 || measureRelIdx >= currentRow.measures.length) return;
+    if (measureRelIdx < 0 || measureRelIdx >= currentRow.measures.length) {
+      return;
+    }
     final measure = currentRow.measures[measureRelIdx];
 
     const ip = ScoreNotationMetrics.measureInnerPadding;
@@ -2129,6 +2273,8 @@ class ScoreNotationPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant ScoreNotationPainter oldDelegate) {
     return oldDelegate.parts != parts ||
+        oldDelegate.lyricParts != lyricParts ||
+        oldDelegate.firstMeasureIndex != firstMeasureIndex ||
         oldDelegate.measuresPerRow != measuresPerRow ||
         oldDelegate.minMeasureWidth != minMeasureWidth ||
         oldDelegate.rowHeight != rowHeight ||

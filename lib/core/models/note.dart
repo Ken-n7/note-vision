@@ -3,10 +3,12 @@ import 'score_symbol.dart';
 import 'note_beam.dart';
 import 'articulation.dart';
 import 'tuplet.dart';
+import 'lyric.dart';
 
 export 'note_beam.dart';
 export 'articulation.dart';
 export 'tuplet.dart';
+export 'lyric.dart';
 
 class Note extends ScoreSymbol {
   final String step; // C, D, E, F, G, A, B
@@ -48,6 +50,7 @@ class Note extends ScoreSymbol {
     this.tuplet,
     this.marks = const [],
     this.dynamicMark,
+    this.lyrics = const [],
   }) : _legacyBeamed = beamed;
 
   /// The tuplet this note belongs to, if any.
@@ -59,6 +62,8 @@ class Note extends ScoreSymbol {
   /// A dynamic starting at this note, named as MusicXML names it (p, mf,
   /// sfz…).
   final String? dynamicMark;
+
+  final List<Lyric> lyrics;
 
   static const Object _keep = Object();
 
@@ -82,6 +87,7 @@ class Note extends ScoreSymbol {
     Object? tuplet = _keep,
     List<Articulation>? marks,
     Object? dynamicMark = _keep,
+    List<Lyric>? lyrics,
   }) => Note(
     step: step ?? this.step,
     octave: octave ?? this.octave,
@@ -101,6 +107,7 @@ class Note extends ScoreSymbol {
     source: identical(source, _keep) ? this.source : source as SourceRegion?,
     tuplet: identical(tuplet, _keep) ? this.tuplet : tuplet as Tuplet?,
     marks: marks ?? this.marks,
+    lyrics: lyrics ?? this.lyrics,
     dynamicMark: identical(dynamicMark, _keep)
         ? this.dynamicMark
         : dynamicMark as String?,
@@ -129,12 +136,15 @@ class Note extends ScoreSymbol {
     if (tuplet != null) 'tuplet': tuplet!.toJson(),
     if (marks.isNotEmpty) 'marks': [for (final m in marks) m.name],
     if (dynamicMark != null) 'dynamic': dynamicMark,
+    if (lyrics.isNotEmpty)
+      'lyrics': [for (final lyric in lyrics) lyric.toJson()],
   };
 
   factory Note.fromJson(Map<String, dynamic> json) => Note(
     tuplet: Tuplet.fromJson(json['tuplet']),
     marks: Articulation.listFromJson(json['marks']),
     dynamicMark: json['dynamic'] as String?,
+    lyrics: Lyric.listFromJson(json['lyrics']),
     step: json['step'] as String,
     octave: json['octave'] as int,
     alter: json['alter'] as int?,

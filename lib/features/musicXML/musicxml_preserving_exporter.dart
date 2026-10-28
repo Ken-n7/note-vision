@@ -10,6 +10,7 @@ import '../../core/models/score.dart';
 import '../../core/models/score_symbol.dart';
 import '../../core/services/accidentals.dart';
 import 'musicxml_source_reader.dart';
+import 'musicxml_lyrics.dart';
 
 class MusicXmlPreservationException implements Exception {
   const MusicXmlPreservationException([
@@ -99,6 +100,18 @@ class MusicXmlPreservingExporter {
             throw const FormatException(
               'Missing retained MusicXML note binding',
             );
+          }
+          if (jsonEncode(oldNote.lyrics.map((l) => l.toJson()).toList()) !=
+              jsonEncode(newNote.lyrics.map((l) => l.toJson()).toList())) {
+            element.children.removeWhere(
+              (c) => c is XmlElement && c.name.local == 'lyric',
+            );
+            for (final lyric in newNote.lyrics) {
+              _insertBefore(element, MusicXmlLyrics.write(lyric), const {
+                'play',
+                'listen',
+              });
+            }
           }
           final pitch = element.getElement('pitch');
           if (pitch == null) {
@@ -230,6 +243,7 @@ class MusicXmlPreservingExporter {
             'source',
             'beams',
             'beamed',
+            'lyrics',
           ]) {
             oldJson.remove(key);
             json.remove(key);

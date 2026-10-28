@@ -11,6 +11,7 @@ import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/widgets/score_notation/mark_glyphs.dart';
+import 'package:note_vision/core/widgets/score_notation/lyric_layout.dart';
 import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart'
     show endingAt;
 import 'package:note_vision/core/widgets/score_notation/score_notation_metrics.dart';
@@ -171,7 +172,10 @@ class PdfScoreRenderer {
 
   List<_PageData> _paginate(Score score) {
     final partCount = score.parts.length;
-    final rowsPerPage = _rowsPerPageForPartCount(partCount);
+    final rowsPerPage = _rowsPerPageForPartCount(
+      partCount,
+      extraHeight: LyricLayout.extraHeight(score.parts.map((p) => p.measures)),
+    );
     final referenceMeasures = score.parts.isEmpty
         ? const <Measure>[]
         : score.parts.first.measures;
@@ -209,11 +213,13 @@ class PdfScoreRenderer {
     return result;
   }
 
-  static int _rowsPerPageForPartCount(int partCount) {
+  static int _rowsPerPageForPartCount(int partCount, {double extraHeight = 0}) {
     final normalizedPartCount = math.max(1, partCount);
-    final availableHeight = _editorPageH - (_editorPadY * 2);
+    final availableHeight =
+        _editorPageH - (_editorPadY * 2) - _editorFirstPageHeaderOffset;
     final maxRowsThatFit =
-        (availableHeight / (normalizedPartCount * _editorRowH)).floor();
+        (availableHeight / (normalizedPartCount * (_editorRowH + extraHeight)))
+            .floor();
     return math.max(1, math.min(_baseRowsPerPage, maxRowsThatFit));
   }
 
@@ -313,6 +319,10 @@ class PdfScoreRenderer {
       _drawScoreHeader(g, score, font, fontBold, fmt);
     }
 
+    final rowHeight =
+        _editorRowH +
+        LyricLayout.extraHeight(score.parts.map((p) => p.measures));
+    final above = LyricLayout.aboveHeight(score.parts.map((p) => p.measures));
     final notePoints = <String, _PdfNotePoint>{};
     for (var s = 0; s < systemCount; s++) {
       final startM = s * page.measuresPerSystem;
@@ -330,8 +340,9 @@ class PdfScoreRenderer {
         // staffTop = top staff line in PDF coords (y from bottom).
         final editorStaffTop =
             _editorPadY +
-            s * partCount * _editorRowH +
-            pi * _editorRowH +
+            s * partCount * rowHeight +
+            pi * rowHeight +
+            above +
             _editorStaffTopOffset;
         final staffTop =
             pageH - _pageY0 - editorStaffTop * _scale - headerOffset;
@@ -352,10 +363,52 @@ class PdfScoreRenderer {
           topStaff: pi == 0,
           notePoints: notePoints,
         );
+        final lyricDrawing = LyricLayout.build(
+          notes: LyricLayout.anchors(
+            measures: score.parts[pi].measures,
+            pageMeasures: partMeasures,
+            firstMeasure: page.firstMeasureIndex,
+            perRow: page.measuresPerSystem,
+            contentX: _editorPadX + _editorPrefixW,
+            measureWidth: _mw / _scale,
+            prefixWidth: _editorPrefixW,
+          ),
+          system: s,
+          staffTop: 0,
+          staffBottom: ScoreNotationMetrics.staffHeightFor(_editorLineSpacing),
+          left: _editorPadX + _editorPrefixW,
+          right:
+              _editorPadX +
+              _editorPrefixW +
+              rowMeasures.length * _mw / _scale -
+              4,
+          textWidth: (text) =>
+              font.stringMetrics(text).width * LyricLayout.fontSize,
+        );
+        for (final t in lyricDrawing.texts) {
+          _text(
+            g,
+            font,
+            LyricLayout.fontSize * _scale,
+            t.text,
+            _pageX0 + t.x * _scale,
+            staffTop - t.y * _scale,
+          );
+        }
+        for (final line in lyricDrawing.lines) {
+          _line(
+            g,
+            _pageX0 + line.x1 * _scale,
+            staffTop - line.y * _scale,
+            _pageX0 + line.x2 * _scale,
+            staffTop - line.y * _scale,
+            0.8 * _scale,
+          );
+        }
         if (joined) {
           _drawGrandStaff(
             g,
-            upperTop: staffTop + _editorRowH * _scale,
+            upperTop: staffTop + rowHeight * _scale,
             lowerTop: staffTop,
             measures: rowMeasures.length,
           );
@@ -460,8 +513,12 @@ class PdfScoreRenderer {
       return;
     }
     final half = open / 2;
-    if (a != null) wedge(a.rowTop, startX(a), a.rowEndX - 2 * _scale, narrow, half);
-    if (b != null) wedge(b.rowTop, b.rowStartX + 4 * _scale, endX(b), half, wide);
+    if (a != null) {
+      wedge(a.rowTop, startX(a), a.rowEndX - 2 * _scale, narrow, half);
+    }
+    if (b != null) {
+      wedge(b.rowTop, b.rowStartX + 4 * _scale, endX(b), half, wide);
+    }
   }
 
   /// Tuplet numbers and brackets as in the editor (PDF y points up).

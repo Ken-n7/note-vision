@@ -184,6 +184,15 @@ class MusicXmlSourceReader {
     };
     for (final element in document.descendants.whereType<XmlElement>()) {
       final name = element.name.local;
+      // Pitched-note lyrics retain their complete XML in the note model, so
+      // rich lyric formatting is also safe when a rhythm edit rebuilds a file.
+      final lyric = name == 'lyric'
+          ? element
+          : element.ancestors
+                .whereType<XmlElement>()
+                .where((e) => e.name.local == 'lyric')
+                .firstOrNull;
+      if (lyric?.parentElement?.getElement('pitch') != null) continue;
       if (!modeled.contains(name)) return true;
       if (name == 'attributes' &&
           (element.findElements('clef').length > 1 ||

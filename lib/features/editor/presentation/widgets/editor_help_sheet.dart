@@ -95,6 +95,10 @@ class EditorHelpSheet extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         for (final (keys, action) in const [
+          (
+            'Ctrl / ⌘ + L',
+            'Lyrics: Space for words, - for syllables, _ to extend',
+          ),
           ('↑ / ↓', 'Raise / lower pitch'),
           ('Ctrl / ⌘ + ↑ / ↓', 'Raise / lower an octave'),
           ('3 / 4 / 5 / 6 / 7', '16th / eighth / quarter / half / whole'),
