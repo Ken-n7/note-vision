@@ -151,6 +151,40 @@ void main() {
       expect(sliced.single.keySignature?.fifths, -2);
     });
 
+    testWidgets('draws the playhead in an empty bar of another staff', (
+      tester,
+    ) async {
+      // Playback reports symbol -1 in a bar with nothing to play, as in a
+      // new staff added beside written music.
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ScoreNotationViewer(
+              score: const Score(
+                id: 's',
+                title: 'T',
+                composer: '',
+                parts: [
+                  Part(
+                    id: 'P1',
+                    name: 'Piano',
+                    measures: [Measure(number: 1, symbols: [])],
+                  ),
+                ],
+              ),
+              playbackPartIndex: 0,
+              playbackMeasureIndex: 0,
+              playbackSymbolIndex: -1,
+              playheadPartIndex: 0,
+              playheadMeasureIndex: 0,
+              playheadSymbolIndex: -1,
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('renders empty-state text for null score', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(

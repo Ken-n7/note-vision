@@ -888,7 +888,8 @@ class ScoreNotationPainter extends CustomPainter {
     final layout = VoiceLayout.of(symbols);
     final slotCount = layout.columnCount;
     final effectiveSymIndex = symIndex ?? 0;
-    final slot = effectiveSymIndex < symbols.length
+    // Playback reports -1 for a bar with nothing to play.
+    final slot = effectiveSymIndex >= 0 && effectiveSymIndex < symbols.length
         ? layout.columns[effectiveSymIndex]
         : 0;
 
