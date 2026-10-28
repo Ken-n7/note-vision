@@ -234,7 +234,7 @@ implement until its differences are gone.
 compares key signatures, pitches and written accidentals (`pitchFacts`).
 
 Initial gaps (2026-10-28): measure rests, pickups,
-cut/common symbols, final barlines, voltas, tuplets, grace notes,
+cut/common symbols, final barlines, voltas, grace notes,
 articulations, ornaments, dynamics, text, tempo, rehearsal marks, chord
 symbols, lyrics, the second staff's clef (the model has one clef per bar)
 and hidden gaps within a voice (`<forward>`; no invisible rests) are lost in
@@ -415,7 +415,37 @@ release 2004 played the same project with no errors. No iOS device test.
   selected chord at once, slur shape around high notes in between, laissez
   vibrer and cross-staff slurs.
 
-Next: Stage 4B — tuplets, then articulations, dynamics, lyrics and repeats. (range selection and clipboard), 3D
+## Stage 4B — tuplets
+
+- `Note` and `Rest` gained `copyWith` (every field kept unless given), and
+  every place that copied a note field by field now uses it, so new fields
+  (tuplets now; articulations and lyrics next) cannot be dropped by a copy.
+  Edits still clear scan confidence, as before.
+- `Tuplet` (actual:normal plus bracket start/stop) on a note or rest. Every
+  length calculation goes through `symbolQuarters` or the timeline's exact
+  `writtenDuration`, which apply the ratio: playback, bar capacity, voice
+  alignment, beat grouping, the notation checker, the genre model.
+- Import reads `<time-modification>` and `<tuplet>`; imported tuplets no
+  longer force preservation-only handling, because the model now times them
+  exactly. Export writes them, with `<divisions>` raised to 8 × the tuplet
+  sizes' least common multiple (24 for triplets) so durations stay whole.
+- Editor: Ctrl/Cmd + 3, 5, 6, 7 (and a Triplet tile and command) fill the
+  selected note or rest's time with that many shorter notes (3:2, 5:4, 6:4,
+  7:4); the first keeps the note, the others are rests. In note input a
+  letter writes over the next rest of a tuplet, keeping its rhythm.
+- Drawing (editor and PDF): the number above, with a bracket unless every
+  note is beamed.
+- Fixed while adding this: duration and dot checks converted lengths to
+  decimals, which threw while building the editor for a tuplet note; they
+  now time a candidate copy exactly.
+- Parity: `06_tuplets` now matches MuseScore in notation (22/22) and
+  playback (17/17).
+- Not yet: nested tuplets, tuplets of dotted values, duplets in compound
+  time, removing a tuplet in one step, proportional spacing (a bar of
+  triplets is crowded in the fixed grid).
+
+Next: Stage 4C — articulations and ornaments, then dynamics, lyrics,
+repeats. (range selection and clipboard), 3D
 (voices), 3E (instrument/staff management) on the Stage 2B timeline. Retained-source
 rhythm export, global timewise measure slots and richer editable notation still
 need work. Range/clipboard and advanced notation should build on this timeline

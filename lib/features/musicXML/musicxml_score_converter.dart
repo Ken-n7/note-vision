@@ -503,6 +503,7 @@ class MusicXmlScoreConverter {
     final voice = int.tryParse(_firstInnerText(noteElement, 'voice') ?? '');
     final staff = int.tryParse(_firstInnerText(noteElement, 'staff') ?? '');
     final isChordTone = noteElement.findElements('chord').isNotEmpty;
+    final tuplet = _readTuplet(noteElement);
 
     if (noteElement.findElements('rest').isNotEmpty) {
       return Rest(
@@ -511,6 +512,7 @@ class MusicXmlScoreConverter {
         voice: voice,
         staff: staff,
         dots: dots,
+        tuplet: tuplet,
       );
     }
 
@@ -539,6 +541,30 @@ class MusicXmlScoreConverter {
       beams: _readBeams(noteElement),
       dots: dots,
       isChordTone: isChordTone,
+      tuplet: tuplet,
+    );
+  }
+
+  /// `<time-modification>` gives the ratio; `<tuplet>` notations mark the
+  /// first and last notes of the bracket.
+  Tuplet? _readTuplet(XmlElement note) {
+    final mod = _firstOrNull(note.findElements('time-modification'));
+    if (mod == null) return null;
+    final actual = int.tryParse(_firstInnerText(mod, 'actual-notes') ?? '');
+    final normal = int.tryParse(_firstInnerText(mod, 'normal-notes') ?? '');
+    if (actual == null || normal == null || actual <= 0 || normal <= 0) {
+      return null;
+    }
+    final marks = note
+        .findElements('notations')
+        .expand((n) => n.findElements('tuplet'))
+        .map((t) => t.getAttribute('type'))
+        .toSet();
+    return Tuplet(
+      actual,
+      normal,
+      start: marks.contains('start'),
+      stop: marks.contains('stop'),
     );
   }
 

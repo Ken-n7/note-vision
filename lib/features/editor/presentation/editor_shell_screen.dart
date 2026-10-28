@@ -2030,6 +2030,17 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           return KeyEventResult.handled;
         }
       }
+      // Ctrl + 3, 5, 6, 7: tuplets, as in MuseScore.
+      final tuplet = {
+        LogicalKeyboardKey.digit3: 3,
+        LogicalKeyboardKey.digit5: 5,
+        LogicalKeyboardKey.digit6: 6,
+        LogicalKeyboardKey.digit7: 7,
+      }[key];
+      if (tuplet != null && !keyboard.isAltPressed) {
+        _updateState((s) => s.makeTuplet(tuplet));
+        return KeyEventResult.handled;
+      }
       if (key == LogicalKeyboardKey.keyA) {
         _runEditorCommand(EditorCommand.selectAll);
         return KeyEventResult.handled;
@@ -2480,6 +2491,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                           : null,
                       onSlur: _editorState.slurUnavailableReason == null
                           ? () => _runEditorCommand(EditorCommand.slur)
+                          : null,
+                      onTriplet: _editorState.tupletUnavailableReason(3) == null
+                          ? () => _runEditorCommand(EditorCommand.triplet)
                           : null,
                       rangeCount: _editorState.hasRange
                           ? _editorState.selectionPositions.length
@@ -4607,6 +4621,7 @@ class _InspectorPanel extends StatefulWidget {
     required this.onAddThird,
     required this.onTie,
     required this.onSlur,
+    required this.onTriplet,
     required this.rangeCount,
     required this.extendMode,
     required this.onToggleExtend,
@@ -4656,7 +4671,7 @@ class _InspectorPanel extends StatefulWidget {
   final VoidCallback onMoveUp;
   final VoidCallback onMoveDown;
   final VoidCallback? onOctaveUp, onOctaveDown, onConvertSymbol, onAddThird;
-  final VoidCallback? onTie, onSlur;
+  final VoidCallback? onTie, onSlur, onTriplet;
 
   /// Symbols in a range selection; 0 without one.
   final int rangeCount;
@@ -5170,7 +5185,17 @@ class _InspectorPanelState extends State<_InspectorPanel> {
         children: [
           EditorToolRow(
             wrap: widget.isLandscape,
-            children: [...durationTools.skip(1), durationTools.first],
+            children: [
+              ...durationTools.skip(1),
+              durationTools.first,
+              _ActionTile(
+                icon: Icons.filter_3_rounded,
+                label: 'Triplet',
+                tooltip:
+                    'Three shorter notes in this note\'s time (Ctrl/Cmd + 3; 5, 6, 7 for other tuplets)',
+                onPressed: _wrapAction(widget.onTriplet),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           EditorToolRow(

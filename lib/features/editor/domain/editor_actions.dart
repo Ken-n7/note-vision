@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:note_vision/core/models/beam_grouping.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/measure.dart';
-import 'package:note_vision/core/models/musical_time.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/note_value.dart';
 import 'package:note_vision/core/models/part.dart';
@@ -241,17 +240,21 @@ extension EditorActions on EditorState {
     );
   }
 
-  bool canSetSelectedDuration(DurationSpec spec) =>
-      hasEditableSelection &&
-      _canReplaceSelectedSymbolWith(
-        quarterLength(spec.type, 0, spec.divisions) * _selectedTupletFactor,
-      );
-
   /// A tuplet member keeps its tuplet when its value changes.
-  double get _selectedTupletFactor => switch (selectedEditableSymbol) {
-    Note(:final tuplet) || Rest(:final tuplet) => tuplet?.factor ?? 1,
-    _ => 1,
-  };
+  bool canSetSelectedDuration(DurationSpec spec) =>
+      _canReplaceSelectedSymbolWith(switch (selectedEditableSymbol) {
+        final Note n => n.copyWith(
+          type: spec.type,
+          duration: spec.divisions,
+          dots: 0,
+        ),
+        final Rest r => r.copyWith(
+          type: spec.type,
+          duration: spec.divisions,
+          dots: 0,
+        ),
+        _ => null,
+      });
 
   bool get canToggleSelectedDot {
     final symbol = selectedEditableSymbol;
@@ -261,11 +264,13 @@ extension EditorActions on EditorState {
       Rest(:final type, :final dots, :final duration) => (type, dots, duration),
       _ => ('', 0, 0),
     };
+    final dotted = dots > 0 ? 0 : 1;
     return noteValueQuarters.containsKey(type) &&
-        _canReplaceSelectedSymbolWith(
-          quarterLength(type, dots > 0 ? 0 : 1, duration) *
-              _selectedTupletFactor,
-        );
+        _canReplaceSelectedSymbolWith(switch (symbol) {
+          final Note n => n.copyWith(dots: dotted, duration: duration),
+          final Rest r => r.copyWith(dots: dotted, duration: duration),
+          _ => null,
+        });
   }
 
   EditorState setSelectedDuration(DurationSpec durationSpec) {
@@ -389,11 +394,7 @@ extension EditorActions on EditorState {
 
     if (symbol is Rest) {
       return _replaceSelectedSymbol(
-        symbol.copyWith(
-          duration: newDuration,
-          dots: newDots,
-          confidence: null,
-        ),
+        symbol.copyWith(duration: newDuration, dots: newDots, confidence: null),
         intent: EditorEditIntent.replaceSelection,
       );
     }
@@ -903,6 +904,138 @@ extension EditorActions on EditorState {
     ).copyWith(rangeAnchor: anchor);
   }
 
+  // ── Tuplets ──────────────────────────────────────────────────────────
+
+  static const _tupletValues = [
+    'whole',
+    'half',
+    'quarter',
+    'eighth',
+    'sixteenth',
+  ];
+
+  /// [actual] notes in the time of the largest power of two below it (3:2,
+  /// 5:4, 6:4, 7:4), each that much shorter than the selected value.
+  (int normal, String type)? _tupletShape(int actual) {
+    final symbol = selectedEditableSymbol;
+    if (actual < 3 || actual > 7) return null;
+    final (type, dots, tuplet) = switch (symbol) {
+      Note(:final type, :final dots, :final tuplet) ||
+      Rest(:final type, :final dots, :final tuplet) => (type, dots, tuplet),
+      _ => ('', 0, null),
+    };
+    if (dots > 0 || tuplet != null) return null;
+    var normal = 1;
+    var shift = 0;
+    while (normal * 2 < actual) {
+      normal *= 2;
+      shift++;
+    }
+    final index = _tupletValues.indexOf(type) + shift;
+    if (index < shift || index >= _tupletValues.length) return null;
+    return (normal, _tupletValues[index]);
+  }
+
+  /// Why the selection cannot become a tuplet of [actual], or null.
+  String? tupletUnavailableReason(int actual) {
+    final symbol = selectedEditableSymbol;
+    if (symbol == null) return 'Select a note or rest';
+    if (hasRange) return 'Select a single note or rest';
+    if (symbol is Note && symbol.isChordTone ||
+        _inputIndex != selectedSymbolIndex! + 1) {
+      return 'Select a note outside a chord';
+    }
+    if (symbol case Note(tuplet: _?) || Rest(tuplet: _?)) {
+      return 'This note is already in a tuplet';
+    }
+    if (symbol case Note(dots: > 0) || Rest(dots: > 0)) {
+      return 'Remove the dot first';
+    }
+    return _tupletShape(actual) == null ? 'This value is too short' : null;
+  }
+
+  /// MuseScore's Ctrl + 3 (5, 6, 7): fills the selected note or rest's time
+  /// with [actual] shorter notes; the first keeps the note, the others are
+  /// rests to type over. One undo step; the first is selected.
+  EditorState makeTuplet(int actual) {
+    if (tupletUnavailableReason(actual) != null) return this;
+    final (normal, type) = _tupletShape(actual)!;
+    final p = selectedPartIndex!;
+    final m = selectedMeasureIndex!;
+    final i = selectedSymbolIndex!;
+    final divisions = const {
+      'whole': 8,
+      'half': 4,
+      'quarter': 2,
+      'eighth': 1,
+      'sixteenth': 1,
+    }[type]!;
+    Tuplet mark(int k) =>
+        Tuplet(actual, normal, start: k == 0, stop: k == actual - 1);
+    final first = switch (selectedEditableSymbol!) {
+      final Note n => n.copyWith(
+        type: type,
+        duration: divisions,
+        beams: const {},
+        beamed: false,
+        confidence: null,
+        tuplet: mark(0),
+      ),
+      final Rest r => r.copyWith(
+        type: type,
+        duration: divisions,
+        confidence: null,
+        tuplet: mark(0),
+      ),
+      final other => other,
+    };
+    final (voice, staff) = switch (first) {
+      Note(:final voice, :final staff) ||
+      Rest(:final voice, :final staff) => (voice, staff),
+      _ => (null, null),
+    };
+    var next = score.replaceSymbolAt(p, m, i, first);
+    for (var k = 1; k < actual; k++) {
+      next = next.insertSymbolAt(
+        p,
+        m,
+        i + k,
+        Rest(
+          duration: divisions,
+          type: type,
+          voice: voice,
+          staff: staff,
+          tuplet: mark(k),
+        ),
+      );
+    }
+    return _applySymbolSelectionEdit(
+      intent: EditorEditIntent.insertAfterSelection,
+      score: next,
+      partIndex: p,
+      measureIndex: m,
+      symbolIndex: i,
+      symbol: first,
+    );
+  }
+
+  /// In note input, the rest of a tuplet right after the input position:
+  /// typing a letter writes over it.
+  int? get _tupletRestAtInput {
+    if (!hasMeasureContext) return null;
+    final symbols =
+        score.parts[selectedPartIndex!].measures[selectedMeasureIndex!].symbols;
+    final index = _inputIndex;
+    if (index >= symbols.length) return null;
+    final rest = symbols[index];
+    final (voice, staff) = _inputLane;
+    return rest is Rest &&
+            rest.tuplet != null &&
+            ScoreTimelineBuilder.lane(rest) == ('${voice ?? 1}', staff ?? 1)
+        ? index
+        : null;
+  }
+
   // ── Ties and slurs ───────────────────────────────────────────────────
 
   /// The first note or rest after [from] in the same voice, in this or a
@@ -1193,6 +1326,40 @@ extension EditorActions on EditorState {
     if (!hasMeasureContext || !_stepNames.contains(step)) return this;
     final (voice: inputVoice, :staff) = _inputLaneFor(voice);
     final pitch = _nearestDiatonic(step, _inputReference);
+    // A tuplet's rest is written over, keeping its rhythm.
+    if (voice == null) {
+      if (_tupletRestAtInput case final index?) {
+        final rest =
+            score
+                    .parts[selectedPartIndex!]
+                    .measures[selectedMeasureIndex!]
+                    .symbols[index]
+                as Rest;
+        final note = Note(
+          step: _stepNames[pitch % 7],
+          octave: pitch ~/ 7,
+          duration: rest.duration,
+          type: rest.type,
+          dots: rest.dots,
+          voice: rest.voice,
+          staff: rest.staff,
+          tuplet: rest.tuplet,
+        );
+        return _applySymbolSelectionEdit(
+          intent: EditorEditIntent.replaceSelection,
+          score: score.replaceSymbolAt(
+            selectedPartIndex!,
+            selectedMeasureIndex!,
+            index,
+            note,
+          ),
+          partIndex: selectedPartIndex!,
+          measureIndex: selectedMeasureIndex!,
+          symbolIndex: index,
+          symbol: note,
+        );
+      }
+    }
     return _enterSymbol(
       Note(
         step: _stepNames[pitch % 7],
@@ -1837,15 +2004,17 @@ extension EditorActions on EditorState {
     return next;
   }
 
-  bool _canReplaceSelectedSymbolWith(double nextQuarters) {
-    if (!hasEditableSelection) return false;
+  /// Whether the selected bar still fits with [candidate] in place of the
+  /// selection (timed exactly, tuplets included).
+  bool _canReplaceSelectedSymbolWith(ScoreSymbol? candidate) {
+    if (!hasEditableSelection || candidate == null) return false;
     try {
       final timeline = const ScoreTimelineBuilder().measure(
         score,
         selectedPartIndex!,
         selectedMeasureIndex!,
         writtenOverrides: {
-          selectedSymbolIndex!: MusicalTime.decimal('$nextQuarters'),
+          selectedSymbolIndex!: ScoreTimelineBuilder.writtenDuration(candidate),
         },
       );
       final selected = timeline.symbols

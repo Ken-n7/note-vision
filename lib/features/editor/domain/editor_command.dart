@@ -39,6 +39,12 @@ enum EditorCommand {
     'Add a chord note a third above the selected note',
     'Alt + 3',
   ),
+  triplet(
+    'Triplet',
+    'Rhythm',
+    'Fill the selected note or rest\'s time with three shorter notes',
+    'Ctrl/Cmd + 3',
+  ),
   tie(
     'Tie',
     'Notation',
@@ -104,6 +110,7 @@ enum EditorCommand {
           ? 'Select a bar with notes or rests'
           : null;
     }
+    if (this == triplet) return state.tupletUnavailableReason(3);
     if (this == tie) return state.tieUnavailableReason;
     if (this == slur) return state.slurUnavailableReason;
     if (!state.hasEditableSymbolSelection) return 'Select a note or rest';
@@ -165,6 +172,7 @@ enum EditorCommand {
       noteToRest => state.convertSelectedNoteToRest(),
       restToNote => state.convertSelectedRestToNote(),
       addThird => state.addChordInterval(3),
+      triplet => state.makeTuplet(3),
       tie => state.toggleTie(),
       slur => state.toggleSlur(),
       selectAll => state.selectAllInPart(),

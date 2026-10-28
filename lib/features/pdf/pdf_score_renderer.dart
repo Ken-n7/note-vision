@@ -367,6 +367,57 @@ class PdfScoreRenderer {
     _drawSpanners(g, score.spanners, notePoints);
   }
 
+  /// Tuplet numbers and brackets as in the editor (PDF y points up).
+  void _drawTuplets(
+    PdfGraphics g,
+    PdfFont font,
+    List<ScoreSymbol> symbols,
+    List<double> xs,
+    List<double> ys, {
+    required bool Function(int) stemUp,
+    required Set<int> beamed,
+    required double staffTop,
+  }) {
+    var group = <int>[];
+    for (final (i, symbol) in symbols.indexed) {
+      final tuplet = switch (symbol) {
+        Note(isChordTone: true) => null,
+        Note(:final tuplet) || Rest(:final tuplet) => tuplet,
+        _ => null,
+      };
+      if (tuplet == null) continue;
+      if (tuplet.start) group = [];
+      group.add(i);
+      if (!tuplet.stop) continue;
+      final x1 = xs[group.first] - 6 * _scale;
+      final x2 = xs[group.last] + 6 * _scale;
+      var top = staffTop + 4 * _scale;
+      for (final k in group) {
+        final reach = symbols[k] is Rest
+            ? 10 * _scale
+            : stemUp(k)
+            ? ScoreNotationMetrics.stemLengthFor(_ls)
+            : 8 * _scale;
+        top = math.max(top, ys[k] + reach);
+      }
+      top += 6 * _scale;
+      final size = 11 * _scale;
+      final label = '${tuplet.actual}';
+      final width = font.stringMetrics(label).width * size;
+      final mid = (x1 + x2) / 2;
+      _text(g, font, size, label, mid - width / 2, top - size * 0.35);
+      if (!group.every(beamed.contains)) {
+        final w = 1 * _scale;
+        final gap = width / 2 + 3 * _scale;
+        _line(g, x1, top - 5 * _scale, x1, top, w);
+        _line(g, x1, top, mid - gap, top, w);
+        _line(g, mid + gap, top, x2, top, w);
+        _line(g, x2, top, x2, top - 5 * _scale, w);
+      }
+      group = [];
+    }
+  }
+
   /// Ties and slurs as in the editor (PDF y points up): thin crescents on
   /// the side away from the stems, split into halves across rows.
   void _drawSpanners(
@@ -667,6 +718,7 @@ class PdfScoreRenderer {
         notePoints: notePoints,
         rowStartX: contentStartX,
         rowEndX: staffEndX,
+        textFont: font,
       );
     }
   }
@@ -688,6 +740,7 @@ class PdfScoreRenderer {
     Map<String, _PdfNotePoint>? notePoints,
     double rowStartX = 0,
     double rowEndX = 0,
+    PdfFont? textFont,
   }) {
     if (measure.symbols.isEmpty) return;
 
@@ -776,6 +829,19 @@ class PdfScoreRenderer {
           staffTop: staffTop - layout.restOffset(i) * _ls,
         );
       }
+    }
+
+    if (textFont != null) {
+      _drawTuplets(
+        g,
+        textFont,
+        measure.symbols,
+        xs,
+        ys,
+        stemUp: (i) => layout.stemUp(i) ?? ys[i] < middleLineY,
+        beamed: beamedIndices,
+        staffTop: staffTop,
+      );
     }
 
     // Stems and beams for groups of 2+, as in the editor (PDF y points up).

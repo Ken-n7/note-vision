@@ -11,6 +11,7 @@ import 'package:note_vision/core/models/note_value.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/utils/export_file_name.dart';
 import 'package:note_vision/core/services/accidentals.dart';
 import 'package:note_vision/core/services/score_timeline.dart';
@@ -24,7 +25,8 @@ class MusicXmlExportService {
   const MusicXmlExportService();
 
   /// Divisions per quarter note in exported files: fine enough for
-  /// sixteenths, dotted eighths and dotted sixteenths.
+  /// sixteenths, dotted eighths and dotted sixteenths. A score with tuplets
+  /// multiplies this by their sizes so every duration stays whole.
   static const divisionsPerQuarter = 8;
 
   /// MusicXML's name for a note value: scans call a sixteenth 'sixteenth',
@@ -32,10 +34,6 @@ class MusicXmlExportService {
   static String musicXmlType(String type) =>
       type.trim().toLowerCase() == 'sixteenth' ? '16th' : type;
 
-  /// `<duration>` of a note or rest written as [type] with [dots].
-  static int durationFor(String type, int dots, int storedDuration) =>
-      (quarterLength(type, dots, storedDuration) * divisionsPerQuarter)
-          .round();
 
   // ---------------------------------------------------------------------------
   // Public API
@@ -227,7 +225,7 @@ class MusicXmlExportService {
 
         if (needsAttributes) {
           b.element('attributes', nest: () {
-            b.element('divisions', nest: '$divisionsPerQuarter');
+            b.element('divisions', nest: '${marks.divisions}');
 
             if (measure.keySignature != null) {
               b.element('key', nest: () {
@@ -277,9 +275,7 @@ class MusicXmlExportService {
             final symbol = symbols[i];
             final length = switch (symbol) {
               Note(isChordTone: true) => null,
-              Note(:final type, :final dots, :final duration) ||
-              Rest(:final type, :final dots, :final duration) =>
-                durationFor(type, dots, duration),
+              Note() || Rest() => marks.duration(symbol),
               _ => null,
             };
             if (length != null) {
@@ -302,7 +298,7 @@ class MusicXmlExportService {
                 marks: marks,
               );
             } else if (symbol is Rest) {
-              _buildRest(b, symbol);
+              _buildRest(b, symbol, marks);
             }
           }
         }
@@ -342,10 +338,7 @@ class MusicXmlExportService {
         }
         b.element('octave', nest: note.octave.toString());
       });
-      b.element(
-        'duration',
-        nest: durationFor(note.type, note.dots, note.duration).toString(),
-      );
+      b.element('duration', nest: '${marks?.duration(note) ?? 0}');
       if (tieStop) b.element('tie', attributes: {'type': 'stop'});
       if (tieStart) b.element('tie', attributes: {'type': 'start'});
       if (note.voice != null) {
@@ -367,6 +360,7 @@ class MusicXmlExportService {
         _ => null,
       };
       if (accidental != null) b.element('accidental', nest: accidental);
+      _buildTimeModification(b, note.tuplet);
       if (note.staff != null) {
         b.element('staff', nest: note.staff.toString());
       }
@@ -377,7 +371,9 @@ class MusicXmlExportService {
           nest: entry.value.xmlValue,
         );
       }
-      if (tieStop || tieStart || slurs.isNotEmpty) {
+      final bracket = note.tuplet != null &&
+          (note.tuplet!.start || note.tuplet!.stop);
+      if (tieStop || tieStart || slurs.isNotEmpty || bracket) {
         b.element('notations', nest: () {
           if (tieStop) b.element('tied', attributes: {'type': 'stop'});
           if (tieStart) b.element('tied', attributes: {'type': 'start'});
@@ -387,18 +383,30 @@ class MusicXmlExportService {
               attributes: {'type': type, 'number': '$number'},
             );
           }
+          _buildTupletMarks(b, note.tuplet);
         });
       }
     });
   }
 
-  void _buildRest(XmlBuilder b, Rest rest) {
+  void _buildTimeModification(XmlBuilder b, Tuplet? tuplet) {
+    if (tuplet == null) return;
+    b.element('time-modification', nest: () {
+      b.element('actual-notes', nest: '${tuplet.actual}');
+      b.element('normal-notes', nest: '${tuplet.normal}');
+    });
+  }
+
+  void _buildTupletMarks(XmlBuilder b, Tuplet? tuplet) {
+    if (tuplet == null) return;
+    if (tuplet.start) b.element('tuplet', attributes: {'type': 'start'});
+    if (tuplet.stop) b.element('tuplet', attributes: {'type': 'stop'});
+  }
+
+  void _buildRest(XmlBuilder b, Rest rest, _Marks marks) {
     b.element('note', nest: () {
       b.element('rest');
-      b.element(
-        'duration',
-        nest: durationFor(rest.type, rest.dots, rest.duration).toString(),
-      );
+      b.element('duration', nest: '${marks.duration(rest)}');
       if (rest.voice != null) {
         b.element('voice', nest: rest.voice.toString());
       }
@@ -408,8 +416,13 @@ class MusicXmlExportService {
           b.element('dot');
         }
       }
+      _buildTimeModification(b, rest.tuplet);
       if (rest.staff != null) {
         b.element('staff', nest: rest.staff.toString());
+      }
+      if (rest.tuplet case Tuplet(:final start, :final stop)
+          when start || stop) {
+        b.element('notations', nest: () => _buildTupletMarks(b, rest.tuplet));
       }
     });
   }
@@ -443,9 +456,18 @@ class MusicXmlExportService {
 
 }
 
-/// Ties and slurs to write, by note review ID.
+/// Divisions, ties and slurs to write.
 class _Marks {
-  _Marks(Score score) {
+  _Marks(Score score)
+    : divisions =
+          MusicXmlExportService.divisionsPerQuarter *
+          [
+            for (final p in score.parts)
+              for (final m in p.measures)
+                for (final s in m.symbols)
+                  if (s case Note(:final tuplet?) || Rest(:final tuplet?))
+                    tuplet.actual,
+          ].fold(1, (a, b) => a * b ~/ a.gcd(b)) {
     final live = SpannerIndex(score).live;
     // Overlapping slurs need different numbers; a number is free again once
     // its slur has ended.
@@ -478,6 +500,13 @@ class _Marks {
       : a.measure != b.measure
       ? a.measure - b.measure
       : a.symbol - b.symbol;
+
+  /// `<divisions>` per quarter: whole numbers for every tuplet in the score.
+  final int divisions;
+
+  /// A note or rest's `<duration>`.
+  int duration(ScoreSymbol symbol) =>
+      (symbolQuarters(symbol) * divisions).round();
 
   final tieStarts = <String>{};
   final tieStops = <String>{};

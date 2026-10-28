@@ -220,6 +220,7 @@ These are final unless explicitly changed:
 - **Staves and instruments:** More → Staves and instruments… (`StavesSheet`) adds/renames/reorders/removes parts via `rearrangeParts` (one undo step); new staves copy bar structure and switch playback to simultaneous parts; refused for multi-staff scanned scores (sequential reading order).
 - **Grand staff:** `Part.staff` > 1 makes a part a further staff of the part above (linked parts, braced, barlines through both). MusicXML import splits `<staves>` parts (ids `P1`, `P1-staff2`; bindings keep the source part id; the timeline reads source events per staff); export merges them into one `<part>` with `<staves>`, numbered clefs, `<backup>`, and voices 5–8 for staff 2. Staves sheet adds Piano as a grand staff; a lower staff moved away from its upper staff becomes independent.
 - **Ties and slurs:** `Score.spanners` (kind + review IDs of the end notes, `lib/core/models/spanner.dart`; `SpannerIndex` resolves live ones). Imported/exported as MusicXML ties and numbered slurs; tied notes play as one; + ties (note entry: adds a tied note), S slurs; drawn in editor and PDF. A spanner change makes an imported file rebuild from the model instead of patching.
+- **Tuplets:** `Tuplet` (actual:normal, bracket start/stop) on `Note`/`Rest`; all timing goes through `symbolQuarters` / `ScoreTimelineBuilder.writtenDuration`. Copy notes with `copyWith` (never field by field). Ctrl/Cmd+3/5/6/7 or the Triplet tile make a tuplet; note input types over its rests. MusicXML export raises `<divisions>` for tuplets.
 - **Selection after edits:** `_updateState` re-resolves the selected symbol by position after `NotationReviewService.ensureIdentity` (which rebuilds symbols).
 - **Note entry:** the editor dock has Edit, Add notes and Bar tools modes. Add notes starts with a quarter note ready to place; Notes/Rests switches preserve the duration. Pick one of five values and tap the staff or hold and drag a palette symbol. Re-selecting a value keeps note entry active; Edit or Esc finishes. Keyboard (MuseScore-style): A–G writes a note (nearest octave), 0 a rest; outside note entry A–G re-pitches the selection; Shift+A–G / Alt+2–9 add chord tones. `insertNoteAfterSelection()` / `insertRestAfterSelection()` remain domain helpers.
 - **Drag insert:** LongPressDraggable from palette → DragTarget on staff. Drop Y → pitch via PitchCalculator. Drop X → insert index.
@@ -372,7 +373,7 @@ deleteMeasureFromAllParts(measureIndex)      // renumbers all measures 1-indexed
 | SyntheticStaffBuilder fallback | ✅ Works — estimates staff from notehead Y distribution |
 | Grand staff | ❌ Not detected in scans (import, editing and export support it) |
 | Chords | ❌ Not detected — the model reads two heads on one stem as one note |
-| Ties, slurs, tuplets | ❌ Not detected in scans (ties and slurs: import, editing, playback and export ✅) |
+| Ties, slurs, tuplets | ❌ Not detected in scans (import, editing, playback and export ✅) |
 
 ---
 
@@ -420,7 +421,7 @@ These are current limitations, not hard ceilings — going beyond them is fine i
 - Chords: the model has no class for a second notehead on a stem, so a scanned chord becomes one note
 - Dotted note/rest rhythms ✅ reconstructed from scan
 - Repeat barlines ✅ detected and exported to MusicXML
-- Ties and slurs ✅ (import, editor, PDF, playback, export); tuplets not editable yet
+- Ties, slurs and tuplets ✅ (import, editor, PDF, playback, export)
 - 32nd notes or smaller
 - Grace notes, ornaments
 - Dynamics, articulations, tempo markings

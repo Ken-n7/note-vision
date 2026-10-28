@@ -571,6 +571,8 @@ class ScoreNotationPainter extends CustomPainter {
 
     // Collect rendered (x, y) per symbol index for beam bar drawing.
     final notePositions = <int, Offset>{};
+    // Every drawn note and rest, with how far its stem reaches above it.
+    final tupletPoints = <int, (Offset, double)>{};
 
     for (var i = 0; i < symbolCount; i++) {
       if (activeDrag != null && i == activeDrag.draggedSymbolIndex) continue;
@@ -598,6 +600,12 @@ class ScoreNotationPainter extends CustomPainter {
           clefLine: clefLine,
         );
         notePositions[i] = Offset(x, y);
+        tupletPoints[i] = (
+          Offset(x, y),
+          (layout.stemUp(i) ?? y > middleLineY)
+              ? ScoreNotationMetrics.stemLengthFor(staffLineSpacing)
+              : 8.0,
+        );
         if ((symbol.reviewId, row) case (final id?, final row?)) {
           _notePoints[id] = _NotePoint(
             Offset(x, y),
@@ -657,8 +665,16 @@ class ScoreNotationPainter extends CustomPainter {
         if (isSelected) _drawSelectionHighlight(canvas, Offset(x, y));
         _drawIssueMark(canvas, partIndex, absoluteMeasureIndex, i, Offset(x, y));
         _drawRest(canvas, symbol, x: x, staffTop: staffTop + restShift);
+        tupletPoints[i] = (Offset(x, y), 10.0);
       }
     }
+    _drawTuplets(
+      canvas,
+      measure.symbols,
+      tupletPoints,
+      beamedIndices,
+      staffTop,
+    );
 
     // Draw stems and beam bars for groups of 2+.
     _drawBeamBars(
@@ -1478,6 +1494,64 @@ class ScoreNotationPainter extends CustomPainter {
 
   /// Draws a thin vertical line on the far left connecting all staves that
   /// belong to the same system (multi-part scores only).
+  /// Each tuplet's number above its notes, with a bracket unless all of its
+  /// notes are beamed together (as MuseScore shows them).
+  void _drawTuplets(
+    Canvas canvas,
+    List<ScoreSymbol> symbols,
+    Map<int, (Offset, double)> points,
+    Set<int> beamed,
+    double staffTop,
+  ) {
+    var group = <int>[];
+    for (final (i, symbol) in symbols.indexed) {
+      final tuplet = switch (symbol) {
+        Note(isChordTone: true) => null,
+        Note(:final tuplet) || Rest(:final tuplet) => tuplet,
+        _ => null,
+      };
+      if (tuplet == null) continue;
+      if (tuplet.start) group = [];
+      group.add(i);
+      if (!tuplet.stop) continue;
+      final drawn = [for (final k in group) ?points[k]];
+      if (drawn.isEmpty) continue;
+      final x1 = drawn.first.$1.dx - 6;
+      final x2 = drawn.last.$1.dx + 6;
+      final top = math.min(
+        staffTop - 4,
+        drawn.map((p) => p.$1.dy - p.$2).reduce(math.min),
+      ) - 6;
+      final label = TextPainter(
+        text: TextSpan(
+          text: '${tuplet.actual}',
+          style: const TextStyle(
+            color: Color(0xFF111827),
+            fontSize: 11,
+            fontStyle: FontStyle.italic,
+            fontWeight: FontWeight.w700,
+            fontFamily: ScoreNotationMetrics.textFontFamily,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final mid = (x1 + x2) / 2;
+      label.paint(canvas, Offset(mid - label.width / 2, top - label.height / 2));
+      if (!group.every(beamed.contains)) {
+        final ink = Paint()
+          ..color = const Color(0xFF111827)
+          ..strokeWidth = 1;
+        final gap = label.width / 2 + 3;
+        canvas
+          ..drawLine(Offset(x1, top + 5), Offset(x1, top), ink)
+          ..drawLine(Offset(x1, top), Offset(mid - gap, top), ink)
+          ..drawLine(Offset(mid + gap, top), Offset(x2, top), ink)
+          ..drawLine(Offset(x2, top), Offset(x2, top + 5), ink);
+      }
+      group = [];
+    }
+  }
+
   /// Ties and slurs as thin crescents on the side away from the stems. One
   /// that crosses into another row is drawn as two halves, each open at the
   /// row edge.
