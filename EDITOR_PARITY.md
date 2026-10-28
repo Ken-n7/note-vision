@@ -378,6 +378,17 @@ instruments. Rhythm, pitch, beams, chords, meters and key handling match.
 - Not yet: cross-staff notes and beams, a grand staff from scans, staff
   spacing controls.
 
+Device check (2026-10-28, Realme RMX1851, Android 11): release 2003 installed
+as an update with projects retained. On a new blank score: N + letters wrote
+notes in the nearest octave; selecting a note and typing inserted after it
+(confirms the selection fix); Add 3rd stacked a chord; Select bar → Copy →
+tap an empty bar → Paste copied the chord too and selected the paste;
+Transpose on the selection moved only those notes with correct sharps; Staves
+and instruments added a braced piano grand staff; save and reopen kept all of
+it. Playback threw a RangeError on every frame in empty bars (playhead with
+symbol -1, a Stage 3D regression); fixed in `ecc0a6b` with a test, and
+release 2004 played the same project with no errors. No iOS device test.
+
 Next: Stage 4 — notation and engraving (ties, slurs, tuplets, articulations,
 dynamics, lyrics, repeats, shared layout), starting from the parity gaps. (range selection and clipboard), 3D
 (voices), 3E (instrument/staff management) on the Stage 2B timeline. Retained-source
