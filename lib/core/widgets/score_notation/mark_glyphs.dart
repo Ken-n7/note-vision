@@ -1,4 +1,6 @@
 import '../../models/articulation.dart';
+import '../../models/barline_type.dart';
+import '../../models/navigation_mark.dart';
 
 /// A shape of an articulation or ornament, in editor pixels relative to the
 /// notehead with y pointing down. The editor and the PDF draw the same
@@ -134,6 +136,112 @@ List<MarkShape> markShapes(
       ],
     });
     top -= 12;
+  }
+  return shapes;
+}
+
+/// A bar's repeat and barline signs, ending bracket and navigation, in
+/// editor pixels relative to the bar's left edge on the top staff line, y
+/// down. [width] is the bar's width and [spacing] the staff line spacing.
+/// [ending] is the ending this bar belongs to (its label shown where it
+/// starts); [first] draws endings and navigation, which only the top staff
+/// of a system shows.
+List<MarkShape> barShapes({
+  required double width,
+  required double spacing,
+  BarlineType? left,
+  BarlineType? right,
+  ({String? label, bool closes})? ending,
+  List<NavigationMark> navigation = const [],
+  bool first = true,
+}) {
+  final height = spacing * 4;
+  final shapes = <MarkShape>[];
+  // Middle two spaces hold a repeat's dots.
+  List<MarkShape> dots(double x) => [
+    MarkDot(x, spacing * 1.5, 1.8),
+    MarkDot(x, spacing * 2.5, 1.8),
+  ];
+  MarkShape line(double x, double w) =>
+      MarkLines([(x, 0), (x, height)], width: w);
+  switch (left) {
+    case BarlineType.repeatStart:
+      shapes
+        ..add(line(1.5, 3))
+        ..add(line(5, 1))
+        ..addAll(dots(9));
+    default:
+  }
+  switch (right) {
+    case BarlineType.repeatEnd:
+      shapes
+        ..add(line(width - 1.5, 3))
+        ..add(line(width - 5, 1))
+        ..addAll(dots(width - 9));
+    case BarlineType.finalBar:
+      shapes
+        ..add(line(width - 1.5, 3))
+        ..add(line(width - 5, 1));
+    case BarlineType.doubleBar:
+      shapes
+        ..add(line(width, 1))
+        ..add(line(width - 3.5, 1));
+    default:
+  }
+  if (!first) return shapes;
+  if (ending != null) {
+    // Above the bar number.
+    const y = -30.0;
+    final x1 = ending.label == null ? 0.0 : 3.0;
+    final x2 = width - 3;
+    shapes.add(
+      MarkLines([
+        if (ending.label != null) (x1, y + 9),
+        (x1, y),
+        (x2, y),
+        if (ending.closes) (x2, y + 9),
+      ], width: 1),
+    );
+    if (ending.label case final label?) {
+      // Clear of the bar number under the hook.
+      shapes.add(MarkText(label, x1 + 14 + label.length * 2.8, y + 8, 10));
+    }
+  }
+  // Signs at the bar's start go above its number; words end at its end.
+  var start = -28.0, end = -14.0;
+  for (final mark in navigation) {
+    final above = mark.atEnd ? end : start;
+    switch (mark) {
+      case NavigationMark.segno:
+        shapes.addAll([
+          MarkText('S', 8, above, 16),
+          MarkLines([(2, above + 6), (14, above - 6)], width: 1.2),
+          MarkDot(4, above - 2, 1.4),
+          MarkDot(12, above + 2, 1.4),
+        ]);
+      case NavigationMark.coda:
+        shapes.addAll([
+          MarkCurve(
+            (8, above - 5),
+            [
+              ((12, above - 5), (12, above + 5), (8, above + 5)),
+              ((4, above + 5), (4, above - 5), (8, above - 5)),
+            ],
+            width: 1.4,
+          ),
+          MarkLines([(8, above - 8), (8, above + 8)], width: 1.2),
+          MarkLines([(1, above), (15, above)], width: 1.2),
+        ]);
+      default:
+        // Words end at the bar line.
+        final x = width - mark.text.length * 3.2 - 4;
+        shapes.add(MarkText(mark.text, x, above, 11));
+    }
+    if (mark.atEnd) {
+      end -= 14;
+    } else {
+      start -= 18;
+    }
   }
   return shapes;
 }

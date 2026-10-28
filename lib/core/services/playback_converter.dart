@@ -197,8 +197,13 @@ class PlaybackConverter {
   /// order; imported instrument parts share bar starts. Voices share time.
   List<PlaybackEvent> buildEvents(Score score) => buildPlan(score).events;
 
-  PlaybackPlan buildPlan(Score score) {
-    final timeline = const ScoreTimelineBuilder().build(score);
+  /// [unrollRepeats] follows repeats and jumps; review auditions play the
+  /// written bars once.
+  PlaybackPlan buildPlan(Score score, {bool unrollRepeats = true}) {
+    final timeline = const ScoreTimelineBuilder().build(
+      score,
+      unrollRepeats: unrollRepeats,
+    );
     final events = <PlaybackEvent>[];
     final accidentalStates = <int, Accidentals>{};
     for (final measure in timeline.measures) {

@@ -382,7 +382,10 @@ class PlaybackService {
 
   bool _prepareScore(Score score) {
     try {
-      final plan = _converter.buildPlan(score);
+      final plan = _converter.buildPlan(
+        score,
+        unrollRepeats: _throughMeasure == null,
+      );
       _events = _throughMeasure == null
           ? plan.events
           : plan.events

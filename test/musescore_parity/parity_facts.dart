@@ -210,6 +210,8 @@ String _direction(XmlElement d) => switch (d.name.local) {
   'wedge' => 'wedge ${d.getAttribute('type')}',
   'words' => 'words "${d.innerText.trim()}"',
   'rehearsal' => 'rehearsal "${d.innerText.trim()}"',
+  // MusicXML 4 can write <segno/> as <symbol>segno</symbol>.
+  'symbol' => 'direction ${d.innerText.trim()}',
   'metronome' =>
     'metronome ${_text(d, 'beat-unit')}'
         '${'.' * d.findElements('beat-unit-dot').length}=${_text(d, 'per-minute')}',

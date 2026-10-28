@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<museScore version="4.70">
+  <programVersion>4.7.5</programVersion>
+  <programRevision>3654226</programRevision>
+  <Score>
+    <eid>53YMk/q16EB_HACfGTLoptJ</eid>
+    <Division>480</Division>
+    <showInvisible>1</showInvisible>
+    <showUnprintable>1</showUnprintable>
+    <showFrames>1</showFrames>
+    <showMargins>0</showMargins>
+    <open>1</open>
+    <metaTag name="arranger"></metaTag>
+    <metaTag name="composer"></metaTag>
+    <metaTag name="copyright"></metaTag>
+    <metaTag name="creationDate">2026-10-28</metaTag>
+    <metaTag name="lyricist"></metaTag>
+    <metaTag name="movementNumber"></metaTag>
+    <metaTag name="movementTitle"></metaTag>
+    <metaTag name="originalFormat">musicxml</metaTag>
+    <metaTag name="platform">Linux</metaTag>
+    <metaTag name="source"></metaTag>
+    <metaTag name="translator"></metaTag>
+    <metaTag name="workNumber"></metaTag>
+    <metaTag name="workTitle">Segno and coda</metaTag>
+    <Part id="1">
+      <Staff>
+        <eid>CRt7eZlb06I_qp041tWD5LN</eid>
+        <StaffType group="pitched">
+          <name>stdNormal</name>
+          </StaffType>
+        </Staff>
+      <trackName>Piano</trackName>
+      <Instrument id="piano">
+        <longName>Piano</longName>
+        <trackName></trackName>
+        <instrumentId>keyboard.piano</instrumentId>
+        <Articulation>
+          <velocity>100</velocity>
+          <gateTime>100</gateTime>
+          </Articulation>
+        <Articulation name="staccatissimo">
+          <velocity>100</velocity>
+          <gateTime>33</gateTime>
+          </Articulation>
+        <Articulation name="staccato">
+          <velocity>100</velocity>
+          <gateTime>50</gateTime>
+          </Articulation>
+        <Articulation name="portato">
+          <velocity>100</velocity>
+          <gateTime>67</gateTime>
+          </Articulation>
+        <Articulation name="tenuto">
+          <velocity>100</velocity>
+          <gateTime>100</gateTime>
+          </Articulation>
+        <Articulation name="marcato">
+          <velocity>120</velocity>
+          <gateTime>67</gateTime>
+          </Articulation>
+        <Articulation name="sforzato">
+          <velocity>150</velocity>
+          <gateTime>100</gateTime>
+          </Articulation>
+        <Articulation name="sforzatoStaccato">
+          <velocity>150</velocity>
+          <gateTime>50</gateTime>
+          </Articulation>
+        <Articulation name="marcatoStaccato">
+          <velocity>120</velocity>
+          <gateTime>50</gateTime>
+          </Articulation>
+        <Articulation name="marcatoTenuto">
+          <velocity>120</velocity>
+          <gateTime>100</gateTime>
+          </Articulation>
+        <Channel>
+          <program value="0"/>
+          <controller ctrl="10" value="63"/>
+          <synti>Fluid</synti>
+          </Channel>
+        </Instrument>
+      </Part>
+    <Staff id="1">
+      <VBox>
+        <height>10</height>
+        <eid>aDsVI4m3X9K_2SRL+LDVNVH</eid>
+        <Text>
+          <eid>T9hQgg7X9TJ_9zy0TzgysmO</eid>
+          <style>title</style>
+          <text>Segno and coda</text>
+          </Text>
+        </VBox>
+      <Measure>
+        <eid>hjzcl8COX+N_R4Fei2iXocF</eid>
+        <voice>
+          <Clef>
+            <concertClefType>G</concertClefType>
+            <transposingClefType>G</transposingClefType>
+            <isHeader>1</isHeader>
+            <eid>SgoS/Kq1vNI_jdUlamHpBJB</eid>
+            </Clef>
+          <TimeSig>
+            <eid>gzzeAZYrrNF_6ulZh0+jreE</eid>
+            <sigN>4</sigN>
+            <sigD>4</sigD>
+            </TimeSig>
+          <Chord>
+            <eid>uBqf7N8kzDF_SeMpNinXYGN</eid>
+            <durationType>whole</durationType>
+            <Note>
+              <eid>LGBQSSqetkK_ICs5dvf1V5J</eid>
+              <pitch>60</pitch>
+              <tpc>14</tpc>
+              </Note>
+            </Chord>
+          </voice>
+        </Measure>
+      <Measure>
+        <eid>dktB3dxx9pK_SpWc/S+3ABF</eid>
+        <Marker>
+          <subtype>segno</subtype>
+          <style>repeat_left</style>
+          <text><sym>segno</sym></text>
+          <label>segno</label>
+          </Marker>
+        <voice>
+          <Chord>
+            <eid>ISLB5Ja7gmH_xY9N5LdgreI</eid>
+            <durationType>whole</durationType>
+            <Note>
+              <eid>nwRdsbjxABM_Yv54xnsjnLL</eid>
+              <pitch>62</pitch>
+              <tpc>16</tpc>
+              </Note>
+            </Chord>
+          </voice>
+        </Measure>
+      <Measure>
+        <eid>EUAgMxlhIsN_jpGnqBNd6NG</eid>
+        <Marker>
+          <subtype>coda</subtype>
+          <style>repeat_right</style>
+          <text>To Coda</text>
+          <label>coda</label>
+          </Marker>
+        <voice>
+          <Chord>
+            <eid>jgXSf8oEE7B_uYVMEyi6OdB</eid>
+            <durationType>whole</durationType>
+            <Note>
+              <eid>UUiA8/gBwqH_95mA3Ac23WK</eid>
+              <pitch>64</pitch>
+              <tpc>18</tpc>
+              </Note>
+            </Chord>
+          </voice>
+        </Measure>
+      <Measure>
+        <eid>OBmLK3DhZFN_b/OUT31VyhE</eid>
+        <Jump>
+          <style>repeat_right</style>
+          <text>D.S. al Coda</text>
+          <jumpTo>segno</jumpTo>
+          <playUntil>coda</playUntil>
+          <continueAt>codab</continueAt>
+          </Jump>
+        <voice>
+          <Chord>
+            <eid>xSjBn6yWDlN_c20dewW3hiH</eid>
+            <durationType>whole</durationType>
+            <Note>
+              <eid>reIShC1cj5E_fyUJ6o6bHaI</eid>
+              <pitch>65</pitch>
+              <tpc>13</tpc>
+              </Note>
+            </Chord>
+          <BarLine>
+            <subtype>double</subtype>
+            <eid>58ZWZh1FJoG_8WUm6+CUMtL</eid>
+            </BarLine>
+          </voice>
+        </Measure>
+      <Measure>
+        <eid>USvvZncN17E_lfl5ufYiP6D</eid>
+        <Marker>
+          <subtype>codab</subtype>
+          <style>repeat_left</style>
+          <text><sym>coda</sym></text>
+          <label>codab</label>
+          </Marker>
+        <voice>
+          <Chord>
+            <eid>oej1d51zJ0L_9OkMjdm7EZM</eid>
+            <durationType>whole</durationType>
+            <Note>
+              <eid>8BuvAc0ygrD_XwDZOOQyS9J</eid>
+              <pitch>67</pitch>
+              <tpc>15</tpc>
+              </Note>
+            </Chord>
+          <BarLine>
+            <subtype>end</subtype>
+            <eid>sA0fOwI3N1B_gzEfg29GMJC</eid>
+            </BarLine>
+          </voice>
+        </Measure>
+      </Staff>
+    </Score>
+  </museScore>

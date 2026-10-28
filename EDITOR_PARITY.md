@@ -234,14 +234,15 @@ implement until its differences are gone.
 compares key signatures, pitches and written accidentals (`pitchFacts`).
 
 Initial gaps (2026-10-28): measure rests, pickups,
-cut/common symbols, final barlines, voltas, grace notes,
+cut/common symbols, grace notes,
 articulations, ornaments, dynamics, text, tempo, rehearsal marks, chord
 symbols, lyrics, the second staff's clef (the model has one clef per bar)
 and hidden gaps within a voice (`<forward>`; no invisible rests) are lost in
 the model's export. Fixed since: the exporter writes `<staves>` and
 `<backup>`/`<forward>` between voice/staff lanes, and the importer no longer
-invents composer "Unknown composer", and written accidentals are exported.
-Playback (now compared with velocities) lacks grace notes, repeats, articulation lengths, chord-symbol playback and
+invents composer "Unknown composer", and written accidentals, final
+barlines and voltas are exported.
+Playback (now compared with velocities) lacks grace notes, chord-symbol playback and
 instruments. Rhythm, pitch, beams, chords, meters and key handling match.
 
 ## Stage 3A — keyboard note input and chords
@@ -496,8 +497,42 @@ release 2004 played the same project with no errors. No iOS device test.
   text (cresc., dim. words), crescendo of a single held note in playback
   (MuseScore uses controller 2), dynamics for chord tones individually.
 
-Next: Stage 4G — repeats, voltas and jumps (then lyrics and text). (range selection and clipboard), 3D
-(voices), 3E (instrument/staff management) on the Stage 2B timeline. Retained-source
+## Stage 4G — repeats, endings, jumps and barlines
+
+- `Measure` gains `endingStart` (ending numbers, e.g. `[1]`, `[1, 2]`),
+  `endingEnd` (`EndingEnd.closed` / `open` bracket) and `navigation`
+  (`NavigationMark`: segno and coda where a bar starts; Fine, To Coda, D.C.,
+  D.S. and their al Fine / al Coda forms where it ends). `BarlineType` adds
+  `doubleBar` and `finalBar`. Bars are copied with `Measure.copyWith`.
+- Playback: `ScoreTimelineBuilder.playOrder` unrolls repeats, endings and
+  jumps as MuseScore plays them: a repeat plays as many times as its highest
+  ending number (at least twice); after a D.C./D.S. repeats are not taken
+  again and only the last ending plays; al Fine stops at Fine, al Coda jumps
+  from To Coda to the coda. `build(score, unrollRepeats:)` uses it for
+  sequential and simultaneous parts; review audition plays bars as written.
+- MusicXML: endings (`<ending>` start/stop/discontinue), repeats, light-light
+  and light-heavy bar styles, segno/coda symbols and jump words with
+  `<sound>` attributes, both ways. MuseScore writes `<sound fine="yes"/>`
+  under its segno, coda and To Coda markers; the importer trusts the symbol
+  or words instead.
+- Editor: Bar tools → Repeats (start/end repeat, 1st/2nd ending, double and
+  final barline, segno, coda, To Coda, Fine, D.C., D.C. al Fine, D.S., D.S. al
+  Coda) toggles on the selected bar or range in every staff, one undo step;
+  a bar keeps one jump. The same signs are in command search. Drawn in the
+  editor and PDF from shared `barShapes` (ending brackets with their numbers,
+  barline styles, segno/coda signs and jump text).
+- Parity: MuseScore's MusicXML import turns D.C./D.S. into plain staff text,
+  so `17_segno_coda` and `18_endings_dc_al_fine` are native `.mscx` cases
+  (`tool/musescore_reference.sh` accepts them). `14_repeats_voltas` 14/14 and
+  13/13, `18_endings_dc_al_fine` 17/17 and 19/19, `17_segno_coda` playback
+  15/15 and notation 14/16 (MuseScore exports the segno and coda after the
+  bar's notes; ours sit at its start). `01_note_values` now matches its final
+  barline.
+- Not yet: D.C./D.S. that repeat repeats ("play repeats"), more than two
+  endings from the editor (import keeps them), custom jump text, repeat counts
+  other than ending numbers (MuseScore's "play count").
+
+Next: Stage 4E — lyrics, then 4F text, tempo and chord symbols. Retained-source
 rhythm export, global timewise measure slots and richer editable notation still
-need work. Range/clipboard and advanced notation should build on this timeline
-rather than adding more flat-list rules.
+need work; advanced notation should build on the Stage 2B timeline rather than
+adding more flat-list rules.

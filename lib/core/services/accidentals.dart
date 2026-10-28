@@ -65,15 +65,7 @@ class Accidentals {
         for (final m in part.measures)
           () {
             state.startMeasure(m);
-            return Measure(
-              number: m.number,
-              clef: m.clef,
-              timeSignature: m.timeSignature,
-              keySignature: m.keySignature,
-              startsNewPage: m.startsNewPage,
-              startsNewSystem: m.startsNewSystem,
-              leftBarlineType: m.leftBarlineType,
-              rightBarlineType: m.rightBarlineType,
+            return m.copyWith(
               symbols: [
                 for (final s in m.symbols)
                   s is Note

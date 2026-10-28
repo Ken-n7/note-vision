@@ -1821,6 +1821,15 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 ? 'Select a bar with eighth or sixteenth notes'
                 : null),
       ),
+      for (final sign in BarSign.values)
+        EditorCommandChoice(
+          id: 'workspace.bar.${sign.name}',
+          label: sign.label,
+          group: 'Repeats',
+          description: 'Add or remove it on the selected bars in every staff',
+          disabledReason:
+              lock ?? (state.barSignOn(sign) == null ? 'Select a bar' : null),
+        ),
       for (final mark in editorDynamics)
         EditorCommandChoice(
           id: 'workspace.dynamic.$mark',
@@ -1828,8 +1837,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           group: 'Dynamics',
           description: 'Put $mark on the first selected note or rest',
           disabledReason:
-              lock ??
-              state.hairpinUnavailableReason(SpannerKind.crescendo),
+              lock ?? state.hairpinUnavailableReason(SpannerKind.crescendo),
         ),
       EditorCommandChoice(
         id: 'workspace.copy',
@@ -1949,6 +1957,13 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         await _showTranspose();
       case 'workspace.staves':
         await _showStaves();
+      case final id when id.startsWith('workspace.bar.'):
+        final sign = BarSign.values.byName(
+          id.substring('workspace.bar.'.length),
+        );
+        if (_commandEditLock == null) {
+          _updateState((s) => s.toggleBarSign(sign));
+        }
       case final id when id.startsWith('workspace.dynamic.'):
         if (_commandEditLock == null) {
           _updateState(
@@ -2635,6 +2650,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                         (s) =>
                             s.setTimeSignatureAtSelectedMeasure(timeSignature),
                       ),
+                      barSignOn: _editorState.barSignOn,
+                      onBarSign: (sign) =>
+                          _updateState((s) => s.toggleBarSign(sign)),
                       onSetClef: (clef) {
                         if (clef != null) {
                           _updateState((s) => s.setPartClef(clef));
@@ -4712,6 +4730,8 @@ class _InspectorPanel extends StatefulWidget {
     required this.currentMeasureClef,
     required this.currentTimeSignature,
     required this.onSetTimeSignature,
+    required this.barSignOn,
+    required this.onBarSign,
     required this.onSetClef,
     required this.onMoveToPrev,
     required this.onMoveToNext,
@@ -4773,6 +4793,8 @@ class _InspectorPanel extends StatefulWidget {
   final Clef? currentMeasureClef;
   final TimeSignature? currentTimeSignature;
   final ValueChanged<TimeSignature> onSetTimeSignature;
+  final bool? Function(BarSign sign) barSignOn;
+  final ValueChanged<BarSign> onBarSign;
   final ValueChanged<Clef?> onSetClef;
   final VoidCallback onMoveToPrev;
   final VoidCallback onMoveToNext;
@@ -5189,10 +5211,12 @@ class _InspectorPanelState extends State<_InspectorPanel> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           EditorToolRow(
+            wrap: true,
             children: [
               for (final (index, label) in [
                 (5, 'Measures'),
                 (3, 'Time'),
+                (6, 'Repeats'),
                 (2, 'Clef'),
               ])
                 ChoiceChip(
@@ -5208,7 +5232,21 @@ class _InspectorPanelState extends State<_InspectorPanel> {
           EditorToolRow(
             wrap: widget.isLandscape,
             children: [
-              ...groups[_barGroup].children,
+              if (_barGroup == 6)
+                for (final sign in BarSign.values)
+                  _ClefTile(
+                    shortLabel: sign.short,
+                    label: sign.label,
+                    semanticLabel: sign.label,
+                    isActive: widget.barSignOn(sign) ?? false,
+                    onPressed: _wrapAction(
+                      widget.barSignOn(sign) == null
+                          ? null
+                          : () => widget.onBarSign(sign),
+                    ),
+                  )
+              else
+                ...groups[_barGroup].children,
               if (_barGroup == 5) groups[4].children.first,
               if (_barGroup == 2)
                 _ActionTile(
@@ -5225,6 +5263,8 @@ class _InspectorPanelState extends State<_InspectorPanel> {
                 ? 'Clef changes apply to this staff. Staves adds, renames or reorders instruments.'
                 : _barGroup == 3
                 ? 'Time signature starts at this bar in every staff.'
+                : _barGroup == 6
+                ? 'Repeats, endings and jumps apply to the selected bars in every staff; playback follows them.'
                 : 'Prev / Next moves the selected symbol to the neighboring bar.',
             style: const TextStyle(
               fontSize: 11,
@@ -5378,12 +5418,42 @@ class _InspectorPanelState extends State<_InspectorPanel> {
             wrap: widget.isLandscape,
             children: [
               for (final (mark, icon, label, keys) in const [
-                (Articulation.staccato, Icons.fiber_manual_record, 'Staccato', 'Shift + S'),
-                (Articulation.staccatissimo, Icons.change_history, 'Staccatiss.', null),
-                (Articulation.tenuto, Icons.horizontal_rule, 'Tenuto', 'Shift + N'),
-                (Articulation.accent, Icons.chevron_right, 'Accent', 'Shift + V'),
-                (Articulation.marcato, Icons.keyboard_arrow_up, 'Marcato', 'Shift + O'),
-                (Articulation.fermata, Icons.remove_red_eye_outlined, 'Fermata', null),
+                (
+                  Articulation.staccato,
+                  Icons.fiber_manual_record,
+                  'Staccato',
+                  'Shift + S',
+                ),
+                (
+                  Articulation.staccatissimo,
+                  Icons.change_history,
+                  'Staccatiss.',
+                  null,
+                ),
+                (
+                  Articulation.tenuto,
+                  Icons.horizontal_rule,
+                  'Tenuto',
+                  'Shift + N',
+                ),
+                (
+                  Articulation.accent,
+                  Icons.chevron_right,
+                  'Accent',
+                  'Shift + V',
+                ),
+                (
+                  Articulation.marcato,
+                  Icons.keyboard_arrow_up,
+                  'Marcato',
+                  'Shift + O',
+                ),
+                (
+                  Articulation.fermata,
+                  Icons.remove_red_eye_outlined,
+                  'Fermata',
+                  null,
+                ),
                 (Articulation.trill, Icons.waves, 'Trill', null),
                 (Articulation.mordent, Icons.show_chart, 'Mordent', null),
                 (Articulation.turn, Icons.all_inclusive, 'Turn', null),
@@ -5415,7 +5485,8 @@ class _InspectorPanelState extends State<_InspectorPanel> {
                   tooltip: 'Dynamic $mark on the first selected note',
                   showCheckmark: false,
                   selected: widget.dynamicMark == mark,
-                  onSelected: widget.onDynamic == null || widget.isPlaybackActive
+                  onSelected:
+                      widget.onDynamic == null || widget.isPlaybackActive
                       ? null
                       : (_) => widget.onDynamic!(mark),
                 ),
@@ -5981,10 +6052,12 @@ class _ClefTile extends StatelessWidget {
     required this.label,
     required this.isActive,
     required this.onPressed,
+    this.semanticLabel,
   });
 
   final String shortLabel;
   final String label;
+  final String? semanticLabel;
   final bool isActive;
   final VoidCallback? onPressed;
 
@@ -5998,9 +6071,11 @@ class _ClefTile extends StatelessWidget {
       button: true,
       selected: isActive,
       enabled: enabled,
-      label: shortLabel.contains('/')
-          ? '$shortLabel time signature'
-          : '$label clef',
+      label:
+          semanticLabel ??
+          (shortLabel.contains('/')
+              ? '$shortLabel time signature'
+              : '$label clef'),
       onTap: onPressed,
       excludeSemantics: true,
       child: Tooltip(

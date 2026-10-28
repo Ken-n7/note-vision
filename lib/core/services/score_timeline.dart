@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:xml/xml.dart';
 
 import '../models/key_signature.dart';
+import '../models/barline_type.dart';
 import '../models/measure.dart';
+import '../models/navigation_mark.dart';
 import '../models/musical_time.dart';
 import '../models/musicxml_source.dart';
 import '../models/note.dart';
@@ -304,7 +306,95 @@ class ScoreTimelineBuilder {
     return MeasureTimeline(result);
   }
 
-  ScoreTimeline build(Score score) {
+  /// The order [bars] play in, by index: repeats, first and second endings,
+  /// D.C., D.S., Fine and To Coda as MuseScore Studio plays them. A repeat
+  /// goes round as many times as its highest ending number (at least
+  /// twice); after a D.C. or D.S. repeats are not taken again and only the
+  /// last ending plays.
+  static List<int> playOrder(List<Measure> bars) {
+    final n = bars.length;
+    final order = <int>[];
+    var i = 0, repeatStart = 0, pass = 1;
+    var returning = false, jumped = false, toFine = false, toCoda = false;
+    int endingEnd(int start) {
+      for (var k = start; k < n; k++) {
+        if (bars[k].endingEnd != null) return k;
+      }
+      return start;
+    }
+
+    // The highest ending number from the repeat's start through the run of
+    // endings that follows bar [at].
+    int highestEnding(int at) {
+      var highest = 0;
+      for (var k = repeatStart; k < n; k++) {
+        if (k > at && bars[k].endingStart.isEmpty) break;
+        for (final number in bars[k].endingStart) {
+          if (number > highest) highest = number;
+        }
+        if (k > at) k = endingEnd(k);
+      }
+      return highest;
+    }
+
+    while (i < n && order.length < n * 8 + 8) {
+      final bar = bars[i];
+      if (bar.leftBarlineType == BarlineType.repeatStart && !returning) {
+        repeatStart = i;
+        pass = 1;
+      }
+      returning = false;
+      if (bar.endingStart.isNotEmpty) {
+        final end = endingEnd(i);
+        final last = end + 1 >= n || bars[end + 1].endingStart.isEmpty;
+        if (jumped ? !last : !bar.endingStart.contains(pass)) {
+          i = end + 1;
+          continue;
+        }
+      }
+      order.add(i);
+      if (bar.rightBarlineType == BarlineType.repeatEnd && !jumped) {
+        final times = highestEnding(i) < 2 ? 2 : highestEnding(i);
+        if (pass < times) {
+          pass++;
+          i = repeatStart;
+          returning = true;
+          continue;
+        }
+        pass = 1;
+      }
+      if (toFine && bar.navigation.contains(NavigationMark.fine)) break;
+      if (toCoda && bar.navigation.contains(NavigationMark.toCoda)) {
+        final coda = bars.indexWhere(
+          (b) => b.navigation.contains(NavigationMark.coda),
+          i + 1,
+        );
+        if (coda >= 0) {
+          toCoda = false;
+          i = coda;
+          continue;
+        }
+      }
+      final jump = bar.navigation.where((m) => m.isJump).firstOrNull;
+      if (jump != null && !jumped) {
+        jumped = true;
+        toFine = jump.alFine;
+        toCoda = jump.alCoda;
+        final segno = bars.indexWhere(
+          (b) => b.navigation.contains(NavigationMark.segno),
+        );
+        i = jump.toSegno && segno >= 0 ? segno : 0;
+        pass = 1;
+        continue;
+      }
+      i++;
+    }
+    return order;
+  }
+
+  /// [unrollRepeats] plays repeats and jumps (see [playOrder]); without it
+  /// bars play once each in written order.
+  ScoreTimeline build(Score score, {bool unrollRepeats = true}) {
     final source = score.musicXmlSource;
     if (source != null &&
         score.playbackLayout == ScorePlaybackLayout.simultaneousParts &&
@@ -319,31 +409,43 @@ class ScoreTimelineBuilder {
     final result = <ScoreTimelineMeasure>[];
     var cursor = MusicalTime.zero;
     if (score.playbackLayout == ScorePlaybackLayout.sequentialStaves) {
-      for (final (p, part) in score.parts.indexed) {
-        for (var m = 0; m < part.measures.length; m++) {
-          final timing = measure(score, p, m);
-          final duration = timing.duration.isZero
-              ? meterLength(activeMeter(score, p, m))
-              : timing.duration;
-          result.add(
-            ScoreTimelineMeasure(
-              partIndex: p,
-              measureIndex: m,
-              onset: cursor,
-              duration: duration,
-              timeline: timing,
-            ),
-          );
-          cursor = cursor + duration;
-        }
+      // Scanned staves are lines of one part: repeats run across them.
+      final bars = [
+        for (final (p, part) in score.parts.indexed)
+          for (var m = 0; m < part.measures.length; m++) (p, m),
+      ];
+      final order = unrollRepeats
+          ? playOrder([
+              for (final (p, m) in bars) score.parts[p].measures[m],
+            ])
+          : [for (var k = 0; k < bars.length; k++) k];
+      for (final k in order) {
+        final (p, m) = bars[k];
+        final timing = measure(score, p, m);
+        final duration = timing.duration.isZero
+            ? meterLength(activeMeter(score, p, m))
+            : timing.duration;
+        result.add(
+          ScoreTimelineMeasure(
+            partIndex: p,
+            measureIndex: m,
+            onset: cursor,
+            duration: duration,
+            timeline: timing,
+          ),
+        );
+        cursor = cursor + duration;
       }
     } else {
-      final count = score.parts.fold(
-        0,
-        (max, p) => p.measures.length > max ? p.measures.length : max,
+      final longest = score.parts.fold(
+        <Measure>[],
+        (max, p) => p.measures.length > max.length ? p.measures : max,
       );
+      final order = unrollRepeats
+          ? playOrder(longest)
+          : [for (var m = 0; m < longest.length; m++) m];
       var inheritedMeter = MusicalTime.zero;
-      for (var m = 0; m < count; m++) {
+      for (final m in order) {
         final group = <(int, MeasureTimeline)>[];
         var content = MusicalTime.zero, meter = MusicalTime.zero;
         for (final (p, part) in score.parts.indexed) {

@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:note_vision/core/models/barline_type.dart';
 import 'package:note_vision/core/models/beam_grouping.dart';
 import 'package:note_vision/core/models/measure.dart';
+import 'package:note_vision/core/models/navigation_mark.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/note_value.dart';
 import 'package:note_vision/core/models/part.dart';
@@ -151,7 +152,12 @@ class MusicXmlExportService {
           : measures
                 .expand((m) => m.symbols)
                 .fold(1, (n, s) => max(n, ScoreTimelineBuilder.lane(s).$2));
+      // The numbers of the ending in progress, for its closing barline.
+      var endingNumbers = '1';
       for (var i = 0; i < measures.length; i++) {
+        if (measures[i].endingStart.isNotEmpty) {
+          endingNumbers = measures[i].endingStart.join(', ');
+        }
         final staffMeasures = [
           for (final part in staffParts)
             if (i < part.measures.length) part.measures[i],
@@ -166,6 +172,7 @@ class MusicXmlExportService {
           staves: staves,
           accidentals: accidentals,
           marks: marks,
+          endingNumbers: endingNumbers,
         );
       }
     });
@@ -205,6 +212,7 @@ class MusicXmlExportService {
     required int staves,
     required List<Accidentals> accidentals,
     required _Marks marks,
+    String endingNumbers = '1',
   }) {
     final measure = staffMeasures.first;
     b.element(
@@ -257,13 +265,18 @@ class MusicXmlExportService {
           });
         }
 
-        if (measure.leftBarlineType != null) {
+        if (measure.leftBarlineType != null ||
+            measure.endingStart.isNotEmpty) {
           _buildBarline(
             b,
             location: 'left',
-            type: measure.leftBarlineType!,
+            type: measure.leftBarlineType,
+            ending: measure.endingStart.isEmpty
+                ? null
+                : (measure.endingStart.join(', '), 'start'),
           );
         }
+        _buildNavigation(b, measure, atEnd: false);
 
         // Each voice/staff lane starts at the bar line; <backup> and
         // <forward> move the cursor to where the next lane's symbol starts.
@@ -307,11 +320,19 @@ class MusicXmlExportService {
           }
         }
 
-        if (measure.rightBarlineType != null) {
+        _buildNavigation(b, measure, atEnd: true);
+        if (measure.rightBarlineType != null || measure.endingEnd != null) {
           _buildBarline(
             b,
             location: 'right',
-            type: measure.rightBarlineType!,
+            type: measure.rightBarlineType,
+            ending: switch (measure.endingEnd) {
+              null => null,
+              final end => (
+                endingNumbers,
+                end == EndingEnd.open ? 'discontinue' : 'stop',
+              ),
+            },
           );
         }
       },
@@ -500,18 +521,58 @@ class MusicXmlExportService {
   void _buildBarline(
     XmlBuilder b, {
     required String location,
-    required BarlineType type,
+    required BarlineType? type,
+    (String, String)? ending,
   }) {
     b.element('barline', attributes: {'location': location}, nest: () {
-      switch (type) {
-        case BarlineType.repeatStart:
-          b.element('bar-style', nest: 'heavy-light');
-          b.element('repeat', attributes: {'direction': 'forward'});
-        case BarlineType.repeatEnd:
-          b.element('bar-style', nest: 'light-heavy');
-          b.element('repeat', attributes: {'direction': 'backward'});
+      final style = switch (type) {
+        BarlineType.repeatStart => 'heavy-light',
+        BarlineType.repeatEnd || BarlineType.finalBar => 'light-heavy',
+        BarlineType.doubleBar => 'light-light',
+        null => null,
+      };
+      if (style != null) b.element('bar-style', nest: style);
+      if (ending case (final numbers, final kind)) {
+        b.element(
+          'ending',
+          attributes: {'number': numbers, 'type': kind},
+          nest: kind == 'start' ? '${numbers.replaceAll(' ', '')}.' : null,
+        );
+      }
+      if (type == BarlineType.repeatStart) {
+        b.element('repeat', attributes: {'direction': 'forward'});
+      } else if (type == BarlineType.repeatEnd) {
+        b.element('repeat', attributes: {'direction': 'backward'});
       }
     });
+  }
+
+  /// Segno and coda before a bar's notes; Fine, To Coda, D.C. and D.S. after
+  /// them, with the `<sound>` that makes them play.
+  void _buildNavigation(XmlBuilder b, Measure measure, {required bool atEnd}) {
+    for (final mark in measure.navigation.where((m) => m.atEnd == atEnd)) {
+      b.element('direction', attributes: {'placement': 'above'}, nest: () {
+        b.element('direction-type', nest: () {
+          switch (mark) {
+            case NavigationMark.segno:
+              b.element('segno');
+            case NavigationMark.coda:
+              b.element('coda');
+            default:
+              b.element('words', nest: mark.text);
+          }
+        });
+        final sound = switch (mark) {
+          NavigationMark.segno => {'segno': 'segno'},
+          NavigationMark.coda => {'coda': 'coda'},
+          NavigationMark.fine => {'fine': 'yes'},
+          NavigationMark.toCoda => {'tocoda': 'coda'},
+          _ when mark.toSegno => {'dalsegno': 'segno'},
+          _ => {'dacapo': 'yes'},
+        };
+        b.element('sound', attributes: sound);
+      });
+    }
   }
 
   // ---------------------------------------------------------------------------

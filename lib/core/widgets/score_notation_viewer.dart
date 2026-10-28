@@ -39,16 +39,10 @@ List<Measure> sliceMeasuresWithInheritedMetadata({
   final slice = <Measure>[];
   for (var i = start; i < end; i++) {
     final measure = measures[i];
-    final normalized = Measure(
-      number: measure.number,
+    final normalized = measure.copyWith(
       clef: measure.clef ?? activeClef,
       timeSignature: measure.timeSignature ?? activeTimeSignature,
       keySignature: measure.keySignature ?? activeKeySignature,
-      symbols: measure.symbols,
-      startsNewPage: measure.startsNewPage,
-      startsNewSystem: measure.startsNewSystem,
-      leftBarlineType: measure.leftBarlineType,
-      rightBarlineType: measure.rightBarlineType,
     );
     slice.add(normalized);
     activeClef = normalized.clef;

@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:note_vision/core/models/barline_type.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/services/playback_service.dart';
@@ -35,6 +36,24 @@ void main() {
       }
     });
   }
+
+  testWidgets('Bar tools Repeats adds an end repeat to every staff', (
+    tester,
+  ) async {
+    await pumpControls(tester, size: const Size(390, 844));
+    await tester.tap(find.byKey(const ValueKey('editor-mode-measure')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Repeats'));
+    await tester.pumpAndSettle();
+    await captureControls(tester, 'phone-repeats');
+    await tester.tap(find.text('End repeat'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(
+      shownControlsScore(tester).parts.first.measures.first.rightBarlineType,
+      BarlineType.repeatEnd,
+    );
+  });
 
   testWidgets('pitch controls are disabled for a rest', (tester) async {
     await pumpControls(tester, selectedSymbol: 2);

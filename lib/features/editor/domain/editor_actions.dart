@@ -2,7 +2,9 @@ import 'dart:math' as math;
 
 import 'package:note_vision/core/models/beam_grouping.dart';
 import 'package:note_vision/core/models/clef.dart';
+import 'package:note_vision/core/models/barline_type.dart';
 import 'package:note_vision/core/models/measure.dart';
+import 'package:note_vision/core/models/navigation_mark.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/note_value.dart';
 import 'package:note_vision/core/models/part.dart';
@@ -57,6 +59,37 @@ typedef StaffPlanEntry = ({
   Clef? clef,
   bool joinsPrevious,
 });
+
+/// Bar tools' repeat, barline and navigation signs.
+enum BarSign {
+  startRepeat('Start repeat', '‖:'),
+  endRepeat('End repeat', ':‖', barline: BarlineType.repeatEnd),
+  firstEnding('1st ending', '1.'),
+  secondEnding('2nd ending', '2.'),
+  doubleBar('Double barline', '‖', barline: BarlineType.doubleBar),
+  finalBar('Final barline', '|▌', barline: BarlineType.finalBar),
+  segno('Segno', 'S', navigation: NavigationMark.segno),
+  coda('Coda', '⊕', navigation: NavigationMark.coda),
+  toCoda('To Coda', '→⊕', navigation: NavigationMark.toCoda),
+  fine('Fine', 'Fine', navigation: NavigationMark.fine),
+  daCapo('D.C.', 'D.C.', navigation: NavigationMark.daCapo),
+  daCapoAlFine(
+    'D.C. al Fine',
+    'DC Fine',
+    navigation: NavigationMark.daCapoAlFine,
+  ),
+  dalSegno('D.S.', 'D.S.', navigation: NavigationMark.dalSegno),
+  dalSegnoAlCoda(
+    'D.S. al Coda',
+    'DS ⊕',
+    navigation: NavigationMark.dalSegnoAlCoda,
+  );
+
+  const BarSign(this.label, this.short, {this.barline, this.navigation});
+  final String label, short;
+  final BarlineType? barline;
+  final NavigationMark? navigation;
+}
 
 /// Notes and rests copied from one part, bar by bar (empty bars included,
 /// so pasted music keeps its bar lines).
@@ -572,18 +605,9 @@ extension EditorActions on EditorState {
         );
       }).toList();
 
-      return Measure(
-        number: measure.number,
-        reviewId: measure.reviewId,
-        source: measure.source,
+      return measure.copyWith(
         clef: i == 0 ? newClef : null,
-        timeSignature: measure.timeSignature,
-        keySignature: measure.keySignature,
         symbols: updatedSymbols,
-        startsNewPage: measure.startsNewPage,
-        startsNewSystem: measure.startsNewSystem,
-        leftBarlineType: measure.leftBarlineType,
-        rightBarlineType: measure.rightBarlineType,
       );
     }).toList();
 
@@ -921,12 +945,13 @@ extension EditorActions on EditorState {
     ];
   }
 
-  List<Articulation> _marksAt(SymbolPosition p) =>
-      switch (score.parts[selectedPartIndex!].measures[p.measure].symbols[p
-          .symbol]) {
-        Note(:final marks) || Rest(:final marks) => marks,
-        _ => const [],
-      };
+  List<Articulation> _marksAt(SymbolPosition p) => switch (score
+      .parts[selectedPartIndex!]
+      .measures[p.measure]
+      .symbols[p.symbol]) {
+    Note(:final marks) || Rest(:final marks) => marks,
+    _ => const [],
+  };
 
   String? markUnavailableReason(Articulation mark) =>
       _markTargets(mark).isNotEmpty
@@ -956,10 +981,8 @@ extension EditorActions on EditorState {
               for (final m in marks)
                 if (m != mark) m,
             ]
-          : ([
-              ...marks.where((m) => m != mark),
-              mark,
-            ]..sort((a, b) => a.index - b.index));
+          : ([...marks.where((m) => m != mark), mark]
+              ..sort((a, b) => a.index - b.index));
       final symbol = next.getSymbolAt(selectedPartIndex!, p.measure, p.symbol);
       next = next.replaceSymbolAt(
         selectedPartIndex!,
@@ -976,6 +999,116 @@ extension EditorActions on EditorState {
       intent: EditorEditIntent.updateMeasureMetadata,
       score: next,
     ).copyWith(rangeAnchor: rangeAnchor);
+  }
+
+  // ── Repeats, endings, barlines and navigation ────────────────────────
+
+  /// The bars the selection covers: a range's first to last, else the
+  /// selected bar.
+  (int, int)? get _selectedBars {
+    if (!hasMeasureContext) return null;
+    final positions = selectionPositions;
+    return positions.isEmpty
+        ? (selectedMeasureIndex!, selectedMeasureIndex!)
+        : (positions.first.measure, positions.last.measure);
+  }
+
+  Measure? _barAt(int index) =>
+      score.parts.isEmpty || index >= score.parts.first.measures.length
+      ? null
+      : score.parts.first.measures[index];
+
+  /// Changes bars in every staff (repeat structure is shared), as one undo
+  /// step keeping the selection.
+  EditorState _editBars(Measure Function(Measure measure, int index) change) {
+    final next = score.copyWith(
+      parts: [
+        for (final part in score.parts)
+          Part(
+            id: part.id,
+            name: part.name,
+            staff: part.staff,
+            measures: [
+              for (final (i, m) in part.measures.indexed) change(m, i),
+            ],
+          ),
+      ],
+    );
+    return _applySelectionPreservingEdit(
+      intent: EditorEditIntent.updateMeasureMetadata,
+      score: next,
+    ).copyWith(rangeAnchor: rangeAnchor);
+  }
+
+  /// Whether the selected bars already have this sign (null: no bar
+  /// selected).
+  bool? barSignOn(BarSign sign) {
+    final (first, last) = _selectedBars ?? (-1, -1);
+    final a = _barAt(first), b = _barAt(last);
+    if (a == null || b == null) return null;
+    return switch (sign) {
+      BarSign.startRepeat => a.leftBarlineType == BarlineType.repeatStart,
+      BarSign.endRepeat => b.rightBarlineType == BarlineType.repeatEnd,
+      BarSign.doubleBar => b.rightBarlineType == BarlineType.doubleBar,
+      BarSign.finalBar => b.rightBarlineType == BarlineType.finalBar,
+      BarSign.firstEnding => a.endingStart.contains(1),
+      BarSign.secondEnding => a.endingStart.contains(2),
+      BarSign(:final navigation?) =>
+        (navigation.atEnd ? b : a).navigation.contains(navigation),
+      _ => false,
+    };
+  }
+
+  /// Adds or removes [sign] on the selected bars: repeats and barlines at
+  /// their edges, an ending over them all (a second ending stays open), a
+  /// navigation mark at the first bar (segno, coda) or the last.
+  EditorState toggleBarSign(BarSign sign) {
+    final on = barSignOn(sign);
+    if (on == null) return this;
+    final (first, last) = _selectedBars!;
+    return _editBars((m, i) {
+      switch (sign) {
+        case BarSign.startRepeat when i == first:
+          return m.copyWith(
+            leftBarlineType: on ? null : BarlineType.repeatStart,
+          );
+        case BarSign.endRepeat || BarSign.doubleBar || BarSign.finalBar
+            when i == last:
+          return m.copyWith(rightBarlineType: on ? null : sign.barline);
+        case BarSign.firstEnding || BarSign.secondEnding:
+          final number = sign == BarSign.firstEnding ? 1 : 2;
+          if (i == first) {
+            m = m.copyWith(endingStart: on ? const [] : [number]);
+          }
+          if (i == last) {
+            m = m.copyWith(
+              endingEnd: on
+                  ? null
+                  : number == 1
+                  ? EndingEnd.closed
+                  : EndingEnd.open,
+            );
+          }
+          return m;
+        case BarSign(:final navigation?)
+            when i == (navigation.atEnd ? last : first):
+          return m.copyWith(
+            navigation: on
+                ? [
+                    for (final n in m.navigation)
+                      if (n != navigation) n,
+                  ]
+                : ([
+                    // One jump per bar.
+                    for (final n in m.navigation)
+                      if (!(navigation.isJump && n.isJump)) n,
+                    navigation,
+                  ]..sort((a, b) => a.index - b.index)),
+          );
+        default:
+          return m;
+      }
+    });
   }
 
   // ── Dynamics and hairpins ────────────────────────────────────────────
@@ -1407,18 +1540,13 @@ extension EditorActions on EditorState {
             staff: staffOf(i),
             measures: [
               for (final (i, m) in template.measures.indexed)
-                Measure(
-                  number: m.number,
+                m.copyWith(
+                  reviewId: null,
+                  source: null,
                   clef: i == 0
                       ? entry.clef ?? const Clef(sign: 'G', line: 2)
                       : null,
-                  timeSignature: m.timeSignature,
-                  keySignature: m.keySignature,
                   symbols: const [],
-                  startsNewPage: m.startsNewPage,
-                  startsNewSystem: m.startsNewSystem,
-                  leftBarlineType: m.leftBarlineType,
-                  rightBarlineType: m.rightBarlineType,
                 ),
             ],
           ),

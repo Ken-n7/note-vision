@@ -2,6 +2,7 @@ import 'score_review.dart';
 import 'barline_type.dart';
 import 'clef.dart';
 import 'key_signature.dart';
+import 'navigation_mark.dart';
 import 'note.dart';
 import 'rest.dart';
 import 'score_symbol.dart';
@@ -20,6 +21,15 @@ class Measure {
   final BarlineType? leftBarlineType;
   final BarlineType? rightBarlineType;
 
+  /// The numbers of a first/second ending that starts at this bar.
+  final List<int> endingStart;
+
+  /// How an ending that ends at this bar closes.
+  final EndingEnd? endingEnd;
+
+  /// Segno, coda, Fine, To Coda, D.C. and D.S. at this bar.
+  final List<NavigationMark> navigation;
+
   const Measure({
     required this.number,
     this.reviewId,
@@ -32,7 +42,56 @@ class Measure {
     this.startsNewSystem = false,
     this.leftBarlineType,
     this.rightBarlineType,
+    this.endingStart = const [],
+    this.endingEnd,
+    this.navigation = const [],
   });
+
+  static const Object _keep = Object();
+
+  /// This bar with the given fields changed and every other field kept, so
+  /// that adding a field to [Measure] cannot be lost by a copy.
+  Measure copyWith({
+    int? number,
+    Object? reviewId = _keep,
+    Object? source = _keep,
+    Object? clef = _keep,
+    Object? timeSignature = _keep,
+    Object? keySignature = _keep,
+    List<ScoreSymbol>? symbols,
+    bool? startsNewPage,
+    bool? startsNewSystem,
+    Object? leftBarlineType = _keep,
+    Object? rightBarlineType = _keep,
+    List<int>? endingStart,
+    Object? endingEnd = _keep,
+    List<NavigationMark>? navigation,
+  }) => Measure(
+    number: number ?? this.number,
+    reviewId: identical(reviewId, _keep) ? this.reviewId : reviewId as String?,
+    source: identical(source, _keep) ? this.source : source as SourceRegion?,
+    clef: identical(clef, _keep) ? this.clef : clef as Clef?,
+    timeSignature: identical(timeSignature, _keep)
+        ? this.timeSignature
+        : timeSignature as TimeSignature?,
+    keySignature: identical(keySignature, _keep)
+        ? this.keySignature
+        : keySignature as KeySignature?,
+    symbols: symbols ?? this.symbols,
+    startsNewPage: startsNewPage ?? this.startsNewPage,
+    startsNewSystem: startsNewSystem ?? this.startsNewSystem,
+    leftBarlineType: identical(leftBarlineType, _keep)
+        ? this.leftBarlineType
+        : leftBarlineType as BarlineType?,
+    rightBarlineType: identical(rightBarlineType, _keep)
+        ? this.rightBarlineType
+        : rightBarlineType as BarlineType?,
+    endingStart: endingStart ?? this.endingStart,
+    endingEnd: identical(endingEnd, _keep)
+        ? this.endingEnd
+        : endingEnd as EndingEnd?,
+    navigation: navigation ?? this.navigation,
+  );
 
   Map<String, dynamic> toJson() => {
     'number': number,
@@ -47,6 +106,10 @@ class Measure {
     if (leftBarlineType != null) 'leftBarlineType': leftBarlineType!.jsonValue,
     if (rightBarlineType != null)
       'rightBarlineType': rightBarlineType!.jsonValue,
+    if (endingStart.isNotEmpty) 'endingStart': endingStart,
+    if (endingEnd != null) 'endingEnd': endingEnd!.name,
+    if (navigation.isNotEmpty)
+      'navigation': [for (final n in navigation) n.name],
   };
 
   factory Measure.fromJson(Map<String, dynamic> json) => Measure(
@@ -77,6 +140,13 @@ class Measure {
     rightBarlineType: json['rightBarlineType'] != null
         ? BarlineType.fromJsonValue(json['rightBarlineType'] as String)
         : null,
+    endingStart: [
+      for (final n in json['endingStart'] as List? ?? const []) n as int,
+    ],
+    endingEnd: json['endingEnd'] == null
+        ? null
+        : EndingEnd.values.byName(json['endingEnd'] as String),
+    navigation: NavigationMark.listFromJson(json['navigation']),
   );
 
   static ScoreSymbol _symbolFromJson(Map<String, dynamic> json) {
@@ -95,19 +165,7 @@ class Measure {
   Measure withContent({
     required KeySignature? keySignature,
     required List<ScoreSymbol> symbols,
-  }) => Measure(
-    number: number,
-    reviewId: reviewId,
-    source: source,
-    clef: clef,
-    timeSignature: timeSignature,
-    keySignature: keySignature,
-    symbols: symbols,
-    startsNewPage: startsNewPage,
-    startsNewSystem: startsNewSystem,
-    leftBarlineType: leftBarlineType,
-    rightBarlineType: rightBarlineType,
-  );
+  }) => copyWith(keySignature: keySignature, symbols: symbols);
 
   List<Note> get notes => symbols.whereType<Note>().toList();
 

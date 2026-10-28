@@ -1,7 +1,6 @@
 import 'score_review.dart';
 import 'dart:math' as math;
 
-import 'barline_type.dart';
 import 'clef.dart';
 import 'measure.dart';
 import 'note.dart';
@@ -417,25 +416,23 @@ class Score {
     Object? leftBarlineType = _keep,
     Object? rightBarlineType = _keep,
   }) {
-    return Measure(
-      number: number ?? measure.number,
-      reviewId: measure.reviewId,
-      source: measure.source,
-      clef: identical(clef, _keep) ? measure.clef : clef as Clef?,
-      timeSignature: identical(timeSignature, _keep)
-          ? measure.timeSignature
-          : timeSignature as TimeSignature?,
-      keySignature: measure.keySignature,
-      symbols: symbols ?? measure.symbols,
-      startsNewPage: startsNewPage ?? measure.startsNewPage,
-      startsNewSystem: startsNewSystem ?? measure.startsNewSystem,
-      leftBarlineType: identical(leftBarlineType, _keep)
-          ? measure.leftBarlineType
-          : leftBarlineType as BarlineType?,
-      rightBarlineType: identical(rightBarlineType, _keep)
-          ? measure.rightBarlineType
-          : rightBarlineType as BarlineType?,
+    var copy = measure.copyWith(
+      number: number,
+      symbols: symbols,
+      startsNewPage: startsNewPage,
+      startsNewSystem: startsNewSystem,
     );
+    if (!identical(clef, _keep)) copy = copy.copyWith(clef: clef);
+    if (!identical(timeSignature, _keep)) {
+      copy = copy.copyWith(timeSignature: timeSignature);
+    }
+    if (!identical(leftBarlineType, _keep)) {
+      copy = copy.copyWith(leftBarlineType: leftBarlineType);
+    }
+    if (!identical(rightBarlineType, _keep)) {
+      copy = copy.copyWith(rightBarlineType: rightBarlineType);
+    }
+    return copy;
   }
 
   @override

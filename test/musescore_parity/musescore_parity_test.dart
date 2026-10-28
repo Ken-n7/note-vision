@@ -29,8 +29,8 @@ void main() {
       Directory('$root/cases')
           .listSync()
           .map((f) => f.uri.pathSegments.last)
-          .where((name) => name.endsWith('.musicxml'))
-          .map((name) => name.substring(0, name.length - '.musicxml'.length))
+          .where((name) => name.endsWith('.musicxml') || name.endsWith('.mscx'))
+          .map((name) => name.substring(0, name.lastIndexOf('.')))
           .toList()
         ..sort();
 

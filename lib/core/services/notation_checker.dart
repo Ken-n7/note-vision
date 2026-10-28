@@ -631,19 +631,7 @@ class NotationChecker {
     Measure m,
     List<ScoreSymbol> symbols, {
     int? number,
-  }) => Measure(
-    number: number ?? m.number,
-    reviewId: m.reviewId,
-    source: m.source,
-    clef: m.clef,
-    timeSignature: m.timeSignature,
-    keySignature: m.keySignature,
-    symbols: symbols,
-    startsNewPage: m.startsNewPage,
-    startsNewSystem: m.startsNewSystem,
-    leftBarlineType: m.leftBarlineType,
-    rightBarlineType: m.rightBarlineType,
-  );
+  }) => m.copyWith(number: number, symbols: symbols);
 
   static Score _withParts(Score s, List<Part> parts) =>
       s.copyWith(parts: parts);

@@ -11,6 +11,8 @@ import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/widgets/score_notation/mark_glyphs.dart';
+import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart'
+    show endingAt;
 import 'package:note_vision/core/widgets/score_notation/score_notation_metrics.dart';
 import 'package:note_vision/core/widgets/score_notation/staff_pitch_mapper.dart';
 import 'package:note_vision/core/widgets/score_notation/voice_layout.dart';
@@ -272,16 +274,10 @@ class PdfScoreRenderer {
     final slice = <Measure>[];
     for (var i = start; i < end; i++) {
       final measure = measures[i];
-      final normalized = Measure(
-        number: measure.number,
+      final normalized = measure.copyWith(
         clef: measure.clef ?? activeClef,
         timeSignature: measure.timeSignature ?? activeTimeSignature,
         keySignature: measure.keySignature ?? activeKeySignature,
-        symbols: measure.symbols,
-        startsNewPage: measure.startsNewPage,
-        startsNewSystem: measure.startsNewSystem,
-        leftBarlineType: measure.leftBarlineType,
-        rightBarlineType: measure.rightBarlineType,
       );
       slice.add(normalized);
       activeClef = normalized.clef;
@@ -353,6 +349,7 @@ class PdfScoreRenderer {
           clefSign: _clefSign(rowMeasures),
           clefLine: _clefLine(rowMeasures),
           numberBars: !joined,
+          topStaff: pi == 0,
           notePoints: notePoints,
         );
         if (joined) {
@@ -665,6 +662,7 @@ class PdfScoreRenderer {
     required String clefSign,
     required int clefLine,
     bool numberBars = true,
+    bool topStaff = true,
     Map<String, _PdfNotePoint>? notePoints,
   }) {
     // staffTop = y of top staff line (PDF: y from bottom)
@@ -793,6 +791,24 @@ class PdfScoreRenderer {
           measure.timeSignature!.beatType,
         );
       }
+
+      // Repeat signs, barline styles, endings and navigation, as drawn in
+      // the editor (endings and navigation on the top staff only).
+      _drawMarkShapes(
+        g,
+        font,
+        barShapes(
+          width: _mw / _scale,
+          spacing: _ls / _scale,
+          left: measure.leftBarlineType,
+          right: measure.rightBarlineType,
+          ending: endingAt(pageMeasures, rowStart + mi),
+          navigation: measure.navigation,
+          first: topStaff,
+        ),
+        measureStartX,
+        staffTop,
+      );
 
       // Measure number (once per grand staff, above the upper staff)
       if (numberBars) {

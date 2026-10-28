@@ -7,6 +7,7 @@ import '../../models/beam_grouping.dart';
 import '../../models/clef.dart';
 import '../../models/key_signature.dart';
 import '../../models/measure.dart';
+import '../../models/navigation_mark.dart';
 import '../../models/note.dart';
 import '../../models/rest.dart';
 import '../../models/score_symbol.dart';
@@ -454,6 +455,20 @@ class ScoreNotationPainter extends CustomPainter {
           barPaint,
         );
       }
+      final barIndex = row.globalStartMeasureIndex + measureInRow;
+      _drawMarkShapes(
+        canvas,
+        barShapes(
+          width: minMeasureWidth,
+          spacing: staffLineSpacing,
+          left: measure.leftBarlineType,
+          right: measure.rightBarlineType,
+          ending: endingAt(parts[row.partIndex], barIndex),
+          navigation: measure.navigation,
+          first: row.partIndex == 0,
+        ),
+        Offset(measureX, row.staffTop),
+      );
 
       if (row.timeInMeasure[measureInRow]) {
         _drawTimeSignature(
@@ -2246,6 +2261,23 @@ class NotationInsertTarget {
       indicatorX.hashCode ^
       step.hashCode ^
       octave.hashCode;
+}
+
+/// The ending bar [index] of [measures] belongs to: its label where the
+/// ending starts, and whether its bracket closes at this bar.
+({String? label, bool closes})? endingAt(List<Measure> measures, int index) {
+  if (index < 0 || index >= measures.length) return null;
+  for (var k = index; k >= 0; k--) {
+    final m = measures[k];
+    if (k < index && m.endingEnd != null) return null;
+    if (m.endingStart.isNotEmpty) {
+      return (
+        label: k == index ? '${m.endingStart.join(', ')}.' : null,
+        closes: measures[index].endingEnd == EndingEnd.closed,
+      );
+    }
+  }
+  return null;
 }
 
 /// A drawn note, for ties and slurs.

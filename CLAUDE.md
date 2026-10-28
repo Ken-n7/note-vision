@@ -223,6 +223,7 @@ These are final unless explicitly changed:
 - **Tuplets:** `Tuplet` (actual:normal, bracket start/stop) on `Note`/`Rest`; all timing goes through `symbolQuarters` / `ScoreTimelineBuilder.writtenDuration`. Copy notes with `copyWith` (never field by field). Ctrl/Cmd+3/5/6/7 or the Triplet tile make a tuplet; note input types over its rests. MusicXML export raises `<divisions>` for tuplets.
 - **Articulations and ornaments:** `Note.marks`/`Rest.marks` (`Articulation` enum, fixed order); MusicXML import/export; playback lengths and ornament patterns as MuseScore plays them; Shift+S/N/V/O and the Edit-dock Marks row toggle across the selection; shapes shared by editor and PDF in `mark_glyphs.dart`.
 - **Dynamics and hairpins:** `Note/Rest.dynamicMark`; hairpins are crescendo/diminuendo spanners. MusicXML `<direction>` import/export (wedge stop after the last note). Playback velocity per event matches MuseScore (mf 80 default; p 49 … ff 112; sfz stresses one note; hairpins glide, truncated; accents one level up). < / > and the Edit-dock Dynamics row. Parity tests compare velocities.
+- **Repeats, endings and jumps:** `Measure.endingStart`/`endingEnd`, `Measure.navigation` (`NavigationMark`: segno, coda, Fine, To Coda, D.C./D.S. and al Fine/al Coda) and `BarlineType` double/final. `ScoreTimelineBuilder.playOrder` unrolls them for playback as MuseScore does (repeat count = highest ending number; no repeats after a jump). MusicXML import/export both ways; Bar tools → Repeats and command search toggle them on the selected bars in every staff (one undo step); editor and PDF draw them via `barShapes`. MuseScore imports D.C./D.S. from MusicXML as text, so their parity cases are `.mscx`.
 - **Selection after edits:** `_updateState` re-resolves the selected symbol by position after `NotationReviewService.ensureIdentity` (which rebuilds symbols).
 - **Note entry:** the editor dock has Edit, Add notes and Bar tools modes. Add notes starts with a quarter note ready to place; Notes/Rests switches preserve the duration. Pick one of five values and tap the staff or hold and drag a palette symbol. Re-selecting a value keeps note entry active; Edit or Esc finishes. Keyboard (MuseScore-style): A–G writes a note (nearest octave), 0 a rest; outside note entry A–G re-pitches the selection; Shift+A–G / Alt+2–9 add chord tones. `insertNoteAfterSelection()` / `insertRestAfterSelection()` remain domain helpers.
 - **Drag insert:** LongPressDraggable from palette → DragTarget on staff. Drop Y → pitch via PitchCalculator. Drop X → insert index.
@@ -427,7 +428,7 @@ These are current limitations, not hard ceilings — going beyond them is fine i
 - 32nd notes or smaller
 - Grace notes (ornaments ✅: trill, mordents, turn)
 - Tempo markings (articulations and dynamics ✅)
-- D.C., D.S., coda
+- Repeats, endings, D.C./D.S./coda ✅ (editor, playback, PDF, MusicXML); "play repeats" after a jump and play counts are not supported
 - Multiple voices on one staff ✅ written (voices 1–4) and drawn in editor and PDF; moving notes between voices is not yet supported
 - Lyrics
 - Printed (engraved) music — the model is trained on handwriting only

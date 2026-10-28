@@ -6,6 +6,7 @@ import 'package:note_vision/core/models/musicxml_source.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/models/measure.dart';
+import 'package:note_vision/core/models/navigation_mark.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/note_value.dart';
 import 'package:note_vision/core/models/part.dart';
@@ -310,18 +311,9 @@ class MusicXmlScoreConverter {
           ];
           staffIndexes.add([for (final k in keep) indexes[i][k]]);
           measures.add(
-            Measure(
-              number: m.number,
-              clef: i < elements.length
-                  ? _staffClef(elements[i], staff)
-                  : null,
-              timeSignature: m.timeSignature,
-              keySignature: m.keySignature,
+            m.copyWith(
+              clef: i < elements.length ? _staffClef(elements[i], staff) : null,
               symbols: [for (final k in keep) m.symbols[k]],
-              startsNewPage: m.startsNewPage,
-              startsNewSystem: m.startsNewSystem,
-              leftBarlineType: m.leftBarlineType,
-              rightBarlineType: m.rightBarlineType,
             ),
           );
         }
@@ -539,7 +531,91 @@ class MusicXmlScoreConverter {
       startsNewSystem: startsNewSystem,
       leftBarlineType: leftBarlineType,
       rightBarlineType: rightBarlineType,
+      endingStart: _endingStart(measureElement),
+      endingEnd: _endingEnd(measureElement),
+      navigation: _navigation(measureElement),
     );
+  }
+
+  /// The numbers of an `<ending type="start">` ("1, 2" is both).
+  List<int> _endingStart(XmlElement measure) => [
+    for (final barline in measure.findElements('barline'))
+      for (final ending in barline.findElements('ending'))
+        if (ending.getAttribute('type') == 'start')
+          for (final n in (ending.getAttribute('number') ?? '').split(
+            RegExp(r'[,\s]+'),
+          ))
+            ?int.tryParse(n),
+  ];
+
+  EndingEnd? _endingEnd(XmlElement measure) {
+    for (final barline in measure.findElements('barline')) {
+      for (final ending in barline.findElements('ending')) {
+        switch (ending.getAttribute('type')) {
+          case 'stop':
+            return EndingEnd.closed;
+          case 'discontinue':
+            return EndingEnd.open;
+        }
+      }
+    }
+    return null;
+  }
+
+  /// Segno, coda, Fine, To Coda, D.C. and D.S.: from `<segno>`, `<coda>`
+  /// and the `<sound>` that makes them play, or from their words.
+  List<NavigationMark> _navigation(XmlElement measure) {
+    final marks = <NavigationMark>{};
+    for (final direction in measure.findElements('direction')) {
+      final types = direction.findElements('direction-type');
+      final sound = direction.getElement('sound');
+      final words = types
+          .expand((t) => t.findElements('words'))
+          .map((w) => w.innerText.trim().toLowerCase())
+          .join(' ');
+      final alFine = words.contains('fine') && !words.startsWith('fine');
+      final alCoda = words.contains('coda');
+      // MusicXML 4 also writes them as <symbol>segno</symbol>.
+      bool sign(String name) => types.any(
+        (t) =>
+            t.getElement(name) != null ||
+            t.findElements('symbol').any((s) => s.innerText.trim() == name),
+      );
+      final toCoda =
+          sound?.getAttribute('tocoda') != null || words.contains('to coda');
+      if (sign('segno')) marks.add(NavigationMark.segno);
+      if (sign('coda') && !toCoda) marks.add(NavigationMark.coda);
+      if (toCoda) marks.add(NavigationMark.toCoda);
+      // MuseScore 4.7 writes <sound fine="yes"/> beside every marker it
+      // exports, so the sign or words decide.
+      if (words == 'fine' ||
+          (sound?.getAttribute('fine') != null &&
+              !sign('segno') &&
+              !sign('coda') &&
+              !toCoda &&
+              words.isEmpty)) {
+        marks.add(NavigationMark.fine);
+      }
+      if (sound?.getAttribute('dacapo') == 'yes' || words.startsWith('d.c')) {
+        marks.add(
+          alFine
+              ? NavigationMark.daCapoAlFine
+              : alCoda
+              ? NavigationMark.daCapoAlCoda
+              : NavigationMark.daCapo,
+        );
+      }
+      if (sound?.getAttribute('dalsegno') != null || words.startsWith('d.s')) {
+        marks.add(
+          alFine
+              ? NavigationMark.dalSegnoAlFine
+              : alCoda
+              ? NavigationMark.dalSegnoAlCoda
+              : NavigationMark.dalSegno,
+        );
+      }
+    }
+    return marks.toList()..sort((a, b) => a.index - b.index);
   }
 
   double _endingDivisions(
@@ -773,6 +849,12 @@ class MusicXmlScoreConverter {
       }
       if (direction == 'backward') {
         return BarlineType.repeatEnd;
+      }
+      switch (_firstInnerText(barline, 'bar-style')?.trim()) {
+        case 'light-heavy':
+          return BarlineType.finalBar;
+        case 'light-light':
+          return BarlineType.doubleBar;
       }
     }
 
