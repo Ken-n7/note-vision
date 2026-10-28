@@ -371,8 +371,8 @@ deleteMeasureFromAllParts(measureIndex)      // renumbers all measures 1-indexed
 | Bass clef (fClef) pitch reconstruction | ✅ Works |
 | SyntheticStaffBuilder fallback | ✅ Works — estimates staff from notehead Y distribution |
 | Grand staff | ❌ Not detected in scans (import, editing and export support it) |
+| Chords | ❌ Not detected — the model reads two heads on one stem as one note |
 | Ties, slurs, tuplets | ❌ Not detected in scans (ties and slurs: import, editing, playback and export ✅) |
-| Ties, slurs, tuplets | ❌ Not supported |
 
 ---
 
@@ -419,8 +419,8 @@ These are current limitations, not hard ceilings — going beyond them is fine i
 - Grand staff ✅ in import, editor, PDF and export (`Part.staff` links a lower staff); scans still read each staff separately
 - Chords: the model has no class for a second notehead on a stem, so a scanned chord becomes one note
 - Dotted note/rest rhythms ✅ reconstructed from scan
+- Repeat barlines ✅ detected and exported to MusicXML
 - Ties and slurs ✅ (import, editor, PDF, playback, export); tuplets not editable yet
-- Ties, slurs, tuplets
 - 32nd notes or smaller
 - Grace notes, ornaments
 - Dynamics, articulations, tempo markings
