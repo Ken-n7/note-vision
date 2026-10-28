@@ -1,0 +1,20 @@
+# 08_voices — MuseScore4 4.7.5 vs Note Vision
+## notation: 9/17 MuseScore facts match, 9 differ in Note Vision
+- P1 m1 @0 v=2 s=1 note C4 dur=1 quarter
+- P1 m1 @1 v=2 s=1 note D4 dur=1 quarter
+- P1 m1 @2 v=2 s=1 note E4 dur=2 half
+- P1 m2 @0 v=2 s=1 rest dur=1 quarter
+- P1 m2 @1 v=2 s=1 note A3 dur=1/2 eighth beam=1:begin
+- P1 m2 @2 v=2 s=1 note C4 dur=2 half
+- P1 m2 @3/2 v=2 s=1 note B3 dur=1/2 eighth beam=1:end
+- P1 m3 @2 v=2 s=1 note A4 dur=2 half
++ P1 m1 @4 v=2 s=1 note C4 dur=1 quarter
++ P1 m1 @5 v=2 s=1 note D4 dur=1 quarter
++ P1 m1 @6 v=2 s=1 note E4 dur=2 half
++ P1 m2 @11/2 v=2 s=1 note B3 dur=1/2 eighth beam=1:end
++ P1 m2 @4 v=2 s=1 rest dur=1 quarter
++ P1 m2 @5 v=2 s=1 note A3 dur=1/2 eighth beam=1:begin
++ P1 m2 @6 v=2 s=1 note C4 dur=2 half
++ P1 m3 @4 v=2 s=1 note A4 dur=2 half
++ creator composer "Unknown composer"
+## playback: 12/12 MuseScore facts match

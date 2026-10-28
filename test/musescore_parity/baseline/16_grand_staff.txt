@@ -1,0 +1,15 @@
+# 16_grand_staff — MuseScore4 4.7.5 vs Note Vision
+## notation: 10/17 MuseScore facts match, 5 differ in Note Vision
+- P1 m1 @0 s=2 clef F4
+- P1 m1 @0 v=5 s=2 note D3 dur=4 whole
+- P1 m1 @0 v=5 s=2 note G2 dur=4 whole
+- P1 m1 staves=2
+- P1 m2 @0 v=5 s=2 note C3 dur=2 half
+- P1 m2 @2 v=5 s=2 note D3 dur=2 half
+- P1 m2 barline right light-heavy
++ P1 m1 @4 v=5 s=2 note D3 dur=4 whole
++ P1 m1 @4 v=5 s=2 note G2 dur=4 whole
++ P1 m2 @4 v=5 s=2 note C3 dur=2 half
++ P1 m2 @6 v=5 s=2 note D3 dur=2 half
++ creator composer "Unknown composer"
+## playback: 10/10 MuseScore facts match

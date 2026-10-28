@@ -1,0 +1,11 @@
+# 03_clefs_meters — MuseScore4 4.7.5 vs Note Vision
+## notation: 19/23 MuseScore facts match, 4 differ in Note Vision
+- P1 m1 implicit
+- P1 m3 @0 v=1 s=1 rest(measure) dur=3 -
+- P1 m5 @0 time 2/2 cut
+- P1 m6 @0 time 4/4 common
++ P1 m3 @0 v=1 s=1 rest dur=3 half.
++ P1 m5 @0 time 2/2
++ P1 m6 @0 time 4/4
++ creator composer "Unknown composer"
+## playback: 7/7 MuseScore facts match

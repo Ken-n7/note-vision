@@ -204,9 +204,39 @@ that option cannot by itself deliver the requested full editor. The root
 Muse framework and C++20. These are inspected build boundaries, not proof of a
 working mobile port. No MuseScore source or assets have been copied into the app.
 
-Next, prototype the engine boundary against the complex fixture before choosing
-a full model rewrite: loading/saving, layout/hit testing, pitch edits and undo
-through a narrow adapter. Stage 2B supplies live timing and polyphonic scheduling
-for the current model; retained-source rhythm export, global timewise measure
-slots and richer editable notation still need work. Range/clipboard and advanced
-notation should build on this timeline rather than adding more flat-list rules.
+**Decision (2026-10-28, user):** do not port or translate the MuseScore engine
+(GPLv3, large C++/Muse framework). Instead study MuseScore Studio's features,
+behavior and UI/UX (handbook, the running app, documented algorithms) and
+implement them natively in NoteVision's Dart model and painter. Write our own
+code; do not copy or line-by-line translate MuseScore source. The Leland font
+(SIL OFL) may be used for glyphs.
+
+## MuseScore comparison tests
+
+`test/musescore_parity/` checks Note Vision against MuseScore Studio 4.7.5
+(AppImage at `~/Applications/`, run headless). `cases/` holds hand-written
+MusicXML scores, one feature family each. `tool/musescore_reference.sh
+[case ...]` makes MuseScore import each case and export `reference/` MusicXML
+and MIDI. The test imports MuseScore's file, saves and reopens it as a
+project, exports MusicXML from the model alone (no retained source) and builds
+playback; both sides are reduced to facts (`parity_facts.dart`) and compared.
+`baseline/<case>.txt` lists the remaining differences (`-` MuseScore only,
+`+` Note Vision only) with match counts. The test fails when that list
+changes; after an improvement run `NV_UPDATE_PARITY=1 flutter test
+test/musescore_parity` and commit the smaller baseline. A new feature starts
+with a case: write it, generate its reference, record the baseline, then
+implement until its differences are gone.
+
+Initial gaps (2026-10-28): written accidentals, measure rests, pickups,
+cut/common symbols, final barlines, voltas, ties, slurs, tuplets, grace notes,
+articulations, ornaments, dynamics, text, tempo, rehearsal marks, chord
+symbols, lyrics, grand-staff export (no `<staves>`/second clef/`<backup>`),
+and second-voice export (no `<backup>`) are lost in the model's export; the
+importer invents composer "Unknown composer". Playback lacks tie merging,
+grace notes, repeats, articulation lengths, chord-symbol playback and
+instruments. Rhythm, pitch, beams, chords, meters and key handling match.
+
+Next: Stage 3 (selection and composition) on the Stage 2B timeline. Retained-source
+rhythm export, global timewise measure slots and richer editable notation still
+need work. Range/clipboard and advanced notation should build on this timeline
+rather than adding more flat-list rules.

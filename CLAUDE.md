@@ -262,7 +262,11 @@ and shared-bar playback for imported ensembles. Scanned projects keep sequential
 staff reading order. Complex source structure changes and sparse timewise bars
 fail playback explicitly. Release build 2002 was tested on Android 11, including
 import, playback, editing/undo and project save/reopen. Engraving and full
-MuseScore parity remain incomplete.
+MuseScore parity remain incomplete. Decision: MuseScore's code is not
+ported or translated (GPLv3); its features and UI are studied and
+reimplemented. Every feature is checked against MuseScore Studio 4.7.5 by
+`test/musescore_parity/` (see `EDITOR_PARITY.md`, "MuseScore comparison
+tests").
 
 `EditorState` is immutable. Every edit returns a new instance via `copyWith`.
 

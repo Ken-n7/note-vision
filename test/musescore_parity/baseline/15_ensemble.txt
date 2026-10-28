@@ -1,0 +1,17 @@
+# 15_ensemble — MuseScore4 4.7.5 vs Note Vision
+## notation: 16/16 MuseScore facts match, 1 differ in Note Vision
++ creator composer "Unknown composer"
+## playback: 3/11 MuseScore facts match, 5 differ in Note Vision
+- @0 key=81 dur=91/96
+- @1 key=79 dur=91/96
+- @2 key=77 dur=91/48
+- @4 key=76 dur=365/96
+- program 42
+- program 44
+- program 45
+- program 73
++ @0 key=81 dur=1
++ @1 key=79 dur=1
++ @2 key=77 dur=2
++ @4 key=76 dur=4
++ program 0

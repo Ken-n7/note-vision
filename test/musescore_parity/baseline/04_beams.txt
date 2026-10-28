@@ -1,0 +1,4 @@
+# 04_beams — MuseScore4 4.7.5 vs Note Vision
+## notation: 30/30 MuseScore facts match, 1 differ in Note Vision
++ creator composer "Unknown composer"
+## playback: 25/25 MuseScore facts match
