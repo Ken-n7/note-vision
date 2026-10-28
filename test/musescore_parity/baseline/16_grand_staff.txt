@@ -1,5 +1,4 @@
 # 16_grand_staff — MuseScore4 4.7.5 vs Note Vision
-## notation: 15/17 MuseScore facts match
-- P1 m1 @0 s=2 clef F4
+## notation: 16/17 MuseScore facts match
 - P1 m2 barline right light-heavy
 ## playback: 10/10 MuseScore facts match

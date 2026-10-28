@@ -194,7 +194,7 @@ class Transposer {
         ),
       );
     }
-    return Part(id: part.id, name: part.name, measures: measures);
+    return Part(id: part.id, name: part.name, staff: part.staff, measures: measures);
   }
 
   /// Past seven sharps or flats, the enharmonic key twelve fifths away.

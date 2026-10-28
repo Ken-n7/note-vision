@@ -28,6 +28,7 @@ class ScoreNotationPainter extends CustomPainter {
     this.selectedSymbolIndex,
     this.selectedSymbolIndices = const {},
     this.rangeSymbols = const {},
+    this.joinedParts = const {},
     this.playbackPartIndex,
     this.playbackMeasureIndex,
     this.playbackSymbolIndex,
@@ -65,6 +66,10 @@ class ScoreNotationPainter extends CustomPainter {
   /// A range selection in [selectedPartIndex]: (absolute measure, symbol).
   final Set<(int, int)> rangeSymbols;
 
+  /// Parts that are a further staff of the part above (a grand staff): the
+  /// two are braced and their barlines run through both.
+  final Set<int> joinedParts;
+
   /// Currently playing symbol position emitted by PlaybackService.
   /// All three must be non-null for the playback highlight to render.
   final int? playbackPartIndex;
@@ -95,6 +100,7 @@ class ScoreNotationPainter extends CustomPainter {
       _drawRow(canvas, row);
     }
     if (parts.length > 1) _drawSystemConnectors(canvas, metrics);
+    if (joinedParts.isNotEmpty) _drawGrandStaves(canvas, metrics);
     _drawPlaybackPlayhead(canvas, metrics);
   }
 
@@ -417,13 +423,16 @@ class ScoreNotationPainter extends CustomPainter {
       final measureX = row.contentStartX + (measureInRow * minMeasureWidth);
       final nextMeasureX = measureX + minMeasureWidth;
 
-      _drawMeasureNumber(
-        canvas,
-        text: '${measure.number}',
-        x: measureX + ScoreNotationMetrics.measureNumberOffsetX,
-        y: row.staffTop + ScoreNotationMetrics.measureNumberOffsetY,
-        style: measureNumberStyle,
-      );
+      // A grand staff numbers its bars once, above the upper staff.
+      if (!joinedParts.contains(row.partIndex)) {
+        _drawMeasureNumber(
+          canvas,
+          text: '${measure.number}',
+          x: measureX + ScoreNotationMetrics.measureNumberOffsetX,
+          y: row.staffTop + ScoreNotationMetrics.measureNumberOffsetY,
+          style: measureNumberStyle,
+        );
+      }
 
       if (measureInRow > 0) {
         canvas.drawLine(
@@ -1447,6 +1456,55 @@ class ScoreNotationPainter extends CustomPainter {
 
   /// Draws a thin vertical line on the far left connecting all staves that
   /// belong to the same system (multi-part scores only).
+  /// Braces each joined staff to the one above and runs barlines between
+  /// them.
+  void _drawGrandStaves(Canvas canvas, List<_RowMetrics> metrics) {
+    final ink = Paint()
+      ..color = const Color(0xFF111827)
+      ..strokeWidth = ScoreNotationMetrics.systemConnectorStrokeWidth;
+    final brace = Paint()..color = const Color(0xFF111827);
+    for (final lower in metrics) {
+      if (!joinedParts.contains(lower.partIndex)) continue;
+      final upper = metrics
+          .where(
+            (r) =>
+                r.rowIndex == lower.rowIndex &&
+                r.partIndex == lower.partIndex - 1,
+          )
+          .firstOrNull;
+      if (upper == null) continue;
+      for (var m = 1; m <= lower.measures.length; m++) {
+        final x = lower.contentStartX + m * minMeasureWidth;
+        canvas.drawLine(
+          Offset(x, upper.staffBottom),
+          Offset(x, lower.staffTop),
+          ink,
+        );
+      }
+      canvas.drawLine(
+        Offset(upper.rowStartX, upper.staffTop),
+        Offset(upper.rowStartX, lower.staffBottom),
+        ink,
+      );
+      // A brace: two thin-ended curves meeting at a point in the middle.
+      final top = upper.staffTop;
+      final bottom = lower.staffBottom;
+      final mid = (top + bottom) / 2;
+      final x = upper.rowStartX - 4;
+      const w = 7.0;
+      canvas.drawPath(
+        Path()
+          ..moveTo(x, top)
+          ..cubicTo(x - w * 1.4, top + 6, x + w * 0.2, mid - 8, x - w, mid)
+          ..cubicTo(x + w * 0.2, mid + 8, x - w * 1.4, bottom - 6, x, bottom)
+          ..cubicTo(x - w * 0.9, bottom - 6, x - w * 0.4, mid + 6, x - w - 1.5, mid)
+          ..cubicTo(x - w * 0.4, mid - 6, x - w * 0.9, top + 6, x, top)
+          ..close(),
+        brace,
+      );
+    }
+  }
+
   void _drawSystemConnectors(Canvas canvas, List<_RowMetrics> metrics) {
     // Group rows by systemIndex
     final Map<int, List<_RowMetrics>> systems = {};
@@ -1733,6 +1791,7 @@ class ScoreNotationPainter extends CustomPainter {
         oldDelegate.selectedSymbolIndex != selectedSymbolIndex ||
         !setEquals(oldDelegate.selectedSymbolIndices, selectedSymbolIndices) ||
         !setEquals(oldDelegate.rangeSymbols, rangeSymbols) ||
+        !setEquals(oldDelegate.joinedParts, joinedParts) ||
         oldDelegate.playbackPartIndex != playbackPartIndex ||
         oldDelegate.playbackMeasureIndex != playbackMeasureIndex ||
         oldDelegate.playbackSymbolIndex != playbackSymbolIndex ||

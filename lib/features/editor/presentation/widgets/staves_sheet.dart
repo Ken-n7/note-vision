@@ -6,14 +6,13 @@ import 'package:note_vision/features/editor/domain/editor_actions.dart';
 
 /// Instruments offered when adding a staff, with their usual clef.
 const staffInstruments = <(String, Clef)>[
+  ('Piano', Clef(sign: 'G', line: 2)),
   ('Voice', Clef(sign: 'G', line: 2)),
   ('Flute', Clef(sign: 'G', line: 2)),
   ('Oboe', Clef(sign: 'G', line: 2)),
   ('Violin', Clef(sign: 'G', line: 2)),
   ('Guitar', Clef(sign: 'G', line: 2)),
   ('Trumpet', Clef(sign: 'G', line: 2)),
-  ('Piano right hand', Clef(sign: 'G', line: 2)),
-  ('Piano left hand', Clef(sign: 'F', line: 4)),
   ('Viola', Clef(sign: 'C', line: 3)),
   ('Cello', Clef(sign: 'F', line: 4)),
   ('Double bass', Clef(sign: 'F', line: 4)),
@@ -35,8 +34,9 @@ String _clefName(Clef? clef) => switch (clef) {
 class StavesSheet extends StatefulWidget {
   const StavesSheet({super.key, required this.staves, this.addBlockedReason});
 
-  /// Each existing part's name and opening clef, in order.
-  final List<(String, Clef?)> staves;
+  /// Each existing part's name, opening clef and whether it is a further
+  /// staff of the part above, in order.
+  final List<(String, Clef?, bool)> staves;
 
   /// Why staves cannot be added, if they cannot.
   final String? addBlockedReason;
@@ -47,8 +47,8 @@ class StavesSheet extends StatefulWidget {
 
 class _StavesSheetState extends State<StavesSheet> {
   late final _plan = <StaffPlanEntry>[
-    for (final (i, (name, clef)) in widget.staves.indexed)
-      (from: i, name: name, clef: clef),
+    for (final (i, (name, clef, joins)) in widget.staves.indexed)
+      (from: i, name: name, clef: clef, joinsPrevious: joins),
   ];
 
   bool get _changed =>
@@ -94,7 +94,12 @@ class _StavesSheetState extends State<StavesSheet> {
     if (trimmed == null || trimmed.isEmpty || !mounted) return;
     setState(() {
       final e = _plan[index];
-      _plan[index] = (from: e.from, name: trimmed, clef: e.clef);
+      _plan[index] = (
+        from: e.from,
+        name: trimmed,
+        clef: e.clef,
+        joinsPrevious: e.joinsPrevious,
+      );
     });
   }
 
@@ -113,14 +118,34 @@ class _StavesSheetState extends State<StavesSheet> {
                 onPressed: () => Navigator.pop(context, (name, clef)),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Text('$name · ${_clefName(clef)}'),
+                  child: Text(
+                    name == 'Piano'
+                        ? 'Piano · grand staff'
+                        : '$name · ${_clefName(clef)}',
+                  ),
                 ),
               ),
         ],
       ),
     );
     if (picked == null || !mounted) return;
-    setState(() => _plan.add((from: null, name: picked.$1, clef: picked.$2)));
+    setState(() {
+      _plan.add((
+        from: null,
+        name: picked.$1,
+        clef: picked.$2,
+        joinsPrevious: false,
+      ));
+      // A piano has a grand staff: treble above, bass below, braced.
+      if (picked.$1 == 'Piano') {
+        _plan.add((
+          from: null,
+          name: 'Piano',
+          clef: const Clef(sign: 'F', line: 4),
+          joinsPrevious: true,
+        ));
+      }
+    });
   }
 
   @override
@@ -156,9 +181,11 @@ class _StavesSheetState extends State<StavesSheet> {
                       entry.name.isEmpty ? 'Staff ${i + 1}' : entry.name,
                     ),
                     subtitle: Text(
-                      entry.from == null
-                          ? 'New · ${_clefName(entry.clef)}'
-                          : _clefName(entry.clef),
+                      [
+                        if (entry.from == null) 'New',
+                        if (entry.joinsPrevious && i > 0) 'lower staff',
+                        _clefName(entry.clef),
+                      ].join(' · '),
                     ),
                     onTap: () => _rename(i),
                     trailing: Row(

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:convert';
 
 import 'package:note_vision/core/models/barline_type.dart';
@@ -31,9 +32,15 @@ class MusicXmlScoreConverter {
     final sourceIndexes = <String, List<List<int>>>{};
     const reader = MusicXmlSourceReader();
     final events = reader.readTimeline(document);
-    final parts = root.name.local == 'score-timewise'
-        ? _buildTimewiseParts(root, partNamesById, sourceIndexes)
-        : _buildPartwiseParts(root, partNamesById, sourceIndexes);
+    final sourcePartIds = <String, String>{};
+    final parts = _splitStaves(
+      root.name.local == 'score-timewise'
+          ? _buildTimewiseParts(root, partNamesById, sourceIndexes)
+          : _buildPartwiseParts(root, partNamesById, sourceIndexes),
+      root,
+      sourceIndexes,
+      sourcePartIds,
+    );
 
     final score = NotationReviewService.ensureIdentity(
       Score(
@@ -47,6 +54,7 @@ class MusicXmlScoreConverter {
     final bindings = <MusicXmlSymbolBinding>[];
     final representedDurations = <String, double>{};
     for (final part in score.parts) {
+      final sourcePartId = sourcePartIds[part.id] ?? part.id;
       for (final (measureIndex, measure) in part.measures.indexed) {
         final indexes = sourceIndexes[part.id]![measureIndex];
         for (final (symbolIndex, symbol) in measure.symbols.indexed) {
@@ -57,7 +65,7 @@ class MusicXmlScoreConverter {
           bindings.add(
             MusicXmlSymbolBinding(
               symbolId: id,
-              partId: part.id,
+              partId: sourcePartId,
               measureIndex: measureIndex,
               noteIndex: indexes[symbolIndex],
             ),
@@ -71,7 +79,7 @@ class MusicXmlScoreConverter {
             ) => (type, dots, duration),
             _ => throw StateError('Unexpected imported symbol'),
           };
-          representedDurations['${part.id}:$measureIndex:${indexes[symbolIndex]}'] =
+          representedDurations['$sourcePartId:$measureIndex:${indexes[symbolIndex]}'] =
               quarterLength(type, dots, duration);
         }
       }
@@ -95,6 +103,91 @@ class MusicXmlScoreConverter {
             ),
       ),
     );
+  }
+
+  /// A part written on several staves (a piano) becomes one linked part per
+  /// staff ([Part.staff]), so every editing tool works per staff. Symbols
+  /// keep their staff and voice numbers; each staff takes its own clefs.
+  /// [sourcePartIds] maps each new part to the `<part>` it came from.
+  List<Part> _splitStaves(
+    List<Part> parts,
+    XmlElement root,
+    Map<String, List<List<int>>> sourceIndexes,
+    Map<String, String> sourcePartIds,
+  ) {
+    final sourceMeasures = musicXmlSourceParts(root);
+    int staffOf(ScoreSymbol s) => switch (s) {
+      Note(:final staff) || Rest(:final staff) => staff ?? 1,
+      _ => 1,
+    };
+    final result = <Part>[];
+    for (final part in parts) {
+      final elements = sourceMeasures[part.id] ?? const <XmlElement>[];
+      final declared = elements
+          .expand((m) => m.findElements('attributes'))
+          .expand((a) => a.findElements('staves'))
+          .map((e) => int.tryParse(e.innerText.trim()) ?? 1)
+          .fold(1, math.max);
+      final count = part.measures
+          .expand((m) => m.symbols)
+          .map(staffOf)
+          .fold(declared, math.max);
+      if (count <= 1) {
+        result.add(part);
+        continue;
+      }
+      final indexes = sourceIndexes[part.id]!;
+      for (var staff = 1; staff <= count; staff++) {
+        final id = staff == 1 ? part.id : '${part.id}-staff$staff';
+        sourcePartIds[id] = part.id;
+        final staffIndexes = <List<int>>[];
+        final measures = <Measure>[];
+        for (final (i, m) in part.measures.indexed) {
+          final keep = [
+            for (final (k, symbol) in m.symbols.indexed)
+              if (staffOf(symbol) == staff) k,
+          ];
+          staffIndexes.add([for (final k in keep) indexes[i][k]]);
+          measures.add(
+            Measure(
+              number: m.number,
+              clef: i < elements.length
+                  ? _staffClef(elements[i], staff)
+                  : null,
+              timeSignature: m.timeSignature,
+              keySignature: m.keySignature,
+              symbols: [for (final k in keep) m.symbols[k]],
+              startsNewPage: m.startsNewPage,
+              startsNewSystem: m.startsNewSystem,
+              leftBarlineType: m.leftBarlineType,
+              rightBarlineType: m.rightBarlineType,
+            ),
+          );
+        }
+        sourceIndexes[id] = staffIndexes;
+        result.add(
+          Part(id: id, name: part.name, staff: staff, measures: measures),
+        );
+      }
+    }
+    return result;
+  }
+
+  /// The first clef in [measure] for [staff]; an unnumbered clef is staff 1.
+  Clef? _staffClef(XmlElement measure, int staff) {
+    for (final attributes in measure.findElements('attributes')) {
+      for (final clef in attributes.findElements('clef')) {
+        if ((int.tryParse(clef.getAttribute('number') ?? '') ?? 1) != staff) {
+          continue;
+        }
+        final sign = _firstInnerText(clef, 'sign')?.trim();
+        final line = int.tryParse(_firstInnerText(clef, 'line') ?? '');
+        if (sign != null && sign.isNotEmpty && line != null) {
+          return Clef(sign: sign, line: line);
+        }
+      }
+    }
+    return null;
   }
 
   List<Part> _buildPartwiseParts(

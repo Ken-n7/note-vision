@@ -10,6 +10,7 @@ import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/musicXML/musicxml_export_service.dart';
+import 'package:xml/xml.dart';
 
 Part part(String id, String name) => Part(
   id: id,
@@ -47,8 +48,8 @@ void main() {
     ).selectSymbolAt(partIndex: 0, measureIndex: 0, symbolIndex: 0);
     expect(state.score.playbackLayout, ScorePlaybackLayout.sequentialStaves);
     final next = state.rearrangeParts([
-      (from: null, name: 'Cello', clef: cello),
-      (from: 0, name: 'Flute', clef: null),
+      (from: null, name: 'Cello', clef: cello, joinsPrevious: false),
+      (from: 0, name: 'Flute', clef: null, joinsPrevious: false),
     ]);
     final added = next.score.parts.first;
     expect((added.id, added.name), ('P2', 'Cello'));
@@ -80,8 +81,8 @@ void main() {
       ),
     ).copyWith(selectedPartIndex: 1, selectedMeasureIndex: 1);
     final next = state.rearrangeParts([
-      (from: 2, name: 'C', clef: null),
-      (from: 0, name: 'Alto', clef: null),
+      (from: 2, name: 'C', clef: null, joinsPrevious: false),
+      (from: 0, name: 'Alto', clef: null, joinsPrevious: false),
     ]);
     expect(
       [for (final p in next.score.parts) (p.id, p.name)],
@@ -90,6 +91,57 @@ void main() {
     // The selected part was removed: the first part keeps bar context.
     expect((next.selectedPartIndex, next.selectedMeasureIndex), (0, 0));
     expect(next.undoStack, hasLength(1));
+  });
+
+  test('a piano gets a linked grand staff that exports as one part', () {
+    final state = EditorState(
+      score: Score(
+        id: 's',
+        title: 'T',
+        composer: '',
+        parts: [part('P1', 'Flute')],
+      ),
+    );
+    var next = state.rearrangeParts([
+      (from: 0, name: 'Flute', clef: null, joinsPrevious: false),
+      (
+        from: null,
+        name: 'Piano',
+        clef: const Clef(sign: 'G', line: 2),
+        joinsPrevious: false,
+      ),
+      (from: null, name: 'Piano', clef: cello, joinsPrevious: true),
+    ]);
+    expect([for (final p in next.score.parts) p.staff], [1, 1, 2]);
+    // Notes written on the lower staff export on staff 2, voice 5.
+    next = next
+        .copyWith(selectedPartIndex: 2, selectedMeasureIndex: 0)
+        .enterNote('C', quarterDuration);
+    final xml = XmlDocument.parse(
+      const MusicXmlExportService().toMusicXml(next.score),
+    );
+    expect(xml.findAllElements('score-part'), hasLength(2));
+    final piano = xml.findAllElements('part').last;
+    expect(piano.findAllElements('staves').single.innerText, '2');
+    expect(
+      [
+        for (final c
+            in piano.findElements('measure').first.findAllElements('clef'))
+          (c.getAttribute('number'), c.findElements('sign').single.innerText),
+      ],
+      [('1', 'G'), ('2', 'F')],
+    );
+    final note = piano.findAllElements('note').single;
+    expect(note.findElements('staff').single.innerText, '2');
+    expect(note.findElements('voice').single.innerText, '5');
+
+    // Moved away from its upper staff, the lower staff stands alone.
+    final moved = next.rearrangeParts([
+      (from: 2, name: 'Piano', clef: null, joinsPrevious: true),
+      (from: 0, name: 'Flute', clef: null, joinsPrevious: false),
+      (from: 1, name: 'Piano', clef: null, joinsPrevious: false),
+    ]);
+    expect([for (final p in moved.score.parts) p.staff], [1, 1, 1]);
   });
 
   test('scanned staves read in order cannot gain an instrument', () {
@@ -103,17 +155,17 @@ void main() {
     );
     expect(state.addStaffBlockedReason, isNotNull);
     final plan = [
-      (from: 0, name: 'Staff 1', clef: null),
-      (from: 1, name: 'Staff 2', clef: null),
-      (from: null, name: 'Cello', clef: cello),
+      (from: 0, name: 'Staff 1', clef: null, joinsPrevious: false),
+      (from: 1, name: 'Staff 2', clef: null, joinsPrevious: false),
+      (from: null, name: 'Cello', clef: cello, joinsPrevious: false),
     ];
     expect(identical(state.rearrangeParts(plan), state), isTrue);
     // Renaming is still allowed.
     expect(
       state
           .rearrangeParts([
-            (from: 0, name: 'Line 1', clef: null),
-            (from: 1, name: 'Staff 2', clef: null),
+            (from: 0, name: 'Line 1', clef: null, joinsPrevious: false),
+            (from: 1, name: 'Staff 2', clef: null, joinsPrevious: false),
           ])
           .score
           .parts

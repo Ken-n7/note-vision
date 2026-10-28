@@ -218,6 +218,7 @@ These are final unless explicitly changed:
 - **Range selection & clipboard:** `EditorState.rangeAnchor` + selection form a range in one part (dropped by any edit/undo/plain selection). Shift+←/→ / Shift+tap / Ctrl+Shift+←/→ / Ctrl+A; Edit dock Extend, Select bar, Copy, Cut, Paste. Paste is bar-aligned, replaces a range, refuses overflowing bars, strips review IDs. Pitch/octave moves and Transpose apply to a range.
 - **Voices:** `VoiceLayout` aligns voices by onset in editor and PDF (odd voices stem up, even down; rests offset); single-voice bars unchanged. Add notes Voice 1–4 chips / Ctrl+Alt+1–4; a new voice starts at the selected note's onset, filling earlier time with rests.
 - **Staves and instruments:** More → Staves and instruments… (`StavesSheet`) adds/renames/reorders/removes parts via `rearrangeParts` (one undo step); new staves copy bar structure and switch playback to simultaneous parts; refused for multi-staff scanned scores (sequential reading order).
+- **Grand staff:** `Part.staff` > 1 makes a part a further staff of the part above (linked parts, braced, barlines through both). MusicXML import splits `<staves>` parts (ids `P1`, `P1-staff2`; bindings keep the source part id; the timeline reads source events per staff); export merges them into one `<part>` with `<staves>`, numbered clefs, `<backup>`, and voices 5–8 for staff 2. Staves sheet adds Piano as a grand staff; a lower staff moved away from its upper staff becomes independent.
 - **Selection after edits:** `_updateState` re-resolves the selected symbol by position after `NotationReviewService.ensureIdentity` (which rebuilds symbols).
 - **Note entry:** the editor dock has Edit, Add notes and Bar tools modes. Add notes starts with a quarter note ready to place; Notes/Rests switches preserve the duration. Pick one of five values and tap the staff or hold and drag a palette symbol. Re-selecting a value keeps note entry active; Edit or Esc finishes. Keyboard (MuseScore-style): A–G writes a note (nearest octave), 0 a rest; outside note entry A–G re-pitches the selection; Shift+A–G / Alt+2–9 add chord tones. `insertNoteAfterSelection()` / `insertRestAfterSelection()` remain domain helpers.
 - **Drag insert:** LongPressDraggable from palette → DragTarget on staff. Drop Y → pitch via PitchCalculator. Drop X → insert index.
@@ -368,7 +369,7 @@ deleteMeasureFromAllParts(measureIndex)      // renumbers all measures 1-indexed
 | Beamed eighth notes | ✅ Works |
 | Bass clef (fClef) pitch reconstruction | ✅ Works |
 | SyntheticStaffBuilder fallback | ✅ Works — estimates staff from notehead Y distribution |
-| Grand staff | ❌ Not supported |
+| Grand staff | ❌ Not detected in scans (import, editing and export support it) |
 | Chords | ❌ Not detected — the model reads two heads on one stem as one note |
 | Ties, slurs, tuplets | ❌ Not supported |
 
@@ -414,7 +415,7 @@ Sprints 1–10 (tickets 1–104) are fully shipped.
 These are current limitations, not hard ceilings — going beyond them is fine if it makes the app better.
 
 - Bass clef rendering ✅ done in editor and PDF export; alto and tenor clefs are drawn but hidden from the editor (`AppFeatures.cClefs`) because the scanner cannot read them
-- Grand staff (two staves, piano LH+RH)
+- Grand staff ✅ in import, editor, PDF and export (`Part.staff` links a lower staff); scans still read each staff separately
 - Chords: the model has no class for a second notehead on a stem, so a scanned chord becomes one note
 - Dotted note/rest rhythms ✅ reconstructed from scan
 - Repeat barlines ✅ detected and exported to MusicXML

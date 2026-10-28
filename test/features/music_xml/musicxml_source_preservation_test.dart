@@ -60,8 +60,12 @@ void main() {
       expect(events[3].duration, MusicalTime(1, 3));
       expect(events[6].voice, '2');
       expect(events[6].staff, 2);
-      // Grace and percussion are retained despite having no editable symbol yet.
-      expect(imported.parts.single.measures.first.symbols, hasLength(6));
+      // Grace and percussion are retained despite having no editable symbol
+      // yet. Each staff of the piano is its own linked part.
+      expect([for (final p in imported.parts) p.staff], [1, 2]);
+      expect([
+        for (final p in imported.parts) p.measures.first.symbols.length,
+      ], [5, 1]);
       expect(
         source.bindings
             .where((b) => b.measureIndex == 0)
@@ -80,7 +84,7 @@ void main() {
       expect(second.map((e) => e.duration), [MusicalTime.one, MusicalTime(3)]);
       expect(second[1].onset, MusicalTime.one);
       expect(events.last.duration, MusicalTime(4));
-      final rest = imported.parts.single.measures[1].symbols[1] as Rest;
+      final rest = imported.parts.first.measures[1].symbols[1] as Rest;
       expect(
         rest.duration,
         6,

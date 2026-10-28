@@ -430,6 +430,7 @@ class NotationReviewService {
               return Part(
                 id: part.id,
                 name: part.name,
+                staff: part.staff,
                 measures: [
                   for (final measure in part.measures)
                     if (entry.beforeMeasures.containsKey(measure.reviewId))
@@ -446,6 +447,7 @@ class NotationReviewService {
             return Part(
               id: part.id,
               name: part.name,
+              staff: part.staff,
               measures: [
                 for (var index = 0; index < order.length; index++)
                   if (entry.beforeMeasures.containsKey(order[index]))

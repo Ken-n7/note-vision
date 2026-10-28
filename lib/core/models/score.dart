@@ -141,7 +141,7 @@ class Score {
       changed |= partChanged;
       updatedParts.add(
         partChanged
-            ? Part(id: part.id, name: part.name, measures: measures)
+            ? Part(id: part.id, name: part.name, staff: part.staff, measures: measures)
             : part,
       );
     }
@@ -245,6 +245,7 @@ class Score {
         Part(
           id: cp.id,
           name: cp.name,
+          staff: cp.staff,
           measures: [
             ...cp.measures,
             for (int j = 0; j < sp.measures.length; j++)
@@ -289,6 +290,7 @@ class Score {
       updatedParts[pi] = Part(
         id: part.id,
         name: part.name,
+        staff: part.staff,
         measures: _renumberMeasures(measures),
       );
     }
@@ -313,6 +315,7 @@ class Score {
       updatedParts[pi] = Part(
         id: part.id,
         name: part.name,
+        staff: part.staff,
         measures: _renumberMeasures(measures),
       );
     }
@@ -373,6 +376,7 @@ class Score {
     updatedParts[partIndex] = Part(
       id: part.id,
       name: part.name,
+      staff: part.staff,
       measures: updatedMeasures,
     );
 

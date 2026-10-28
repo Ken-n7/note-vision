@@ -180,9 +180,20 @@ class ScoreTimelineBuilder {
       }
       return _legacy(currentSymbols, writtenOverrides);
     }
-    final events =
-        context!.events[(score.parts[partIndex].id, original.$1)] ??
+    // A staff split from a multi-staff <part> reads that part's events for
+    // its own staff.
+    final partId = score.parts[partIndex].id;
+    final sourcePartId = context!.sourcePartIds[partId] ?? partId;
+    var events =
+        context.events[(sourcePartId, original.$1)] ??
         const <SourceScoreEvent>[];
+    if (context.multiStaffParts.contains(sourcePartId)) {
+      final staff = context.staves[partId];
+      events = [
+        for (final e in events)
+          if (e.staff == staff) e,
+      ];
+    }
     final currentById = {
       for (final (i, s) in currentSymbols.indexed) _id(s): (i, s),
     };
@@ -360,7 +371,17 @@ class _SourceTimingContext {
     // The editable projection has part-local indices. An omitted timewise
     // part would otherwise make its next bar sound one global bar too early.
     final root = XmlDocument.parse(source.xml).rootElement;
-    final partIds = baseline.parts.map((part) => part.id).toSet();
+    String? first;
+    for (final part in baseline.parts) {
+      if (!part.joinsPrevious) first = part.id;
+      sourcePartIds[part.id] = first ?? part.id;
+      staves[part.id] = part.staff;
+      if (part.joinsPrevious && first != null) multiStaffParts.add(first);
+    }
+    final partIds = {
+      for (final part in baseline.parts)
+        if (!part.joinsPrevious) part.id,
+    };
     hasOmittedTimewiseParts =
         root.name.local == 'score-timewise' &&
         root
@@ -388,6 +409,12 @@ class _SourceTimingContext {
     }
   }
   final measures = <(String, String?), (int, Measure)>{};
+
+  /// Each projected part's source `<part>` id, staff number, and the source
+  /// parts written on several staves.
+  final sourcePartIds = <String, String>{};
+  final staves = <String, int>{};
+  final multiStaffParts = <String>{};
   late final bool hasOmittedTimewiseParts;
   final events = <(String, int), List<SourceScoreEvent>>{};
   final bindings = <(String, int, int), String>{};

@@ -43,7 +43,8 @@ void main() {
       expect(storage.saved, hasLength(1));
       final saved = storage.saved.single.decodeScore();
       expect(saved.musicXmlSource!.xml, score.musicXmlSource!.xml);
-      expect(saved.parts.single.measures, hasLength(4));
+      expect([for (final p in saved.parts) p.staff], [1, 2]);
+      expect(saved.parts.first.measures, hasLength(4));
     },
   );
 }

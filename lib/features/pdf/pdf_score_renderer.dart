@@ -338,6 +338,7 @@ class PdfScoreRenderer {
         final staffTop =
             pageH - _pageY0 - editorStaffTop * _scale - headerOffset;
 
+        final joined = pi > 0 && score.parts[pi].joinsPrevious;
         _drawStaffRow(
           g,
           font,
@@ -349,9 +350,51 @@ class PdfScoreRenderer {
           staffTop: staffTop,
           clefSign: _clefSign(rowMeasures),
           clefLine: _clefLine(rowMeasures),
+          numberBars: !joined,
         );
+        if (joined) {
+          _drawGrandStaff(
+            g,
+            upperTop: staffTop + _editorRowH * _scale,
+            lowerTop: staffTop,
+            measures: rowMeasures.length,
+          );
+        }
       }
     }
+  }
+
+  /// Braces a joined staff to the one above and runs barlines between them,
+  /// as in the editor (PDF y points up).
+  void _drawGrandStaff(
+    PdfGraphics g, {
+    required double upperTop,
+    required double lowerTop,
+    required int measures,
+  }) {
+    final rowStartX = _pageX0 + _padX;
+    final contentStartX = rowStartX + _prefixW;
+    final upperBottom = upperTop - _staffH;
+    final lowerBottom = lowerTop - _staffH;
+    final width = ScoreNotationMetrics.barlineStrokeWidth * _scale;
+    for (var m = 0; m <= measures; m++) {
+      final x = contentStartX + m * _mw;
+      _line(g, x, upperBottom, x, lowerTop, width);
+    }
+    _line(g, rowStartX, upperTop, rowStartX, lowerBottom, width);
+    final mid = (upperTop + lowerBottom) / 2;
+    final x = rowStartX - 4 * _scale;
+    final w = 7 * _scale;
+    final s = _scale;
+    g
+      ..setColor(_ink)
+      ..moveTo(x, upperTop)
+      ..curveTo(x - w * 1.4, upperTop - 6 * s, x + w * 0.2, mid + 8 * s, x - w, mid)
+      ..curveTo(x + w * 0.2, mid - 8 * s, x - w * 1.4, lowerBottom + 6 * s, x, lowerBottom)
+      ..curveTo(x - w * 0.9, lowerBottom + 6 * s, x - w * 0.4, mid - 6 * s, x - w - 1.5 * s, mid)
+      ..curveTo(x - w * 0.4, mid + 6 * s, x - w * 0.9, upperTop - 6 * s, x, upperTop)
+      ..closePath()
+      ..fillPath();
   }
 
   void _drawScoreHeader(
@@ -412,6 +455,7 @@ class PdfScoreRenderer {
     required double staffTop,
     required String clefSign,
     required int clefLine,
+    bool numberBars = true,
   }) {
     // staffTop = y of top staff line (PDF: y from bottom)
     // staffBottom = y of bottom staff line
@@ -540,15 +584,17 @@ class PdfScoreRenderer {
         );
       }
 
-      // Measure number
-      _text(
-        g,
-        font,
-        ScoreNotationMetrics.measureNumberFontSize * _scale,
-        '${measure.number}',
-        measureStartX + ScoreNotationMetrics.measureNumberOffsetX * _scale,
-        staffTop - ScoreNotationMetrics.measureNumberOffsetY * _scale,
-      );
+      // Measure number (once per grand staff, above the upper staff)
+      if (numberBars) {
+        _text(
+          g,
+          font,
+          ScoreNotationMetrics.measureNumberFontSize * _scale,
+          '${measure.number}',
+          measureStartX + ScoreNotationMetrics.measureNumberOffsetX * _scale,
+          staffTop - ScoreNotationMetrics.measureNumberOffsetY * _scale,
+        );
+      }
 
       _drawMeasureSymbols(
         g,

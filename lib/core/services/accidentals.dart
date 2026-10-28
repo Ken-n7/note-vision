@@ -60,6 +60,7 @@ class Accidentals {
     return Part(
       id: part.id,
       name: part.name,
+      staff: part.staff,
       measures: [
         for (final m in part.measures)
           () {

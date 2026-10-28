@@ -355,7 +355,31 @@ instruments. Rhythm, pitch, beams, chords, meters and key handling match.
 - Not yet: instrument sounds (one piano channel; Stage 5 mixer), grand staff
   (next), transposing instruments, linked parts.
 
-Next: 3E part 2 — grand staff. (range selection and clipboard), 3D
+## Stage 3E (part 2) — grand staff
+
+- A grand staff is two linked parts: `Part.staff` 2 continues the part above
+  it. Every editing tool already works per part, so selection, input, clefs,
+  transposition, ranges and voices need no grand-staff special cases. Every
+  part rebuild carries `staff`.
+- MusicXML import splits a `<staves>` part into linked parts with their own
+  numbered clefs; symbols keep their staff/voice numbers; source bindings,
+  duration checks and the playback timeline still address the original
+  `<part>` (the timeline reads its events per staff). An unchanged import still
+  exports the retained file.
+- Export merges linked parts into one `<part>` with `<staves>`, numbered clefs
+  and `<backup>`; symbols without a staff go on their staff in voices 5–8 for
+  staff 2 (as MuseScore writes).
+- Editor and PDF draw a brace, barlines through both staves and bar numbers
+  once. Staves and instruments adds Piano as a grand staff; moving a lower
+  staff away from its upper staff makes it independent.
+- Parity: `16_grand_staff` now matches MuseScore except the final barline
+  style; its transposition (T08) and playback match fully. Four older tests
+  that assumed the two-staff fixture imports as one part now check the split.
+- Not yet: cross-staff notes and beams, a grand staff from scans, staff
+  spacing controls.
+
+Next: Stage 4 — notation and engraving (ties, slurs, tuplets, articulations,
+dynamics, lyrics, repeats, shared layout), starting from the parity gaps. (range selection and clipboard), 3D
 (voices), 3E (instrument/staff management) on the Stage 2B timeline. Retained-source
 rhythm export, global timewise measure slots and richer editable notation still
 need work. Range/clipboard and advanced notation should build on this timeline

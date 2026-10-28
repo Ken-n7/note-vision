@@ -49,8 +49,14 @@ const DurationSpec eighthDuration = DurationSpec('eighth', 1);
 const DurationSpec sixteenthDuration = DurationSpec('sixteenth', 1);
 
 /// One staff in a new part order: an existing part ([from] is its index) or
-/// a new empty one with [clef]. [name] may rename it.
-typedef StaffPlanEntry = ({int? from, String name, Clef? clef});
+/// a new empty one with [clef]. [name] may rename it. [joinsPrevious] makes
+/// it a further staff of the entry above (a piano's left hand).
+typedef StaffPlanEntry = ({
+  int? from,
+  String name,
+  Clef? clef,
+  bool joinsPrevious,
+});
 
 /// Notes and rests copied from one part, bar by bar (empty bars included,
 /// so pasted music keeps its bar lines).
@@ -477,6 +483,7 @@ extension EditorActions on EditorState {
         Part(
           id: part.id,
           name: part.name,
+          staff: part.staff,
           measures: [
             ...part.measures,
             Measure(
@@ -603,6 +610,7 @@ extension EditorActions on EditorState {
       ..[partIndex] = Part(
         id: part.id,
         name: part.name,
+        staff: part.staff,
         measures: updatedMeasures,
       );
 
@@ -935,12 +943,7 @@ extension EditorActions on EditorState {
     final adds = plan.any((e) => e.from == null);
     if (adds && addStaffBlockedReason != null) return this;
     final template =
-        score.parts[plan
-            .firstWhere(
-              (e) => e.from != null,
-              orElse: () => (from: 0, name: '', clef: null),
-            )
-            .from!];
+        score.parts[plan.map((e) => e.from).nonNulls.firstOrNull ?? 0];
     final ids = {for (final p in score.parts) p.id};
     String newId() {
       var k = score.parts.length + 1;
@@ -951,18 +954,32 @@ extension EditorActions on EditorState {
       return 'P$k';
     }
 
+    // A staff joins the one above only while it still follows the staff it
+    // joined (or, when new, another new staff).
+    int staffOf(int i) {
+      final entry = plan[i];
+      if (!entry.joinsPrevious || i == 0) return 1;
+      final above = plan[i - 1];
+      final adjacent = entry.from == null
+          ? above.from == null
+          : above.from == entry.from! - 1;
+      return adjacent ? staffOf(i - 1) + 1 : 1;
+    }
+
     final parts = [
-      for (final entry in plan)
+      for (final (i, entry) in plan.indexed)
         if (entry.from case final from?)
           Part(
             id: score.parts[from].id,
             name: entry.name,
+            staff: staffOf(i),
             measures: score.parts[from].measures,
           )
         else
           Part(
             id: newId(),
             name: entry.name,
+            staff: staffOf(i),
             measures: [
               for (final (i, m) in template.measures.indexed)
                 Measure(

@@ -176,8 +176,12 @@ void main() {
         after.symbols.firstWhere((e) => e.symbolIndex == 3).onset,
         MusicalTime.one,
       );
-      expect(after.symbols.last.onset, before.symbols.last.onset);
-      expect(after.symbols.last.duration, before.symbols.last.duration);
+      // The lower staff's voice, now its own linked part, does not move.
+      final lowerBefore = builder.measure(score, 1, 0).symbols.last;
+      final lowerAfter = builder.measure(edited, 1, 0).symbols.last;
+      expect(lowerAfter.onset, lowerBefore.onset);
+      expect(lowerAfter.duration, lowerBefore.duration);
+      expect(before.symbols, hasLength(after.symbols.length));
       expect(score.musicXmlSource!.events[3].duration, MusicalTime(1, 3));
     },
   );

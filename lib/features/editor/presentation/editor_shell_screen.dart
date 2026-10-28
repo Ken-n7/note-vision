@@ -132,6 +132,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       _ => symbol,
     };
   }
+
   bool _isDraggingNote = false;
   Offset _dragGlobal = Offset.zero;
   final GlobalKey _trashZoneKey = GlobalKey();
@@ -1510,7 +1511,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       builder: (_) => StavesSheet(
         staves: [
           for (final part in original.parts)
-            (part.name, part.measures.firstOrNull?.clef),
+            (part.name, part.measures.firstOrNull?.clef, part.joinsPrevious),
         ],
         addBlockedReason: _editorState.addStaffBlockedReason,
       ),
@@ -1534,11 +1535,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               .where(
                 (p) =>
                     original.getSymbolAt(
-                      _editorState.selectedPartIndex!,
-                      p.measure,
-                      p.symbol,
-                    )
-                    is Note,
+                          _editorState.selectedPartIndex!,
+                          p.measure,
+                          p.symbol,
+                        )
+                        is Note,
               )
               .length
         : null;
@@ -1552,7 +1553,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       builder: (_) => TransposeSheet(
         selectionCount: selection == 0 ? null : selection,
         currentKey:
-            original.parts.firstOrNull?.measures.firstOrNull?.keySignature
+            original
+                .parts
+                .firstOrNull
+                ?.measures
+                .firstOrNull
+                ?.keySignature
                 ?.fifths ??
             0,
       ),
@@ -2026,12 +2032,14 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         return KeyEventResult.handled;
       }
       if (keyboard.isAltPressed) {
-        final voice = const [
-          LogicalKeyboardKey.digit1,
-          LogicalKeyboardKey.digit2,
-          LogicalKeyboardKey.digit3,
-          LogicalKeyboardKey.digit4,
-        ].indexOf(key) + 1;
+        final voice =
+            const [
+              LogicalKeyboardKey.digit1,
+              LogicalKeyboardKey.digit2,
+              LogicalKeyboardKey.digit3,
+              LogicalKeyboardKey.digit4,
+            ].indexOf(key) +
+            1;
         if (voice > 0) {
           setState(() => _inputVoice = voice);
           return KeyEventResult.handled;

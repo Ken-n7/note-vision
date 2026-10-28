@@ -52,9 +52,10 @@ class MusicXmlExportService {
       nest: () {
         _buildWork(builder, score);
         _buildIdentification(builder, score);
-        _buildPartList(builder, score);
-        for (final part in score.parts) {
-          _buildPart(builder, part);
+        final instruments = _instruments(score);
+        _buildPartList(builder, instruments);
+        for (final staves in instruments) {
+          _buildPart(builder, staves);
         }
       },
     );
@@ -109,9 +110,23 @@ class MusicXmlExportService {
     });
   }
 
-  void _buildPartList(XmlBuilder b, Score score) {
+  /// Parts grouped by instrument: a part that joins the previous one is a
+  /// further staff of the same MusicXML `<part>`.
+  static List<List<Part>> _instruments(Score score) {
+    final instruments = <List<Part>>[];
+    for (final part in score.parts) {
+      if (part.joinsPrevious && instruments.isNotEmpty) {
+        instruments.last.add(part);
+      } else {
+        instruments.add([part]);
+      }
+    }
+    return instruments;
+  }
+
+  void _buildPartList(XmlBuilder b, List<List<Part>> instruments) {
     b.element('part-list', nest: () {
-      for (final part in score.parts) {
+      for (final [part, ...] in instruments) {
         b.element('score-part', attributes: {'id': part.id}, nest: () {
           b.element('part-name', nest: part.name);
         });
@@ -119,18 +134,34 @@ class MusicXmlExportService {
     });
   }
 
-  void _buildPart(XmlBuilder b, Part part) {
-    b.element('part', attributes: {'id': part.id}, nest: () {
-      final measures = part.measures;
-      final accidentals = Accidentals();
-      final staves = measures
-          .expand((m) => m.symbols)
-          .fold(1, (n, s) => max(n, ScoreTimelineBuilder.lane(s).$2));
+  void _buildPart(XmlBuilder b, List<Part> parts) {
+    // Symbols keep their staff numbers; those of a joined staff without one
+    // are on that staff, in voices 5–8 for staff 2 and so on, as MuseScore
+    // writes them.
+    final linked = parts.length > 1;
+    final staffParts = [
+      for (final (k, part) in parts.indexed)
+        linked ? _onStaff(part, k + 1) : part,
+    ];
+    b.element('part', attributes: {'id': parts.first.id}, nest: () {
+      final measures = parts.first.measures;
+      final accidentals = [for (final _ in staffParts) Accidentals()];
+      final staves = linked
+          ? parts.length
+          : measures
+                .expand((m) => m.symbols)
+                .fold(1, (n, s) => max(n, ScoreTimelineBuilder.lane(s).$2));
       for (var i = 0; i < measures.length; i++) {
-        accidentals.startMeasure(measures[i]);
+        final staffMeasures = [
+          for (final part in staffParts)
+            if (i < part.measures.length) part.measures[i],
+        ];
+        for (final (k, m) in staffMeasures.indexed) {
+          accidentals[k].startMeasure(m);
+        }
         _buildMeasure(
           b,
-          measures[i],
+          staffMeasures,
           isFirst: i == 0,
           staves: staves,
           accidentals: accidentals,
@@ -139,13 +170,52 @@ class MusicXmlExportService {
     });
   }
 
+  static Part _onStaff(Part part, int staff) => Part(
+    id: part.id,
+    name: part.name,
+    staff: part.staff,
+    measures: [
+      for (final m in part.measures)
+        m.withContent(
+          keySignature: m.keySignature,
+          symbols: [
+            for (final s in m.symbols)
+              switch (s) {
+                Note() when s.staff == null => Note(
+                  step: s.step,
+                  octave: s.octave,
+                  alter: s.alter,
+                  duration: s.duration,
+                  type: s.type,
+                  voice: s.voice ?? 1 + 4 * (staff - 1),
+                  staff: staff,
+                  beams: s.beams,
+                  dots: s.dots,
+                  isChordTone: s.isChordTone,
+                ),
+                Rest() when s.staff == null => Rest(
+                  duration: s.duration,
+                  type: s.type,
+                  voice: s.voice ?? 1 + 4 * (staff - 1),
+                  staff: staff,
+                  dots: s.dots,
+                ),
+                _ => s,
+              },
+          ],
+        ),
+    ],
+  );
+
+  /// One `<measure>` from the same bar of each of an instrument's staves.
   void _buildMeasure(
     XmlBuilder b,
-    Measure measure, {
+    List<Measure> staffMeasures, {
     required bool isFirst,
     required int staves,
-    required Accidentals accidentals,
+    required List<Accidentals> accidentals,
   }) {
+    final measure = staffMeasures.first;
     b.element(
       'measure',
       attributes: {'number': measure.number.toString()},
@@ -158,7 +228,7 @@ class MusicXmlExportService {
         }
 
         final needsAttributes = isFirst ||
-            measure.clef != null ||
+            staffMeasures.any((m) => m.clef != null) ||
             measure.timeSignature != null ||
             measure.keySignature != null;
 
@@ -183,12 +253,14 @@ class MusicXmlExportService {
               b.element('staves', nest: '$staves');
             }
 
-            if (measure.clef != null) {
+            for (final (k, m) in staffMeasures.indexed) {
+              final clef = m.clef;
+              if (clef == null) continue;
               b.element('clef', attributes: {
-                if (staves > 1) 'number': '1',
+                if (staves > 1) 'number': '${k + 1}',
               }, nest: () {
-                b.element('sign', nest: measure.clef!.sign);
-                b.element('line', nest: measure.clef!.line.toString());
+                b.element('sign', nest: clef.sign);
+                b.element('line', nest: clef.line.toString());
               });
             }
           });
@@ -204,38 +276,40 @@ class MusicXmlExportService {
 
         // Each voice/staff lane starts at the bar line; <backup> and
         // <forward> move the cursor to where the next lane's symbol starts.
-        final symbols = measure.symbols;
         final laneEnds = <VoiceLane, int>{};
         var cursor = 0;
-        for (var i = 0; i < symbols.length; i++) {
-          final symbol = symbols[i];
-          final length = switch (symbol) {
-            Note(isChordTone: true) => null,
-            Note(:final type, :final dots, :final duration) ||
-            Rest(:final type, :final dots, :final duration) =>
-              durationFor(type, dots, duration),
-            _ => null,
-          };
-          if (length != null) {
-            final lane = ScoreTimelineBuilder.lane(symbol);
-            final onset = laneEnds[lane] ?? 0;
-            if (onset != cursor) {
-              b.element(onset < cursor ? 'backup' : 'forward', nest: () {
-                b.element('duration', nest: '${(cursor - onset).abs()}');
-              });
+        for (final (k, staffMeasure) in staffMeasures.indexed) {
+          final symbols = staffMeasure.symbols;
+          for (var i = 0; i < symbols.length; i++) {
+            final symbol = symbols[i];
+            final length = switch (symbol) {
+              Note(isChordTone: true) => null,
+              Note(:final type, :final dots, :final duration) ||
+              Rest(:final type, :final dots, :final duration) =>
+                durationFor(type, dots, duration),
+              _ => null,
+            };
+            if (length != null) {
+              final lane = ScoreTimelineBuilder.lane(symbol);
+              final onset = laneEnds[lane] ?? 0;
+              if (onset != cursor) {
+                b.element(onset < cursor ? 'backup' : 'forward', nest: () {
+                  b.element('duration', nest: '${(cursor - onset).abs()}');
+                });
+              }
+              cursor = onset + length;
+              laneEnds[lane] = cursor;
             }
-            cursor = onset + length;
-            laneEnds[lane] = cursor;
-          }
-          if (symbol is Note) {
-            _buildNote(
-              b,
-              symbol,
-              soundingAlter: accidentals.sounding(symbol),
-              beamValues: BeamGrouping.valuesFor(symbols, i),
-            );
-          } else if (symbol is Rest) {
-            _buildRest(b, symbol);
+            if (symbol is Note) {
+              _buildNote(
+                b,
+                symbol,
+                soundingAlter: accidentals[k].sounding(symbol),
+                beamValues: BeamGrouping.valuesFor(symbols, i),
+              );
+            } else if (symbol is Rest) {
+              _buildRest(b, symbol);
+            }
           }
         }
 

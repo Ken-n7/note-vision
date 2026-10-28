@@ -671,7 +671,7 @@ class NotationChecker {
     final measures = [...part.measures];
     measures[m] = _measureWith(measures[m], symbols);
     final parts = [...s.parts];
-    parts[p] = Part(id: part.id, name: part.name, measures: measures);
+    parts[p] = Part(id: part.id, name: part.name, staff: part.staff, measures: measures);
     return _withParts(s, parts);
   }
 
@@ -710,6 +710,7 @@ class NotationChecker {
           return Part(
             id: s.parts[k].id,
             name: s.parts[k].name,
+            staff: s.parts[k].staff,
             measures: [
               for (var i = 0; i < own.length; i++)
                 _measureWith(own[i], own[i].symbols, number: i + 1),
