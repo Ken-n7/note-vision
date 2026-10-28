@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:note_vision/core/models/clef.dart';
+import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
+import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
+import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/services/playback_service.dart';
 import 'package:note_vision/features/editor/presentation/widgets/editor_command_palette.dart';
 import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.dart';
@@ -137,6 +142,55 @@ void main() {
       expect(selectedNote(tester).type, 'eighth');
     },
   );
+
+  testWidgets('letters re-pitch, add chord notes and write notes', (
+    tester,
+  ) async {
+    await pumpControls(
+      tester,
+      score: Score(
+        id: 'letters',
+        title: 'Letters',
+        composer: '',
+        parts: [
+          Part(
+            id: 'p1',
+            name: 'Piano',
+            measures: [
+              Measure(
+                number: 1,
+                clef: const Clef(sign: 'G', line: 2),
+                timeSignature: const TimeSignature(beats: 4, beatType: 4),
+                symbols: const [
+                  Note(step: 'C', octave: 4, duration: 2, type: 'quarter'),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    List<String> shown() => [
+      for (final s in shownControlsScore(tester).parts[0].measures[0].symbols)
+        s is Note ? '${s.isChordTone ? '+' : ''}${s.pitch}' : 'rest',
+    ];
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+    await tester.pumpAndSettle();
+    expect(shown(), ['A3']);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyE);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pumpAndSettle();
+    expect(shown(), ['A3', '+E4']);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyD);
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit0);
+    await tester.pumpAndSettle();
+    expect(shown(), ['A3', '+E4', 'D4', 'rest']);
+    await modified(tester, LogicalKeyboardKey.keyZ);
+    expect(shown(), ['A3', '+E4', 'D4']);
+  });
 
   testWidgets('conversion is reachable on a phone and can be undone', (
     tester,

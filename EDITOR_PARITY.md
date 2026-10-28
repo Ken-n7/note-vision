@@ -238,7 +238,30 @@ invents composer "Unknown composer". Playback lacks tie merging,
 grace notes, repeats, articulation lengths, chord-symbol playback and
 instruments. Rhythm, pitch, beams, chords, meters and key handling match.
 
-Next: Stage 3 (selection and composition) on the Stage 2B timeline. Retained-source
+## Stage 3A — keyboard note input and chords
+
+- MuseScore-style letters: in note entry (N) A–G writes a note of the chosen
+  value after the input position (the selection and its chord tones, else the
+  end of the selected bar), in the octave nearest the selected/previous note
+  or the clef's middle line; 0 writes a rest. A full bar continues at the start
+  of the next bar, appending one at the end of the score (one undo step).
+  Outside note entry a letter re-pitches the selected note. `.` in note entry
+  dots the note just written (MuseScore sets the dot before typing).
+- Chords: Shift + A–G adds that letter above the selected note; Alt + 2–9
+  adds an interval above it; the new tone is selected so intervals stack.
+  "Add third above" is a searchable command and an Edit-dock button (Add 3rd).
+  Input and chord additions continue the selected voice/staff.
+- Fixed: deleting a chord's main note now promotes its next tone (it used to
+  attach the remaining tones to the preceding note); insertion after a chord
+  base goes after its tones.
+- Not yet: MuseScore's overwrite-in-place input (we insert; a full next bar
+  refuses input), ties across bar lines for values that do not fit,
+  voice selection (Ctrl+Alt+1–4), and touch chord entry by tapping a pitch.
+- Tests: `test/features/editor/domain/note_input_test.dart`, keyboard test in
+  `editor_commands_test.dart`; full suite 734 passed, analysis clean.
+
+Next: Stage 3B (transpose), then 3C (range selection and clipboard), 3D
+(voices), 3E (instrument/staff management) on the Stage 2B timeline. Retained-source
 rhythm export, global timewise measure slots and richer editable notation still
 need work. Range/clipboard and advanced notation should build on this timeline
 rather than adding more flat-list rules.

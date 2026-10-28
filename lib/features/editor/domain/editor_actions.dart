@@ -609,11 +609,29 @@ extension EditorActions on EditorState {
         score.parts[partIndex].measures[measureIndex].symbols;
     final symbols = List<ScoreSymbol>.from(currentSymbols)
       ..removeAt(symbolIndex);
-    final nextScore = score.deleteSymbolAt(
-      partIndex,
-      measureIndex,
-      symbolIndex,
-    );
+    var nextScore = score.deleteSymbolAt(partIndex, measureIndex, symbolIndex);
+    // The chord's next tone becomes its main note, so the remaining tones do
+    // not join the preceding note.
+    final removed = currentSymbols[symbolIndex];
+    final tone = symbolIndex < symbols.length ? symbols[symbolIndex] : null;
+    if (removed is Note &&
+        !removed.isChordTone &&
+        tone is Note &&
+        tone.isChordTone) {
+      symbols[symbolIndex] = _pitched(
+        tone,
+        _diatonic(tone),
+        alter: tone.alter,
+        isChordTone: false,
+        beams: removed.beams,
+      );
+      nextScore = nextScore.replaceSymbolAt(
+        partIndex,
+        measureIndex,
+        symbolIndex,
+        symbols[symbolIndex],
+      );
+    }
 
     if (symbols.isEmpty) {
       return _applyMeasureContextEdit(
@@ -632,6 +650,202 @@ extension EditorActions on EditorState {
       measureIndex: measureIndex,
       symbolIndex: nextIndex,
       symbol: symbols[nextIndex],
+    );
+  }
+
+  // ── Keyboard note input (MuseScore-style) ────────────────────────────
+
+  /// After the selected symbol and any chord tones that follow it, else at
+  /// the end of the selected bar.
+  int get _inputIndex {
+    final symbols =
+        score.parts[selectedPartIndex!].measures[selectedMeasureIndex!].symbols;
+    if (!hasEditableSelection) return symbols.length;
+    var index = selectedSymbolIndex! + 1;
+    while (index < symbols.length &&
+        symbols[index] is Note &&
+        (symbols[index] as Note).isChordTone) {
+      index++;
+    }
+    return index;
+  }
+
+  /// Writes [step] (C–B) as a new note of [spec] after the input position,
+  /// in the octave nearest the previous note. A full bar continues at the
+  /// start of the next one, adding a bar at the end of the score if needed.
+  EditorState enterNote(String step, DurationSpec spec) {
+    if (!hasMeasureContext || !_stepNames.contains(step)) return this;
+    final (voice, staff) = _inputLane;
+    final pitch = _nearestDiatonic(step, _inputReference);
+    return _enterSymbol(
+      Note(
+        step: _stepNames[pitch % 7],
+        octave: pitch ~/ 7,
+        duration: spec.divisions,
+        type: spec.type,
+        voice: voice,
+        staff: staff,
+      ),
+    );
+  }
+
+  /// Writes a rest of [spec] at the input position, as [enterNote] does.
+  EditorState enterRest(DurationSpec spec) {
+    if (!hasMeasureContext) return this;
+    final (voice, staff) = _inputLane;
+    return _enterSymbol(
+      Rest(
+        duration: spec.divisions,
+        type: spec.type,
+        voice: voice,
+        staff: staff,
+      ),
+    );
+  }
+
+  /// Re-pitches the selected note to [step] in the octave nearest its
+  /// current pitch; the key signature decides the accidental.
+  EditorState setSelectedNoteStep(String step) {
+    final note = selectedSymbol;
+    if (!hasEditableSelection || note is! Note || !_stepNames.contains(step)) {
+      return this;
+    }
+    final pitch = _nearestDiatonic(step, _diatonic(note));
+    if (pitch == _diatonic(note) && note.alter == null) return this;
+    return _replaceSelectedSymbol(
+      _pitched(note, pitch, alter: null),
+      intent: EditorEditIntent.replaceSelection,
+    );
+  }
+
+  bool get canAddChordTone => hasEditableSelection && selectedSymbol is Note;
+
+  /// Adds a chord tone a diatonic [interval] above the selected note (3 is a
+  /// third) and selects it, so repeating the command stacks intervals.
+  EditorState addChordInterval(int interval) {
+    final note = selectedSymbol;
+    if (!canAddChordTone || note is! Note || interval < 2) return this;
+    return _addChordTone(_diatonic(note) + interval - 1);
+  }
+
+  /// Adds [step] to the selected note's chord, in the nearest octave above
+  /// the selected note.
+  EditorState addChordStep(String step) {
+    final note = selectedSymbol;
+    if (!canAddChordTone || note is! Note || !_stepNames.contains(step)) {
+      return this;
+    }
+    var pitch = (note.octave * 7) + _stepNames.indexOf(step);
+    while (pitch <= _diatonic(note)) {
+      pitch += 7;
+    }
+    return _addChordTone(pitch);
+  }
+
+  EditorState _addChordTone(int pitch) {
+    if (pitch > _maxDiatonic) return this;
+    final partIndex = selectedPartIndex!;
+    final measureIndex = selectedMeasureIndex!;
+    final symbols = score.parts[partIndex].measures[measureIndex].symbols;
+    var baseIndex = selectedSymbolIndex!;
+    while (baseIndex > 0 &&
+        symbols[baseIndex] is Note &&
+        (symbols[baseIndex] as Note).isChordTone) {
+      baseIndex--;
+    }
+    final base = symbols[baseIndex];
+    if (base is! Note) return this;
+    final end = _inputIndex;
+    for (final tone in symbols.sublist(baseIndex, end)) {
+      if (tone is Note && _diatonic(tone) == pitch) return this;
+    }
+    final tone = Note(
+      step: _stepNames[pitch % 7],
+      octave: pitch ~/ 7,
+      duration: base.duration,
+      type: base.type,
+      dots: base.dots,
+      voice: base.voice,
+      staff: base.staff,
+      isChordTone: true,
+    );
+    return _applySymbolSelectionEdit(
+      intent: EditorEditIntent.insertAfterSelection,
+      score: score.insertSymbolAt(partIndex, measureIndex, end, tone),
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      symbolIndex: end,
+      symbol: tone,
+    );
+  }
+
+  /// New input continues the selected symbol's voice and staff.
+  (int?, int?) get _inputLane => switch (selectedEditableSymbol) {
+    Note(:final voice, :final staff) ||
+    Rest(:final voice, :final staff) => (voice, staff),
+    _ => (null, null),
+  };
+
+  /// The pitch the next letter is measured from: the selected note, else the
+  /// closest note before the input position in this part, else the middle
+  /// line of the active clef.
+  int get _inputReference {
+    if (selectedEditableSymbol case final Note note) return _diatonic(note);
+    final partIndex = selectedPartIndex!;
+    final measures = score.parts[partIndex].measures;
+    for (var m = selectedMeasureIndex!; m >= 0; m--) {
+      final symbols = measures[m].symbols;
+      final from = m == selectedMeasureIndex! ? _inputIndex : symbols.length;
+      for (var i = from - 1; i >= 0; i--) {
+        final symbol = symbols[i];
+        if (symbol is Note) {
+          return _diatonic(symbol);
+        }
+      }
+    }
+    final clef =
+        [
+          for (var m = selectedMeasureIndex!; m >= 0; m--) measures[m].clef,
+        ].nonNulls.firstOrNull ??
+        const Clef(sign: 'G', line: 2);
+    final signPitch = switch (clef.sign) {
+      'F' => 24, // F3
+      'C' => 28, // C4
+      _ => 32, // G4
+    };
+    return signPitch + (3 - clef.line) * 2;
+  }
+
+  EditorState _enterSymbol(ScoreSymbol symbol) {
+    final partIndex = selectedPartIndex!;
+    var measureIndex = selectedMeasureIndex!;
+    var index = _inputIndex;
+    var next = score;
+    if (!_canMeasureAcceptSymbol(
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      symbol: symbol,
+    )) {
+      measureIndex++;
+      index = 0;
+      if (measureIndex == score.parts[partIndex].measures.length) {
+        next = score.insertMeasureAfterInAllParts(measureIndex - 1);
+      }
+      if (!copyWith(score: next)._canMeasureAcceptSymbol(
+        partIndex: partIndex,
+        measureIndex: measureIndex,
+        symbol: symbol,
+      )) {
+        return this;
+      }
+    }
+    return _applySymbolSelectionEdit(
+      intent: EditorEditIntent.insertAfterSelection,
+      score: next.insertSymbolAt(partIndex, measureIndex, index, symbol),
+      partIndex: partIndex,
+      measureIndex: measureIndex,
+      symbolIndex: index,
+      symbol: symbol,
     );
   }
 
@@ -934,11 +1148,7 @@ extension EditorActions on EditorState {
   }) {
     final partIndex = selectedPartIndex!;
     final measureIndex = selectedMeasureIndex!;
-    final symbols = score.parts[partIndex].measures[measureIndex].symbols;
-
-    final insertIndex = hasEditableSelection
-        ? (selectedSymbolIndex! + 1).clamp(0, symbols.length)
-        : symbols.length;
+    final insertIndex = _inputIndex;
     if (!_canMeasureAcceptSymbol(
       partIndex: partIndex,
       measureIndex: measureIndex,
@@ -1162,6 +1372,47 @@ extension EditorActions on EditorState {
     return null;
   }
 }
+
+const _stepNames = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+
+/// Octaves 1–7, the range the editor shows.
+const _minDiatonic = 7, _maxDiatonic = 7 * 7 + 6;
+
+/// Staff position counted in diatonic steps from C0.
+int _diatonic(Note note) => note.octave * 7 + _stepNames.indexOf(note.step);
+
+/// [step] within a fourth of [reference], kept inside the editor's range.
+int _nearestDiatonic(String step, int reference) {
+  var pitch = (reference ~/ 7) * 7 + _stepNames.indexOf(step);
+  if (pitch - reference > 3) pitch -= 7;
+  if (reference - pitch > 3) pitch += 7;
+  if (pitch < _minDiatonic) pitch += 7;
+  if (pitch > _maxDiatonic) pitch -= 7;
+  return pitch;
+}
+
+Note _pitched(
+  Note note,
+  int pitch, {
+  required int? alter,
+  bool? isChordTone,
+  Map<int, BeamValue>? beams,
+}) => Note(
+  source: note.source,
+  reviewId: note.reviewId,
+  step: _stepNames[pitch % 7],
+  octave: pitch ~/ 7,
+  alter: alter,
+  duration: note.duration,
+  type: note.type,
+  voice: note.voice,
+  staff: note.staff,
+  beamed: note.beamed,
+  beams: beams ?? note.beams,
+  dots: note.dots,
+  isChordTone: isChordTone ?? note.isChordTone,
+  confidence: note.confidence,
+);
 
 Note _moveNoteByScaleStep(Note note, int steps) {
   const stepsByName = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];

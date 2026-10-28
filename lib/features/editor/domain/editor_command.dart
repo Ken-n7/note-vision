@@ -32,6 +32,12 @@ enum EditorCommand {
     'Edit',
     'Create a C4 note with the same duration',
   ),
+  addThird(
+    'Add third above',
+    'Chords',
+    'Add a chord note a third above the selected note',
+    'Alt + 3',
+  ),
   delete('Delete symbol', 'Edit', 'Remove the selected note or rest', 'Delete');
 
   const EditorCommand(
@@ -104,6 +110,7 @@ enum EditorCommand {
       clearAccidental => state.setSelectedNoteAccidental(null),
       noteToRest => state.convertSelectedNoteToRest(),
       restToNote => state.convertSelectedRestToNote(),
+      addThird => state.addChordInterval(3),
       delete => state.deleteSelectedSymbol(),
       _ => state,
     };

@@ -1477,6 +1477,51 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     });
   }
 
+  static final _pitchLetters = {
+    LogicalKeyboardKey.keyA: 'A',
+    LogicalKeyboardKey.keyB: 'B',
+    LogicalKeyboardKey.keyC: 'C',
+    LogicalKeyboardKey.keyD: 'D',
+    LogicalKeyboardKey.keyE: 'E',
+    LogicalKeyboardKey.keyF: 'F',
+    LogicalKeyboardKey.keyG: 'G',
+  };
+
+  /// Alt + 2–9 adds that interval above the selected note.
+  static final _intervalDigits = {
+    LogicalKeyboardKey.digit2: 2,
+    LogicalKeyboardKey.digit3: 3,
+    LogicalKeyboardKey.digit4: 4,
+    LogicalKeyboardKey.digit5: 5,
+    LogicalKeyboardKey.digit6: 6,
+    LogicalKeyboardKey.digit7: 7,
+    LogicalKeyboardKey.digit8: 8,
+    LogicalKeyboardKey.digit9: 9,
+  };
+
+  /// Writes the letter's note (or a rest when [step] is null) in the chosen
+  /// value after the input position, starting in the first bar if nothing is
+  /// selected.
+  void _enterFromKeyboard(String? step) {
+    final type = _insertSymbolType ?? PaletteSymbolType.quarterNote;
+    final spec = [
+      wholeDuration,
+      halfDuration,
+      quarterDuration,
+      eighthDuration,
+      sixteenthDuration,
+    ][type.index % 5];
+    _updateState((state) {
+      final input = state.hasMeasureContext
+          ? state
+          : state.copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
+      final next = step == null
+          ? input.enterRest(spec)
+          : input.enterNote(step, spec);
+      return identical(next, input) ? state : next;
+    });
+  }
+
   void _toggleInsertMode() {
     if (!_canApplyIssueFix) return;
     setState(() {
@@ -1748,8 +1793,33 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       }
       return KeyEventResult.ignored;
     }
+    final letter = _pitchLetters[key];
+    if (keyboard.isAltPressed && !keyboard.isShiftPressed) {
+      final interval = _intervalDigits[key];
+      if (interval == null) return KeyEventResult.ignored;
+      _updateState((s) => s.addChordInterval(interval));
+      return KeyEventResult.handled;
+    }
+    if (keyboard.isShiftPressed && !keyboard.isAltPressed && letter != null) {
+      _updateState((s) => s.addChordStep(letter));
+      return KeyEventResult.handled;
+    }
     if (keyboard.isAltPressed || keyboard.isShiftPressed) {
       return KeyEventResult.ignored;
+    }
+    if (letter != null) {
+      if (_insertMode) {
+        _enterFromKeyboard(letter);
+      } else {
+        _updateState((s) => s.setSelectedNoteStep(letter));
+      }
+      return KeyEventResult.handled;
+    }
+    if (_insertMode &&
+        (key == LogicalKeyboardKey.digit0 ||
+            key == LogicalKeyboardKey.numpad0)) {
+      _enterFromKeyboard(null);
+      return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.escape) {
       setState(() {
@@ -1801,7 +1871,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           PaletteSymbolType.values[index +
               ((_insertSymbolType?.isRest ?? false) ? 5 : 0)],
         );
-      } else if (!_insertMode) {
+      } else {
+        // While entering notes a dot applies to the note just written.
         _runEditorCommand(rhythm);
       }
     }
@@ -2084,6 +2155,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                               ) ==
                               null
                           ? () => _runEditorCommand(EditorCommand.octaveDown)
+                          : null,
+                      onAddThird: _editorState.canAddChordTone
+                          ? () => _runEditorCommand(EditorCommand.addThird)
                           : null,
                       onConvertSymbol: selected is Rest
                           ? () => _runEditorCommand(EditorCommand.restToNote)
@@ -4144,6 +4218,7 @@ class _InspectorPanel extends StatefulWidget {
     required this.onOctaveUp,
     required this.onOctaveDown,
     required this.onConvertSymbol,
+    required this.onAddThird,
     required this.onWhole,
     required this.onHalf,
     required this.onQuarter,
@@ -4180,7 +4255,7 @@ class _InspectorPanel extends StatefulWidget {
   final int? selectedMeasureNumber;
   final VoidCallback onMoveUp;
   final VoidCallback onMoveDown;
-  final VoidCallback? onOctaveUp, onOctaveDown, onConvertSymbol;
+  final VoidCallback? onOctaveUp, onOctaveDown, onConvertSymbol, onAddThird;
   final VoidCallback onWhole;
   final VoidCallback onHalf;
   final VoidCallback onQuarter;
@@ -4660,6 +4735,13 @@ class _InspectorPanelState extends State<_InspectorPanel> {
                     : 'Replace a note outside a chord with a rest, keeping duration',
                 onPressed: _wrapAction(widget.onConvertSymbol),
               ),
+              _ActionTile(
+                icon: Icons.library_add_rounded,
+                label: 'Add 3rd',
+                tooltip:
+                    'Add a chord note a third above (Alt + 3; Shift + A–G adds a letter)',
+                onPressed: _wrapAction(widget.onAddThird),
+              ),
             ],
           ),
         ],
@@ -4677,7 +4759,7 @@ class _InspectorPanelState extends State<_InspectorPanel> {
       title: title,
       subtitle: switch (mode) {
         EditorToolMode.insert =>
-          'Tap the staff to place · hold a symbol to drag',
+          'Tap the staff or type A–G · hold a symbol to drag',
         EditorToolMode.measure => 'Structure and staff settings',
         EditorToolMode.edit =>
           widget.hasSelection
