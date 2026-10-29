@@ -14,7 +14,14 @@ abstract final class BeamGrouping {
   };
 
   static bool eligible(ScoreSymbol symbol) =>
-      symbol is Note && !symbol.isChordTone && levels(symbol) > 0;
+      symbol is Note &&
+      !symbol.isChordTone &&
+      symbol.grace == null &&
+      levels(symbol) > 0;
+
+  /// Chord tones and grace notes neither join nor end a beam group.
+  static bool _skipped(ScoreSymbol symbol) =>
+      symbol is Note && (symbol.isChordTone || symbol.grace != null);
 
   static (int, int) _voice(Note note) => (note.voice ?? 1, note.staff ?? 1);
 
@@ -32,7 +39,7 @@ abstract final class BeamGrouping {
 
     for (final index in within ?? List.generate(symbols.length, (i) => i)) {
       final symbol = symbols[index];
-      if (symbol is Note && symbol.isChordTone) continue;
+      if (_skipped(symbol)) continue;
       if (!eligible(symbol) ||
           !(symbol as Note).beamed ||
           levels(symbol) < level) {
@@ -131,7 +138,7 @@ abstract final class BeamGrouping {
     var count = 0;
     for (var i = start; i <= end; i++) {
       final symbol = symbols[i];
-      if (symbol is Note && symbol.isChordTone) continue;
+      if (_skipped(symbol)) continue;
       if (!eligible(symbol) || _voice(symbol as Note) != voice) return false;
       count++;
     }
@@ -220,7 +227,7 @@ abstract final class BeamGrouping {
 
     for (var i = 0; i < symbols.length; i++) {
       final symbol = symbols[i];
-      if (symbol is Note && symbol.isChordTone) continue;
+      if (_skipped(symbol)) continue;
       final (type, dots, duration, voice, staff) = switch (symbol) {
         Note(
           :final type,

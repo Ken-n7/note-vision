@@ -121,7 +121,8 @@ class MusicXmlScoreConverter {
     Map<String, String> dynamics,
   ) {
     final ids = {
-      for (final b in bindings) (b.partId, b.measureIndex, b.noteIndex): b.symbolId,
+      for (final b in bindings)
+        (b.partId, b.measureIndex, b.noteIndex): b.symbolId,
     };
     bool tie(XmlElement note, String type) =>
         note.findElements('tie').any((t) => t.getAttribute('type') == type) ||
@@ -132,8 +133,9 @@ class MusicXmlScoreConverter {
     final spanners = <Spanner>[];
     final tieStarts = <String>[];
     final tieStops = <String>{};
-    for (final MapEntry(key: partId, value: measures)
-        in musicXmlSourceParts(root).entries) {
+    for (final MapEntry(key: partId, value: measures) in musicXmlSourceParts(
+      root,
+    ).entries) {
       final open = <String, String>{};
       final pendingDynamic = <int, String>{};
       final pendingWedges = <int, List<(SpannerKind, String)>>{};
@@ -651,13 +653,21 @@ class MusicXmlScoreConverter {
     XmlElement noteElement, {
     double divisionsPerQuarter = 2,
   }) {
-    final rawDuration = double.tryParse(
-      _firstInnerText(noteElement, 'duration') ?? '',
-    );
+    // A grace note has no <duration>: it takes no time in the bar.
+    final graceElement = _firstOrNull(noteElement.findElements('grace'));
+    final grace = graceElement == null
+        ? null
+        : graceElement.getAttribute('slash') == 'yes'
+        ? Grace.acciaccatura
+        : Grace.appoggiatura;
+    final rawDuration = grace != null
+        ? 0.0
+        : double.tryParse(_firstInnerText(noteElement, 'duration') ?? '');
     final duration = rawDuration == null
         ? null
         : (rawDuration * 2 / divisionsPerQuarter).round();
     var type = _firstInnerText(noteElement, 'type')?.trim();
+    if (grace != null && (type == null || type.isEmpty)) type = 'eighth';
     var dots = noteElement.findElements('dot').length;
     if (duration == null) return null;
 
@@ -729,6 +739,7 @@ class MusicXmlScoreConverter {
       isChordTone: isChordTone,
       tuplet: tuplet,
       marks: marks,
+      grace: grace,
     );
   }
 

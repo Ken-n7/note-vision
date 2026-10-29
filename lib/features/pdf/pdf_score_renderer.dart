@@ -14,7 +14,7 @@ import 'package:note_vision/core/widgets/score_notation/mark_glyphs.dart';
 import 'package:note_vision/core/widgets/score_notation/lyric_layout.dart';
 import 'package:note_vision/core/widgets/score_notation/annotation_layout.dart';
 import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart'
-    show endingAt;
+    show endingAt, graceScale;
 import 'package:note_vision/core/widgets/score_notation/score_notation_metrics.dart';
 import 'package:note_vision/core/widgets/score_notation/staff_pitch_mapper.dart';
 import 'package:note_vision/core/widgets/score_notation/voice_layout.dart';
@@ -1303,6 +1303,41 @@ class PdfScoreRenderer {
     bool drawStem = true,
     bool? stemUp,
   }) {
+    if (note.grace case final grace?) {
+      // Small, stem up and flagged; an acciaccatura's stem is slashed.
+      g
+        ..saveContext()
+        ..setTransform(
+          Matrix4.identity()
+            ..translateByDouble(x, y, 0, 1)
+            ..scaleByDouble(graceScale, graceScale, 1, 1)
+            ..translateByDouble(-x, -y, 0, 1),
+        );
+      _drawNote(
+        g,
+        font,
+        note.copyWith(grace: null),
+        x: x,
+        y: y,
+        middleLineY: middleLineY,
+        stemUp: true,
+      );
+      if (grace == Grace.acciaccatura) {
+        final stemX = x + ScoreNotationMetrics.stemXOffset * _scale;
+        final mid =
+            y + ScoreNotationMetrics.stemLengthFor(_ls / _scale) * .6 * _scale;
+        _line(
+          g,
+          stemX - 6 * _scale,
+          mid - 5 * _scale,
+          stemX + 8 * _scale,
+          mid + 5 * _scale,
+          1.4 * _scale,
+        );
+      }
+      g.restoreContext();
+      return;
+    }
     final type = note.type.trim().toLowerCase();
     final isBreve = type == 'breve';
     final isWhole = type == 'whole' || isBreve;

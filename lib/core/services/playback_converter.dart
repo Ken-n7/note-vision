@@ -4,6 +4,7 @@ import '../models/note.dart';
 import '../models/note_value.dart';
 import '../models/rest.dart';
 import '../models/score.dart';
+import '../models/score_symbol.dart';
 import '../models/musical_time.dart';
 import 'accidentals.dart';
 import 'score_timeline.dart';
@@ -256,6 +257,7 @@ class PlaybackConverter {
         );
       }
     }
+    _applyGraces(score, events);
     _mergeTies(score, events);
     _applyDynamics(score, events);
     _applyMarks(score, events);
@@ -499,6 +501,96 @@ class PlaybackConverter {
 
   /// A tied note sounds once, held to the end of the last note it is tied
   /// to; the notes it continues into are silent.
+  /// Gives grace notes their sound, as MuseScore Studio plays them: a group
+  /// takes one grace note's value, at most half the note it borrows from,
+  /// shared equally. Appoggiaturas borrow from the start of their main note
+  /// (which starts later); acciaccaturas from the end of the note before.
+  /// With no note before, acciaccaturas sound over the main note's start.
+  static void _applyGraces(Score score, List<PlaybackEvent> events) {
+    ScoreSymbol symbolOf(PlaybackEvent e) => score
+        .parts[e.partIndex]
+        .measures[e.measureIndex]
+        .symbols[e.symbolIndex];
+    Grace? graceOf(int i) => switch (symbolOf(events[i])) {
+      Note(:final grace) => grace,
+      _ => null,
+    };
+    // Each lane's events in play order.
+    final lanes = <(int, VoiceLane), List<int>>{};
+    for (final (i, e) in events.indexed) {
+      lanes
+          .putIfAbsent((
+            e.partIndex,
+            ScoreTimelineBuilder.lane(symbolOf(e)),
+          ), () => [])
+          .add(i);
+    }
+    // A note and the chord tones after it.
+    List<int> chordAt(List<int> lane, int k) => [
+      lane[k],
+      for (var j = k + 1; j < lane.length && events[lane[j]].isChordTone; j++)
+        lane[j],
+    ];
+    for (final lane in lanes.values) {
+      for (var k = 0; k < lane.length; k++) {
+        if (graceOf(lane[k]) == null) continue;
+        final start = k;
+        while (k < lane.length && graceOf(lane[k]) != null) {
+          k++;
+        }
+        if (k == lane.length) break;
+        final graces = lane.sublist(start, k);
+        final main = chordAt(lane, k);
+        final first = symbolOf(events[graces.first]) as Note;
+        final value = quarterLength(first.type, first.dots, 0) * 500;
+        final t = events[main.first].baseOnsetMs;
+        var head = start - 1;
+        while (head > 0 && events[lane[head]].isChordTone) {
+          head--;
+        }
+        final before = head < 0
+            ? const <int>[]
+            : [
+                for (var j = head; j < start; j++)
+                  if (events[lane[j]].baseOnsetMs +
+                          events[lane[j]].baseDurationMs ==
+                      t)
+                    lane[j],
+              ];
+        final appoggiatura = first.grace == Grace.appoggiatura;
+        final lender = appoggiatura || before.isEmpty ? main : before;
+        final share = math.min(value, events[lender.first].baseDurationMs / 2);
+        final from = appoggiatura || before.isEmpty ? t : t - share.round();
+        for (final (j, g) in graces.indexed) {
+          final on = from + (share * j / graces.length).round();
+          final off = from + (share * (j + 1) / graces.length).round();
+          events[g] = _with(
+            events[g],
+            onsetMs: on,
+            durationMs: math.max(1, off - on),
+          );
+        }
+        final borrowed = share.round();
+        if (appoggiatura) {
+          for (final m in main) {
+            events[m] = _with(
+              events[m],
+              onsetMs: t + borrowed,
+              durationMs: math.max(1, events[m].baseDurationMs - borrowed),
+            );
+          }
+        } else {
+          for (final b in before) {
+            events[b] = _with(
+              events[b],
+              durationMs: math.max(1, events[b].baseDurationMs - borrowed),
+            );
+          }
+        }
+      }
+    }
+  }
+
   static void _mergeTies(Score score, List<PlaybackEvent> events) {
     final ties = [
       for (final t in SpannerIndex(score).live)

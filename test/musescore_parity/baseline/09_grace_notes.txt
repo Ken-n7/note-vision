@@ -1,17 +1,11 @@
 # 09_grace_notes — MuseScore4 4.7.5 vs Note Vision
-## notation: 8/12 MuseScore facts match
-- P1 m1 @0 v=1 s=1 note D5 grace/ eighth
-- P1 m1 @1 v=1 s=1 note B4 grace 16th
-- P1 m1 @2 v=1 s=1 note E5 grace 16th beam=1:begin,2:begin
-- P1 m1 @2 v=1 s=1 note F5 grace 16th beam=1:end,2:end
-## playback: 3/9 MuseScore facts match, 4 differ in Note Vision
+## notation: 12/12 MuseScore facts match
+## playback: 8/9 MuseScore facts match, 7 differ in Note Vision
 - @0 key=74 dur=0
-- @0 key=74 vel=80
-- @5/4 key=69 dur=3/4
-- @5/4 key=69 vel=80
-- @9/4 key=79 dur=7/4
-- @9/4 key=79 vel=80
-+ @1 key=69 dur=1
-+ @1 key=69 vel=80
-+ @2 key=79 dur=2
-+ @2 key=79 vel=80
++ @0 key=74 dur=1/2
++ @1 key=71 dur=1/4
++ @1 key=71 vel=80
++ @17/8 key=77 dur=1/8
++ @17/8 key=77 vel=80
++ @2 key=76 dur=1/8
++ @2 key=76 vel=80

@@ -321,7 +321,10 @@ class MusicXmlExportService {
                 b,
                 symbol,
                 soundingAlter: accidentals[k].sounding(symbol),
-                beamValues: BeamGrouping.valuesFor(symbols, i),
+                // Grace notes keep their own beams among themselves.
+                beamValues: symbol.grace != null
+                    ? symbol.beams
+                    : BeamGrouping.valuesFor(symbols, i),
                 marks: marks,
               );
             } else if (symbol is Rest) {
@@ -374,6 +377,11 @@ class MusicXmlExportService {
     final tieStart = id != null && (marks?.tieStarts.contains(id) ?? false);
     final slurs = id == null ? const <(String, int)>[] : marks?.slurs[id] ?? [];
     b.element('note', nest: () {
+      if (note.grace case final grace?) {
+        b.element('grace', attributes: {
+          if (grace == Grace.acciaccatura) 'slash': 'yes',
+        });
+      }
       if (note.isChordTone) {
         b.element('chord');
       }
@@ -384,7 +392,10 @@ class MusicXmlExportService {
         }
         b.element('octave', nest: note.octave.toString());
       });
-      b.element('duration', nest: '${marks?.duration(note) ?? 0}');
+      // A grace note has no duration.
+      if (note.grace == null) {
+        b.element('duration', nest: '${marks?.duration(note) ?? 0}');
+      }
       if (tieStop) b.element('tie', attributes: {'type': 'stop'});
       if (tieStart) b.element('tie', attributes: {'type': 'start'});
       if (note.voice != null) {

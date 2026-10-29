@@ -41,11 +41,7 @@ enum EditorCommand {
     'Alt + 3',
   ),
   staccato('Staccato', 'Articulations', 'Play the note short', 'Shift + S'),
-  staccatissimo(
-    'Staccatissimo',
-    'Articulations',
-    'Play the note very short',
-  ),
+  staccatissimo('Staccatissimo', 'Articulations', 'Play the note very short'),
   tenuto('Tenuto', 'Articulations', 'Hold the note full length', 'Shift + N'),
   accent('Accent', 'Articulations', 'Stress the note', 'Shift + V'),
   marcato('Marcato', 'Articulations', 'Stress the note strongly', 'Shift + O'),
@@ -53,6 +49,16 @@ enum EditorCommand {
   trill('Trill', 'Ornaments', 'Alternate with the note above'),
   mordent('Mordent', 'Ornaments', 'The note, the note below, the note'),
   turn('Turn', 'Ornaments', 'Above, the note, below, the note'),
+  acciaccatura(
+    'Acciaccatura',
+    'Grace notes',
+    'A slashed grace note before the selected note, played before the beat',
+  ),
+  appoggiatura(
+    'Appoggiatura',
+    'Grace notes',
+    'A grace note before the selected note, played on the beat',
+  ),
   crescendo('Crescendo', 'Dynamics', 'A hairpin growing louder', '<'),
   diminuendo('Diminuendo', 'Dynamics', 'A hairpin growing softer', '>'),
   triplet(
@@ -149,6 +155,9 @@ enum EditorCommand {
     if (mark case final mark?) return state.markUnavailableReason(mark);
     if (hairpin case final kind?) return state.hairpinUnavailableReason(kind);
     if (this == triplet) return state.tupletUnavailableReason(3);
+    if (this == acciaccatura || this == appoggiatura) {
+      return state.graceUnavailableReason;
+    }
     if (this == tie) return state.tieUnavailableReason;
     if (this == slur) return state.slurUnavailableReason;
     if (!state.hasEditableSymbolSelection) return 'Select a note or rest';
@@ -213,6 +222,8 @@ enum EditorCommand {
       restToNote => state.convertSelectedRestToNote(),
       addThird => state.addChordInterval(3),
       triplet => state.makeTuplet(3),
+      acciaccatura => state.addGraceNote(Grace.acciaccatura),
+      appoggiatura => state.addGraceNote(Grace.appoggiatura),
       tie => state.toggleTie(),
       slur => state.toggleSlur(),
       selectAll => state.selectAllInPart(),

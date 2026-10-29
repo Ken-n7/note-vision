@@ -1,62 +1,21 @@
 # 19_grace_timing — MuseScore4 4.7.5 vs Note Vision
-## notation: 15/28 MuseScore facts match
-- P1 m1 @0 v=1 s=1 note D5 grace eighth
-- P1 m1 @2 v=1 s=1 note E5 grace 16th
-- P1 m2 @0 v=1 s=1 note A5 grace eighth beam=1:end
-- P1 m2 @0 v=1 s=1 note G5 grace eighth beam=1:begin
-- P1 m2 @2 v=1 s=1 note A5 grace 16th beam=1:continue,2:continue
-- P1 m2 @2 v=1 s=1 note B5 grace 16th beam=1:end,2:end
-- P1 m2 @2 v=1 s=1 note G5 grace 16th beam=1:begin,2:begin
-- P1 m3 @0 v=1 s=1 note A5 grace quarter
-- P1 m3 @1 v=1 s=1 note B4 grace eighth
-- P1 m3 @2 v=1 s=1 note D5 grace/ eighth
-- P1 m4 @0 v=1 s=1 note F5 grace/ eighth
-- P1 m4 @2 v=1 s=1 note A5 grace/ 16th beam=1:begin,2:begin
-- P1 m4 @2 v=1 s=1 note B5 grace/ 16th beam=1:end,2:end
-## playback: 3/31 MuseScore facts match, 18 differ in Note Vision
+## notation: 28/28 MuseScore facts match
+## playback: 30/31 MuseScore facts match, 17 differ in Note Vision
 - @0 key=74 dur=0
-- @0 key=74 vel=80
-- @1/2 key=72 dur=3/2
-- @1/2 key=72 vel=80
-- @10 key=72 dur=1/2
-- @103/8 key=83 dur=1/8
-- @103/8 key=83 vel=80
-- @11 key=76 dur=7/4
-- @11 key=76 vel=80
-- @13 key=79 dur=2
-- @13 key=79 vel=80
-- @17/2 key=79 dur=1/2
-- @17/2 key=79 vel=80
-- @19/2 key=72 dur=1/4
-- @21/2 key=77 dur=1/2
-- @21/2 key=77 vel=80
-- @25/4 key=77 dur=7/4
-- @25/4 key=77 vel=80
-- @37/4 key=69 dur=1/4
-- @37/4 key=69 vel=80
-- @39/4 key=74 dur=1/4
-- @39/4 key=74 vel=80
-- @51/4 key=81 dur=1/8
-- @51/4 key=81 vel=80
-- @9/2 key=76 dur=3/2
-- @9/2 key=76 vel=80
-- @9/4 key=74 dur=7/4
-- @9/4 key=74 vel=80
-+ @0 key=72 dur=2
-+ @0 key=72 vel=80
-+ @10 key=72 dur=1
-+ @12 key=76 dur=2
-+ @12 key=76 vel=80
-+ @14 key=79 dur=2
-+ @14 key=79 vel=80
-+ @19/2 key=72 dur=1/2
-+ @2 key=74 dur=2
-+ @2 key=74 vel=80
-+ @4 key=76 dur=2
-+ @4 key=76 vel=80
-+ @6 key=77 dur=2
-+ @6 key=77 vel=80
-+ @8 key=79 dur=1
-+ @8 key=79 vel=80
-+ @9 key=69 dur=1/2
-+ @9 key=69 vel=80
++ @0 key=74 dur=1/2
++ @17/4 key=81 dur=1/4
++ @17/4 key=81 vel=80
++ @2 key=76 dur=1/4
++ @2 key=76 vel=80
++ @37/6 key=83 dur=1/12
++ @37/6 key=83 vel=80
++ @4 key=79 dur=1/4
++ @4 key=79 vel=80
++ @6 key=79 dur=1/12
++ @6 key=79 vel=80
++ @73/12 key=81 dur=1/12
++ @73/12 key=81 vel=80
++ @8 key=81 dur=1/2
++ @8 key=81 vel=80
++ @9 key=71 dur=1/4
++ @9 key=71 vel=80

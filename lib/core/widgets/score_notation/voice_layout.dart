@@ -30,6 +30,17 @@ class VoiceLayout {
       onsets[i] = chordOnset = onset;
       laneEnds[(voice, staff)] = onset + length;
     }
+    // Grace notes stand just before their main note: one column step each.
+    final run = <int, int>{};
+    for (var i = symbols.length - 1; i >= 0; i--) {
+      final symbol = symbols[i];
+      if (symbol is Note && symbol.grace != null) {
+        run[voices[i]] = (run[voices[i]] ?? 0) + 1;
+        onsets[i] -= run[voices[i]]! / 960;
+      } else if (symbol is Note || symbol is Rest) {
+        run[voices[i]] = 0;
+      }
+    }
     final multiVoice =
         {
           for (final (i, s) in symbols.indexed)

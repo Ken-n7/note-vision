@@ -112,6 +112,8 @@ class GenreModel {
                 type: symbol.type,
               ),
             );
+            // Grace notes are ornaments, not melody steps.
+            if (symbol.grace != null) continue;
             if (symbol.isChordTone && out.isNotEmpty) {
               out.last[0] = math.max(out.last[0] as int, midi);
               continue;

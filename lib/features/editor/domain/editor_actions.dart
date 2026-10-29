@@ -1218,7 +1218,8 @@ extension EditorActions on EditorState {
   }
 
   /// Move within the current voice and staff, crossing bars, without history.
-  /// Word/syllable entry skips rests, chord tones and tied continuations;
+  /// Word/syllable entry skips rests, chord tones, grace notes and tied
+  /// continuations;
   /// extending a syllable can include tied continuations.
   EditorState nextLyricNote(int delta, {bool includeTied = false}) {
     if (lyricUnavailableReason != null || delta == 0) return this;
@@ -1233,6 +1234,7 @@ extension EditorActions on EditorState {
         for (final (n, symbol) in measure.symbols.indexed)
           if (symbol is Note &&
               !symbol.isChordTone &&
+              symbol.grace == null &&
               ScoreTimelineBuilder.lane(symbol) == lane &&
               (includeTied ||
                   !tied.contains(symbol.reviewId) ||
@@ -1327,6 +1329,61 @@ extension EditorActions on EditorState {
     return _applySelectionPreservingEdit(
       intent: EditorEditIntent.updateMeasureMetadata,
       score: score.setMeasureImplicit(selectedMeasureIndex!, !on),
+    );
+  }
+
+  // ── Grace notes ──────────────────────────────────────────────────────
+
+  String? get graceUnavailableReason =>
+      hasEditableSymbolSelection && selectedSymbol is Note && !hasRange
+      ? null
+      : 'Select a note';
+
+  /// Writes a grace note of [kind] (an eighth at the same pitch, as
+  /// MuseScore adds one) before the selected note and selects it; on a
+  /// grace note, changes its kind. One undo step.
+  EditorState addGraceNote(Grace kind) {
+    if (graceUnavailableReason != null) return this;
+    final (p, m) = (selectedPartIndex!, selectedMeasureIndex!);
+    final note = selectedSymbol as Note;
+    if (note.grace != null) {
+      if (note.grace == kind) return this;
+      final next = score.replaceSymbolAt(
+        p,
+        m,
+        selectedSymbolIndex!,
+        note.copyWith(grace: kind),
+      );
+      return applyEdit(
+        score: next,
+        selectedPartIndex: p,
+        selectedMeasureIndex: m,
+        selectedSymbolIndex: selectedSymbolIndex,
+        selectedSymbol: next.getSymbolAt(p, m, selectedSymbolIndex!),
+      );
+    }
+    // Before the chord the note belongs to.
+    final symbols = score.parts[p].measures[m].symbols;
+    var at = selectedSymbolIndex!;
+    while (at > 0 && symbols[at] is Note && (symbols[at] as Note).isChordTone) {
+      at--;
+    }
+    final grace = Note(
+      step: note.step,
+      octave: note.octave,
+      duration: 0,
+      type: 'eighth',
+      voice: note.voice,
+      staff: note.staff,
+      grace: kind,
+    );
+    final next = score.insertSymbolAt(p, m, at, grace);
+    return applyEdit(
+      score: next,
+      selectedPartIndex: p,
+      selectedMeasureIndex: m,
+      selectedSymbolIndex: at,
+      selectedSymbol: next.getSymbolAt(p, m, at),
     );
   }
 

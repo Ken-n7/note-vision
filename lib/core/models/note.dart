@@ -51,7 +51,12 @@ class Note extends ScoreSymbol {
     this.marks = const [],
     this.dynamicMark,
     this.lyrics = const [],
+    this.grace,
   }) : _legacyBeamed = beamed;
+
+  /// A grace note written before the next note: it takes no time in the bar
+  /// and borrows its sound from a neighbour in playback.
+  final Grace? grace;
 
   /// The tuplet this note belongs to, if any.
   final Tuplet? tuplet;
@@ -88,7 +93,9 @@ class Note extends ScoreSymbol {
     List<Articulation>? marks,
     Object? dynamicMark = _keep,
     List<Lyric>? lyrics,
+    Object? grace = _keep,
   }) => Note(
+    grace: identical(grace, _keep) ? this.grace : grace as Grace?,
     step: step ?? this.step,
     octave: octave ?? this.octave,
     alter: identical(alter, _keep) ? this.alter : alter as int?,
@@ -138,6 +145,7 @@ class Note extends ScoreSymbol {
     if (dynamicMark != null) 'dynamic': dynamicMark,
     if (lyrics.isNotEmpty)
       'lyrics': [for (final lyric in lyrics) lyric.toJson()],
+    if (grace != null) 'grace': grace!.name,
   };
 
   factory Note.fromJson(Map<String, dynamic> json) => Note(
@@ -145,6 +153,7 @@ class Note extends ScoreSymbol {
     marks: Articulation.listFromJson(json['marks']),
     dynamicMark: json['dynamic'] as String?,
     lyrics: Lyric.listFromJson(json['lyrics']),
+    grace: Grace.values.where((g) => g.name == json['grace']).firstOrNull,
     step: json['step'] as String,
     octave: json['octave'] as int,
     alter: json['alter'] as int?,
@@ -206,3 +215,8 @@ class Note extends ScoreSymbol {
       '${isChordTone ? ', isChordTone: true' : ''}'
       ')';
 }
+
+/// How a grace note is played, as MuseScore Studio plays it. An
+/// appoggiatura (no slash) takes its time from the start of its main note;
+/// an acciaccatura (slashed) from the end of the note before.
+enum Grace { appoggiatura, acciaccatura }

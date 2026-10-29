@@ -20,6 +20,9 @@ import 'voice_layout.dart';
 import 'lyric_layout.dart';
 import 'annotation_layout.dart';
 
+/// How large a grace note is drawn, editor and PDF.
+const double graceScale = 0.65;
+
 class ScoreNotationPainter extends CustomPainter {
   const ScoreNotationPainter({
     required this.parts,
@@ -1426,6 +1429,36 @@ class ScoreNotationPainter extends CustomPainter {
     bool drawStem = true,
     bool? stemUp,
   }) {
+    if (note.grace case final grace?) {
+      // Small, stem up and flagged; an acciaccatura's stem is slashed.
+      canvas
+        ..save()
+        ..translate(x, y)
+        ..scale(graceScale)
+        ..translate(-x, -y);
+      _drawNote(
+        canvas,
+        note.copyWith(grace: null),
+        x: x,
+        y: y,
+        middleLineY: middleLineY,
+        stemUp: true,
+      );
+      if (grace == Grace.acciaccatura) {
+        final stemX = x + ScoreNotationMetrics.stemXOffset;
+        final mid =
+            y - ScoreNotationMetrics.stemLengthFor(staffLineSpacing) * .6;
+        canvas.drawLine(
+          Offset(stemX - 6, mid + 5),
+          Offset(stemX + 8, mid - 5),
+          Paint()
+            ..color = const Color(0xFF111827)
+            ..strokeWidth = 1.4,
+        );
+      }
+      canvas.restore();
+      return;
+    }
     final normalizedType = note.type.trim().toLowerCase();
     final isBreve = normalizedType == 'breve';
     final isWhole = normalizedType == 'whole' || isBreve;

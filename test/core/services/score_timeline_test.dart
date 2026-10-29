@@ -162,18 +162,19 @@ void main() {
         ),
       );
       final before = builder.measure(score, 0, 0);
-      final note = score.getSymbolAt(0, 0, 2) as Note;
+      // Symbol 0 is the opening acciaccatura; 3 is the triplet D5.
+      final note = score.getSymbolAt(0, 0, 3) as Note;
       final json = note.toJson()
         ..['type'] = 'quarter'
         ..['duration'] = 2;
-      final edited = score.replaceSymbolAt(0, 0, 2, Note.fromJson(json));
+      final edited = score.replaceSymbolAt(0, 0, 3, Note.fromJson(json));
       final after = builder.measure(edited, 0, 0);
       expect(
-        after.symbols.firstWhere((e) => e.symbolIndex == 2).duration,
+        after.symbols.firstWhere((e) => e.symbolIndex == 3).duration,
         MusicalTime(2, 3),
       );
       expect(
-        after.symbols.firstWhere((e) => e.symbolIndex == 3).onset,
+        after.symbols.firstWhere((e) => e.symbolIndex == 4).onset,
         MusicalTime.one,
       );
       // The lower staff's voice, now its own linked part, does not move.
@@ -196,7 +197,7 @@ void main() {
           ).readAsStringSync(),
         ),
       );
-      final edited = score.deleteSymbolAt(0, 0, 2);
+      final edited = score.deleteSymbolAt(0, 0, 3);
       expect(
         () => builder.build(edited),
         throwsA(isA<ScoreTimelineException>()),

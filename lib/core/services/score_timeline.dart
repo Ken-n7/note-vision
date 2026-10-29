@@ -96,6 +96,8 @@ class ScoreTimelineBuilder {
   /// A note or rest's length as it sounds: its written value, shortened
   /// exactly by its tuplet.
   static MusicalTime writtenDuration(ScoreSymbol symbol) {
+    // A grace note takes no time in its bar.
+    if (symbol is Note && symbol.grace != null) return MusicalTime.zero;
     final tuplet = switch (symbol) {
       Note(:final tuplet) || Rest(:final tuplet) => tuplet,
       _ => null,

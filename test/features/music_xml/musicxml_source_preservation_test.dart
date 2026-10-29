@@ -60,17 +60,17 @@ void main() {
       expect(events[3].duration, MusicalTime(1, 3));
       expect(events[6].voice, '2');
       expect(events[6].staff, 2);
-      // Grace and percussion are retained despite having no editable symbol
-      // yet. Each staff of the piano is its own linked part.
+      // The grace note is an editable symbol; percussion is retained with
+      // none yet. Each staff of the piano is its own linked part.
       expect([for (final p in imported.parts) p.staff], [1, 2]);
       expect([
         for (final p in imported.parts) p.measures.first.symbols.length,
-      ], [5, 1]);
+      ], [6, 1]);
       expect(
         source.bindings
             .where((b) => b.measureIndex == 0)
             .map((b) => b.noteIndex),
-        [1, 2, 3, 4, 5, 7],
+        [0, 1, 2, 3, 4, 5, 7],
       );
       expect(source.requiresPreservation, isTrue);
     },
@@ -137,9 +137,10 @@ void main() {
   test(
     'pitch editing patches the bound source note after unsupported earlier notes',
     () {
+      // Symbol 3 is the D5 after the grace note and the C5–E5 chord.
       final state = EditorState(
         score: imported,
-      ).selectSymbolAt(partIndex: 0, measureIndex: 0, symbolIndex: 2);
+      ).selectSymbolAt(partIndex: 0, measureIndex: 0, symbolIndex: 3);
       final edited = state.moveSelectedSymbolUp();
       final output = XmlDocument.parse(exporter.toMusicXml(edited.score));
       final first = output.rootElement
@@ -312,8 +313,9 @@ void main() {
       <note><rest/><duration>3</duration><type>quarter</type></note>
     </part></measure></score-timewise>''';
       final score = converter.convert(XmlDocument.parse(xml));
+      // Symbol 0 is the grace note, 1 the C4.
       final edited = EditorState(score: score)
-          .selectSymbolAt(partIndex: 0, measureIndex: 0, symbolIndex: 0)
+          .selectSymbolAt(partIndex: 0, measureIndex: 0, symbolIndex: 1)
           .moveSelectedSymbolUp();
       final output = XmlDocument.parse(exporter.toMusicXml(edited.score));
       expect(output.rootElement.name.local, 'score-timewise');

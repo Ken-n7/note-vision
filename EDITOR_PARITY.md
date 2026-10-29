@@ -672,8 +672,39 @@ release 2004 played the same project with no errors. No iOS device test.
   acciaccatura takes the same from the end of the note before; several grace
   notes share one grace note's time.
 
-Next: Stage 4H part 2 — grace notes. Then 5A instrument sounds/mixer, 4I
-engraving (proportional spacing and collisions), 5C new-score wizard, 5D
-specialised notation. Retained-source rhythm export for complex documents,
+## Stage 4H (part 2) — grace notes
+
+- `Note.grace` (`Grace.appoggiatura` / `acciaccatura`): written before its
+  main note, it takes no time in the bar (`symbolQuarters`,
+  `writtenDuration`), so capacity, onsets and checks are unchanged. Imported
+  from `<grace>` / `<grace slash="yes"/>` (previously dropped) and exported
+  without `<duration>`, keeping grace beams. Retained-source timing already
+  read grace notes; they are now bound and editable.
+- Playback (`_applyGraces`), measured from MuseScore 4.7.5 (case 19): a
+  group takes one grace note's value, at most half the note it borrows
+  from, shared equally. An appoggiatura borrows from the start of its main
+  note (which starts later); an acciaccatura from the end of the note
+  before, across a barline too. MuseScore's MIDI export writes grace notes
+  with no length or leaves them out, but its main-note timings show the
+  rule; we sound the grace notes. With no note before (score start), an
+  acciaccatura sounds over the start of its main note.
+- Editor: Edit → Acciacc. / Appogg. tiles and search commands add an eighth
+  grace note at the selected note's pitch before it (before its chord) and
+  select it; on a grace note they change its kind. Lyrics skip grace notes;
+  beams and the genre model ignore them; multi-voice layout puts them just
+  before their main note.
+- Drawing (editor and PDF): 65% size, stem up and flagged, slashed for an
+  acciaccatura (`graceScale`).
+- Parity: `09_grace_notes` notation 12/12, playback 8/9; `19_grace_timing`
+  28/28 and 30/31. The one playback difference in each is the opening grace
+  note, which MuseScore's MIDI gives no length; the extra Note Vision facts
+  are grace notes its MIDI omits.
+- Not yet: grace notes after a note, grace chords, beamed grace drawing (each
+  is flagged), proportional spacing (a grace note takes a full column; 4I).
+  MuseScore plays an imported underfull bar at its written length; we keep
+  the meter's length.
+
+Next: 5A instrument sounds/mixer, then 4I engraving (proportional spacing
+and collisions), 5C new-score wizard, 5D specialised notation. Retained-source rhythm export for complex documents,
 global timewise measure slots and richer editable notation still need work;
 continue using the Stage 2B timeline rather than adding flat-list timing rules.

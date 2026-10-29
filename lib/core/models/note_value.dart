@@ -51,6 +51,7 @@ double quarterLength(String type, int dots, int divisions) {
 /// Length in quarter notes of a note or rest as it sounds: its written value,
 /// shortened by its tuplet (a triplet eighth is a third of a quarter).
 double symbolQuarters(ScoreSymbol symbol) => switch (symbol) {
+  Note(grace: _?) => 0,
   Note(:final type, :final dots, :final duration, :final tuplet) ||
   Rest(
     :final type,

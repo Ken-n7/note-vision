@@ -2736,6 +2736,17 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       onTriplet: _editorState.tupletUnavailableReason(3) == null
                           ? () => _runEditorCommand(EditorCommand.triplet)
                           : null,
+                      selectedGrace: switch (_editorState.selectedSymbol) {
+                        Note(:final grace) => grace,
+                        _ => null,
+                      },
+                      onGrace: _editorState.graceUnavailableReason == null
+                          ? (kind) => _runEditorCommand(
+                              kind == Grace.acciaccatura
+                                  ? EditorCommand.acciaccatura
+                                  : EditorCommand.appoggiatura,
+                            )
+                          : null,
                       markStates: {
                         for (final mark in Articulation.values)
                           mark: _editorState.markUnavailableReason(mark) == null
@@ -4913,6 +4924,8 @@ class _InspectorPanel extends StatefulWidget {
     required this.onTie,
     required this.onSlur,
     required this.onTriplet,
+    required this.selectedGrace,
+    required this.onGrace,
     required this.onLyrics,
     required this.onAnnotations,
     required this.rangeCount,
@@ -4975,6 +4988,8 @@ class _InspectorPanel extends StatefulWidget {
   final VoidCallback onMoveDown;
   final VoidCallback? onOctaveUp, onOctaveDown, onConvertSymbol, onAddThird;
   final VoidCallback? onTie, onSlur, onTriplet, onLyrics, onAnnotations;
+  final Grace? selectedGrace;
+  final ValueChanged<Grace>? onGrace;
 
   /// Symbols in a range selection; 0 without one.
   final int rangeCount;
@@ -5546,6 +5561,29 @@ class _InspectorPanelState extends State<_InspectorPanel> {
                     'Three shorter notes in this note\'s time (Ctrl/Cmd + 3; 5, 6, 7 for other tuplets)',
                 onPressed: _wrapAction(widget.onTriplet),
               ),
+              for (final (kind, label, tip) in const [
+                (
+                  Grace.acciaccatura,
+                  'Acciacc.',
+                  'Acciaccatura: a slashed grace note before this note',
+                ),
+                (
+                  Grace.appoggiatura,
+                  'Appogg.',
+                  'Appoggiatura: a grace note before this note, on the beat',
+                ),
+              ])
+                _ActionTile(
+                  icon: kind == Grace.acciaccatura
+                      ? Icons.music_note_outlined
+                      : Icons.music_note_rounded,
+                  label: label,
+                  tooltip: tip,
+                  selected: widget.selectedGrace == kind,
+                  onPressed: _wrapAction(
+                    widget.onGrace == null ? null : () => widget.onGrace!(kind),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 8),
