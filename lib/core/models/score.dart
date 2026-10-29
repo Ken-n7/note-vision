@@ -156,7 +156,12 @@ class Score {
       changed |= partChanged;
       updatedParts.add(
         partChanged
-            ? Part(id: part.id, name: part.name, staff: part.staff, measures: measures)
+            ? Part(
+                id: part.id,
+                name: part.name,
+                staff: part.staff,
+                measures: measures,
+              )
             : part,
       );
     }
@@ -255,7 +260,6 @@ class Score {
         continue;
       }
       final sp = other.parts[i];
-      final existingCount = cp.measures.length;
       updatedParts.add(
         Part(
           id: cp.id,
@@ -266,7 +270,7 @@ class Score {
             for (int j = 0; j < sp.measures.length; j++)
               _copyMeasure(
                 sp.measures[j],
-                number: existingCount + j + 1,
+                number: (cp.measures.lastOrNull?.number ?? 0) + j + 1,
                 startsNewPage: j == 0, // each scanned page starts a new page
               ),
           ],
@@ -338,6 +342,23 @@ class Score {
     return copyWith(parts: updatedParts);
   }
 
+  /// Leaves the bar at [measureIndex] out of the bar count (a pickup) in
+  /// every part, or counts it again, renumbering the bars.
+  Score setMeasureImplicit(int measureIndex, bool implicit) => copyWith(
+    parts: [
+      for (final part in parts)
+        Part(
+          id: part.id,
+          name: part.name,
+          staff: part.staff,
+          measures: _renumberMeasures([
+            for (final (i, m) in part.measures.indexed)
+              i == measureIndex ? m.copyWith(implicit: implicit) : m,
+          ]),
+        ),
+    ],
+  );
+
   Score reorderSymbol(
     int partIndex,
     int measureIndex,
@@ -398,10 +419,12 @@ class Score {
     return copyWith(parts: updatedParts);
   }
 
+  /// Numbers bars from 1 in order; a pickup (implicit bar) is not counted
+  /// and takes the number before it (0 at the start), as MuseScore numbers.
   List<Measure> _renumberMeasures(List<Measure> measures) {
+    var n = 0;
     return [
-      for (int i = 0; i < measures.length; i++)
-        _copyMeasure(measures[i], number: i + 1),
+      for (final m in measures) _copyMeasure(m, number: m.implicit ? n : ++n),
     ];
   }
 

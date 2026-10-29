@@ -35,10 +35,10 @@ class SignatureInferrer {
     if (timeEntries.isEmpty) return null;
 
     if (timeEntries.any((e) => e.symbol.type == 'timeSigCommon')) {
-      return const TimeSignature(beats: 4, beatType: 4);
+      return TimeSignature.common;
     }
     if (timeEntries.any((e) => e.symbol.type == 'timeSigCutCommon')) {
-      return const TimeSignature(beats: 2, beatType: 2);
+      return TimeSignature.cut;
     }
 
     final digits =

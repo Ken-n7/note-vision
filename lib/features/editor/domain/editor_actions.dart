@@ -521,7 +521,7 @@ extension EditorActions on EditorState {
           measures: [
             ...part.measures,
             Measure(
-              number: part.measures.length + 1,
+              number: (part.measures.lastOrNull?.number ?? 0) + 1,
               symbols: const [],
               startsNewPage: true,
             ),
@@ -1249,6 +1249,84 @@ extension EditorActions on EditorState {
       partIndex: selectedPartIndex!,
       measureIndex: notes[target].measure,
       symbolIndex: notes[target].symbol,
+    );
+  }
+
+  /// Why the selected bar cannot become one bar rest, or null.
+  String? get barRestUnavailableReason {
+    if (!hasMeasureContext) return 'Select a bar';
+    final measure =
+        score.parts[selectedPartIndex!].measures[selectedMeasureIndex!];
+    if (measure.symbols.any((s) => s is Note)) {
+      return 'Clear the bar\'s notes first';
+    }
+    final meter = ScoreTimelineBuilder.activeMeter(
+      score,
+      selectedPartIndex!,
+      selectedMeasureIndex!,
+    );
+    if (meter == null) return 'Set a time signature first';
+    if (valueForQuarters(meter.beats * 4 / meter.beatType) == null) {
+      return 'No single rest fills ${meter.beats}/${meter.beatType}';
+    }
+    if (measure.symbols case [Rest(measureRest: true)]) {
+      return 'This bar already has a bar rest';
+    }
+    return null;
+  }
+
+  /// Fills the selected bar of the selected staff with one bar rest,
+  /// replacing its rests, as MuseScore shows an empty bar.
+  EditorState setBarRest() {
+    if (barRestUnavailableReason != null) return this;
+    final (p, m) = (selectedPartIndex!, selectedMeasureIndex!);
+    final meter = ScoreTimelineBuilder.activeMeter(score, p, m)!;
+    final quarters = meter.beats * 4 / meter.beatType;
+    final (type, dots) = valueForQuarters(quarters)!;
+    final rest = Rest(
+      duration: (quarters * 2).round(),
+      type: type,
+      dots: dots,
+      measureRest: true,
+    );
+    final part = score.parts[p];
+    final next = score.copyWith(
+      parts: [
+        for (final (i, other) in score.parts.indexed)
+          i != p
+              ? other
+              : Part(
+                  id: part.id,
+                  name: part.name,
+                  staff: part.staff,
+                  measures: [
+                    for (final (j, bar) in part.measures.indexed)
+                      j == m ? bar.copyWith(symbols: [rest]) : bar,
+                  ],
+                ),
+      ],
+    );
+    return applyEdit(
+      score: next,
+      selectedPartIndex: p,
+      selectedMeasureIndex: m,
+      selectedSymbolIndex: 0,
+      selectedSymbol: next.getSymbolAt(p, m, 0),
+    );
+  }
+
+  /// Whether the selected bar is left out of the bar count (null: none).
+  bool? get selectedMeasureImplicit =>
+      hasMeasureContext ? _barAt(selectedMeasureIndex!)?.implicit : null;
+
+  /// Leaves the selected bar out of the bar count, as a pickup, or counts
+  /// it again, in every staff.
+  EditorState toggleMeasureImplicit() {
+    final on = selectedMeasureImplicit;
+    if (on == null) return this;
+    return _applySelectionPreservingEdit(
+      intent: EditorEditIntent.updateMeasureMetadata,
+      score: score.setMeasureImplicit(selectedMeasureIndex!, !on),
     );
   }
 

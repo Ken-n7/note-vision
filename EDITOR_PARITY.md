@@ -643,7 +643,37 @@ release 2004 played the same project with no errors. No iOS device test.
   [MusicXML directions](https://www.w3.org/2021/06/musicxml40/musicxml-reference/elements/direction/)
   and [harmonies](https://www.w3.org/2021/06/musicxml40/musicxml-reference/elements/harmony/).
 
-Next: Stage 4H — engraving/layout (proportional spacing and collisions), then
-Stage 5 playback/polish. Retained-source rhythm export for complex documents,
+## Stage 4H (part 1) — bar rests, pickups, common and cut time
+
+- `Rest.measureRest`: a whole-bar rest (`<rest measure="yes"/>`, written
+  without `<type>` as MuseScore writes it). Its type and dots still give its
+  length; any change of length makes it an ordinary rest (`copyWith`). Drawn
+  as a whole rest centred in the bar in every meter, editor and PDF. Bar
+  tools → Measures → Bar rest (and search) fills an empty or rests-only bar
+  of the selected staff; refused where no single value fills the meter
+  (5/4).
+- `Measure.implicit`: a pickup or other bar left out of the count
+  (`implicit="yes"`). Bars are numbered as MuseScore numbers them: a leading
+  pickup is 0 and is not labelled; inserting, deleting and appending bars
+  keep the count. Bar tools → Measures → Pickup (and search) toggles it in
+  every staff.
+- `TimeSignature.symbol` (`TimeSymbol.common` / `cut`, `TimeSignature.common`
+  and `.cut`): imported and exported as `<time symbol>`, drawn as C / ¢ in
+  editor and PDF, saved in projects; the scanner's C and cut-time detections
+  now keep their sign. Bar tools → Time adds C and ¢ beside 4/4 and 2/2.
+- `valueForQuarters` (note_value.dart) is shared by the importer and the
+  editor.
+- Parity: `01_note_values` 20/20 and 17/17, `03_clefs_meters` 23/23 and
+  13/13 (both were missing bar rests, pickup and C/¢).
+- New case `19_grace_timing` records MuseScore's grace-note timing for part
+  2. MuseScore's MIDI export writes appoggiaturas and acciaccaturas with no
+  length or not at all, but moves the main notes: an appoggiatura takes its
+  value (at most half the main note) from the main note's start; an
+  acciaccatura takes the same from the end of the note before; several grace
+  notes share one grace note's time.
+
+Next: Stage 4H part 2 — grace notes. Then 5A instrument sounds/mixer, 4I
+engraving (proportional spacing and collisions), 5C new-score wizard, 5D
+specialised notation. Retained-source rhythm export for complex documents,
 global timewise measure slots and richer editable notation still need work;
 continue using the Stage 2B timeline rather than adding flat-list timing rules.

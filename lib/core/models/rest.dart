@@ -27,7 +27,12 @@ class Rest extends ScoreSymbol {
     this.tuplet,
     this.marks = const [],
     this.dynamicMark,
+    this.measureRest = false,
   });
+
+  /// A whole-bar rest: drawn centred in its bar whatever the meter, written
+  /// `<rest measure="yes"/>`. [type] and [dots] still give its length.
+  final bool measureRest;
 
   /// The tuplet this rest belongs to, if any.
   final Tuplet? tuplet;
@@ -54,7 +59,16 @@ class Rest extends ScoreSymbol {
     Object? tuplet = _keep,
     List<Articulation>? marks,
     Object? dynamicMark = _keep,
+    bool? measureRest,
   }) => Rest(
+    // A new length makes it an ordinary rest.
+    measureRest:
+        measureRest ??
+        (this.measureRest &&
+            duration == null &&
+            type == null &&
+            dots == null &&
+            identical(tuplet, _keep)),
     duration: duration ?? this.duration,
     type: type ?? this.type,
     voice: identical(voice, _keep) ? this.voice : voice as int?,
@@ -86,12 +100,14 @@ class Rest extends ScoreSymbol {
     if (tuplet != null) 'tuplet': tuplet!.toJson(),
     if (marks.isNotEmpty) 'marks': [for (final m in marks) m.name],
     if (dynamicMark != null) 'dynamic': dynamicMark,
+    if (measureRest) 'measureRest': true,
   };
 
   factory Rest.fromJson(Map<String, dynamic> json) => Rest(
     tuplet: Tuplet.fromJson(json['tuplet']),
     marks: Articulation.listFromJson(json['marks']),
     dynamicMark: json['dynamic'] as String?,
+    measureRest: json['measureRest'] as bool? ?? false,
     duration: json['duration'] as int,
     type: json['type'] as String,
     voice: json['voice'] as int?,

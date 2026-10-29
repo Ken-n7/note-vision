@@ -224,7 +224,10 @@ class MusicXmlExportService {
     final measure = staffMeasures.first;
     b.element(
       'measure',
-      attributes: {'number': measure.number.toString()},
+      attributes: {
+        'number': measure.number.toString(),
+        if (measure.implicit) 'implicit': 'yes',
+      },
       nest: () {
         if (!isFirst && (measure.startsNewPage || measure.startsNewSystem)) {
           b.element('print', attributes: {
@@ -249,7 +252,10 @@ class MusicXmlExportService {
             }
 
             if (measure.timeSignature != null) {
-              b.element('time', nest: () {
+              final symbol = measure.timeSignature!.symbol;
+              b.element('time',
+                  attributes: {if (symbol != null) 'symbol': symbol.name},
+                  nest: () {
                 b.element('beats', nest: measure.timeSignature!.beats.toString());
                 b.element('beat-type', nest: measure.timeSignature!.beatType.toString());
               });
@@ -510,13 +516,15 @@ class MusicXmlExportService {
 
   void _buildRest(XmlBuilder b, Rest rest, _Marks marks) {
     b.element('note', nest: () {
-      b.element('rest');
+      b.element('rest',
+          attributes: {if (rest.measureRest) 'measure': 'yes'});
       b.element('duration', nest: '${marks.duration(rest)}');
       if (rest.voice != null) {
         b.element('voice', nest: rest.voice.toString());
       }
-      b.element('type', nest: musicXmlType(rest.type));
-      if (rest.dots > 0) {
+      // A bar rest takes its length from the bar, as MuseScore writes it.
+      if (!rest.measureRest) b.element('type', nest: musicXmlType(rest.type));
+      if (!rest.measureRest && rest.dots > 0) {
         for (var i = 0; i < rest.dots; i++) {
           b.element('dot');
         }

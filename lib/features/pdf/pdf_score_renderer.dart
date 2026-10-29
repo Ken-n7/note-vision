@@ -484,7 +484,13 @@ class PdfScoreRenderer {
   double get _dynamicsBelow => 22 * _scale;
 
   /// [mark] centred at ([x], [y]), as in the editor.
-  void _drawDynamic(PdfGraphics g, PdfFont font, String mark, double x, double y) {
+  void _drawDynamic(
+    PdfGraphics g,
+    PdfFont font,
+    String mark,
+    double x,
+    double y,
+  ) {
     final size = 14 * _scale;
     final width = font.stringMetrics(mark).width * size;
     _text(g, font, size, mark, x - width / 2, y - size * 0.35);
@@ -521,7 +527,12 @@ class PdfScoreRenderer {
               ..setLineWidth(width * _scale)
               ..strokePath();
           }
-        case MarkCurve(:final start, :final segments, :final width, :final filled):
+        case MarkCurve(
+          :final start,
+          :final segments,
+          :final width,
+          :final filled,
+        ):
           g.moveTo(px(start.$1), py(start.$2));
           for (final (c1, c2, end) in segments) {
             g.curveTo(
@@ -545,7 +556,14 @@ class PdfScoreRenderer {
         case MarkText(:final text, x: final dx, y: final dy, :final size):
           final scaled = size * _scale;
           final width = font.stringMetrics(text).width * scaled;
-          _text(g, font, scaled, text, px(dx) - width / 2, py(dy) - scaled * 0.35);
+          _text(
+            g,
+            font,
+            scaled,
+            text,
+            px(dx) - width / 2,
+            py(dy) - scaled * 0.35,
+          );
       }
     }
   }
@@ -714,10 +732,38 @@ class PdfScoreRenderer {
     g
       ..setColor(_ink)
       ..moveTo(x, upperTop)
-      ..curveTo(x - w * 1.4, upperTop - 6 * s, x + w * 0.2, mid + 8 * s, x - w, mid)
-      ..curveTo(x + w * 0.2, mid - 8 * s, x - w * 1.4, lowerBottom + 6 * s, x, lowerBottom)
-      ..curveTo(x - w * 0.9, lowerBottom + 6 * s, x - w * 0.4, mid - 6 * s, x - w - 1.5 * s, mid)
-      ..curveTo(x - w * 0.4, mid + 6 * s, x - w * 0.9, upperTop - 6 * s, x, upperTop)
+      ..curveTo(
+        x - w * 1.4,
+        upperTop - 6 * s,
+        x + w * 0.2,
+        mid + 8 * s,
+        x - w,
+        mid,
+      )
+      ..curveTo(
+        x + w * 0.2,
+        mid - 8 * s,
+        x - w * 1.4,
+        lowerBottom + 6 * s,
+        x,
+        lowerBottom,
+      )
+      ..curveTo(
+        x - w * 0.9,
+        lowerBottom + 6 * s,
+        x - w * 0.4,
+        mid - 6 * s,
+        x - w - 1.5 * s,
+        mid,
+      )
+      ..curveTo(
+        x - w * 0.4,
+        mid + 6 * s,
+        x - w * 0.9,
+        upperTop - 6 * s,
+        x,
+        upperTop,
+      )
       ..closePath()
       ..fillPath();
   }
@@ -876,8 +922,7 @@ class PdfScoreRenderer {
           fontBold,
           sigX + 10 * _scale,
           staffTop,
-          first.timeSignature!.beats,
-          first.timeSignature!.beatType,
+          first.timeSignature!,
         );
       }
     }
@@ -906,8 +951,7 @@ class PdfScoreRenderer {
           fontBold,
           measureStartX + ScoreNotationMetrics.timeSignatureInMeasureX * _scale,
           staffTop,
-          measure.timeSignature!.beats,
-          measure.timeSignature!.beatType,
+          measure.timeSignature!,
         );
       }
 
@@ -930,7 +974,7 @@ class PdfScoreRenderer {
       );
 
       // Measure number (once per grand staff, above the upper staff)
-      if (numberBars) {
+      if (numberBars && !measure.implicit) {
         _text(
           g,
           font,
@@ -1458,6 +1502,8 @@ class PdfScoreRenderer {
     required double x,
     required double staffTop,
   }) {
+    // A bar rest is drawn as a whole rest in any meter.
+    if (rest.measureRest) rest = rest.copyWith(type: 'whole', dots: 0);
     final type = rest.type.trim().toLowerCase();
     g.setColor(_ink);
 
@@ -1929,9 +1975,21 @@ class PdfScoreRenderer {
     PdfFont font,
     double x,
     double staffTop,
-    int beats,
-    int beatType,
+    TimeSignature signature,
   ) {
+    final size = ScoreNotationMetrics.timeSignatureFontSize * _scale;
+    if (signature.symbol case final symbol?) {
+      // C or ¢ on the middle line, about two spaces tall (y points up; a
+      // capital's middle sits about 0.35 of the size above the baseline).
+      final mid = staffTop - 2 * _ls;
+      _text(g, font, size * 1.35, 'C', x, mid - 0.35 * size * 1.35);
+      if (symbol == TimeSymbol.cut) {
+        final cx = x + font.stringMetrics('C').width * size * 1.35 / 2;
+        _line(g, cx, mid + 2.6 * _ls, cx, mid - 2.6 * _ls, 1.2 * _scale);
+      }
+      return;
+    }
+    final beats = signature.beats, beatType = signature.beatType;
     _text(
       g,
       font,

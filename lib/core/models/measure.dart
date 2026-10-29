@@ -20,6 +20,10 @@ class Measure {
   final List<ScoreSymbol> symbols;
   final bool startsNewPage;
   final bool startsNewSystem;
+
+  /// A pickup (anacrusis) or other incomplete bar left out of the bar count,
+  /// MusicXML's `implicit="yes"`.
+  final bool implicit;
   final BarlineType? leftBarlineType;
   final BarlineType? rightBarlineType;
 
@@ -43,6 +47,7 @@ class Measure {
     required this.symbols,
     this.startsNewPage = false,
     this.startsNewSystem = false,
+    this.implicit = false,
     this.leftBarlineType,
     this.rightBarlineType,
     this.endingStart = const [],
@@ -65,6 +70,7 @@ class Measure {
     List<ScoreSymbol>? symbols,
     bool? startsNewPage,
     bool? startsNewSystem,
+    bool? implicit,
     Object? leftBarlineType = _keep,
     Object? rightBarlineType = _keep,
     List<int>? endingStart,
@@ -85,6 +91,7 @@ class Measure {
     symbols: symbols ?? this.symbols,
     startsNewPage: startsNewPage ?? this.startsNewPage,
     startsNewSystem: startsNewSystem ?? this.startsNewSystem,
+    implicit: implicit ?? this.implicit,
     leftBarlineType: identical(leftBarlineType, _keep)
         ? this.leftBarlineType
         : leftBarlineType as BarlineType?,
@@ -111,6 +118,7 @@ class Measure {
     'symbols': symbols.map((s) => s.toJson()).toList(),
     if (startsNewPage) 'startsNewPage': true,
     if (startsNewSystem) 'startsNewSystem': true,
+    if (implicit) 'implicit': true,
     if (leftBarlineType != null) 'leftBarlineType': leftBarlineType!.jsonValue,
     if (rightBarlineType != null)
       'rightBarlineType': rightBarlineType!.jsonValue,
@@ -146,6 +154,7 @@ class Measure {
         .toList(),
     startsNewPage: json['startsNewPage'] as bool? ?? false,
     startsNewSystem: json['startsNewSystem'] as bool? ?? false,
+    implicit: json['implicit'] as bool? ?? false,
     leftBarlineType: json['leftBarlineType'] != null
         ? BarlineType.fromJsonValue(json['leftBarlineType'] as String)
         : null,

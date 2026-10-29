@@ -1936,6 +1936,22 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 ? 'Select a bar with eighth or sixteenth notes'
                 : null),
       ),
+      EditorCommandChoice(
+        id: 'workspace.pickup',
+        label: 'Pickup bar',
+        group: 'Bars',
+        description: 'Leave the selected bar out of the bar count',
+        disabledReason:
+            lock ??
+            (state.selectedMeasureImplicit == null ? 'Select a bar' : null),
+      ),
+      EditorCommandChoice(
+        id: 'workspace.barRest',
+        label: 'Bar rest',
+        group: 'Bars',
+        description: 'Fill the selected bar with one whole-bar rest',
+        disabledReason: lock ?? state.barRestUnavailableReason,
+      ),
       for (final sign in BarSign.values)
         EditorCommandChoice(
           id: 'workspace.bar.${sign.name}',
@@ -2085,6 +2101,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         await _showTranspose();
       case 'workspace.staves':
         await _showStaves();
+      case 'workspace.pickup':
+        if (_commandEditLock == null) {
+          _updateState((s) => s.toggleMeasureImplicit());
+        }
+      case 'workspace.barRest':
+        if (_commandEditLock == null) _updateState((s) => s.setBarRest());
       case final id when id.startsWith('workspace.bar.'):
         final sign = BarSign.values.byName(
           id.substring('workspace.bar.'.length),
@@ -2812,6 +2834,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                         (s) =>
                             s.setTimeSignatureAtSelectedMeasure(timeSignature),
                       ),
+                      measureImplicit: _editorState.selectedMeasureImplicit,
+                      onTogglePickup: () =>
+                          _updateState((s) => s.toggleMeasureImplicit()),
+                      onBarRest: _editorState.barRestUnavailableReason == null
+                          ? () => _updateState((s) => s.setBarRest())
+                          : null,
                       barSignOn: _editorState.barSignOn,
                       onBarSign: (sign) =>
                           _updateState((s) => s.toggleBarSign(sign)),
@@ -4908,6 +4936,9 @@ class _InspectorPanel extends StatefulWidget {
     required this.currentMeasureClef,
     required this.currentTimeSignature,
     required this.onSetTimeSignature,
+    required this.measureImplicit,
+    required this.onTogglePickup,
+    required this.onBarRest,
     required this.barSignOn,
     required this.onBarSign,
     required this.onSetClef,
@@ -4971,6 +5002,9 @@ class _InspectorPanel extends StatefulWidget {
   final Clef? currentMeasureClef;
   final TimeSignature? currentTimeSignature;
   final ValueChanged<TimeSignature> onSetTimeSignature;
+  final bool? measureImplicit;
+  final VoidCallback onTogglePickup;
+  final VoidCallback? onBarRest;
   final bool? Function(BarSign sign) barSignOn;
   final ValueChanged<BarSign> onBarSign;
   final ValueChanged<Clef?> onSetClef;
@@ -5135,25 +5169,24 @@ class _InspectorPanelState extends State<_InspectorPanel> {
       _ActionGroup(
         label: 'TIME',
         children: [
-          for (final (beats, beatType, name) in const [
-            (2, 4, 'Two'),
-            (3, 4, 'Three'),
-            (4, 4, 'Common'),
-            (2, 2, 'Cut'),
-            (3, 8, 'Three'),
-            (6, 8, 'Six'),
+          for (final (time, short, name) in const [
+            (TimeSignature(beats: 2, beatType: 4), '2/4', 'Two'),
+            (TimeSignature(beats: 3, beatType: 4), '3/4', 'Three'),
+            (TimeSignature(beats: 4, beatType: 4), '4/4', 'Four'),
+            (TimeSignature.common, 'C', 'Common'),
+            (TimeSignature(beats: 2, beatType: 2), '2/2', 'Two'),
+            (TimeSignature.cut, '¢', 'Cut'),
+            (TimeSignature(beats: 3, beatType: 8), '3/8', 'Three'),
+            (TimeSignature(beats: 6, beatType: 8), '6/8', 'Six'),
           ])
             _ClefTile(
-              shortLabel: '$beats/$beatType',
+              shortLabel: short,
               label: name,
-              isActive:
-                  widget.currentTimeSignature?.beats == beats &&
-                  widget.currentTimeSignature?.beatType == beatType,
+              semanticLabel: '$name time, ${time.beats}/${time.beatType}',
+              isActive: widget.currentTimeSignature == time,
               onPressed: _wrapAction(
                 hasMeasureContext
-                    ? () => widget.onSetTimeSignature(
-                        TimeSignature(beats: beats, beatType: beatType),
-                      )
+                    ? () => widget.onSetTimeSignature(time)
                     : null,
               ),
             ),
@@ -5268,6 +5301,22 @@ class _InspectorPanelState extends State<_InspectorPanel> {
               widget.canDeleteMeasure ? widget.onDeleteMeasure : null,
             ),
             danger: true,
+          ),
+          _ActionTile(
+            icon: Icons.first_page_rounded,
+            label: 'Pickup',
+            tooltip:
+                'Leave this bar out of the bar count, as a pickup or other incomplete bar',
+            selected: widget.measureImplicit ?? false,
+            onPressed: _wrapAction(
+              widget.measureImplicit == null ? null : widget.onTogglePickup,
+            ),
+          ),
+          _ActionTile(
+            icon: Icons.crop_7_5_rounded,
+            label: 'Bar rest',
+            tooltip: 'Fill this bar with one rest lasting the whole bar',
+            onPressed: _wrapAction(widget.onBarRest),
           ),
         ],
       ),

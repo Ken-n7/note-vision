@@ -539,6 +539,7 @@ class MusicXmlScoreConverter {
       symbols: symbols,
       startsNewPage: startsNewPage,
       startsNewSystem: startsNewSystem,
+      implicit: measureElement.getAttribute('implicit') == 'yes',
       leftBarlineType: leftBarlineType,
       rightBarlineType: rightBarlineType,
       endingStart: _endingStart(measureElement),
@@ -666,7 +667,7 @@ class MusicXmlScoreConverter {
     final rest = _firstOrNull(noteElement.findElements('rest'));
     final isBarRest = rest?.getAttribute('measure') == 'yes';
     if (type == null || type.isEmpty || isBarRest) {
-      final value = _valueForQuarters(rawDuration! / divisionsPerQuarter);
+      final value = valueForQuarters(rawDuration! / divisionsPerQuarter);
       if (value != null) {
         (type, dots) = value;
       } else if (isBarRest || rest != null) {
@@ -693,6 +694,7 @@ class MusicXmlScoreConverter {
         dots: dots,
         tuplet: tuplet,
         marks: marks,
+        measureRest: isBarRest,
       );
     }
 
@@ -778,25 +780,6 @@ class MusicXmlScoreConverter {
     return Map.unmodifiable(values);
   }
 
-  /// The written value (type and dots) that lasts [quarters] quarter notes,
-  /// or null when no single note value does.
-  (String, int)? _valueForQuarters(double quarters) {
-    for (final type in const [
-      'whole',
-      'half',
-      'quarter',
-      'eighth',
-      'sixteenth',
-    ]) {
-      for (var dots = 0; dots <= 2; dots++) {
-        if ((quarterLength(type, dots, 0) - quarters).abs() < 1e-6) {
-          return (type, dots);
-        }
-      }
-    }
-    return null;
-  }
-
   Clef? _buildClef(XmlElement? attributes) {
     final clefElement = attributes == null
         ? null
@@ -830,7 +813,13 @@ class MusicXmlScoreConverter {
       return null;
     }
 
-    return TimeSignature(beats: beats, beatType: beatType);
+    return TimeSignature(
+      beats: beats,
+      beatType: beatType,
+      symbol: TimeSymbol.values
+          .where((s) => s.name == timeElement.getAttribute('symbol'))
+          .firstOrNull,
+    );
   }
 
   KeySignature? _buildKeySignature(XmlElement? attributes) {

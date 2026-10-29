@@ -98,8 +98,10 @@ class ScoreNotationPainter extends CustomPainter {
   final int? playbackNextSymbolIndex;
   final int? playheadPartIndex;
   final int? playheadMeasureIndex;
+
   /// Index of the symbol within its measure that the playhead is on.
   final int? playheadSymbolIndex;
+
   /// 0→1 fractional progress within the current note (from AnimationController).
   final double playbackProgress;
   final bool showPlaybackSymbolHighlight;
@@ -673,8 +675,9 @@ class ScoreNotationPainter extends CustomPainter {
       final measureX = row.contentStartX + (measureInRow * minMeasureWidth);
       final nextMeasureX = measureX + minMeasureWidth;
 
-      // A grand staff numbers its bars once, above the upper staff.
-      if (!joinedParts.contains(row.partIndex)) {
+      // A grand staff numbers its bars once, above the upper staff; a
+      // pickup is not numbered.
+      if (!joinedParts.contains(row.partIndex) && !measure.implicit) {
         _drawMeasureNumber(
           canvas,
           text: '${measure.number}',
@@ -751,8 +754,12 @@ class ScoreNotationPainter extends CustomPainter {
     final barMark = issueMarks['$partIndex:$absoluteMeasureIndex'];
     if (barMark != null) {
       canvas.drawRect(
-        Rect.fromLTRB(measureStartX + 1, staffTop - 10, measureEndX - 1,
-            staffBottom + 10),
+        Rect.fromLTRB(
+          measureStartX + 1,
+          staffTop - 10,
+          measureEndX - 1,
+          staffBottom + 10,
+        ),
         Paint()..color = barMark.withValues(alpha: 0.12),
       );
     }
@@ -892,8 +899,9 @@ class ScoreNotationPainter extends CustomPainter {
         }
         final isSelected =
             selectedPartIndex == partIndex &&
-            selectedMeasureIndex == absoluteMeasureIndex &&
-            (selectedSymbolIndex == i || selectedSymbolIndices.contains(i)) ||
+                selectedMeasureIndex == absoluteMeasureIndex &&
+                (selectedSymbolIndex == i ||
+                    selectedSymbolIndices.contains(i)) ||
             selectedPartIndex == partIndex &&
                 rangeSymbols.contains((absoluteMeasureIndex, i));
         final isPlaying =
@@ -904,7 +912,13 @@ class ScoreNotationPainter extends CustomPainter {
           _drawPlaybackHighlight(canvas, Offset(x, y));
         }
         if (isSelected) _drawSelectionHighlight(canvas, Offset(x, y));
-        _drawIssueMark(canvas, partIndex, absoluteMeasureIndex, i, Offset(x, y));
+        _drawIssueMark(
+          canvas,
+          partIndex,
+          absoluteMeasureIndex,
+          i,
+          Offset(x, y),
+        );
         _drawNote(
           canvas,
           symbol,
@@ -928,8 +942,9 @@ class ScoreNotationPainter extends CustomPainter {
             restShift;
         final isSelected =
             selectedPartIndex == partIndex &&
-            selectedMeasureIndex == absoluteMeasureIndex &&
-            (selectedSymbolIndex == i || selectedSymbolIndices.contains(i)) ||
+                selectedMeasureIndex == absoluteMeasureIndex &&
+                (selectedSymbolIndex == i ||
+                    selectedSymbolIndices.contains(i)) ||
             selectedPartIndex == partIndex &&
                 rangeSymbols.contains((absoluteMeasureIndex, i));
         final isPlaying =
@@ -940,7 +955,13 @@ class ScoreNotationPainter extends CustomPainter {
           _drawPlaybackHighlight(canvas, Offset(x, y));
         }
         if (isSelected) _drawSelectionHighlight(canvas, Offset(x, y));
-        _drawIssueMark(canvas, partIndex, absoluteMeasureIndex, i, Offset(x, y));
+        _drawIssueMark(
+          canvas,
+          partIndex,
+          absoluteMeasureIndex,
+          i,
+          Offset(x, y),
+        );
         _drawRest(canvas, symbol, x: x, staffTop: staffTop + restShift);
         tupletPoints[i] = (Offset(x, y), 10.0);
         if ((symbol.reviewId, row) case (final id?, final row?)) {
@@ -1194,10 +1215,11 @@ class ScoreNotationPainter extends CustomPainter {
     if (partIndex == null || measureIndex == null) return;
 
     // Find the row that contains this measure.
-    final partRows = rows
-        .where((r) => r.partIndex == partIndex)
-        .toList()
-      ..sort((a, b) => a.globalStartMeasureIndex.compareTo(b.globalStartMeasureIndex));
+    final partRows = rows.where((r) => r.partIndex == partIndex).toList()
+      ..sort(
+        (a, b) =>
+            a.globalStartMeasureIndex.compareTo(b.globalStartMeasureIndex),
+      );
     if (partRows.isEmpty) return;
 
     _RowMetrics? currentRow;
@@ -1218,7 +1240,8 @@ class ScoreNotationPainter extends CustomPainter {
     final measure = currentRow.measures[measureRelIdx];
 
     const ip = ScoreNotationMetrics.measureInnerPadding;
-    final measureStartX = currentRow.contentStartX + measureRelIdx * minMeasureWidth;
+    final measureStartX =
+        currentRow.contentStartX + measureRelIdx * minMeasureWidth;
     final inset = currentRow.laneInset(measureRelIdx);
     final dw = math.max(12.0, minMeasureWidth - inset - ip);
     final laneStartX = measureStartX + inset;
@@ -1251,7 +1274,9 @@ class ScoreNotationPainter extends CustomPainter {
           ? nextLaneStartX + nextDw * 1 / (nextSlotCount + 1)
           : nextMeasureStartX + minMeasureWidth;
     } else {
-      nextX = currentRow.contentStartX + currentRow.measures.length * minMeasureWidth;
+      nextX =
+          currentRow.contentStartX +
+          currentRow.measures.length * minMeasureWidth;
     }
 
     // Lerp using T (0→1 from AnimationController).
@@ -1598,6 +1623,8 @@ class ScoreNotationPainter extends CustomPainter {
     required double x,
     required double staffTop,
   }) {
+    // A bar rest is drawn as a whole rest in any meter.
+    if (rest.measureRest) rest = rest.copyWith(type: 'whole', dots: 0);
     final type = rest.type.trim().toLowerCase();
     final paint = Paint()
       ..color = const Color(0xFF111827)
@@ -1828,7 +1855,8 @@ class ScoreNotationPainter extends CustomPainter {
         case MarkDot(:final x, :final y, :final radius):
           canvas.drawCircle(point((x, y)), radius, Paint()..color = ink);
         case MarkLines(:final points, :final width, :final filled):
-          final path = Path()..moveTo(point(points.first).dx, point(points.first).dy);
+          final path = Path()
+            ..moveTo(point(points.first).dx, point(points.first).dy);
           for (final q in points.skip(1)) {
             path.lineTo(point(q).dx, point(q).dy);
           }
@@ -1841,7 +1869,12 @@ class ScoreNotationPainter extends CustomPainter {
               ..strokeWidth = width
               ..strokeJoin = StrokeJoin.round,
           );
-        case MarkCurve(:final start, :final segments, :final width, :final filled):
+        case MarkCurve(
+          :final start,
+          :final segments,
+          :final width,
+          :final filled,
+        ):
           final path = Path()..moveTo(point(start).dx, point(start).dy);
           for (final (c1, c2, end) in segments) {
             path.cubicTo(
@@ -1907,10 +1940,12 @@ class ScoreNotationPainter extends CustomPainter {
       if (drawn.isEmpty) continue;
       final x1 = drawn.first.$1.dx - 6;
       final x2 = drawn.last.$1.dx + 6;
-      final top = math.min(
-        staffTop - 4,
-        drawn.map((p) => p.$1.dy - p.$2).reduce(math.min),
-      ) - 6;
+      final top =
+          math.min(
+            staffTop - 4,
+            drawn.map((p) => p.$1.dy - p.$2).reduce(math.min),
+          ) -
+          6;
       final label = TextPainter(
         text: TextSpan(
           text: '${tuplet.actual}',
@@ -1925,7 +1960,10 @@ class ScoreNotationPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       )..layout();
       final mid = (x1 + x2) / 2;
-      label.paint(canvas, Offset(mid - label.width / 2, top - label.height / 2));
+      label.paint(
+        canvas,
+        Offset(mid - label.width / 2, top - label.height / 2),
+      );
       if (!group.every(beamed.contains)) {
         final ink = Paint()
           ..color = const Color(0xFF111827)
@@ -2013,7 +2051,12 @@ class ScoreNotationPainter extends CustomPainter {
   /// A hairpin on the dynamics line, from its first note (after a dynamic
   /// there) to past its last; across a line break each half is open at the
   /// row edge, half way open.
-  void _drawHairpin(Canvas canvas, bool crescendo, _NotePoint? a, _NotePoint? b) {
+  void _drawHairpin(
+    Canvas canvas,
+    bool crescendo,
+    _NotePoint? a,
+    _NotePoint? b,
+  ) {
     final ink = Paint()
       ..color = const Color(0xFF111827)
       ..strokeWidth = 1.2;
@@ -2083,7 +2126,14 @@ class ScoreNotationPainter extends CustomPainter {
           ..moveTo(x, top)
           ..cubicTo(x - w * 1.4, top + 6, x + w * 0.2, mid - 8, x - w, mid)
           ..cubicTo(x + w * 0.2, mid + 8, x - w * 1.4, bottom - 6, x, bottom)
-          ..cubicTo(x - w * 0.9, bottom - 6, x - w * 0.4, mid + 6, x - w - 1.5, mid)
+          ..cubicTo(
+            x - w * 0.9,
+            bottom - 6,
+            x - w * 0.4,
+            mid + 6,
+            x - w - 1.5,
+            mid,
+          )
           ..cubicTo(x - w * 0.4, mid - 6, x - w * 0.9, top + 6, x, top)
           ..close(),
         brace,
@@ -2324,6 +2374,35 @@ class ScoreNotationPainter extends CustomPainter {
     required double y,
     required TimeSignature signature,
   }) {
+    if (signature.symbol case final symbol?) {
+      // C or ¢ on the middle line, about two spaces tall.
+      final sign = TextPainter(
+        text: const TextSpan(
+          text: 'C',
+          style: TextStyle(
+            fontSize: ScoreNotationMetrics.timeSignatureFontSize * 1.35,
+            fontFamily: ScoreNotationMetrics.textFontFamily,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF111827),
+            height: 1,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final mid = y + 2 * staffLineSpacing;
+      sign.paint(canvas, Offset(x, mid - sign.height / 2));
+      if (symbol == TimeSymbol.cut) {
+        final cx = x + sign.width / 2;
+        canvas.drawLine(
+          Offset(cx, mid - 2.6 * staffLineSpacing),
+          Offset(cx, mid + 2.6 * staffLineSpacing),
+          Paint()
+            ..color = const Color(0xFF111827)
+            ..strokeWidth = 1.4,
+        );
+      }
+      return;
+    }
     final top = TextPainter(
       text: TextSpan(
         text: '${signature.beats}',

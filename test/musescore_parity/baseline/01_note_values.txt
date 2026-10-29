@@ -1,5 +1,3 @@
 # 01_note_values — MuseScore4 4.7.5 vs Note Vision
-## notation: 19/20 MuseScore facts match, 1 differ in Note Vision
-- P1 m4 @0 v=1 s=1 rest(measure) dur=4 -
-+ P1 m4 @0 v=1 s=1 rest dur=4 whole
+## notation: 20/20 MuseScore facts match
 ## playback: 17/17 MuseScore facts match
