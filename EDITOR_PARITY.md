@@ -746,8 +746,8 @@ release 2004 played the same project with no errors. No iOS device test.
   plus sound selection, undo, cancel/no-op and playback locks. Screenshots:
   `NV_EDITOR_SCREENSHOTS=/tmp/note-vision-5a flutter test --no-pub
   test/features/editor/presentation/mixer_test.dart`. Phone and large-text
-  screenshots inspected. MIDI tests use a recording backend; no physical
-  Android/iOS audio or new release build was tested in this stage.
+  screenshots inspected. MIDI tests use a recording backend; subsequent
+  physical Android validation is recorded below. No iOS device test.
 - Verification: **882 tests passed** with `flutter test --no-pub
   --concurrency=2 --reporter expanded`; `flutter analyze --no-pub` reports
   **no issues**; `git diff --check` clean. All 30 MuseScore
@@ -764,6 +764,36 @@ release 2004 played the same project with no errors. No iOS device test.
   non-GM source declarations refuses preserving export explicitly.
 - References: [MuseScore mixer](https://handbook.musescore.org/sound-and-playback/mixer),
   [MusicXML MIDI instrument](https://www.w3.org/2021/06/musicxml40/musicxml-reference/elements/midi-instrument/).
+
+Device check (2026-11-01): release **2005**, built from `f801e50` with
+`flutter build apk --release --no-pub --target-platform android-arm64
+--build-number 2005`, installed as an update on the Realme RMX1851
+(Android 11/API 30). Both existing projects remained present.
+
+- Imported a separate 12-bar flute/cello/piano grand-staff score. The four
+  staves produced three mixer strips with the imported sounds and 75%
+  volume. The two piano staves shared one strip.
+- Changed the flute strip to Oboe, volume 50%, pan 45° left and Solo;
+  the cello showed its solo-silenced status and the piano showed Muted.
+  Apply made one undoable edit; Undo restored Flute/75%/center and Redo
+  restored the edited mix. Native playback ran with the edited settings.
+- Paused, changed the sound again to Tenor sax with 75% volume and 45°
+  right pan, then resumed at the cued passage successfully. Mixer editing
+  was disabled while playing. Stop/reset worked. Android's audio service
+  showed the app's active 44.1 kHz stereo speaker track with **zero
+  underruns** at both diagnostic captures. The user confirmed **clear
+  audio** on the phone; this is not a timbre or stereo-calibration test.
+- Saved **NV Mixer Phone QA**, force-stopped and cold-started the app,
+  then reopened the project: Tenor sax/75%/45° right reloaded correctly.
+  Cancelling a later pending volume change left 75% and the saved state
+  intact. The QA project is left saved and open, with playback stopped.
+- Inspected portrait, landscape and 1.8× system text layouts, including
+  scrolling to mixer controls and reachable Apply/Cancel. Restored the
+  original font scale (0.9), rotation preference and automatic rotation.
+  No app crash, unhandled exception, playback/configuration error or
+  overflow appeared in the inspected process logs. Captures and logs:
+  `/tmp/nv5a-phone/`. Native DocumentsUI required keyboard navigation to
+  select the file on this phone, as in the previous device check.
 
 Next: 4I engraving (proportional spacing and collisions), 5C new-score wizard,
 5D specialised notation. Retained-source rhythm export for complex documents,

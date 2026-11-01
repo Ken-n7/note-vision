@@ -284,6 +284,14 @@ reimplemented. Every feature is checked against MuseScore Studio 4.7.5 by
 `test/musescore_parity/` (see `EDITOR_PARITY.md`, "MuseScore comparison
 tests").
 
+Latest physical check: release **2005** (`f801e50`), Realme RMX1851 / Android
+11, 2026-11-01. Mixer sounds/volume/pan/mute/solo, undo/redo, pause/edit/resume,
+Cancel, saved mix after cold restart, landscape and large text checked. User
+confirmed clear audio; the app's native speaker track had zero underruns at
+capture. Existing projects retained. Saved test project: **NV Mixer Phone QA**.
+Original display preferences restored; no iOS test. Stage 5A device checkpoint
+in `EDITOR_PARITY.md` records the evidence and limits.
+
 `EditorState` is immutable. Every edit returns a new instance via `copyWith`.
 
 ```dart
