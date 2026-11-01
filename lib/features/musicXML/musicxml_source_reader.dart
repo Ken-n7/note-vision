@@ -1,3 +1,4 @@
+import 'musicxml_instruments.dart';
 import 'package:xml/xml.dart';
 
 import '../../core/models/musical_time.dart';
@@ -185,6 +186,21 @@ class MusicXmlSourceReader {
     };
     for (final element in document.descendants.whereType<XmlElement>()) {
       final name = element.name.local;
+      final instrumentOwner =
+          {'score-instrument', 'midi-instrument'}.contains(name)
+          ? element
+          : element.ancestors
+                .whereType<XmlElement>()
+                .where(
+                  (e) => {
+                    'score-instrument',
+                    'midi-instrument',
+                  }.contains(e.name.local),
+                )
+                .firstOrNull;
+      if (instrumentOwner?.parentElement case final declaration?) {
+        if (MusicXmlInstruments.canRebuildDeclaration(declaration)) continue;
+      }
       // Pitched-note lyrics retain their complete XML in the note model, so
       // rich lyric formatting is also safe when a rhythm edit rebuilds a file.
       final lyric = name == 'lyric'

@@ -9,6 +9,13 @@ import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/services/playback_service.dart';
 
 class _Midi extends MidiPro {
+  @override
+  Future<void> controlChange({
+    required int controller,
+    required int value,
+    int channel = 0,
+    int sfId = 1,
+  }) async {}
   final starts = <int>[], stops = <int>[];
   @override
   Future<int> loadSoundfontAsset({

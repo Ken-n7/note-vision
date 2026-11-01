@@ -1,3 +1,5 @@
+import 'package:note_vision/core/models/part_playback.dart';
+import 'package:note_vision/core/services/playback_mix.dart';
 import 'dart:convert';
 import '../../../core/models/musical_time.dart';
 import 'dart:math' as math;
@@ -518,6 +520,7 @@ extension EditorActions on EditorState {
           id: part.id,
           name: part.name,
           staff: part.staff,
+          playback: part.playback,
           measures: [
             ...part.measures,
             Measure(
@@ -627,6 +630,7 @@ extension EditorActions on EditorState {
         id: part.id,
         name: part.name,
         staff: part.staff,
+        playback: part.playback,
         measures: updatedMeasures,
       );
 
@@ -1039,6 +1043,7 @@ extension EditorActions on EditorState {
             id: part.id,
             name: part.name,
             staff: part.staff,
+            playback: part.playback,
             measures: [
               for (final (i, m) in part.measures.indexed) change(m, i),
             ],
@@ -1157,6 +1162,7 @@ extension EditorActions on EditorState {
       id: parts[p].id,
       name: parts[p].name,
       staff: parts[p].staff,
+      playback: parts[p].playback,
       measures: measures,
     );
     return _applySelectionPreservingEdit(
@@ -1301,6 +1307,7 @@ extension EditorActions on EditorState {
                   id: part.id,
                   name: part.name,
                   staff: part.staff,
+                  playback: part.playback,
                   measures: [
                     for (final (j, bar) in part.measures.indexed)
                       j == m ? bar.copyWith(symbols: [rest]) : bar,
@@ -1757,6 +1764,29 @@ extension EditorActions on EditorState {
         score: score.copyWith(spanners: spanners),
       ).copyWith(rangeAnchor: rangeAnchor);
 
+  /// Commit a draft mixer as one undoable edit, retaining the selection.
+  EditorState setPlaybackMix(List<PartPlayback> settings) {
+    final strips = playbackStrips(score);
+    if (settings.length != strips.length || settings.any((s) => !s.isValid)) {
+      return this;
+    }
+    var changed = false;
+    final parts = List<Part>.of(score.parts);
+    for (final (i, strip) in strips.indexed) {
+      for (final p in strip.parts) {
+        if (parts[p].playback == settings[i]) continue;
+        changed = true;
+        parts[p] = parts[p].copyWith(playback: settings[i]);
+      }
+    }
+    return changed
+        ? _applySelectionPreservingEdit(
+            intent: EditorEditIntent.updateMeasureMetadata,
+            score: score.copyWith(parts: parts),
+          )
+        : this;
+  }
+
   // ── Staves and instruments ───────────────────────────────────────────
 
   /// Why a staff cannot be added, or null. A scanned score's staves are
@@ -1807,12 +1837,14 @@ extension EditorActions on EditorState {
             id: score.parts[from].id,
             name: entry.name,
             staff: staffOf(i),
+            playback: score.parts[from].playback,
             measures: score.parts[from].measures,
           )
         else
           Part(
             id: newId(),
             name: entry.name,
+            playback: PartPlayback(program: defaultProgramFor(entry.name)),
             staff: staffOf(i),
             measures: [
               for (final (i, m) in template.measures.indexed)

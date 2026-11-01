@@ -10,6 +10,7 @@ import '../../core/models/score.dart';
 import '../../core/models/score_symbol.dart';
 import '../../core/services/accidentals.dart';
 import 'musicxml_source_reader.dart';
+import 'musicxml_instruments.dart';
 import 'musicxml_lyrics.dart';
 import 'musicxml_annotations.dart';
 import '../../core/models/musical_time.dart';
@@ -121,6 +122,24 @@ class MusicXmlPreservingExporter {
     }
     for (var p = 0; p < score.parts.length; p++) {
       final currentPart = score.parts[p];
+      if (!currentPart.joinsPrevious) {
+        final declaration = root
+            .getElement('part-list')
+            ?.findElements('score-part')
+            .where((e) => e.getAttribute('id') == currentPart.id)
+            .firstOrNull;
+        if (declaration != null) {
+          try {
+            MusicXmlInstruments.patch(
+              declaration,
+              baseline.parts[p].playback,
+              currentPart.playback,
+            );
+          } on FormatException catch (error) {
+            throw MusicXmlPreservationException(error.message);
+          }
+        }
+      }
       if (currentPart.name != baseline.parts[p].name) {
         final declaration = root
             .getElement('part-list')
@@ -328,6 +347,7 @@ class MusicXmlPreservingExporter {
     for (var p = 0; p < before.parts.length; p++) {
       final oldPart = before.parts[p], part = after.parts[p];
       if (oldPart.id != part.id ||
+          oldPart.staff != part.staff ||
           oldPart.measures.length != part.measures.length) {
         return false;
       }

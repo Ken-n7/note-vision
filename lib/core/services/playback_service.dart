@@ -6,6 +6,8 @@ import 'package:flutter_midi_pro/flutter_midi_pro.dart';
 import '../models/score.dart';
 import 'playback_converter.dart';
 import 'playback_schedule.dart';
+import 'playback_mix.dart';
+import 'package:flutter/foundation.dart' show mapEquals;
 import 'score_timeline.dart';
 import 'usage_stats_service.dart';
 
@@ -179,7 +181,10 @@ class PlaybackService {
   /// state to the newer loop.
   int _loopRun = 0;
   int _playRequest = 0;
-  final Map<int, int> _activeMidiNotes = <int, int>{};
+  final Map<(int, int), int> _activeMidiNotes = {};
+  PlaybackMix? _mix;
+  PlaybackMix? _configuredMix;
+  Future<void> _configuration = Future.value();
 
   // ── Streams ────────────────────────────────────────────────────────────
   final _stateController = StreamController<PlaybackState>.broadcast();
@@ -289,6 +294,7 @@ class PlaybackService {
     _focusPart = fromPartIndex;
     if (!_prepareScore(score)) return;
     _cue(fromPartIndex, fromMeasureIndex);
+    if (!await _configureMix(request) || request != _playRequest) return;
 
     _shouldPlay = true;
     _emitState(PlaybackStatus.playing);
@@ -375,9 +381,81 @@ class PlaybackService {
           ? phaseIndex
           : _schedule!.frameAt(_events[index].baseOnsetMs);
     }
+    if (_sameMix()) {
+      _shouldPlay = true;
+      _emitState(PlaybackStatus.playing);
+      _runLoop();
+    } else {
+      final request = ++_playRequest;
+      unawaited(_resumeConfigured(request));
+    }
+  }
+
+  Future<void> _resumeConfigured(int request) async {
+    if (!await _configureMix(request) || request != _playRequest) return;
     _shouldPlay = true;
     _emitState(PlaybackStatus.playing);
     _runLoop();
+  }
+
+  bool _sameMix() =>
+      _configuredMix != null &&
+      _mix != null &&
+      mapEquals(_configuredMix!.settings, _mix!.settings) &&
+      mapEquals(_configuredMix!.channels, _mix!.channels);
+
+  // Serialize configuration so an older slow program change cannot overwrite
+  // a newer request. A stopped/cancelled request never starts audio.
+  Future<bool> _configureMix(int request) async {
+    final mix = _mix!;
+    final previous = _configuration;
+    final done = Completer<void>();
+    _configuration = done.future;
+    try {
+      await previous;
+      if (request != _playRequest) return false;
+      if (_sameMix()) return true;
+      for (final entry in mix.settings.entries) {
+        if (request != _playRequest) return false;
+        await _midi.selectInstrument(
+          sfId: _sfId!,
+          channel: entry.key,
+          bank: 0,
+          program: entry.value.program,
+        );
+        if (request != _playRequest) return false;
+        await _midi.controlChange(
+          sfId: _sfId!,
+          channel: entry.key,
+          controller: 7,
+          value: entry.value.midiVolume,
+        );
+        if (request != _playRequest) return false;
+        await _midi.controlChange(
+          sfId: _sfId!,
+          channel: entry.key,
+          controller: 10,
+          value: entry.value.midiPan,
+        );
+      }
+      if (request != _playRequest) return false;
+      _configuredMix = mix;
+      return true;
+    } catch (_) {
+      _configuredMix = null;
+      if (request == _playRequest) {
+        stop();
+        _emitState(
+          PlaybackStatus.error,
+          error: 'Could not configure instrument sounds. Try again.',
+        );
+      }
+      return false;
+    } finally {
+      // Even a cancelled partial configuration must be reset by the next run.
+      if (request != _playRequest) _configuredMix = null;
+      done.complete();
+    }
   }
 
   bool _prepareScore(Score score) {
@@ -420,6 +498,10 @@ class PlaybackService {
             .map((p) => p.$1)
             .where((t) => t >= first && t <= end),
       );
+      _mix = PlaybackMix(
+        score,
+        _events.where((e) => !e.isRest).map((e) => e.partIndex).toSet(),
+      );
       _schedule = PlaybackSchedule(_events, endMs: end, boundaries: boundaries);
       _plan = plan;
       _playingScore = score;
@@ -428,11 +510,13 @@ class PlaybackService {
       stop();
       _emitState(PlaybackStatus.error, error: error.message);
       return false;
-    } on FormatException {
+    } on FormatException catch (error) {
       stop();
       _emitState(
         PlaybackStatus.error,
-        error: 'This score has timing that cannot be played yet.',
+        error: error.message.isEmpty
+            ? 'This score has timing that cannot be played yet.'
+            : error.message,
       );
       return false;
     }
@@ -480,6 +564,7 @@ class PlaybackService {
       _sfId = null;
     }
     _initialized = false;
+    _configuredMix = null;
     if (!_stateController.isClosed) _stateController.close();
     if (!_positionController.isClosed) _positionController.close();
   }
@@ -528,14 +613,17 @@ class PlaybackService {
 
   void _startNote(PlaybackEvent event, int run) {
     if (event.isRest || _sfId == null) return;
-    final count = _activeMidiNotes[event.midiNote] ?? 0;
-    _activeMidiNotes[event.midiNote] = count + 1;
+    final channel = _mix?.channels[event.partIndex];
+    if (channel == null) return;
+    final key = (channel, event.midiNote);
+    final count = _activeMidiNotes[key] ?? 0;
+    _activeMidiNotes[key] = count + 1;
     if (count > 0) return;
     unawaited(
       _midi
           .playNote(
             sfId: _sfId!,
-            channel: _midiChannel,
+            channel: channel,
             key: event.midiNote,
             velocity: event.velocity,
           )
@@ -553,15 +641,18 @@ class PlaybackService {
 
   void _releaseNote(PlaybackEvent event) {
     if (event.isRest || _sfId == null) return;
-    final count = _activeMidiNotes[event.midiNote];
+    final channel = _mix?.channels[event.partIndex];
+    if (channel == null) return;
+    final key = (channel, event.midiNote);
+    final count = _activeMidiNotes[key];
     if (count == null) return;
     if (count > 1) {
-      _activeMidiNotes[event.midiNote] = count - 1;
+      _activeMidiNotes[key] = count - 1;
       return;
     }
-    _activeMidiNotes.remove(event.midiNote);
+    _activeMidiNotes.remove(key);
     unawaited(
-      _midi.stopNote(sfId: _sfId!, channel: _midiChannel, key: event.midiNote),
+      _midi.stopNote(sfId: _sfId!, channel: channel, key: event.midiNote),
     );
   }
 
@@ -646,12 +737,12 @@ class PlaybackService {
 
   Future<void> _stopActiveNotes() async {
     if (_sfId == null || _activeMidiNotes.isEmpty) return;
-    final keys = List<int>.from(_activeMidiNotes.keys);
+    final keys = _activeMidiNotes.keys.toList();
     _activeMidiNotes.clear();
     // Queue every stop before a subsequent play/resume can queue new attacks.
     await Future.wait([
       for (final key in keys)
-        _midi.stopNote(sfId: _sfId!, channel: _midiChannel, key: key),
+        _midi.stopNote(sfId: _sfId!, channel: key.$1, key: key.$2),
     ]);
   }
 

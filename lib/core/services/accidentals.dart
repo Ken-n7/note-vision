@@ -61,6 +61,7 @@ class Accidentals {
       id: part.id,
       name: part.name,
       staff: part.staff,
+      playback: part.playback,
       measures: [
         for (final m in part.measures)
           () {

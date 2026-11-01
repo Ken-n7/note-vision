@@ -163,7 +163,10 @@ String parityReport(String name, String referenceXml, List<int> referenceMidi) {
     ..writeln(
       _playback(
         midiFacts(Uint8List.fromList(referenceMidi)),
-        () => playbackFacts(const PlaybackConverter().buildPlan(imported)),
+        () => playbackFacts(
+          const PlaybackConverter().buildPlan(imported),
+          imported,
+        ),
       ),
     );
   return out.toString();

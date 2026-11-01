@@ -704,7 +704,68 @@ release 2004 played the same project with no errors. No iOS device test.
   MuseScore plays an imported underfull bar at its written length; we keep
   the meter's length.
 
-Next: 5A instrument sounds/mixer, then 4I engraving (proportional spacing
-and collisions), 5C new-score wizard, 5D specialised notation. Retained-source rhythm export for complex documents,
+## Stage 5A — instrument sounds and mixer
+
+- More → **Mixer…**, command search and **F10** open a draft panel: 128
+  General MIDI bank-0 sounds, volume percentage, stereo pan, mute and solo.
+  Apply creates one undo step and keeps the notation/selection; Cancel and
+  dismissal are inert. Opening/applying respects playback, loading, review
+  and stale-score locks. Changes take effect on play or resume, not live.
+- `Part.playback` stores `PartPlayback` in project JSON. Legacy projects
+  default to piano. Ordinary edits, measure operations, transposition,
+  review restoration, staff rearrangement and scan append keep the mix.
+  Newly added instruments get an appropriate program; a rename keeps the
+  chosen sound. Linked grand staves share one strip, and sequential scanned
+  lines share one strip without changing their reading order.
+- `PlaybackMix` routes each audible instrument to its own MIDI channel;
+  channel 10 remains reserved for percussion. Up to 15 sounding instruments
+  are supported; larger ensembles explain the limit instead of sharing
+  sounds. Several solo strips can sound together; explicit mute wins.
+  Silence does not change timing, position highlights or score content.
+- The scheduler configures programs, channel volume (CC7) and pan (CC10)
+  before attacks. Overlapping pitches are counted by **channel and key**,
+  so one instrument cannot stop another instrument's note. Pause/stop,
+  cancelled sound loading, retry after configuration failure, changed mix
+  on resume and resetting controllers between scores are covered by tests.
+- MusicXML single initial pitched GM programs, volume and pan are read in
+  partwise/timewise scores and shared across split grand staves. Export uses
+  one-based programs and matching score-instrument/MIDI IDs. Sound edits
+  patch only changed fields in retained XML, preserving notes, devices,
+  instrument IDs and other metadata. Generated declarations remain safe to
+  rebuild after rhythm edits on simple reimported scores. Mute and solo are
+  project-only and do not silence MusicXML notation.
+- MuseScore Studio **4.7.5**: existing `15_ensemble` now matches flute/cello
+  programs (12/18 playback facts, previously 10/18). New `20_instrument_mix`
+  matches 16/16 notation facts and 7/11 playback facts, including all three
+  chosen programs. Separate assertions verify MuseScore's quantized CC
+  volumes (63/95/127) and left/right/center pan through project save and
+  generated export. Remaining differences are wind/string note releases
+  and MuseScore's additional string program declarations, not full sound
+  equivalence.
+- Responsive widget checks cover phone, 320px/2× text, landscape and tablet,
+  plus sound selection, undo, cancel/no-op and playback locks. Screenshots:
+  `NV_EDITOR_SCREENSHOTS=/tmp/note-vision-5a flutter test --no-pub
+  test/features/editor/presentation/mixer_test.dart`. Phone and large-text
+  screenshots inspected. MIDI tests use a recording backend; no physical
+  Android/iOS audio or new release build was tested in this stage.
+- Verification: **882 tests passed** with `flutter test --no-pub
+  --concurrency=2 --reporter expanded`; `flutter analyze --no-pub` reports
+  **no issues**; `git diff --check` clean. All 30 MuseScore
+  comparison/transposition cases pass their recorded baselines.
+- The existing local `piano.sf2` contains all 128 bank-0 presets. The file
+  remains untracked; installations need a complete GM font, as documented
+  in `assets/soundfonts/README.txt`. A piano-only replacement cannot supply
+  the other sounds.
+- Not yet: live mixer adjustments, master/effects/aux channels, reverb UI,
+  metronome/loop controls, MIDI/audio export, mid-score instrument changes,
+  non-GM banks, percussion mapping, separate voice or harmony strips and
+  transposing-instrument notation. Unsupported imported instrument metadata
+  stays in source; changing sounds in multiple-instrument, percussion or
+  non-GM source declarations refuses preserving export explicitly.
+- References: [MuseScore mixer](https://handbook.musescore.org/sound-and-playback/mixer),
+  [MusicXML MIDI instrument](https://www.w3.org/2021/06/musicxml40/musicxml-reference/elements/midi-instrument/).
+
+Next: 4I engraving (proportional spacing and collisions), 5C new-score wizard,
+5D specialised notation. Retained-source rhythm export for complex documents,
 global timewise measure slots and richer editable notation still need work;
 continue using the Stage 2B timeline rather than adding flat-list timing rules.

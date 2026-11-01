@@ -1,3 +1,5 @@
+import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/services/playback_mix.dart';
 import 'dart:typed_data';
 
 import 'package:note_vision/core/models/musical_time.dart';
@@ -313,17 +315,23 @@ List<String> midiFacts(Uint8List bytes) {
 MusicalTime _quarters(num quarters) => MusicalTime((quarters * 96).round(), 96);
 
 /// Note Vision's playback, in the same form as [midiFacts]. Event times are
-/// milliseconds at 120 BPM (500 per quarter). The app uses one piano channel
-/// for every part.
-List<String> playbackFacts(PlaybackPlan plan) => [
-  for (final e in plan.events)
-    if (!e.isRest) ...[
-      '@${_quarters(e.baseOnsetMs / 500)} key=${e.midiNote} '
-          'dur=${_quarters(e.baseDurationMs / 500)}',
-      '@${_quarters(e.baseOnsetMs / 500)} key=${e.midiNote} vel=${e.velocity}',
-    ],
-  if (plan.events.any((e) => !e.isRest)) 'program 0',
-];
+/// milliseconds at 120 BPM (500 per quarter), with the saved instrument mix.
+List<String> playbackFacts(PlaybackPlan plan, Score score) {
+  final mix = PlaybackMix(
+    score,
+    plan.events.where((e) => !e.isRest).map((e) => e.partIndex).toSet(),
+  );
+  return [
+    for (final e in plan.events)
+      if (!e.isRest) ...[
+        '@${_quarters(e.baseOnsetMs / 500)} key=${e.midiNote} '
+            'dur=${_quarters(e.baseDurationMs / 500)}',
+        '@${_quarters(e.baseOnsetMs / 500)} key=${e.midiNote} vel=${e.velocity}',
+      ],
+    for (final program in mix.settings.values.map((s) => s.program).toSet())
+      'program $program',
+  ];
+}
 
 /// Multiset difference: `- ` facts only MuseScore has, `+ ` facts only Note
 /// Vision has. The header counts how many MuseScore facts Note Vision matches.

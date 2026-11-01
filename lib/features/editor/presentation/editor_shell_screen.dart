@@ -1,3 +1,6 @@
+import 'package:note_vision/core/models/part_playback.dart';
+import 'package:note_vision/core/services/playback_mix.dart';
+import 'package:note_vision/features/editor/presentation/widgets/mixer_sheet.dart';
 import 'dart:async' show StreamSubscription, Timer, unawaited;
 import 'dart:convert' show jsonEncode;
 import '../../../core/models/score_annotation.dart';
@@ -1568,6 +1571,35 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     );
   }
 
+  Future<void> _showMixer() async {
+    if (!_canEditStaves ||
+        _commandEditLock != null ||
+        _editorState.score.parts.isEmpty) {
+      return;
+    }
+    final original = _editorState.score;
+    final mix = await showModalBottomSheet<List<PartPlayback>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      constraints: const BoxConstraints(maxWidth: 560),
+      builder: (_) => MixerSheet(
+        strips: playbackStrips(original),
+        scannedLines:
+            original.playbackLayout == ScorePlaybackLayout.sequentialStaves,
+      ),
+    );
+    if (!mounted ||
+        mix == null ||
+        !identical(_editorState.score, original) ||
+        _commandEditLock != null) {
+      return;
+    }
+    _updateState((state) => state.setPlaybackMix(mix));
+  }
+
   /// Adds, renames, reorders or removes staves as one undo step.
   Future<void> _showStaves() async {
     if (!_canEditStaves || _commandEditLock != null) return;
@@ -2005,6 +2037,16 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 : null),
       ),
       EditorCommandChoice(
+        id: 'workspace.mixer',
+        label: 'Mixer…',
+        group: 'Playback',
+        shortcut: 'F10',
+        description: 'Instrument sounds, volume, pan, mute and solo',
+        disabledReason:
+            lock ??
+            (state.score.parts.isEmpty ? 'Open a score with a staff' : null),
+      ),
+      EditorCommandChoice(
         id: 'workspace.staves',
         label: 'Staves and instruments…',
         group: 'Structure',
@@ -2099,6 +2141,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         if (_commandEditLock == null) await _showBeamEditor();
       case 'workspace.transpose':
         await _showTranspose();
+      case 'workspace.mixer':
+        await _showMixer();
       case 'workspace.staves':
         await _showStaves();
       case 'workspace.pickup':
@@ -2162,6 +2206,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     final key = event.logicalKey;
     final keyboard = HardwareKeyboard.instance;
     final command = keyboard.isControlPressed || keyboard.isMetaPressed;
+    if (key == LogicalKeyboardKey.f10 && !command && !keyboard.isAltPressed) {
+      unawaited(_showMixer());
+      return KeyEventResult.handled;
+    }
     if (command &&
         keyboard.isAltPressed &&
         (key == LogicalKeyboardKey.keyT || key == LogicalKeyboardKey.keyK)) {
@@ -2979,6 +3027,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       : null,
                   onTranspose: _canTranspose ? _showTranspose : null,
                   onStaves: _canEditStaves ? _showStaves : null,
+                  onMixer: _canEditStaves && _editorState.score.parts.isNotEmpty
+                      ? _showMixer
+                      : null,
                   onSave: isReadOnly ? null : _onSave,
                   isSaving: _isSaving,
                   showSubmitButton: _isStudent && !isReadOnly,
@@ -3505,6 +3556,7 @@ enum _HeaderMenuAction {
   exportPdf,
   transpose,
   staves,
+  mixer,
   clearAllSymbols,
 }
 
@@ -3558,6 +3610,7 @@ class _EditorHeader extends StatelessWidget {
     this.onClearAllSymbols,
     this.onTranspose,
     this.onStaves,
+    this.onMixer,
     this.isSaving = false,
   });
 
@@ -3584,6 +3637,7 @@ class _EditorHeader extends StatelessWidget {
   final VoidCallback? onClearAllSymbols;
   final VoidCallback? onTranspose;
   final VoidCallback? onStaves;
+  final VoidCallback? onMixer;
   final bool isSaving;
 
   static final ButtonStyle _compactIconButtonStyle = IconButton.styleFrom(
@@ -3808,6 +3862,8 @@ class _EditorHeader extends StatelessWidget {
                           onExportPdf();
                         } else if (action == _HeaderMenuAction.transpose) {
                           onTranspose?.call();
+                        } else if (action == _HeaderMenuAction.mixer) {
+                          onMixer?.call();
                         } else if (action == _HeaderMenuAction.staves) {
                           onStaves?.call();
                         } else if (action ==
@@ -3852,6 +3908,14 @@ class _EditorHeader extends StatelessWidget {
                           ),
                         ),
                         if (!isReviewMode) ...[
+                          PopupMenuItem(
+                            value: _HeaderMenuAction.mixer,
+                            enabled: onMixer != null,
+                            child: const _HeaderMenuItem(
+                              icon: Icons.tune_rounded,
+                              label: 'Mixer…',
+                            ),
+                          ),
                           PopupMenuItem(
                             value: _HeaderMenuAction.transpose,
                             enabled: onTranspose != null,

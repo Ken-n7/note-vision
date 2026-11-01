@@ -160,6 +160,7 @@ class Score {
                 id: part.id,
                 name: part.name,
                 staff: part.staff,
+                playback: part.playback,
                 measures: measures,
               )
             : part,
@@ -265,6 +266,7 @@ class Score {
           id: cp.id,
           name: cp.name,
           staff: cp.staff,
+          playback: cp.playback,
           measures: [
             ...cp.measures,
             for (int j = 0; j < sp.measures.length; j++)
@@ -310,6 +312,7 @@ class Score {
         id: part.id,
         name: part.name,
         staff: part.staff,
+        playback: part.playback,
         measures: _renumberMeasures(measures),
       );
     }
@@ -335,6 +338,7 @@ class Score {
         id: part.id,
         name: part.name,
         staff: part.staff,
+        playback: part.playback,
         measures: _renumberMeasures(measures),
       );
     }
@@ -351,6 +355,7 @@ class Score {
           id: part.id,
           name: part.name,
           staff: part.staff,
+          playback: part.playback,
           measures: _renumberMeasures([
             for (final (i, m) in part.measures.indexed)
               i == measureIndex ? m.copyWith(implicit: implicit) : m,
@@ -413,6 +418,7 @@ class Score {
       id: part.id,
       name: part.name,
       staff: part.staff,
+      playback: part.playback,
       measures: updatedMeasures,
     );
 

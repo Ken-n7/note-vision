@@ -21,6 +21,7 @@ import 'package:note_vision/core/services/spanners.dart';
 import 'package:xml/xml.dart';
 
 import 'musicxml_source_reader.dart';
+import 'musicxml_instruments.dart';
 import 'musicxml_lyrics.dart';
 import 'musicxml_annotations.dart';
 
@@ -53,7 +54,17 @@ class MusicXmlScoreConverter {
         title: title,
         composer: composer,
         // <alter> is the pitch heard; notes store the accidental written.
-        parts: parts.map(Accidentals.writtenFromSounding).toList(),
+        parts: parts.map((part) {
+          final sourceId = sourcePartIds[part.id] ?? part.id;
+          final declaration = root
+              .getElement('part-list')
+              ?.findElements('score-part')
+              .where((e) => e.getAttribute('id') == sourceId)
+              .firstOrNull;
+          return Accidentals.writtenFromSounding(
+            part.copyWith(playback: MusicXmlInstruments.read(declaration)),
+          );
+        }).toList(),
       ),
     );
     final bindings = <MusicXmlSymbolBinding>[];
@@ -249,6 +260,7 @@ class MusicXmlScoreConverter {
                 id: part.id,
                 name: part.name,
                 staff: part.staff,
+                playback: part.playback,
                 measures: [
                   for (final m in part.measures)
                     m.withContent(
@@ -326,9 +338,7 @@ class MusicXmlScoreConverter {
           );
         }
         sourceIndexes[id] = staffIndexes;
-        result.add(
-          Part(id: id, name: part.name, staff: staff, measures: measures),
-        );
+        result.add(part.copyWith(id: id, staff: staff, measures: measures));
       }
     }
     return result;
