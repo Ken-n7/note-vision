@@ -348,6 +348,12 @@ void main() {
     expect(find.byType(StavesSheet), findsOneWidget);
     await tester.tap(find.text('Add instrument'));
     await tester.pumpAndSettle();
+    // The instrument list scrolls.
+    await tester.scrollUntilVisible(
+      find.text('Cello · Bass clef'),
+      100,
+      scrollable: find.byType(Scrollable).last,
+    );
     await tester.tap(find.text('Cello · Bass clef'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Done'));

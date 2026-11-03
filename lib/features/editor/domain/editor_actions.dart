@@ -516,11 +516,7 @@ extension EditorActions on EditorState {
     final updatedParts = <Part>[];
     for (final part in score.parts) {
       updatedParts.add(
-        Part(
-          id: part.id,
-          name: part.name,
-          staff: part.staff,
-          playback: part.playback,
+        part.copyWith(
           measures: [
             ...part.measures,
             Measure(
@@ -626,13 +622,7 @@ extension EditorActions on EditorState {
     }).toList();
 
     final updatedParts = List<Part>.from(score.parts)
-      ..[partIndex] = Part(
-        id: part.id,
-        name: part.name,
-        staff: part.staff,
-        playback: part.playback,
-        measures: updatedMeasures,
-      );
+      ..[partIndex] = part.copyWith(measures: updatedMeasures);
 
     final nextScore = score.copyWith(parts: updatedParts);
 
@@ -1039,11 +1029,7 @@ extension EditorActions on EditorState {
     final next = score.copyWith(
       parts: [
         for (final part in score.parts)
-          Part(
-            id: part.id,
-            name: part.name,
-            staff: part.staff,
-            playback: part.playback,
+          part.copyWith(
             measures: [
               for (final (i, m) in part.measures.indexed) change(m, i),
             ],
@@ -1158,13 +1144,7 @@ extension EditorActions on EditorState {
     final parts = [...score.parts];
     final measures = [...parts[p].measures];
     measures[m] = old.copyWith(annotations: List.unmodifiable(annotations));
-    parts[p] = Part(
-      id: parts[p].id,
-      name: parts[p].name,
-      staff: parts[p].staff,
-      playback: parts[p].playback,
-      measures: measures,
-    );
+    parts[p] = parts[p].copyWith(measures: measures);
     return _applySelectionPreservingEdit(
       intent: EditorEditIntent.updateMeasureMetadata,
       score: score.copyWith(parts: parts),
@@ -1303,11 +1283,7 @@ extension EditorActions on EditorState {
         for (final (i, other) in score.parts.indexed)
           i != p
               ? other
-              : Part(
-                  id: part.id,
-                  name: part.name,
-                  staff: part.staff,
-                  playback: part.playback,
+              : part.copyWith(
                   measures: [
                     for (final (j, bar) in part.measures.indexed)
                       j == m ? bar.copyWith(symbols: [rest]) : bar,
@@ -1798,6 +1774,39 @@ extension EditorActions on EditorState {
       ? 'These scanned staves are played one after another, as lines of one part. Adding an instrument would play them together.'
       : null;
 
+  bool get hasTransposingParts =>
+      score.parts.any((p) => p.transposition != null);
+
+  /// Shows transposing parts at sounding pitch, or as written again, as one
+  /// undo step (MuseScore Studio's Concert pitch button).
+  EditorState toggleConcertPitch() => !hasTransposingParts
+      ? this
+      : _applySelectionPreservingEdit(
+          intent: EditorEditIntent.updateMeasureMetadata,
+          score: const Transposer().concertPitch(score, !score.concertPitch),
+        );
+
+  /// [part], whose keys were copied from another part (and carry its
+  /// [Part.transposition]), as an instrument with [transposition] writes
+  /// them.
+  Part _writtenFor(Part part, Transposition? transposition) {
+    if (score.concertPitch) return part.copyWith(transposition: transposition);
+    const transposer = Transposer();
+    final concert = transposer.concertPitch(
+      Score(id: '', title: '', composer: '', parts: [part]),
+      true,
+    );
+    return transposer
+        .concertPitch(
+          concert.copyWith(
+            parts: [concert.parts.single.copyWith(transposition: transposition)],
+          ),
+          false,
+        )
+        .parts
+        .single;
+  }
+
   /// Rebuilds the parts from [plan] as one undo step: keeps, reorders,
   /// renames and removes parts, and adds empty ones whose bars copy the
   /// meter, key, breaks and barlines of the existing music. Adding a staff
@@ -1833,30 +1842,32 @@ extension EditorActions on EditorState {
     final parts = [
       for (final (i, entry) in plan.indexed)
         if (entry.from case final from?)
-          Part(
-            id: score.parts[from].id,
+          score.parts[from].copyWith(
             name: entry.name,
             staff: staffOf(i),
-            playback: score.parts[from].playback,
             measures: score.parts[from].measures,
           )
         else
-          Part(
-            id: newId(),
-            name: entry.name,
-            playback: PartPlayback(program: defaultProgramFor(entry.name)),
-            staff: staffOf(i),
-            measures: [
-              for (final (i, m) in template.measures.indexed)
-                m.copyWith(
-                  reviewId: null,
-                  source: null,
-                  clef: i == 0
-                      ? entry.clef ?? const Clef(sign: 'G', line: 2)
-                      : null,
-                  symbols: const [],
-                ),
-            ],
+          _writtenFor(
+            Part(
+              id: newId(),
+              name: entry.name,
+              playback: PartPlayback(program: defaultProgramFor(entry.name)),
+              staff: staffOf(i),
+              transposition: template.transposition,
+              measures: [
+                for (final (i, m) in template.measures.indexed)
+                  m.copyWith(
+                    reviewId: null,
+                    source: null,
+                    clef: i == 0
+                        ? entry.clef ?? const Clef(sign: 'G', line: 2)
+                        : null,
+                    symbols: const [],
+                  ),
+              ],
+            ),
+            transpositionFor(entry.name),
           ),
     ];
     final next = score.copyWith(

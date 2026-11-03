@@ -69,6 +69,13 @@ List<String> notationFacts(XmlDocument doc) {
                 '${octave == null ? '' : ' octave=$octave'}',
               );
             }
+            for (final t in e.findElements('transpose')) {
+              lines.add(
+                '$m transpose diatonic=${_text(t, 'diatonic')} '
+                'chromatic=${_text(t, 'chromatic')} '
+                'octave=${_text(t, 'octave-change') ?? 0}',
+              );
+            }
           case 'backup':
             cursor -= ticks(_text(e, 'duration'));
           case 'forward':

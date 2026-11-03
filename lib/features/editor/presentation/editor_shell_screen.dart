@@ -2054,6 +2054,19 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         disabledReason: lock,
       ),
       EditorCommandChoice(
+        id: 'workspace.concertPitch',
+        label: state.score.concertPitch
+            ? 'Concert pitch: off'
+            : 'Concert pitch: on',
+        group: 'Pitch',
+        description: 'Show transposing instruments at sounding pitch',
+        disabledReason:
+            lock ??
+            (state.hasTransposingParts
+                ? null
+                : 'No transposing instruments in this score'),
+      ),
+      EditorCommandChoice(
         id: 'workspace.transpose',
         label: 'Transpose…',
         group: 'Pitch',
@@ -2145,6 +2158,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         await _showMixer();
       case 'workspace.staves':
         await _showStaves();
+      case 'workspace.concertPitch':
+        if (_commandEditLock == null) {
+          _updateState((s) => s.toggleConcertPitch());
+        }
       case 'workspace.pickup':
         if (_commandEditLock == null) {
           _updateState((s) => s.toggleMeasureImplicit());
@@ -3026,6 +3043,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       ? _confirmClearAllSymbols
                       : null,
                   onTranspose: _canTranspose ? _showTranspose : null,
+                  concertPitch: _editorState.score.concertPitch,
+                  onConcertPitch:
+                      _commandEditLock == null &&
+                          _editorState.hasTransposingParts
+                      ? () => _updateState((s) => s.toggleConcertPitch())
+                      : null,
                   onStaves: _canEditStaves ? _showStaves : null,
                   onMixer: _canEditStaves && _editorState.score.parts.isNotEmpty
                       ? _showMixer
@@ -3555,6 +3578,7 @@ enum _HeaderMenuAction {
   exportXml,
   exportPdf,
   transpose,
+  concertPitch,
   staves,
   mixer,
   clearAllSymbols,
@@ -3609,6 +3633,8 @@ class _EditorHeader extends StatelessWidget {
     this.onCheckNotation,
     this.onClearAllSymbols,
     this.onTranspose,
+    this.concertPitch = false,
+    this.onConcertPitch,
     this.onStaves,
     this.onMixer,
     this.isSaving = false,
@@ -3636,6 +3662,8 @@ class _EditorHeader extends StatelessWidget {
   final VoidCallback? onCheckNotation;
   final VoidCallback? onClearAllSymbols;
   final VoidCallback? onTranspose;
+  final bool concertPitch;
+  final VoidCallback? onConcertPitch;
   final VoidCallback? onStaves;
   final VoidCallback? onMixer;
   final bool isSaving;
@@ -3862,6 +3890,8 @@ class _EditorHeader extends StatelessWidget {
                           onExportPdf();
                         } else if (action == _HeaderMenuAction.transpose) {
                           onTranspose?.call();
+                        } else if (action == _HeaderMenuAction.concertPitch) {
+                          onConcertPitch?.call();
                         } else if (action == _HeaderMenuAction.mixer) {
                           onMixer?.call();
                         } else if (action == _HeaderMenuAction.staves) {
@@ -3924,6 +3954,12 @@ class _EditorHeader extends StatelessWidget {
                               label: 'Transpose…',
                             ),
                           ),
+                          if (onConcertPitch != null)
+                            CheckedPopupMenuItem(
+                              value: _HeaderMenuAction.concertPitch,
+                              checked: concertPitch,
+                              child: const Text('Concert pitch'),
+                            ),
                           PopupMenuItem(
                             value: _HeaderMenuAction.staves,
                             enabled: onStaves != null,

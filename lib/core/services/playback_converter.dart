@@ -237,6 +237,11 @@ class PlaybackConverter {
               type: symbol.type,
             ),
           );
+          // A transposing part's written notes sound at their interval.
+          if (!score.concertPitch) {
+            midi +=
+                score.parts[measure.partIndex].transposition?.semitones ?? 0;
+          }
         }
         final start = baseMilliseconds(measure.onset + timed.onset);
         final end = baseMilliseconds(measure.onset + timed.end);

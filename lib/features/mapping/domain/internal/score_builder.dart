@@ -83,11 +83,7 @@ class ScoreBuilder {
         if (part.measures.length == longest)
           part
         else
-          Part(
-            id: part.id,
-            name: part.name,
-            staff: part.staff,
-            playback: part.playback,
+          part.copyWith(
             measures: [
               ...part.measures,
               for (var n = part.measures.length + 1; n <= longest; n++)

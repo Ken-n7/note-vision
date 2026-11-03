@@ -11,6 +11,7 @@ import 'package:note_vision/core/models/navigation_mark.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/note_value.dart';
 import 'package:note_vision/core/models/part.dart';
+import 'package:note_vision/core/services/transposer.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
@@ -46,6 +47,8 @@ class MusicXmlExportService {
   /// Returns MusicXML 3.1, or 4.0 for system directions and 4.0 sources.
   /// Pure function — no I/O, fully unit-testable.
   String toMusicXml(Score score) {
+    // MusicXML writes transposing parts as their players read them.
+    score = const Transposer().concertPitch(score, false);
     final preserved = const MusicXmlPreservingExporter().export(score);
     if (preserved != null) return preserved;
     // System directions were added in MusicXML 4.0. Keep the version honest
@@ -212,17 +215,14 @@ class MusicXmlExportService {
             accidentals: accidentals,
             marks: marks,
             endingNumbers: endingNumbers,
+            transposition: staffParts.first.transposition,
           );
         }
       },
     );
   }
 
-  static Part _onStaff(Part part, int staff) => Part(
-    id: part.id,
-    name: part.name,
-    staff: part.staff,
-    playback: part.playback,
+  static Part _onStaff(Part part, int staff) => part.copyWith(
     measures: [
       for (final m in part.measures)
         m.withContent(
@@ -254,6 +254,7 @@ class MusicXmlExportService {
     required List<Accidentals> accidentals,
     required _Marks marks,
     String endingNumbers = '1',
+    Transposition? transposition,
   }) {
     final measure = staffMeasures.first;
     b.element(
@@ -330,6 +331,21 @@ class MusicXmlExportService {
                     b.element('line', nest: clef.line.toString());
                     if (clef.octave != 0) {
                       b.element('clef-octave-change', nest: '${clef.octave}');
+                    }
+                  },
+                );
+              }
+              if (isFirst && transposition != null) {
+                b.element(
+                  'transpose',
+                  nest: () {
+                    b.element('diatonic', nest: '${transposition.diatonic}');
+                    b.element('chromatic', nest: '${transposition.chromatic}');
+                    if (transposition.octave != 0) {
+                      b.element(
+                        'octave-change',
+                        nest: '${transposition.octave}',
+                      );
                     }
                   },
                 );

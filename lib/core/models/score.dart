@@ -42,7 +42,12 @@ class Score {
     this.musicXmlSource,
     ScorePlaybackLayout? playbackLayout,
     this.spanners = const [],
+    this.concertPitch = false,
   }) : _playbackLayout = playbackLayout;
+
+  /// Transposing parts are written at sounding pitch (MuseScore Studio's
+  /// Concert pitch). Off, they are written as their players read them.
+  final bool concertPitch;
 
   /// Ties and slurs between notes.
   final List<Spanner> spanners;
@@ -61,12 +66,14 @@ class Score {
       'playbackLayout': playbackLayout.name,
     if (spanners.isNotEmpty)
       'spanners': spanners.map((s) => s.toJson()).toList(),
+    if (concertPitch) 'concertPitch': true,
   };
 
   factory Score.fromJson(Map<String, dynamic> json) => Score(
     id: json['id'] as String,
     title: json['title'] as String,
     composer: (json['composer'] as String?) ?? '',
+    concertPitch: json['concertPitch'] == true,
     playbackLayout: json['playbackLayout'] == null
         ? null
         : ScorePlaybackLayout.values.firstWhere(
@@ -106,8 +113,10 @@ class Score {
     MusicXmlSource? musicXmlSource,
     ScorePlaybackLayout? playbackLayout,
     List<Spanner>? spanners,
+    bool? concertPitch,
   }) => Score(
     id: id,
+    concertPitch: concertPitch ?? this.concertPitch,
     title: title ?? this.title,
     composer: composer ?? this.composer,
     parts: parts ?? this.parts,
@@ -154,17 +163,7 @@ class Score {
         }
       }
       changed |= partChanged;
-      updatedParts.add(
-        partChanged
-            ? Part(
-                id: part.id,
-                name: part.name,
-                staff: part.staff,
-                playback: part.playback,
-                measures: measures,
-              )
-            : part,
-      );
+      updatedParts.add(partChanged ? part.copyWith(measures: measures) : part);
     }
     return changed ? copyWith(parts: updatedParts) : this;
   }
@@ -262,11 +261,7 @@ class Score {
       }
       final sp = other.parts[i];
       updatedParts.add(
-        Part(
-          id: cp.id,
-          name: cp.name,
-          staff: cp.staff,
-          playback: cp.playback,
+        cp.copyWith(
           measures: [
             ...cp.measures,
             for (int j = 0; j < sp.measures.length; j++)
@@ -308,13 +303,7 @@ class Score {
         Measure(number: insertAt + 1, symbols: const []),
       );
 
-      updatedParts[pi] = Part(
-        id: part.id,
-        name: part.name,
-        staff: part.staff,
-        playback: part.playback,
-        measures: _renumberMeasures(measures),
-      );
+      updatedParts[pi] = part.copyWith(measures: _renumberMeasures(measures));
     }
 
     return copyWith(parts: updatedParts);
@@ -334,13 +323,7 @@ class Score {
       final measures = List<Measure>.from(part.measures)
         ..removeAt(measureIndex);
 
-      updatedParts[pi] = Part(
-        id: part.id,
-        name: part.name,
-        staff: part.staff,
-        playback: part.playback,
-        measures: _renumberMeasures(measures),
-      );
+      updatedParts[pi] = part.copyWith(measures: _renumberMeasures(measures));
     }
 
     return copyWith(parts: updatedParts);
@@ -351,11 +334,7 @@ class Score {
   Score setMeasureImplicit(int measureIndex, bool implicit) => copyWith(
     parts: [
       for (final part in parts)
-        Part(
-          id: part.id,
-          name: part.name,
-          staff: part.staff,
-          playback: part.playback,
+        part.copyWith(
           measures: _renumberMeasures([
             for (final (i, m) in part.measures.indexed)
               i == measureIndex ? m.copyWith(implicit: implicit) : m,
@@ -414,13 +393,7 @@ class Score {
     final updatedMeasures = List<Measure>.from(part.measures);
     updatedMeasures[measureIndex] = updatedMeasure;
 
-    updatedParts[partIndex] = Part(
-      id: part.id,
-      name: part.name,
-      staff: part.staff,
-      playback: part.playback,
-      measures: updatedMeasures,
-    );
+    updatedParts[partIndex] = part.copyWith(measures: updatedMeasures);
 
     return copyWith(parts: updatedParts);
   }

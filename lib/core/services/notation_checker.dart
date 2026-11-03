@@ -646,13 +646,7 @@ class NotationChecker {
     final measures = [...part.measures];
     measures[m] = _measureWith(measures[m], symbols);
     final parts = [...s.parts];
-    parts[p] = Part(
-      id: part.id,
-      name: part.name,
-      staff: part.staff,
-      playback: part.playback,
-      measures: measures,
-    );
+    parts[p] = part.copyWith(measures: measures);
     return _withParts(s, parts);
   }
 
@@ -688,11 +682,7 @@ class NotationChecker {
           while (own.length < target) {
             own.add(Measure(number: 0, symbols: const []));
           }
-          return Part(
-            id: s.parts[k].id,
-            name: s.parts[k].name,
-            staff: s.parts[k].staff,
-            playback: s.parts[k].playback,
+          return s.parts[k].copyWith(
             measures: [
               for (var i = 0; i < own.length; i++)
                 _measureWith(own[i], own[i].symbols, number: i + 1),

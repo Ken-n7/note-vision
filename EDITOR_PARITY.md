@@ -902,6 +902,38 @@ Device check (2026-11-01): release **2005**, built from `f801e50` with
   copyright fields, saving user templates, minor-key names, irregular
   pickups needing two rests.
 
-Next: 5D specialised notation. Retained-source rhythm export for complex documents,
+## Stage 5D (part 1) — transposing instruments and concert pitch
+
+- `Part.transposition` (`Transposition`: diatonic, chromatic, octave — what
+  is added to the written pitch, as MusicXML `<transpose>`). Notes and key
+  signatures are stored as written; playback adds the interval unless the
+  score is in concert pitch. Imported from and exported to `<transpose>`
+  (previously ignored: imported clarinet parts played a tone high).
+- Concert pitch: More → Concert pitch (checked) and command search, shown
+  when a score has a transposing part. `Transposer.concertPitch` rewrites
+  each transposing part by its own interval (key signatures included, then
+  any extra octave), saved as `Score.concertPitch`, one undo step. Export
+  always writes the players' parts.
+- Instruments as MuseScore Studio names and transposes them
+  (`transpositionFor`): Clarinet in Bb, Bass Clarinet, Soprano/Alto/Tenor/
+  Baritone Saxophone, Trumpet in Bb, Horn in F, Piccolo, Glockenspiel, and
+  an octave down for Double bass, Acoustic bass and Bass guitar; their GM
+  sounds follow MuseScore. The Staves sheet adds clarinet, alto and tenor
+  sax, trumpet in B♭, horn, bassoon and tuba; a new staff's key signature is
+  written for its instrument.
+- New-score templates: wind quartet, wind quintet, saxophone quartet, brass
+  quartet and brass quintet, matching MuseScore's names, sounds, clefs,
+  transpositions and written keys (concert C: clarinet in D, horn in G).
+- Refactor: every field-by-field `Part(id: p.id, name: p.name, …)` copy now
+  uses `Part.copyWith` (21 places), so new fields survive; several had been
+  dropping a part's mixer settings.
+- Parity: `23_transposing` (flute, clarinet, alto sax, horn, tenor sax on one
+  concert melody): notation 45/45, playback 41/41. All 15 templates match.
+- Not yet: chord symbols in transposing parts are not transposed for
+  concert pitch or playback; per-instrument concert-pitch clefs;
+  transposition changes mid-score.
+
+Next: 5D part 2 — percussion (drum kit, unpitched staves), then tablature
+and cross-staff notation. Retained-source rhythm export for complex documents,
 global timewise measure slots and richer editable notation still need work;
 continue using the Stage 2B timeline rather than adding flat-list timing rules.

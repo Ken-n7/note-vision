@@ -1,0 +1,3 @@
+# 23_transposing — MuseScore4 4.7.5 vs Note Vision
+## notation: 45/45 MuseScore facts match
+## playback: 41/41 MuseScore facts match

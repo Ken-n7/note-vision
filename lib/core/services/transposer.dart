@@ -127,6 +127,55 @@ class Transposer {
     );
   }
 
+  /// Writes transposing parts at sounding pitch ([concert]) or as their
+  /// players read them, key signatures included, as MuseScore Studio's
+  /// Concert pitch button does.
+  Score concertPitch(Score score, bool concert) {
+    if (score.concertPitch == concert) return score;
+    return score.copyWith(
+      concertPitch: concert,
+      parts: [
+        for (final part in score.parts)
+          if (part.transposition case final t?)
+            _moveBy(part, concert ? t : t.inverse)
+          else
+            part,
+      ],
+    );
+  }
+
+  Part _moveBy(Part part, Transposition t) {
+    final index = transposeIntervals.indexWhere(
+      (e) =>
+          e.$2.steps == t.diatonic.abs() && e.$2.semitones == t.chromatic.abs(),
+    );
+    var moved = part;
+    if (index > 0) {
+      moved = transpose(
+        Score(id: '', title: '', composer: '', parts: [part]),
+        TransposeOptions(
+          mode: TransposeMode.byInterval,
+          interval: index,
+          direction: t.diatonic < 0 || (t.diatonic == 0 && t.chromatic < 0)
+              ? TransposeDirection.down
+              : TransposeDirection.up,
+        ),
+      ).parts.single;
+    }
+    if (t.octave == 0) return moved;
+    return moved.copyWith(
+      measures: [
+        for (final m in moved.measures)
+          m.copyWith(
+            symbols: [
+              for (final s in m.symbols)
+                s is Note ? s.copyWith(octave: s.octave + t.octave) : s,
+            ],
+          ),
+      ],
+    );
+  }
+
   Part _part(
     Part part,
     TransposeOptions options,
@@ -244,13 +293,7 @@ class Transposer {
         ),
       );
     }
-    return Part(
-      id: part.id,
-      name: part.name,
-      staff: part.staff,
-      playback: part.playback,
-      measures: measures,
-    );
+    return part.copyWith(measures: measures);
   }
 
   /// Past seven sharps or flats, the enharmonic key twelve fifths away.

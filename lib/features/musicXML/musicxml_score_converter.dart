@@ -61,8 +61,26 @@ class MusicXmlScoreConverter {
               ?.findElements('score-part')
               .where((e) => e.getAttribute('id') == sourceId)
               .firstOrNull;
+          // A transposing part's first <transpose>: notes stay as written.
+          final transpose = root
+              .findAllElements('part')
+              .where((e) => e.getAttribute('id') == sourceId)
+              .expand((e) => e.findAllElements('transpose'))
+              .firstOrNull;
+          int read(String name) =>
+              int.tryParse(_firstInnerText(transpose, name)?.trim() ?? '') ??
+              0;
           return Accidentals.writtenFromSounding(
-            part.copyWith(playback: MusicXmlInstruments.read(declaration)),
+            part.copyWith(
+              playback: MusicXmlInstruments.read(declaration),
+              transposition: transpose == null
+                  ? null
+                  : Transposition(
+                      diatonic: read('diatonic'),
+                      chromatic: read('chromatic'),
+                      octave: read('octave-change'),
+                    ),
+            ),
           );
         }).toList(),
       ),
@@ -256,11 +274,7 @@ class MusicXmlScoreConverter {
       : score.copyWith(
           parts: [
             for (final part in score.parts)
-              Part(
-                id: part.id,
-                name: part.name,
-                staff: part.staff,
-                playback: part.playback,
+              part.copyWith(
                 measures: [
                   for (final m in part.measures)
                     m.withContent(

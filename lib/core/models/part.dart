@@ -1,5 +1,8 @@
 import 'measure.dart';
 import 'part_playback.dart';
+import 'transposition.dart';
+
+export 'transposition.dart';
 
 class Part {
   final String id;
@@ -19,7 +22,13 @@ class Part {
     required this.measures,
     this.staff = 1,
     this.playback = const PartPlayback(),
+    this.transposition,
   });
+
+  /// A transposing instrument's interval from written to sounding pitch.
+  /// Notes and key signatures are stored as written, unless the score is in
+  /// concert pitch ([Score.concertPitch]); playback sounds them.
+  final Transposition? transposition;
 
   /// Whether this part continues the instrument of the part before it.
   bool get joinsPrevious => staff > 1;
@@ -30,6 +39,7 @@ class Part {
     'measures': measures.map((m) => m.toJson()).toList(),
     if (staff > 1) 'staff': staff,
     if (playback != const PartPlayback()) 'playback': playback.toJson(),
+    if (transposition != null) 'transposition': transposition!.toJson(),
   };
 
   factory Part.fromJson(Map<String, dynamic> json) => Part(
@@ -39,6 +49,7 @@ class Part {
     playback: PartPlayback.fromJson(
       json['playback'] as Map<String, dynamic>? ?? {},
     ),
+    transposition: Transposition.fromJson(json['transposition']),
     measures: (json['measures'] as List<dynamic>)
         .map((m) => Measure.fromJson(m as Map<String, dynamic>))
         .toList(),
@@ -50,13 +61,19 @@ class Part {
     int? staff,
     List<Measure>? measures,
     PartPlayback? playback,
+    Object? transposition = _keep,
   }) => Part(
+    transposition: identical(transposition, _keep)
+        ? this.transposition
+        : transposition as Transposition?,
     id: id ?? this.id,
     name: name ?? this.name,
     staff: staff ?? this.staff,
     measures: measures ?? this.measures,
     playback: playback ?? this.playback,
   );
+
+  static const Object _keep = Object();
 
   int get measureCount => measures.length;
 

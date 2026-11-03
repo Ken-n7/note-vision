@@ -7,6 +7,7 @@ import 'package:note_vision/core/models/part_playback.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/time_signature.dart';
+import 'package:note_vision/core/services/transposer.dart';
 
 /// One staff of a new score; [grand] adds a bass staff joined below it, as
 /// a piano has.
@@ -25,8 +26,8 @@ class ScoreTemplate {
   final List<NewStaff> staves;
 }
 
-/// The templates whose notation Note Vision can write: no transposing
-/// instruments, tablature or percussion yet. Part names and clefs follow
+/// The templates whose notation Note Vision can write: no tablature or
+/// percussion yet. Part names and clefs follow
 /// MuseScore Studio 4.7.5's (`new_score_test.dart` compares them).
 const scoreTemplates = <ScoreTemplate>[
   ScoreTemplate('General', 'Treble clef', [
@@ -47,6 +48,38 @@ const scoreTemplates = <ScoreTemplate>[
     (name: 'Violin II', clef: _treble, grand: false),
     (name: 'Viola', clef: _alto, grand: false),
     (name: 'Violoncello', clef: _bass, grand: false),
+  ]),
+  ScoreTemplate('Chamber music', 'Wind quartet', [
+    (name: 'Flute', clef: _treble, grand: false),
+    (name: 'Oboe', clef: _treble, grand: false),
+    (name: 'Clarinet in Bb', clef: _treble, grand: false),
+    (name: 'Bassoon', clef: _bass, grand: false),
+  ]),
+  ScoreTemplate('Chamber music', 'Wind quintet', [
+    (name: 'Flute', clef: _treble, grand: false),
+    (name: 'Oboe', clef: _treble, grand: false),
+    (name: 'Clarinet in Bb', clef: _treble, grand: false),
+    (name: 'Horn in F', clef: _treble, grand: false),
+    (name: 'Bassoon', clef: _bass, grand: false),
+  ]),
+  ScoreTemplate('Chamber music', 'Saxophone quartet', [
+    (name: 'Soprano Saxophone', clef: _treble, grand: false),
+    (name: 'Alto Saxophone', clef: _treble, grand: false),
+    (name: 'Tenor Saxophone', clef: _treble, grand: false),
+    (name: 'Baritone Saxophone', clef: _treble, grand: false),
+  ]),
+  ScoreTemplate('Chamber music', 'Brass quartet', [
+    (name: 'Trumpet in Bb 1', clef: _treble, grand: false),
+    (name: 'Trumpet in Bb 2', clef: _treble, grand: false),
+    (name: 'Trombone', clef: _bass, grand: false),
+    (name: 'Tuba', clef: _bass, grand: false),
+  ]),
+  ScoreTemplate('Chamber music', 'Brass quintet', [
+    (name: 'Trumpet in Bb 1', clef: _treble, grand: false),
+    (name: 'Trumpet in Bb 2', clef: _treble, grand: false),
+    (name: 'Horn in F', clef: _treble, grand: false),
+    (name: 'Trombone', clef: _bass, grand: false),
+    (name: 'Tuba', clef: _bass, grand: false),
   ]),
   ScoreTemplate('Solo', 'Guitar', [
     (name: 'Classical Guitar', clef: _treble8vb, grand: false),
@@ -108,7 +141,8 @@ class NewScoreOptions {
 
 /// An empty score: [o]'s staves, each with [o.bars] empty bars after an
 /// optional pickup (a rest of its length, left out of the bar count), the
-/// key, meter and an optional metronome mark at the start.
+/// key, meter and an optional metronome mark at the start. [o.fifths] is the
+/// concert key: transposing instruments are written in their own keys.
 Score buildNewScore(NewScoreOptions o, {String? id}) {
   final pickup = o.pickupBeats > 0
       ? valueForQuarters(o.pickupBeats * 4 / o.time.beatType)
@@ -160,6 +194,7 @@ Score buildNewScore(NewScoreOptions o, {String? id}) {
         id: id,
         name: staff.name,
         playback: playback,
+        transposition: transpositionFor(staff.name),
         measures: measures(staff.clef, top: parts.isEmpty),
       ),
     );
@@ -175,11 +210,16 @@ Score buildNewScore(NewScoreOptions o, {String? id}) {
       );
     }
   }
-  return Score(
-    id: id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-    title: o.title.isEmpty ? 'Untitled' : o.title,
-    composer: o.composer,
-    parts: parts,
-    playbackLayout: ScorePlaybackLayout.simultaneousParts,
+  // Built in concert pitch, then written as the players read it.
+  return const Transposer().concertPitch(
+    Score(
+      id: id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      title: o.title.isEmpty ? 'Untitled' : o.title,
+      composer: o.composer,
+      parts: parts,
+      playbackLayout: ScorePlaybackLayout.simultaneousParts,
+      concertPitch: true,
+    ),
+    false,
   );
 }

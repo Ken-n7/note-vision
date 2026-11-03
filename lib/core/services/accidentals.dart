@@ -57,11 +57,7 @@ class Accidentals {
   /// MusicXML `<alter>`) and turned into the accidental to write.
   static Part writtenFromSounding(Part part) {
     final state = Accidentals();
-    return Part(
-      id: part.id,
-      name: part.name,
-      staff: part.staff,
-      playback: part.playback,
+    return part.copyWith(
       measures: [
         for (final m in part.measures)
           () {

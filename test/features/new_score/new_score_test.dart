@@ -23,28 +23,40 @@ const museScoreTemplates = {
   'SATB + Piano': '03-SATB_+_Piano',
   'Voice + Piano': '07-Voice_+_Piano',
   'String quartet': '01-String_Quartet',
+  'Wind quartet': '02-Wind_Quartet',
+  'Wind quintet': '03-Wind_Quintet',
+  'Saxophone quartet': '04-Saxophone_Quartet',
+  'Brass quartet': '05-Brass_Quartet',
+  'Brass quintet': '06-Brass_Quintet',
   'Guitar': '01-Guitar',
   'Piano': '04-Piano',
   'Lead sheet': '01-Jazz_Lead_Sheet',
 };
 
-/// Each part's name, MIDI program and staves' clefs, as MusicXML gives them.
+/// Each part's name, MIDI program, staves' clefs, transposition and written
+/// key, as MusicXML gives them.
 List<String> staffFacts(XmlDocument doc) => [
   for (final sp in doc.findAllElements('score-part'))
     () {
       final id = sp.getAttribute('id');
-      final part = doc
+      final first = doc
           .findAllElements('part')
-          .firstWhere((p) => p.getAttribute('id') == id);
+          .firstWhere((p) => p.getAttribute('id') == id)
+          .findAllElements('measure')
+          .first;
+      String? text(XmlElement? e, String name) =>
+          e?.getElement(name)?.innerText;
       final clefs = [
-        for (final c
-            in part.findAllElements('measure').first.findAllElements('clef'))
-          '${c.getElement('sign')!.innerText}${c.getElement('line')!.innerText}'
-              '${c.getElement('clef-octave-change')?.innerText ?? ''}',
+        for (final c in first.findAllElements('clef'))
+          '${text(c, 'sign')}${text(c, 'line')}'
+              '${text(c, 'clef-octave-change') ?? ''}',
       ];
+      final t = first.findAllElements('transpose').firstOrNull;
       return '${sp.getElement('part-name')!.innerText} '
           'program=${sp.findAllElements('midi-program').firstOrNull?.innerText} '
-          'clefs=${clefs.join(',')}';
+          'clefs=${clefs.join(',')} '
+          'key=${first.findAllElements('fifths').firstOrNull?.innerText} '
+          'transpose=${t == null ? '-' : '${text(t, 'diatonic')}/${text(t, 'chromatic')}/${text(t, 'octave-change') ?? 0}'}';
     }(),
 ];
 

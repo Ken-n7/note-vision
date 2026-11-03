@@ -50,7 +50,10 @@ templates="$("$mscore" --version >/dev/null 2>&1; find "$TMPDIR" -path '*/share/
 mkdir -p "$dir/reference/templates"
 for t in 01-General/01-Treble_Clef 01-General/02-Bass_Clef 01-General/03-Grand_Staff \
   02-Choral/01-SATB 02-Choral/03-SATB_+_Piano 02-Choral/07-Voice_+_Piano \
-  03-Chamber_Music/01-String_Quartet 04-Solo/01-Guitar 04-Solo/04-Piano \
+  03-Chamber_Music/01-String_Quartet 03-Chamber_Music/02-Wind_Quartet \
+  03-Chamber_Music/03-Wind_Quintet 03-Chamber_Music/04-Saxophone_Quartet \
+  03-Chamber_Music/05-Brass_Quartet 03-Chamber_Music/06-Brass_Quintet \
+  04-Solo/01-Guitar 04-Solo/04-Piano \
   05-Jazz/01-Jazz_Lead_Sheet; do
   "$mscore" -o "$PWD/$dir/reference/templates/${t#*/}.musicxml" "$templates/$t/${t#*/}.mscx"
 done
