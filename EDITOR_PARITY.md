@@ -1000,6 +1000,36 @@ Device check (2026-11-01): release **2005**, built from `f801e50` with
   hammer-ons, other tunings and string counts from the editor (imported ones
   are kept), bass tab.
 
-Next: 5D part 4 — cross-staff notation. Retained-source rhythm export for complex documents,
+## Stage 5D (part 4) — cross-staff notes
+
+- `Note.staffMove` (MuseScore's staff move): the note stays in its own
+  staff's voice and rhythm and is drawn one staff below (+1) or above (−1)
+  within its instrument. MusicXML writes `<staff>` as home + move.
+- Import: in a part on several staves each voice has a home staff, the one
+  most of its notes sit on (`homeStaves`); its notes elsewhere become
+  cross-staff instead of moving to the other staff's part (which had put
+  them at the wrong time). The retained-source timeline uses the same home
+  staves.
+- Drawing (editor and PDF): a moved note sits on the other staff in that
+  staff's clef, with its ledger lines; stems and beams join it to its
+  voice, giving cross-staff beams.
+- Editor: Ctrl/Cmd+Shift+Down/Up, search commands and Edit-dock Staff
+  down/up tiles (shown only on a staff of a multi-staff instrument) move the
+  selected note; one undo step.
+- Parity: `26_cross_staff` (beamed right-hand eighths dipping into the bass
+  staff, a cross-staff quarter): notation 20/20, playback 27/27.
+- Device check (release **2012**, Realme RMX1851 / Android 11): a Piano
+  score from the wizard, C4 E4 G4 C5 entered, Staff down moved C4 onto the
+  bass staff at its own beat.
+- Not yet: moving a whole range or chord at once, cross-staff rests,
+  tapping a moved note on the other staff selects that staff's bar (select
+  it with the arrows), beam slant and stem lengths tuned for cross-staff,
+  voices whose notes sit mostly on the other staff after import keep that
+  staff as home.
+
+Stage 5D is complete: transposing instruments, drums, tablature and
+cross-staff notes. The agreed stage list is finished; remaining work is the
+"Not yet" items of each stage and the inventory's engraving and platform
+rows. Retained-source rhythm export for complex documents,
 global timewise measure slots and richer editable notation still need work;
 continue using the Stage 2B timeline rather than adding flat-list timing rules.

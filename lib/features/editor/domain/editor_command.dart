@@ -59,6 +59,18 @@ enum EditorCommand {
     'Grace notes',
     'A grace note before the selected note, played on the beat',
   ),
+  staffBelow(
+    'Move to staff below',
+    'Voices',
+    'Draw the note on the staff below, keeping its rhythm',
+    'Ctrl/Cmd + Shift + Down',
+  ),
+  staffAbove(
+    'Move to staff above',
+    'Voices',
+    'Draw the note on the staff above, keeping its rhythm',
+    'Ctrl/Cmd + Shift + Up',
+  ),
   crescendo('Crescendo', 'Dynamics', 'A hairpin growing louder', '<'),
   diminuendo('Diminuendo', 'Dynamics', 'A hairpin growing softer', '>'),
   triplet(
@@ -155,6 +167,8 @@ enum EditorCommand {
     if (mark case final mark?) return state.markUnavailableReason(mark);
     if (hairpin case final kind?) return state.hairpinUnavailableReason(kind);
     if (this == triplet) return state.tupletUnavailableReason(3);
+    if (this == staffBelow) return state.crossStaffUnavailableReason(1);
+    if (this == staffAbove) return state.crossStaffUnavailableReason(-1);
     if (this == acciaccatura || this == appoggiatura) {
       return state.graceUnavailableReason;
     }
@@ -222,6 +236,8 @@ enum EditorCommand {
       restToNote => state.convertSelectedRestToNote(),
       addThird => state.addChordInterval(3),
       triplet => state.makeTuplet(3),
+      staffBelow => state.moveSelectedToStaff(1),
+      staffAbove => state.moveSelectedToStaff(-1),
       acciaccatura => state.addGraceNote(Grace.acciaccatura),
       appoggiatura => state.addGraceNote(Grace.appoggiatura),
       tie => state.toggleTie(),

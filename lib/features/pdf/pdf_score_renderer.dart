@@ -394,6 +394,32 @@ class PdfScoreRenderer {
           numberBars: !joined,
           topStaff: pi == 0,
           tabTuning: score.parts[pi].isTab ? score.parts[pi].tabTuning : null,
+          // The staves of the same instrument above and below, for notes
+          // drawn across staves.
+          crossStaves: {
+            for (final move in [-1, 1])
+              if (pi + move >= 0 &&
+                  pi + move < partCount &&
+                  startM < pageParts[pi + move].length &&
+                  (move > 0
+                      ? score.parts[pi + move].joinsPrevious
+                      : score.parts[pi].joinsPrevious))
+                move: (
+                  top: staffTop - move * rowHeight * _scale,
+                  sign: _clefSign(
+                    pageParts[pi + move].sublist(
+                      startM,
+                      math.min(endM, pageParts[pi + move].length),
+                    ),
+                  ),
+                  line: _clefLine(
+                    pageParts[pi + move].sublist(
+                      startM,
+                      math.min(endM, pageParts[pi + move].length),
+                    ),
+                  ),
+                ),
+          },
           notePoints: notePoints,
         );
         for (final (i, m) in rowMeasures.indexed) {
@@ -861,6 +887,7 @@ class PdfScoreRenderer {
     bool topStaff = true,
     Map<String, _PdfNotePoint>? notePoints,
     List<int>? tabTuning,
+    Map<int, ({double top, String sign, int line})> crossStaves = const {},
   }) {
     // staffTop = y of top staff line (PDF: y from bottom)
     // staffBottom = y of bottom staff line
@@ -1074,6 +1101,7 @@ class PdfScoreRenderer {
         notePoints: notePoints,
         rowStartX: contentStartX,
         tabTuning: tabTuning,
+        crossStaves: crossStaves,
         rowEndX: staffEndX,
         textFont: font,
       );
@@ -1099,6 +1127,7 @@ class PdfScoreRenderer {
     Map<String, _PdfNotePoint>? notePoints,
     double rowStartX = 0,
     List<int>? tabTuning,
+    Map<int, ({double top, String sign, int line})> crossStaves = const {},
     double rowEndX = 0,
     PdfFont? textFont,
   }) {
@@ -1119,13 +1148,15 @@ class PdfScoreRenderer {
     for (var i = 0; i < count; i++) {
       final sym = measure.symbols[i];
       if (sym is Note) {
+        // A cross-staff note sits on the staff it moves to, in its clef.
+        final cross = crossStaves[sym.staffMove];
         ys.add(
           _yForPitch(
             step: sym.step,
             octave: sym.octave,
-            bottomLineY: staffBottom,
-            clefSign: clefSign,
-            clefLine: clefLine,
+            bottomLineY: cross == null ? staffBottom : cross.top - _staffH,
+            clefSign: cross?.sign ?? clefSign,
+            clefLine: cross?.line ?? clefLine,
           ),
         );
       } else {
@@ -1208,8 +1239,9 @@ class PdfScoreRenderer {
             math.min(staffBottom - _dynamicsBelow, lowest - 12 * _scale),
           );
         }
+        final noteTop = crossStaves[symbol.staffMove]?.top ?? staffTop;
         for (final line in ScoreNotationMetrics.ledgerYs(
-          (staffTop - y) / _scale,
+          (noteTop - y) / _scale,
         )) {
           final half =
               ScoreNotationMetrics.ledgerHalfWidth *
@@ -1218,9 +1250,9 @@ class PdfScoreRenderer {
           _line(
             g,
             x - half,
-            staffTop - line * _scale,
+            noteTop - line * _scale,
             x + half,
-            staffTop - line * _scale,
+            noteTop - line * _scale,
             ScoreNotationMetrics.staffLineStrokeWidth * _scale,
           );
         }

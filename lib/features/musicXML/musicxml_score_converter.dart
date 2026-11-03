@@ -337,7 +337,7 @@ class MusicXmlScoreConverter {
       _ => 1,
     };
     final result = <Part>[];
-    for (final part in parts) {
+    for (var part in parts) {
       final elements = sourceMeasures[part.id] ?? const <XmlElement>[];
       final declared = elements
           .expand((m) => m.findElements('attributes'))
@@ -352,6 +352,32 @@ class MusicXmlScoreConverter {
         result.add(part);
         continue;
       }
+      // A note away from its voice's home staff is cross-staff: it stays
+      // in its voice's staff and is drawn on the other.
+      final home = homeStaves([
+        for (final m in part.measures)
+          for (final s in m.symbols)
+            if (s is Note) (s.voice ?? 1, staffOf(s)),
+      ]);
+      part = part.copyWith(
+        measures: [
+          for (final m in part.measures)
+            m.copyWith(
+              symbols: [
+                for (final s in m.symbols)
+                  switch (s) {
+                    Note(:final voice) when (home[voice ?? 1] ?? staffOf(s)) !=
+                        staffOf(s) =>
+                      s.copyWith(
+                        staff: home[voice ?? 1],
+                        staffMove: staffOf(s) - home[voice ?? 1]!,
+                      ),
+                    _ => s,
+                  },
+              ],
+            ),
+        ],
+      );
       final indexes = sourceIndexes[part.id]!;
       for (var staff = 1; staff <= count; staff++) {
         final id = staff == 1 ? part.id : '${part.id}-staff$staff';

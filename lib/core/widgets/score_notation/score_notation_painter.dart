@@ -126,11 +126,17 @@ class ScoreNotationPainter extends CustomPainter {
   final NotationPreviewGlyph? insertionPreviewGlyph;
 
   static const double staffLineSpacing = ScoreNotationMetrics.staffLineSpacing;
+
+  /// This paint's rows, so a cross-staff note finds the staff it is drawn
+  /// on.
+  static final _paintedRows = Expando<List<_RowMetrics>>();
+  List<_RowMetrics> get _rows => _paintedRows[this] ?? const [];
   static const double tapTargetSize = ScoreNotationMetrics.tapTargetSize;
 
   @override
   void paint(Canvas canvas, Size size) {
     final metrics = _buildRowMetrics();
+    _paintedRows[this] = metrics;
     _notePoints.clear();
     for (final row in metrics) {
       _drawRow(canvas, row);
@@ -1000,13 +1006,24 @@ class ScoreNotationPainter extends CustomPainter {
         continue;
       }
       if (symbol is Note) {
+        // A cross-staff note sits on the staff it moves to, in its clef.
+        final target = symbol.staffMove == 0 || row == null
+            ? null
+            : _rows
+                  .where(
+                    (r) =>
+                        r.rowIndex == row.rowIndex &&
+                        r.partIndex == partIndex + symbol.staffMove,
+                  )
+                  .firstOrNull;
+        final noteTop = target?.staffTop ?? staffTop;
         final y = StaffPitchMapper.yForPitch(
           step: symbol.step,
           octave: symbol.octave,
-          bottomLineY: staffBottom,
+          bottomLineY: target?.staffBottom ?? staffBottom,
           lineSpacing: staffLineSpacing,
-          clefSign: clefSign,
-          clefLine: clefLine,
+          clefSign: target?.clefSign ?? clefSign,
+          clefLine: target?.clefLine ?? clefLine,
         );
         notePositions[i] = Offset(x, y);
         tupletPoints[i] = (
@@ -1069,13 +1086,13 @@ class ScoreNotationPainter extends CustomPainter {
           i,
           Offset(x, y),
         );
-        for (final line in ScoreNotationMetrics.ledgerYs(y - staffTop)) {
+        for (final line in ScoreNotationMetrics.ledgerYs(y - noteTop)) {
           final half =
               ScoreNotationMetrics.ledgerHalfWidth *
               (symbol.grace == null ? 1 : graceScale);
           canvas.drawLine(
-            Offset(x - half, staffTop + line),
-            Offset(x + half, staffTop + line),
+            Offset(x - half, noteTop + line),
+            Offset(x + half, noteTop + line),
             Paint()
               ..color = const Color(0xFF111827)
               ..strokeWidth = ScoreNotationMetrics.staffLineStrokeWidth,

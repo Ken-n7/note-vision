@@ -2426,6 +2426,18 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         );
         return KeyEventResult.handled;
       }
+      // MuseScore's Ctrl+Shift+Down/Up: draw the note on the next staff.
+      if (!keyboard.isAltPressed &&
+          keyboard.isShiftPressed &&
+          (key == LogicalKeyboardKey.arrowUp ||
+              key == LogicalKeyboardKey.arrowDown)) {
+        _runEditorCommand(
+          key == LogicalKeyboardKey.arrowUp
+              ? EditorCommand.staffAbove
+              : EditorCommand.staffBelow,
+        );
+        return KeyEventResult.handled;
+      }
       return KeyEventResult.ignored;
     }
     final letter = _pitchLetters[key];
@@ -2886,6 +2898,17 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       onTie: _editorState.tieUnavailableReason == null
                           ? () => _runEditorCommand(EditorCommand.tie)
                           : null,
+                      onStaffMove: (move) => _runEditorCommand(
+                        move > 0
+                            ? EditorCommand.staffBelow
+                            : EditorCommand.staffAbove,
+                      ),
+                      canStaffMove: {
+                        for (final move in [-1, 1])
+                          if (_editorState.crossStaffUnavailableReason(move) ==
+                              null)
+                            move,
+                      },
                       onSlur: _editorState.slurUnavailableReason == null
                           ? () => _runEditorCommand(EditorCommand.slur)
                           : null,
@@ -5134,6 +5157,8 @@ class _InspectorPanel extends StatefulWidget {
     required this.onTie,
     required this.onSlur,
     required this.onTriplet,
+    this.canStaffMove = const {},
+    this.onStaffMove,
     required this.selectedGrace,
     required this.onGrace,
     required this.onLyrics,
@@ -5201,6 +5226,10 @@ class _InspectorPanel extends StatefulWidget {
   final VoidCallback onMoveDown;
   final VoidCallback? onOctaveUp, onOctaveDown, onConvertSymbol, onAddThird;
   final VoidCallback? onTie, onSlur, onTriplet, onLyrics, onAnnotations;
+
+  /// Cross-staff moves the selected note allows (−1 above, +1 below).
+  final Set<int> canStaffMove;
+  final ValueChanged<int>? onStaffMove;
   final Grace? selectedGrace;
   final ValueChanged<Grace>? onGrace;
 
@@ -5866,6 +5895,23 @@ class _InspectorPanelState extends State<_InspectorPanel> {
                     'Slur the selected notes, or this note to the next (S)',
                 onPressed: _wrapAction(widget.onSlur),
               ),
+              // Shown only where the note's instrument has another staff.
+              for (final (move, icon, label) in const [
+                (-1, Icons.vertical_align_top_rounded, 'Staff up'),
+                (1, Icons.vertical_align_bottom_rounded, 'Staff down'),
+              ])
+                if (widget.canStaffMove.contains(move))
+                  _ActionTile(
+                    icon: icon,
+                    label: label,
+                    tooltip:
+                        'Draw this note on the staff ${move > 0 ? 'below' : 'above'} (Ctrl/Cmd + Shift + ${move > 0 ? 'Down' : 'Up'})',
+                    onPressed: _wrapAction(
+                      widget.onStaffMove == null
+                          ? null
+                          : () => widget.onStaffMove!(move),
+                    ),
+                  ),
             ],
           ),
           const SizedBox(height: 8),

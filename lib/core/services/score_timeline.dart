@@ -213,11 +213,14 @@ class ScoreTimelineBuilder {
     var events =
         context.events[(sourcePartId, original.$1)] ??
         const <SourceScoreEvent>[];
+    // A cross-staff note keeps its voice's home staff.
+    final home = context.voiceHomes[sourcePartId] ?? const {};
+    int staffOf(SourceScoreEvent e) => home[e.voice] ?? e.staff;
     if (context.multiStaffParts.contains(sourcePartId)) {
       final staff = context.staves[partId];
       events = [
         for (final e in events)
-          if (e.staff == staff) e,
+          if (staffOf(e) == staff) e,
       ];
     }
     final currentById = {
@@ -232,7 +235,7 @@ class ScoreTimelineBuilder {
           context.bindings[(event.partId, event.measureIndex, event.noteIndex)];
       final currentSymbol = currentById[id];
       final previous = previousById[id];
-      final eventLane = (event.voice, event.staff);
+      final eventLane = (event.voice, staffOf(event));
       var duration = event.duration;
       if (currentSymbol != null && previous != null) {
         if (lane(previous) != lane(currentSymbol.$2) ||
@@ -533,6 +536,13 @@ class _SourceTimingContext {
       bindings[(binding.partId, binding.measureIndex, binding.noteIndex)] =
           binding.symbolId;
     }
+    for (final part in multiStaffParts) {
+      voiceHomes[part] = homeStaves(
+        source.events
+            .where((e) => e.partId == part && !e.isRest)
+            .map((e) => (e.voice, e.staff)),
+      );
+    }
   }
   final measures = <(String, String?), (int, Measure)>{};
 
@@ -541,6 +551,9 @@ class _SourceTimingContext {
   final sourcePartIds = <String, String>{};
   final staves = <String, int>{};
   final multiStaffParts = <String>{};
+
+  /// Each multi-staff source part's voices and their home staves.
+  final voiceHomes = <String, Map<String, int>>{};
   late final bool hasOmittedTimewiseParts;
   final events = <(String, int), List<SourceScoreEvent>>{};
   final bindings = <(String, int, int), String>{};

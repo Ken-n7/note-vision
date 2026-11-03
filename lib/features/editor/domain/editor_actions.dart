@@ -1317,6 +1317,37 @@ extension EditorActions on EditorState {
     );
   }
 
+  // ── Cross-staff notes ────────────────────────────────────────────────
+
+  /// Why the selected note cannot be drawn one staff further [move] (+1
+  /// below, −1 above) within its instrument, or null.
+  String? crossStaffUnavailableReason(int move) {
+    final note = selectedSymbol;
+    if (!hasEditableSelection || note is! Note || hasRange) {
+      return 'Select a note';
+    }
+    final p = selectedPartIndex!, target = note.staffMove + move;
+    if (target.abs() > 1) return 'Notes move one staff at a time';
+    final parts = score.parts;
+    final joined =
+        target == 0 ||
+        (target > 0
+            ? p + 1 < parts.length && parts[p + 1].joinsPrevious
+            : parts[p].joinsPrevious);
+    return joined ? null : 'Move notes between the staves of one instrument';
+  }
+
+  /// Draws the selected note one staff below or above, keeping it in its
+  /// own staff's rhythm (MuseScore's Ctrl+Shift+Down/Up).
+  EditorState moveSelectedToStaff(int move) {
+    if (crossStaffUnavailableReason(move) != null) return this;
+    final note = selectedSymbol as Note;
+    return _replaceSelectedSymbol(
+      note.copyWith(staffMove: note.staffMove + move),
+      intent: EditorEditIntent.replaceSelection,
+    );
+  }
+
   // ── Grace notes ──────────────────────────────────────────────────────
 
   String? get graceUnavailableReason =>

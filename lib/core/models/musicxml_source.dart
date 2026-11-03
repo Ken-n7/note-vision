@@ -127,3 +127,26 @@ class MusicXmlSource {
     'requiresPreservation': requiresPreservation,
   };
 }
+
+/// Each voice's home staff in a part written on several staves: the staff
+/// most of its notes sit on (the lower number on a tie). A note of that
+/// voice on another staff is cross-staff: it keeps its voice's time and is
+/// only drawn on the other staff.
+Map<V, int> homeStaves<V>(Iterable<(V voice, int staff)> notes) {
+  final counts = <V, Map<int, int>>{};
+  for (final (voice, staff) in notes) {
+    final byStaff = counts.putIfAbsent(voice, () => {});
+    byStaff[staff] = (byStaff[staff] ?? 0) + 1;
+  }
+  return {
+    for (final MapEntry(key: voice, value: byStaff) in counts.entries)
+      voice: (byStaff.entries.toList()
+            ..sort(
+              (a, b) => a.value != b.value
+                  ? b.value.compareTo(a.value)
+                  : a.key.compareTo(b.key),
+            ))
+          .first
+          .key,
+  };
+}

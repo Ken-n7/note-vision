@@ -596,8 +596,9 @@ class MusicXmlExportService {
           b.element('stem', nest: (note.voice ?? 1).isOdd ? 'up' : 'down');
         }
         if (note.notehead case final head?) b.element('notehead', nest: head);
+        // A cross-staff note is written on the staff it is drawn on.
         if (note.staff != null) {
-          b.element('staff', nest: note.staff.toString());
+          b.element('staff', nest: '${note.staff! + note.staffMove}');
         }
         for (final entry in beamValues.entries) {
           b.element(

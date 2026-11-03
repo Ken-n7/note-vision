@@ -56,7 +56,13 @@ class Note extends ScoreSymbol {
     this.notehead,
     this.string,
     this.fret,
+    this.staffMove = 0,
   }) : _legacyBeamed = beamed;
+
+  /// Cross-staff: drawn this many staves below (+) or above (−) its own,
+  /// within the instrument, keeping its voice's time (MuseScore's staff
+  /// move; MusicXML writes the other `<staff>`).
+  final int staffMove;
 
   /// On a tablature staff: the string (1 is the highest) and fret written
   /// for this note. The pitch is what sounds.
@@ -115,7 +121,9 @@ class Note extends ScoreSymbol {
     Object? notehead = _keep,
     Object? string = _keep,
     Object? fret = _keep,
+    int? staffMove,
   }) => Note(
+    staffMove: staffMove ?? this.staffMove,
     string: identical(string, _keep) ? this.string : string as int?,
     fret: identical(fret, _keep) ? this.fret : fret as int?,
     drum: identical(drum, _keep) ? this.drum : drum as int?,
@@ -175,6 +183,7 @@ class Note extends ScoreSymbol {
     if (notehead != null) 'notehead': notehead,
     if (string != null) 'string': string,
     if (fret != null) 'fret': fret,
+    if (staffMove != 0) 'staffMove': staffMove,
   };
 
   factory Note.fromJson(Map<String, dynamic> json) => Note(
@@ -187,6 +196,7 @@ class Note extends ScoreSymbol {
     notehead: json['notehead'] as String?,
     string: json['string'] as int?,
     fret: json['fret'] as int?,
+    staffMove: json['staffMove'] as int? ?? 0,
     step: json['step'] as String,
     octave: json['octave'] as int,
     alter: json['alter'] as int?,
