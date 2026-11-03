@@ -865,7 +865,43 @@ Device check (2026-11-01): release **2005**, built from `f801e50` with
 - References: [MuseScore spacing](https://handbook.musescore.org/formatting/score-size-and-spacing),
   [systems and horizontal spacing](https://handbook.musescore.org/formatting/systems-and-horizontal-spacing).
 
-Next: 5C new-score wizard,
-5D specialised notation. Retained-source rhythm export for complex documents,
+## Stage 5C — new-score wizard
+
+- Collection → + → New Score opens `NewScoreWizard` (full screen, two steps)
+  in place of the title/composer dialog. **Instruments:** your staves first
+  (add from the Staves sheet's instruments, move up, remove), then MuseScore
+  Studio's template groups: General (treble, bass, grand staff), Choral
+  (SATB, SATB + Piano, Voice + Piano), Chamber music (string quartet), Solo
+  (guitar, piano), Jazz (lead sheet). Treble clef is preselected, keeping
+  the old quick path. **Score details:** title, composer, key (C♭–C♯ major),
+  time (2/4 … 12/8, C, ¢), pickup (lengths one rest can fill), bars
+  (default 32, as MuseScore) and an optional metronome mark (quarter,
+  dotted quarter in compound time, half in 2/2).
+- `buildNewScore(NewScoreOptions)` (pure Dart, `lib/features/new_score/`)
+  builds the parts: grand staves as linked parts (`P1`, `P1-staff2`),
+  default sounds, simultaneous playback, key/meter/clef on bar 1, a pickup
+  as an implicit bar holding one rest, the tempo on the top staff.
+- Octave clefs: `Clef.octave` (MusicXML `clef-octave-change`), drawn with a
+  small 8; notes keep sounding pitch and only their staff position moves
+  (`Clef.layoutSign`, e.g. `G-1`, read by `StaffPitchMapper`). Key
+  signatures sit as on the plain clef. The Staves sheet's Guitar and the new
+  Tenor use treble 8vb; Soprano/Alto were added. Voices now sound as GM
+  choir aahs (MuseScore's program), and numbered parts ("Violin II") get
+  their instrument's sound.
+- Parity: MuseScore's own templates are exported to
+  `reference/templates/` (`tool/musescore_reference.sh`), and
+  `new_score_test.dart` checks each of ours has their part names, MIDI
+  programs and clefs (all 10 match). New case `22_octave_clefs` (tenor and
+  guitar): notation 17/17, playback 17/17.
+- Device check (release **2009**, Realme RMX1851 / Android 11): SATB + Piano
+  in B♭, 3/4, quarter pickup, tempo 120 created through the wizard; the
+  first phone run showed the tenor's key signature an octave high, fixed and
+  rechecked.
+- Not yet: transposing instruments (clarinet, horn, saxophones) and their
+  templates, percussion and tablature templates, subtitle/lyricist/
+  copyright fields, saving user templates, minor-key names, irregular
+  pickups needing two rests.
+
+Next: 5D specialised notation. Retained-source rhythm export for complex documents,
 global timewise measure slots and richer editable notation still need work;
 continue using the Stage 2B timeline rather than adding flat-list timing rules.

@@ -772,7 +772,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
               ? measureStartX + widget.minMeasureWidth / 2
               : ((before ?? measureStartX + 16) + (after ?? measureEndX - 16)) /
                     2;
-          final clefSign = measure.clef?.sign ?? 'G';
+          final clefSign = measure.clef?.layoutSign ?? 'G';
           final pitch = StaffPitchMapper.pitchForY(
             y: position.dy,
             bottomLineY: staffBottom,

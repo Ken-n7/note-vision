@@ -2096,7 +2096,7 @@ extension EditorActions on EditorState {
       'C' => 28, // C4
       _ => 32, // G4
     };
-    return signPitch + (3 - clef.line) * 2;
+    return signPitch + (3 - clef.line) * 2 + 7 * clef.octave;
   }
 
   /// Inserts [symbol] at the input position. In a different voice from the

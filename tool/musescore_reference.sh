@@ -44,5 +44,15 @@ for name in $(jq -r 'keys[]' "$dir/transpositions.json"); do
   "$mscore" --transpose "$options" -o "$PWD/$dir/reference/transpose/$name.musicxml" \
     "$PWD/$dir/cases/$case_name.musicxml"
 done
+# New-score template references: MuseScore exports its own templates; the
+# test compares Note Vision's templates' staves, clefs and sounds.
+templates="$("$mscore" --version >/dev/null 2>&1; find "$TMPDIR" -path '*/share/mscore4portable-4.7/templates' -type d | head -1)"
+mkdir -p "$dir/reference/templates"
+for t in 01-General/01-Treble_Clef 01-General/02-Bass_Clef 01-General/03-Grand_Staff \
+  02-Choral/01-SATB 02-Choral/03-SATB_+_Piano 02-Choral/07-Voice_+_Piano \
+  03-Chamber_Music/01-String_Quartet 04-Solo/01-Guitar 04-Solo/04-Piano \
+  05-Jazz/01-Jazz_Lead_Sheet; do
+  "$mscore" -o "$PWD/$dir/reference/templates/${t#*/}.musicxml" "$templates/$t/${t#*/}.mscx"
+done
 "$mscore" --version 2>/dev/null | tail -1 > "$dir/reference/VERSION"
 cat "$dir/reference/VERSION"

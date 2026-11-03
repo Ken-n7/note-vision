@@ -8,10 +8,13 @@ import 'package:note_vision/features/editor/domain/editor_actions.dart';
 const staffInstruments = <(String, Clef)>[
   ('Piano', Clef(sign: 'G', line: 2)),
   ('Voice', Clef(sign: 'G', line: 2)),
+  ('Soprano', Clef(sign: 'G', line: 2)),
+  ('Alto', Clef(sign: 'G', line: 2)),
+  ('Tenor', Clef(sign: 'G', line: 2, octave: -1)),
   ('Flute', Clef(sign: 'G', line: 2)),
   ('Oboe', Clef(sign: 'G', line: 2)),
   ('Violin', Clef(sign: 'G', line: 2)),
-  ('Guitar', Clef(sign: 'G', line: 2)),
+  ('Guitar', Clef(sign: 'G', line: 2, octave: -1)),
   ('Trumpet', Clef(sign: 'G', line: 2)),
   ('Viola', Clef(sign: 'C', line: 3)),
   ('Cello', Clef(sign: 'F', line: 4)),
@@ -25,6 +28,7 @@ String _clefName(Clef? clef) => switch (clef) {
   Clef(sign: 'F') => 'Bass clef',
   Clef(sign: 'C', line: 3) => 'Alto clef',
   Clef(sign: 'C') => 'Tenor clef',
+  Clef(octave: -1) => 'Treble clef 8vb',
   _ => 'Treble clef',
 };
 

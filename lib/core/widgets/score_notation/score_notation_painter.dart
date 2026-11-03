@@ -633,6 +633,31 @@ class ScoreNotationPainter extends CustomPainter {
           ),
         );
     }
+    // An octave clef's small 8, below (sounding lower) or above.
+    if (row.clef?.octave case final octave? when octave != 0) {
+      final eight = TextPainter(
+        text: const TextSpan(
+          text: '8',
+          style: TextStyle(
+            fontSize: 9,
+            fontFamily: ScoreNotationMetrics.textFontFamily,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF111827),
+            height: 1,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      eight.paint(
+        canvas,
+        Offset(
+          row.rowStartX + ScoreNotationMetrics.trebleClefXOffset + 7,
+          octave < 0
+              ? row.staffBottom + 1.6 * staffLineSpacing
+              : row.staffTop - 2.6 * staffLineSpacing,
+        ),
+      );
+    }
 
     _drawRowSignatures(canvas, row);
 
@@ -2431,7 +2456,9 @@ class ScoreNotationPainter extends CustomPainter {
         octave: pitch.$2,
         bottomLineY: staffBottom,
         lineSpacing: staffLineSpacing,
-        clefSign: clefSign,
+        // The orders are written for the plain clef: an octave clef's key
+        // signature sits where the plain clef's does.
+        clefSign: clefSign[0],
         clefLine: clefLine,
       );
 
@@ -2743,6 +2770,6 @@ class _RowMetrics {
     timeInMeasure: timeInMeasure[measureInRow],
   );
 
-  String get clefSign => clef?.sign ?? 'G';
+  String get clefSign => clef?.layoutSign ?? 'G';
   int get clefLine => clef?.line ?? 2;
 }

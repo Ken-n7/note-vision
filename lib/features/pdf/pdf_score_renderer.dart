@@ -928,6 +928,18 @@ class PdfScoreRenderer {
         staffTop,
       );
     }
+    // An octave clef's small 8, below (sounding lower) or above.
+    if (clefSign.length > 1) {
+      final below = clefSign.contains('-');
+      _text(
+        g,
+        fontBold,
+        9 * _scale,
+        '8',
+        rowStartX + (ScoreNotationMetrics.trebleClefXOffset + 7) * _scale,
+        below ? staffBottom - 2.6 * _ls : staffTop + 2.2 * _ls,
+      );
+    }
 
     // Key signature at the start of every system; the time signature on the
     // page's first system and where it changes.
@@ -2045,7 +2057,8 @@ class PdfScoreRenderer {
         step: pitch.$1,
         octave: pitch.$2,
         bottomLineY: staffBottom,
-        clefSign: clefSign,
+        // Written for the plain clef, as on screen.
+        clefSign: clefSign[0],
         clefLine: clefLine,
       );
       _text(
@@ -2198,7 +2211,7 @@ class PdfScoreRenderer {
 
   static String _clefSign(List<Measure> measures) {
     for (final m in measures) {
-      if (m.clef != null) return m.clef!.sign;
+      if (m.clef != null) return m.clef!.layoutSign;
     }
     return 'G';
   }

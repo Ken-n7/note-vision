@@ -1,16 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:note_vision/features/new_score/new_score_wizard.dart';
 import 'package:flutter/services.dart';
 import 'package:note_vision/core/utils/emoji_blocking_formatter.dart';
 import 'package:note_vision/core/config/app_features.dart';
-import 'package:note_vision/core/models/clef.dart';
-import 'package:note_vision/core/models/key_signature.dart';
-import 'package:note_vision/core/models/measure.dart';
-import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/project.dart';
 import 'package:note_vision/core/models/score.dart';
-import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/services/project_storage_service.dart';
 import 'package:note_vision/core/services/nvscore_export_service.dart';
 import 'package:note_vision/core/services/nvscore_import_service.dart';
@@ -424,15 +420,11 @@ class _CollectionScreenState extends State<CollectionScreen>
 
   Future<void> _showNewScoreDialog() async {
     setState(() => _fabOpen = false);
-    final result = await showDialog<Map<String, String>>(
-      context: context,
-      builder: (_) => const _NewScoreDialog(),
+    final score = await Navigator.push<Score>(
+      context,
+      MaterialPageRoute(builder: (_) => const NewScoreWizard()),
     );
-    if (result == null || !mounted) return;
-    final score = _createBlankScore(
-      title: result['title']!,
-      composer: result['composer']!,
-    );
+    if (score == null || !mounted) return;
     await Navigator.pushNamed(
       context,
       EditorShellScreen.routeName,
@@ -442,35 +434,6 @@ class _CollectionScreenState extends State<CollectionScreen>
       ),
     );
     if (mounted) _loadProjects();
-  }
-
-  Score _createBlankScore({required String title, required String composer}) {
-    const trebleClef = Clef(sign: 'G', line: 2);
-    const commonTime = TimeSignature(beats: 4, beatType: 4);
-    const cMajor = KeySignature(fifths: 0);
-    return Score(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: title.isEmpty ? 'Untitled' : title,
-      composer: composer,
-      parts: [
-        Part(
-          id: 'P1',
-          name: 'Part 1',
-          measures: [
-            const Measure(
-              number: 1,
-              clef: trebleClef,
-              timeSignature: commonTime,
-              keySignature: cMajor,
-              symbols: [],
-            ),
-            const Measure(number: 2, symbols: []),
-            const Measure(number: 3, symbols: []),
-            const Measure(number: 4, symbols: []),
-          ],
-        ),
-      ],
-    );
   }
 
   String _formatDate(DateTime dt) {
@@ -1343,172 +1306,6 @@ class _RenameProjectDialogState extends State<_RenameProjectDialog> {
             style: TextStyle(
               color: AppColors.accent,
               fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ── New Score dialog ──────────────────────────────────────────────────────────
-
-class _NewScoreDialog extends StatefulWidget {
-  const _NewScoreDialog();
-
-  @override
-  State<_NewScoreDialog> createState() => _NewScoreDialogState();
-}
-
-class _NewScoreDialogState extends State<_NewScoreDialog> {
-  final _titleController = TextEditingController();
-  final _composerController = TextEditingController();
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _composerController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: AppColors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Text(
-        'New Score',
-        style: TextStyle(
-          color: AppColors.textPrimary,
-          fontWeight: FontWeight.w600,
-          fontSize: 17,
-        ),
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _DialogTextField(
-            controller: _titleController,
-            label: 'Title',
-            hint: 'Untitled',
-            autofocus: true,
-            // Same limit as project names: the title is the default name.
-            maxLength: 60,
-          ),
-          const SizedBox(height: 16),
-          _DialogTextField(
-            controller: _composerController,
-            label: 'Composer',
-            hint: 'Unknown',
-            maxLength: 100,
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text(
-            'Cancel',
-            style: TextStyle(color: AppColors.textSecondary),
-          ),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop({
-            'title': _titleController.text.trim(),
-            'composer': _composerController.text.trim(),
-          }),
-          child: const Text(
-            'Create',
-            style: TextStyle(
-              color: AppColors.accent,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _DialogTextField extends StatefulWidget {
-  const _DialogTextField({
-    required this.controller,
-    required this.label,
-    required this.hint,
-    this.autofocus = false,
-    this.maxLength,
-  });
-
-  final TextEditingController controller;
-  final String label;
-  final String hint;
-  final bool autofocus;
-  final int? maxLength;
-
-  @override
-  State<_DialogTextField> createState() => _DialogTextFieldState();
-}
-
-class _DialogTextFieldState extends State<_DialogTextField> {
-  String? _emojiError;
-  Timer? _emojiTimer;
-
-  @override
-  void dispose() {
-    _emojiTimer?.cancel();
-    super.dispose();
-  }
-
-  void _onEmojiBlocked() {
-    _emojiTimer?.cancel();
-    setState(() => _emojiError = 'Emoji not allowed');
-    _emojiTimer = Timer(const Duration(seconds: 2), () {
-      if (mounted) setState(() => _emojiError = null);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        TextField(
-          controller: widget.controller,
-          autofocus: widget.autofocus,
-          maxLength: widget.maxLength,
-          inputFormatters: [
-            EmojiBlockingFormatter(onBlocked: _onEmojiBlocked),
-          ],
-          buildCounter: (_, {required currentLength, required isFocused, maxLength}) {
-            if (maxLength == null || currentLength <= maxLength - 20) return null;
-            return Text(
-              '$currentLength / $maxLength',
-              style: TextStyle(
-                color: currentLength >= maxLength
-                    ? AppColors.error
-                    : AppColors.textSecondary,
-                fontSize: 11,
-              ),
-            );
-          },
-          style: const TextStyle(color: AppColors.textPrimary),
-          decoration: InputDecoration(
-            labelText: widget.label,
-            hintText: widget.hint,
-            labelStyle: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 13,
-            ),
-            hintStyle: TextStyle(
-              color: AppColors.textSecondary.withValues(alpha: 0.5),
-            ),
-            errorText: _emojiError,
-            enabledBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.border),
-            ),
-            focusedBorder: const UnderlineInputBorder(
-              borderSide: BorderSide(color: AppColors.accent),
             ),
           ),
         ),

@@ -202,17 +202,23 @@ const gmSounds = <String>[
   'Gunshot',
 ];
 
-int defaultProgramFor(String name) => switch (name.toLowerCase()) {
+/// The usual sound for an instrument named [name]; a numbered part such as
+/// "Violin II" or "Flute 1" sounds as its instrument.
+int defaultProgramFor(String name) => switch (name.toLowerCase().replaceFirst(
+  RegExp(r'\s+(i{1,3}|iv|v|\d+)$'),
+  '',
+)) {
   'flute' => 73,
   'oboe' => 68,
   'violin' => 40,
   'viola' => 41,
-  'cello' => 42,
+  'cello' || 'violoncello' => 42,
   'double bass' => 43,
-  'guitar' => 24,
+  'guitar' || 'classical guitar' => 24,
   'bass guitar' => 33,
   'trumpet' => 56,
   'trombone' => 57,
-  'voice' || 'bass voice' => 53,
+  // MuseScore Studio's voices sound as choir aahs.
+  'voice' || 'bass voice' || 'soprano' || 'alto' || 'tenor' || 'bass' => 52,
   _ => 0,
 };

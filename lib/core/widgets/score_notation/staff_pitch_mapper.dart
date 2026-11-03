@@ -1,3 +1,5 @@
+import 'package:note_vision/core/models/clef.dart';
+
 class StaffPitchMapper {
   static const List<String> _steps = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
@@ -6,10 +8,19 @@ class StaffPitchMapper {
   /// - F (bass) clef:   bottom line = G2
   /// - C clef: C4 sits on [clefLine]; bottom line derived by stepping down (clefLine-1)*2 diatonic steps.
   ///   Alto (line 3) → F3; Tenor (line 4) → D3.
+  /// A [Clef.layoutSign] such as `G-1` (treble, sounding an octave lower)
+  /// moves the reference by its octaves.
   static ({String step, int octave}) bottomLineRef(
     String clefSign, {
     int clefLine = 2,
   }) {
+    if (clefSign.length > 1) {
+      final ref = bottomLineRef(clefSign[0], clefLine: clefLine);
+      return (
+        step: ref.step,
+        octave: ref.octave + (int.tryParse(clefSign.substring(1)) ?? 0),
+      );
+    }
     final sign = clefSign.toUpperCase();
     if (sign == 'F') return (step: 'G', octave: 2);
     if (sign == 'C') {

@@ -106,7 +106,7 @@ class EngravingLayout {
             octave: s.octave,
             bottomLineY: 48,
             lineSpacing: 12,
-            clefSign: clef?.sign ?? 'G',
+            clefSign: clef?.layoutSign ?? 'G',
             clefLine: clef?.line ?? 2,
           );
           final grace = s.grace != null, scale = grace ? 0.65 : 1.0;
@@ -155,7 +155,7 @@ class EngravingLayout {
     octave: n.octave,
     bottomLineY: 48,
     lineSpacing: 12,
-    clefSign: m.clef?.sign ?? 'G',
+    clefSign: m.clef?.layoutSign ?? 'G',
     clefLine: m.clef?.line ?? 2,
   );
   static List<bool?> stemDirections(Measure m) {

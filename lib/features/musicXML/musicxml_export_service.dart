@@ -328,6 +328,9 @@ class MusicXmlExportService {
                   nest: () {
                     b.element('sign', nest: clef.sign);
                     b.element('line', nest: clef.line.toString());
+                    if (clef.octave != 0) {
+                      b.element('clef-octave-change', nest: '${clef.octave}');
+                    }
                   },
                 );
               }

@@ -354,7 +354,7 @@ class MusicXmlScoreConverter {
         final sign = _firstInnerText(clef, 'sign')?.trim();
         final line = int.tryParse(_firstInnerText(clef, 'line') ?? '');
         if (sign != null && sign.isNotEmpty && line != null) {
-          return Clef(sign: sign, line: line);
+          return Clef(sign: sign, line: line, octave: _clefOctave(clef));
         }
       }
     }
@@ -815,8 +815,11 @@ class MusicXmlScoreConverter {
       return null;
     }
 
-    return Clef(sign: sign, line: line);
+    return Clef(sign: sign, line: line, octave: _clefOctave(clefElement));
   }
+
+  int _clefOctave(XmlElement clef) =>
+      int.tryParse(_firstInnerText(clef, 'clef-octave-change') ?? '') ?? 0;
 
   TimeSignature? _buildTimeSignature(XmlElement? attributes) {
     final timeElement = attributes == null
