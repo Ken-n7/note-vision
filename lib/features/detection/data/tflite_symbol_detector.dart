@@ -123,18 +123,34 @@ class TfliteSymbolDetector implements SymbolDetector {
       );
     }
 
-    // Stretch to 960×960 — the training images were stretched (Roboflow
-    // "Resize: Stretch"), so letterboxing would skew the input distribution.
-    final resized = img.copyResize(
+    return detectFromOutput(
       fullImage,
-      width: _inputSize,
-      height: _inputSize,
-      interpolation: img.Interpolation.linear,
+      staves,
+      _runInference(modelInput(fullImage)),
     );
+  }
 
+  /// The image the model sees: stretched to 960×960 — the training images
+  /// were stretched (Roboflow "Resize: Stretch"), so letterboxing would skew
+  /// the input distribution.
+  static img.Image modelInput(img.Image fullImage) => img.copyResize(
+    fullImage,
+    width: _inputSize,
+    height: _inputSize,
+    interpolation: img.Interpolation.linear,
+  );
+
+  /// Everything after inference: decoding [raw] (the model's `[28][18900]`
+  /// output), staves, filtering and barlines. Lets tests and dev tools run
+  /// the app's post-processing on outputs computed elsewhere.
+  DetectionResult detectFromOutput(
+    img.Image fullImage,
+    List<DetectedStaff> staves,
+    Float32List raw,
+  ) {
     final nmsMusical = _nms(
       _parseOutput(
-        _runInference(resized),
+        raw,
         image: fullImage,
         scaleX: fullImage.width / _inputSize,
         scaleY: fullImage.height / _inputSize,

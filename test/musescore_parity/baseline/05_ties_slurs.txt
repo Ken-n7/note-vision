@@ -1,0 +1,3 @@
+# 05_ties_slurs — MuseScore4 4.7.5 vs Note Vision
+## notation: 15/15 MuseScore facts match
+## playback: 17/17 MuseScore facts match

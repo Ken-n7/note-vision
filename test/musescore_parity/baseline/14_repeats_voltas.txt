@@ -1,0 +1,3 @@
+# 14_repeats_voltas — MuseScore4 4.7.5 vs Note Vision
+## notation: 14/14 MuseScore facts match
+## playback: 13/13 MuseScore facts match

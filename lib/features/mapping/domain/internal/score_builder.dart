@@ -36,15 +36,17 @@ class ScoreBuilder {
       if (m.timeSignature != null) lastTime = m.timeSignature;
       if (m.keySignature != null) lastKey = m.keySignature;
 
-      built.add(Measure(
-        number: m.number,
-        clef: m.clef ?? lastClef,
-        timeSignature: m.timeSignature ?? lastTime,
-        keySignature: m.keySignature ?? lastKey,
-        symbols: m.symbols,
-        leftBarlineType: m.leftBarlineType,
-        rightBarlineType: m.rightBarlineType,
-      ));
+      built.add(
+        Measure(
+          number: m.number,
+          clef: m.clef ?? lastClef,
+          timeSignature: m.timeSignature ?? lastTime,
+          keySignature: m.keySignature ?? lastKey,
+          symbols: m.symbols,
+          leftBarlineType: m.leftBarlineType,
+          rightBarlineType: m.rightBarlineType,
+        ),
+      );
     }
 
     return Part(id: partId, name: partName, measures: List.unmodifiable(built));
@@ -57,7 +59,13 @@ class ScoreBuilder {
       title: '',
       composer: '',
       parts: parts.isEmpty
-          ? const [Part(id: 'P1', name: 'Detected Part', measures: [Measure(number: 1, symbols: [])])]
+          ? const [
+              Part(
+                id: 'P1',
+                name: 'Detected Part',
+                measures: [Measure(number: 1, symbols: [])],
+              ),
+            ]
           : _sameLength(parts),
     );
   }
@@ -67,16 +75,15 @@ class ScoreBuilder {
   /// would hide the extra measures of the others. Staves of one scan often
   /// differ in bar count.
   static List<Part> _sameLength(List<Part> parts) {
-    final longest =
-        parts.map((p) => p.measures.length).reduce((a, b) => a > b ? a : b);
+    final longest = parts
+        .map((p) => p.measures.length)
+        .reduce((a, b) => a > b ? a : b);
     return [
       for (final part in parts)
         if (part.measures.length == longest)
           part
         else
-          Part(
-            id: part.id,
-            name: part.name,
+          part.copyWith(
             measures: [
               ...part.measures,
               for (var n = part.measures.length + 1; n <= longest; n++)
@@ -94,15 +101,15 @@ class ScoreBuilder {
   }
 
   Score buildEmpty() => const Score(
-        id: 'mapped-score',
-        title: '',
-        composer: '',
-        parts: [
-          Part(
-            id: 'P1',
-            name: 'Detected Part',
-            measures: [Measure(number: 1, symbols: [])],
-          ),
-        ],
-      );
+    id: 'mapped-score',
+    title: '',
+    composer: '',
+    parts: [
+      Part(
+        id: 'P1',
+        name: 'Detected Part',
+        measures: [Measure(number: 1, symbols: [])],
+      ),
+    ],
+  );
 }

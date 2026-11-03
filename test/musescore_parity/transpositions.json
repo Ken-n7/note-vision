@@ -1,0 +1,12 @@
+{
+  "T01_major_second_up": {"case": "02_accidentals_keys", "options": {"mode": "by_interval", "direction": "up", "transposeInterval": 4, "transposeKeySignatures": true, "useDoubleSharpsFlats": false}},
+  "T02_minor_third_down": {"case": "02_accidentals_keys", "options": {"mode": "by_interval", "direction": "down", "transposeInterval": 7, "transposeKeySignatures": true, "useDoubleSharpsFlats": false}},
+  "T03_augmented_fourth_up": {"case": "02_accidentals_keys", "options": {"mode": "by_interval", "direction": "up", "transposeInterval": 12, "transposeKeySignatures": true, "useDoubleSharpsFlats": false}},
+  "T04_to_b_flat_closest": {"case": "02_accidentals_keys", "options": {"mode": "by_key", "direction": "closest", "targetKey": -2, "transposeKeySignatures": true, "useDoubleSharpsFlats": false}},
+  "T05_diatonic_second_up": {"case": "02_accidentals_keys", "options": {"mode": "diatonically", "direction": "up", "transposeInterval": 1, "transposeKeySignatures": true, "useDoubleSharpsFlats": false}},
+  "T06_diatonic_third_down": {"case": "02_accidentals_keys", "options": {"mode": "diatonically", "direction": "down", "transposeInterval": 2, "transposeKeySignatures": true, "useDoubleSharpsFlats": true}},
+  "T07_chords_fifth_down_doubles": {"case": "07_chords", "options": {"mode": "by_interval", "direction": "down", "transposeInterval": 14, "transposeKeySignatures": true, "useDoubleSharpsFlats": true}},
+  "T08_grand_staff_to_e_flat_up": {"case": "16_grand_staff", "options": {"mode": "by_key", "direction": "up", "targetKey": -3, "transposeKeySignatures": true, "useDoubleSharpsFlats": false}},
+  "T09_minor_second_up_keep_keys": {"case": "02_accidentals_keys", "options": {"mode": "by_interval", "direction": "up", "transposeInterval": 3, "transposeKeySignatures": false, "useDoubleSharpsFlats": false}},
+  "T10_to_c_sharp_down": {"case": "07_chords", "options": {"mode": "by_key", "direction": "down", "targetKey": 7, "transposeKeySignatures": true, "useDoubleSharpsFlats": false}}
+}

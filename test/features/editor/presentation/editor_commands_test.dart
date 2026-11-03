@@ -1,0 +1,492 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:note_vision/core/models/clef.dart';
+import 'package:note_vision/core/models/measure.dart';
+import 'package:note_vision/core/models/note.dart';
+import 'package:note_vision/core/models/part.dart';
+import 'package:note_vision/core/models/rest.dart';
+import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/models/time_signature.dart';
+import 'package:note_vision/core/services/playback_service.dart';
+import 'package:note_vision/core/widgets/score_notation_viewer.dart';
+import 'package:note_vision/features/editor/presentation/widgets/editor_command_palette.dart';
+import 'package:note_vision/features/editor/presentation/widgets/staves_sheet.dart';
+import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.dart';
+import 'package:note_vision/features/editor/presentation/widgets/transpose_sheet.dart';
+
+import '../../../support/editor_controls_harness.dart';
+
+void main() {
+  setUpAll(loadControlsFonts);
+
+  Future<void> modified(WidgetTester tester, LogicalKeyboardKey key) async {
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(key);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> search(WidgetTester tester, String query) async {
+    await tester.tap(find.byTooltip('Score commands (Ctrl/Cmd+K)'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('editor-command-search')),
+      query,
+    );
+    await tester.pumpAndSettle();
+  }
+
+  Note selectedNote(WidgetTester tester) =>
+      shownControlsScore(tester).getSymbolAt(0, 0, 0) as Note;
+
+  testWidgets('search runs octave edits and undo restores the saved score', (
+    tester,
+  ) async {
+    await pumpControls(tester);
+    await search(tester, 'raise octave');
+    expect(find.text('Raise octave'), findsOneWidget);
+    expect(find.text('Lower octave'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('command-octaveUp')));
+    await tester.pumpAndSettle();
+    expect(find.byType(EditorCommandPalette), findsNothing);
+    expect(selectedNote(tester).pitch, 'C5');
+    await tester.tap(find.byTooltip('Undo'));
+    await tester.pumpAndSettle();
+    expect(selectedNote(tester).pitch, 'C4');
+    expect(find.text('Unsaved'), findsNothing);
+  });
+
+  testWidgets('search keyboard navigation edits only after submitting', (
+    tester,
+  ) async {
+    await pumpControls(tester);
+    await modified(tester, LogicalKeyboardKey.keyK);
+    expect(find.byType(EditorCommandPalette), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('editor-command-search')),
+      'octave',
+    );
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.pumpAndSettle();
+    expect(selectedNote(tester).pitch, 'C4');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+    expect(selectedNote(tester).pitch, 'C3');
+  });
+
+  testWidgets('search explains missing selection and empty results', (
+    tester,
+  ) async {
+    await pumpControls(tester, selectedSymbol: null);
+    await search(tester, 'raise octave');
+    expect(find.text('Pitch · Select a note or rest'), findsOneWidget);
+    final row = tester.widget<InkWell>(
+      find.byKey(const ValueKey('command-octaveUp')),
+    );
+    expect(row.onTap, isNull);
+    await tester.enterText(
+      find.byKey(const ValueKey('editor-command-search')),
+      'nothing-will-match-this',
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('No matching commands'), findsOneWidget);
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(find.byType(EditorCommandPalette), findsNothing);
+    expect(selectedNote(tester).pitch, 'C4');
+  });
+
+  testWidgets('playback starting during search prevents stale edits', (
+    tester,
+  ) async {
+    final (playback, _) = await pumpControls(tester);
+    await search(tester, 'raise octave');
+    playback.emit(PlaybackStatus.playing);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('command-octaveUp')));
+    await tester.pumpAndSettle();
+    expect(selectedNote(tester).pitch, 'C4');
+    await search(tester, 'raise octave');
+    expect(
+      find.text('Pitch · Pause playback to edit the score'),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<InkWell>(find.byKey(const ValueKey('command-octaveUp')))
+          .onTap,
+      isNull,
+    );
+  });
+
+  testWidgets(
+    'octave and duration keys share command history; entry values do not edit',
+    (tester) async {
+      await pumpControls(tester);
+      await modified(tester, LogicalKeyboardKey.arrowUp);
+      expect(selectedNote(tester).pitch, 'C5');
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit4);
+      await tester.pumpAndSettle();
+      expect(selectedNote(tester).type, 'eighth');
+      await tester.sendKeyEvent(LogicalKeyboardKey.period);
+      await tester.pumpAndSettle();
+      expect(selectedNote(tester).dots, 1);
+      await modified(tester, LogicalKeyboardKey.keyZ);
+      expect(selectedNote(tester).dots, 0);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+      await tester.sendKeyEvent(LogicalKeyboardKey.digit6);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<SymbolPalette>(find.byType(SymbolPalette)).selectedType,
+        PaletteSymbolType.halfNote,
+      );
+      expect(selectedNote(tester).type, 'eighth');
+    },
+  );
+
+  testWidgets('letters re-pitch, add chord notes and write notes', (
+    tester,
+  ) async {
+    await pumpControls(
+      tester,
+      score: Score(
+        id: 'letters',
+        title: 'Letters',
+        composer: '',
+        parts: [
+          Part(
+            id: 'p1',
+            name: 'Piano',
+            measures: [
+              Measure(
+                number: 1,
+                clef: const Clef(sign: 'G', line: 2),
+                timeSignature: const TimeSignature(beats: 4, beatType: 4),
+                symbols: const [
+                  Note(step: 'C', octave: 4, duration: 2, type: 'quarter'),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    List<String> shown() => [
+      for (final s in shownControlsScore(tester).parts[0].measures[0].symbols)
+        s is Note ? '${s.isChordTone ? '+' : ''}${s.pitch}' : 'rest',
+    ];
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyA);
+    await tester.pumpAndSettle();
+    expect(shown(), ['A3']);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyE);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pumpAndSettle();
+    expect(shown(), ['A3', '+E4']);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyD);
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit0);
+    await tester.pumpAndSettle();
+    expect(shown(), ['A3', '+E4', 'D4', 'rest']);
+    await modified(tester, LogicalKeyboardKey.keyZ);
+    expect(shown(), ['A3', '+E4', 'D4']);
+  });
+
+  testWidgets('transposes to a new key from search and undoes in one step', (
+    tester,
+  ) async {
+    await pumpControls(tester, size: const Size(390, 844));
+    await search(tester, 'transpose');
+    await tester.tap(find.byKey(const ValueKey('command-workspace.transpose')));
+    await tester.pumpAndSettle();
+    expect(find.byType(TransposeSheet), findsOneWidget);
+    final apply = find.widgetWithText(FilledButton, 'Transpose');
+    expect(tester.widget<FilledButton>(apply).onPressed, isNull);
+    await tester.tap(find.byKey(const ValueKey('transpose-key')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('D major / B minor').last);
+    await tester.pumpAndSettle();
+    await tester.tap(apply);
+    await tester.pumpAndSettle();
+    expect(find.byType(TransposeSheet), findsNothing);
+    final measure = shownControlsScore(tester).parts[0].measures[0];
+    expect(measure.keySignature?.fifths, 2);
+    // E4 becomes F#4; the new key signature writes its sharp.
+    expect(
+      [for (final n in measure.symbols.whereType<Note>()) n.pitch],
+      ['D4', 'F4'],
+    );
+    await modified(tester, LogicalKeyboardKey.keyZ);
+    expect(selectedNote(tester).pitch, 'C4');
+  });
+
+  List<String> bar(WidgetTester tester, [int measure = 0]) => [
+    for (final s in shownControlsScore(
+      tester,
+    ).parts[0].measures[measure].symbols)
+      s is Note ? s.pitch : 'rest',
+  ];
+
+  testWidgets('shift extends a range that cut and paste move as a block', (
+    tester,
+  ) async {
+    await pumpControls(tester);
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer))
+          .rangeSymbols,
+      {(0, 0), (0, 1)},
+    );
+    await modified(tester, LogicalKeyboardKey.keyX);
+    expect(bar(tester), ['rest']);
+    await modified(tester, LogicalKeyboardKey.keyV);
+    expect(bar(tester), ['rest', 'C4', 'E4']);
+    await modified(tester, LogicalKeyboardKey.keyZ);
+    await modified(tester, LogicalKeyboardKey.keyZ);
+    expect(bar(tester), ['C4', 'E4', 'rest']);
+  });
+
+  testWidgets('touch selects a bar, copies it and pastes into an empty bar', (
+    tester,
+  ) async {
+    await pumpControls(tester, size: const Size(390, 844));
+    Future<void> tapTile(String label) async {
+      await tester.ensureVisible(find.text(label).last);
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+    }
+
+    await tapTile('Select bar');
+    expect(
+      find.text('3 symbols selected · pitch moves apply to all'),
+      findsOneWidget,
+    );
+    await search(tester, 'transpose');
+    await tester.tap(find.byKey(const ValueKey('command-workspace.transpose')));
+    await tester.pumpAndSettle();
+    expect(find.text('2 selected notes'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    await tapTile('Copy');
+    await tapTile('Cut');
+    expect(bar(tester), isEmpty);
+    await tapTile('Paste');
+    expect(bar(tester), ['C4', 'E4', 'rest']);
+    await tester.tap(find.byTooltip('Undo'));
+    await tester.pumpAndSettle();
+    expect(bar(tester), isEmpty);
+  });
+
+  testWidgets('typed notes follow each other inside a bar', (tester) async {
+    await pumpControls(
+      tester,
+      score: Score(
+        id: 'middle',
+        title: 'Middle',
+        composer: '',
+        parts: [
+          Part(
+            id: 'p1',
+            name: 'Piano',
+            measures: [
+              Measure(
+                number: 1,
+                clef: const Clef(sign: 'G', line: 2),
+                timeSignature: const TimeSignature(beats: 4, beatType: 4),
+                symbols: const [
+                  Note(step: 'C', octave: 4, duration: 2, type: 'quarter'),
+                  Note(step: 'F', octave: 4, duration: 2, type: 'quarter'),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyD);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyE);
+    await tester.pumpAndSettle();
+    expect(bar(tester), ['C4', 'D4', 'E4', 'F4']);
+  });
+
+  testWidgets('the voice chips write the next note into that voice', (
+    tester,
+  ) async {
+    await pumpControls(tester, size: const Size(390, 844));
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.widgetWithText(ChoiceChip, '2'));
+    await tester.tap(find.widgetWithText(ChoiceChip, '2'));
+    await tester.pumpAndSettle();
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyG);
+    await tester.pumpAndSettle();
+    final added =
+        shownControlsScore(tester).parts[0].measures[0].symbols.last as Note;
+    expect((added.step, added.voice), ('G', 2));
+    expect(
+      tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '2')).selected,
+      isTrue,
+    );
+  });
+
+  testWidgets('adds an instrument from the More menu as one undo step', (
+    tester,
+  ) async {
+    await pumpControls(tester, size: const Size(390, 844));
+    await tester.tap(find.byTooltip('More'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Staves and instruments…'));
+    await tester.pumpAndSettle();
+    expect(find.byType(StavesSheet), findsOneWidget);
+    await tester.tap(find.text('Add instrument'));
+    await tester.pumpAndSettle();
+    // The instrument list scrolls.
+    await tester.scrollUntilVisible(
+      find.text('Cello · Bass clef'),
+      100,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.text('Cello · Bass clef'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+    final parts = shownControlsScore(tester).parts;
+    expect([for (final p in parts) p.name], ['Upper staff', 'Cello']);
+    expect(parts.last.measures.first.clef?.sign, 'F');
+    await tester.tap(find.byTooltip('Undo'));
+    await tester.pumpAndSettle();
+    expect(shownControlsScore(tester).parts, hasLength(1));
+  });
+
+  testWidgets('S slurs to the next note; the Tie tile explains itself', (
+    tester,
+  ) async {
+    await pumpControls(tester, size: const Size(390, 844));
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
+    await tester.pumpAndSettle();
+    final score = shownControlsScore(tester);
+    final notes = score.parts[0].measures[0].symbols.whereType<Note>();
+    expect(score.spanners.single.kind, SpannerKind.slur);
+    expect(score.spanners.single.to, notes.elementAt(1).reviewId);
+    // C4 is followed by E4, so there is nothing to tie to.
+    await tester.ensureVisible(find.text('Tie'));
+    expect(
+      tester
+          .widget<InkWell>(
+            find.ancestor(of: find.text('Tie'), matching: find.byType(InkWell)),
+          )
+          .onTap,
+      isNull,
+    );
+  });
+
+  testWidgets('Shift+S adds staccato; the Marks row shows it is on', (
+    tester,
+  ) async {
+    await pumpControls(tester, size: const Size(390, 844));
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyS);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pumpAndSettle();
+    expect(selectedNote(tester).marks, [Articulation.staccato]);
+    await tester.ensureVisible(find.text('Staccato'));
+    expect(
+      tester.getSemantics(
+        find
+            .ancestor(
+              of: find.text('Staccato'),
+              matching: find.byType(Semantics),
+            )
+            .first,
+      ),
+      // Flutter 3.40 renames this isSemantics; keep both versions building.
+      // ignore: deprecated_member_use
+      containsSemantics(isToggled: true),
+    );
+    await tester.tap(find.text('Staccato'));
+    await tester.pumpAndSettle();
+    expect(selectedNote(tester).marks, isEmpty);
+  });
+
+  testWidgets('< adds a crescendo and the Dynamics row sets mf', (
+    tester,
+  ) async {
+    await pumpControls(tester, size: const Size(390, 844));
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.comma);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pumpAndSettle();
+    expect(
+      shownControlsScore(tester).spanners.single.kind,
+      SpannerKind.crescendo,
+    );
+    await tester.ensureVisible(find.widgetWithText(ChoiceChip, 'mf'));
+    await tester.tap(find.widgetWithText(ChoiceChip, 'mf'));
+    await tester.pumpAndSettle();
+    expect(selectedNote(tester).dynamicMark, 'mf');
+  });
+
+  testWidgets('conversion is reachable on a phone and can be undone', (
+    tester,
+  ) async {
+    await pumpControls(tester, size: const Size(390, 844));
+    await tester.ensureVisible(find.text('To rest'));
+    await tester.tap(find.text('To rest'));
+    await tester.pumpAndSettle();
+    expect(shownControlsScore(tester).getSymbolAt(0, 0, 0), isA<Rest>());
+    await tester.ensureVisible(find.text('To C4 note'));
+    await tester.tap(find.text('To C4 note'));
+    await tester.pumpAndSettle();
+    expect(selectedNote(tester).pitch, 'C4');
+    await tester.tap(find.byTooltip('Undo'));
+    await tester.pumpAndSettle();
+    expect(shownControlsScore(tester).getSymbolAt(0, 0, 0), isA<Rest>());
+  });
+
+  testWidgets('search retains the query when a keyboard reduces its height', (
+    tester,
+  ) async {
+    await pumpControls(tester, size: const Size(844, 390));
+    await search(tester, 'raise octave');
+    tester.view.viewInsets = const FakeViewPadding(bottom: 180);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    final field = tester.widget<TextField>(
+      find.byKey(const ValueKey('editor-command-search')),
+    );
+    expect(field.controller!.text, 'raise octave');
+    expect(find.text('Lower octave'), findsNothing);
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('editor-command-results')))
+          .height,
+      greaterThan(60),
+    );
+  });
+
+  for (final (name, size, textScale) in [
+    ('phone', const Size(390, 844), 1.0),
+    ('large-text', const Size(320, 640), 2.0),
+    ('landscape', const Size(844, 390), 1.0),
+    ('tablet', const Size(1200, 800), 1.0),
+  ]) {
+    testWidgets('commands fit $name with keyboard visible', (tester) async {
+      await pumpControls(tester, size: size, textScale: textScale);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 180);
+      addTearDown(tester.view.resetViewInsets);
+      await search(tester, 'octave');
+      expect(tester.takeException(), isNull);
+      expect(find.text('Raise octave'), findsOneWidget);
+      await captureControls(tester, 'commands-$name');
+    });
+  }
+}

@@ -1,0 +1,3 @@
+# 24_drums — MuseScore4 4.7.5 vs Note Vision
+## notation: 22/22 MuseScore facts match
+## playback: 35/35 MuseScore facts match

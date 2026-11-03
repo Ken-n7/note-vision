@@ -57,38 +57,16 @@ class Accidentals {
   /// MusicXML `<alter>`) and turned into the accidental to write.
   static Part writtenFromSounding(Part part) {
     final state = Accidentals();
-    return Part(
-      id: part.id,
-      name: part.name,
+    return part.copyWith(
       measures: [
         for (final m in part.measures)
           () {
             state.startMeasure(m);
-            return Measure(
-              number: m.number,
-              clef: m.clef,
-              timeSignature: m.timeSignature,
-              keySignature: m.keySignature,
-              startsNewPage: m.startsNewPage,
-              startsNewSystem: m.startsNewSystem,
-              leftBarlineType: m.leftBarlineType,
-              rightBarlineType: m.rightBarlineType,
+            return m.copyWith(
               symbols: [
                 for (final s in m.symbols)
                   s is Note
-                      ? Note(
-                          step: s.step,
-                          octave: s.octave,
-                          alter: state.written(s, s.alter ?? 0),
-                          duration: s.duration,
-                          type: s.type,
-                          voice: s.voice,
-                          staff: s.staff,
-                          beamed: s.beamed,
-                          beams: s.beams,
-                          dots: s.dots,
-                          isChordTone: s.isChordTone,
-                        )
+                      ? s.copyWith(alter: state.written(s, s.alter ?? 0))
                       : s,
               ],
             );

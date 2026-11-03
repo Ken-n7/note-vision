@@ -1,8 +1,16 @@
+import 'package:note_vision/core/models/part_playback.dart';
+import 'package:note_vision/core/services/playback_mix.dart';
+import 'package:note_vision/features/editor/presentation/widgets/mixer_sheet.dart';
 import 'dart:async' show StreamSubscription, Timer, unawaited;
 import 'dart:convert' show jsonEncode;
+import '../../../core/models/score_annotation.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:note_vision/core/models/drum_kit.dart';
+import 'package:note_vision/core/services/tab_placement.dart';
+import 'package:note_vision/core/models/tablature.dart';
+import 'package:flutter/services.dart';
 import 'package:note_vision/core/config/app_features.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/beam_grouping.dart';
@@ -30,16 +38,25 @@ import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 import 'package:note_vision/core/widgets/score_page_thumbnail.dart';
 import 'package:note_vision/features/editor/domain/editor_actions.dart';
+import 'package:note_vision/features/editor/domain/editor_command.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/model/editor_state_history.dart';
 import 'package:note_vision/features/editor/presentation/editor_layout_policy.dart';
 import 'package:note_vision/features/editor/presentation/widgets/notation_check_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/notation_review_panel.dart';
 import 'package:note_vision/features/editor/presentation/widgets/beam_editor_sheet.dart';
+import 'package:note_vision/features/editor/presentation/widgets/staves_sheet.dart';
+import 'package:note_vision/features/editor/presentation/widgets/lyrics_sheet.dart';
+import 'package:note_vision/features/editor/presentation/widgets/annotations_sheet.dart';
+import 'package:note_vision/features/editor/presentation/widgets/transpose_sheet.dart';
+import 'package:note_vision/features/editor/presentation/widgets/editor_tool_dock.dart';
+import 'package:note_vision/features/editor/presentation/widgets/editor_help_sheet.dart';
+import 'package:note_vision/features/editor/presentation/widgets/editor_command_palette.dart';
 import 'package:note_vision/features/editor/presentation/widgets/playback_controls_bar.dart';
 import 'package:note_vision/features/editor/presentation/widgets/symbol_palette.dart';
 import 'package:note_vision/core/services/usage_stats_service.dart';
 import 'package:note_vision/features/musicXML/musicxml_export_service.dart';
+import 'package:note_vision/features/musicXML/musicxml_preserving_exporter.dart';
 import 'package:note_vision/features/pdf/pdf_export_service.dart';
 
 class EditorShellArgs {
@@ -82,6 +99,34 @@ class EditorShellScreen extends StatefulWidget {
 class _EditorShellScreenState extends State<EditorShellScreen> {
   late EditorState _editorState;
   bool _insertMode = false;
+
+  /// Copied notes and rests; kept for this editing session.
+  EditorClipboard? _clipboard;
+
+  /// Touch stand-in for Shift: the next tap extends the selection.
+  bool _extendMode = false;
+
+  /// The voice (1–4) chosen for note entry; null follows the selection.
+  int? _inputVoice;
+
+  int get _effectiveInputVoice =>
+      _inputVoice ??
+      switch (_editorState.selectedEditableSymbol) {
+        Note(:final voice) || Rest(:final voice) => voice ?? 1,
+        _ => 1,
+      };
+
+  /// [symbol] in the chosen entry voice.
+  ScoreSymbol _inInputVoice(ScoreSymbol symbol) {
+    final voice = _inputVoice;
+    if (voice == null || voice == 1) return symbol;
+    return switch (symbol) {
+      Note() => symbol.copyWith(voice: voice),
+      Rest() => symbol.copyWith(voice: voice),
+      _ => symbol,
+    };
+  }
+
   bool _isDraggingNote = false;
   Offset _dragGlobal = Offset.zero;
   final GlobalKey _trashZoneKey = GlobalKey();
@@ -143,7 +188,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   int _currentPageIndex = 0;
 
   EditorLayoutPolicy get _layoutPolicy =>
-      EditorLayoutPolicy.forPartCount(_editorState.score.parts.length);
+      EditorLayoutPolicy.forScore(_editorState.score);
 
   bool get _isReviewMode =>
       AppFeatures.classroomWorkflow && widget.args.reviewMode;
@@ -162,7 +207,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       );
     }
 
-    final measures = score.parts.first.measures;
+    final measures = layoutMeasuresForScore(score);
     return EditorPageMetrics(
       layoutPolicy: _layoutPolicy,
       pageStartIndices: pageStartIndicesForMeasures(
@@ -180,9 +225,20 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     _playback = widget.playbackService ?? PlaybackService.instance;
     _storage = widget.projectStorageService ?? ProjectStorageService();
     _currentProject = widget.args.existingProject;
+    final initial = widget.args.initialState;
+    final identifiedScore = NotationReviewService.ensureIdentity(
+      widget.args.score,
+    );
     _editorState = _withDefaultMeasureContext(
-      widget.args.initialState.copyWith(
-        score: NotationReviewService.ensureIdentity(widget.args.score),
+      initial.copyWith(
+        score: identifiedScore,
+        selectedSymbol: initial.hasSymbolSelection
+            ? identifiedScore.getSymbolAt(
+                initial.selectedPartIndex!,
+                initial.selectedMeasureIndex!,
+                initial.selectedSymbolIndex!,
+              )
+            : null,
       ),
     );
     _savedScoreJson = jsonEncode(_editorState.score.toJson());
@@ -339,9 +395,13 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     } catch (e) {
       debugPrint('Export failed: $e');
       _showEditorBanner(
-        const _EditorBannerData.error(
-          'Could not export the score. Try again.',
-          duration: Duration(seconds: 6),
+        _EditorBannerData.error(
+          e is MusicXmlPreservationException
+              ? e.message
+              : 'Could not export the score. Try again.',
+          duration: Duration(
+            seconds: e is MusicXmlPreservationException ? 14 : 6,
+          ),
         ),
       );
     }
@@ -412,6 +472,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           _currentProject = project;
           _savedScoreJson = project.scoreJson;
           _editorState = _editorState.copyWith(
+            rangeAnchor: _editorState.rangeAnchor,
             hasUnsavedChanges:
                 jsonEncode(_editorState.score.toJson()) != _savedScoreJson,
           );
@@ -428,6 +489,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           _currentProject = updated;
           _savedScoreJson = updated.scoreJson;
           _editorState = _editorState.copyWith(
+            rangeAnchor: _editorState.rangeAnchor,
             hasUnsavedChanges:
                 jsonEncode(_editorState.score.toJson()) != _savedScoreJson,
           );
@@ -1011,7 +1073,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     final pageStarts = state.score.parts.isEmpty
         ? const [0]
         : pageStartIndicesForMeasures(
-            state.score.parts.first.measures,
+            layoutMeasuresForScore(state.score),
             layoutPolicy: _layoutPolicy,
           );
 
@@ -1020,7 +1082,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         state.score.parts.first.measures.isNotEmpty) {
       final measureIndex = state.selectedMeasureIndex!.clamp(
         0,
-        state.score.parts.first.measures.length - 1,
+        layoutMeasuresForScore(state.score).length - 1,
       );
       return _clampPageIndexForStarts(
         pageStarts,
@@ -1089,6 +1151,28 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   }
 
   Future<void> _seekPlayback(int step) async {
+    if (_editorState.score.playbackLayout ==
+        ScorePlaybackLayout.simultaneousParts) {
+      final parts = _editorState.score.parts;
+      var part = _editorState.selectedPartIndex ?? 0;
+      if (part >= parts.length || step >= parts[part].measures.length) {
+        part = parts.indexWhere((p) => step < p.measures.length);
+      }
+      if (part < 0) return;
+      if (_playbackStatus == PlaybackStatus.playing) {
+        await _playFromMeasure(step, partIndex: part);
+      } else {
+        _selectMeasureForReview(
+          NotationMeasureTarget(partIndex: part, measureIndex: step),
+        );
+        await _playback.seek(
+          _editorState.score,
+          fromMeasureIndex: step,
+          fromPartIndex: part,
+        );
+      }
+      return;
+    }
     var remaining = step;
     for (var part = 0; part < _editorState.score.parts.length; part++) {
       final count = _editorState.score.parts[part].measures.length;
@@ -1163,8 +1247,22 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     setState(() {
       final prev = _editorState;
       final nextState = updater(_editorState);
+      // Tab notes follow their pitch to a string and fret.
+      final identified = NotationReviewService.ensureIdentity(
+        placeTabNotes(nextState.score),
+      );
+      // Assigning review IDs rebuilds every symbol in place, so the
+      // selection is found again by its position.
       _editorState = nextState.copyWith(
-        score: NotationReviewService.ensureIdentity(nextState.score),
+        score: identified,
+        selectedSymbol: nextState.hasSymbolSelection
+            ? identified.getSymbolAt(
+                nextState.selectedPartIndex!,
+                nextState.selectedMeasureIndex!,
+                nextState.selectedSymbolIndex!,
+              )
+            : null,
+        rangeAnchor: nextState.rangeAnchor,
       );
       if (!identical(prevScore, _editorState.score)) {
         if (_clearSymbolsUndoScore != null &&
@@ -1174,6 +1272,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           _clearSymbolsUndoScore = null;
         }
         _editorState = _editorState.copyWith(
+          rangeAnchor: _editorState.rangeAnchor,
           hasUnsavedChanges:
               jsonEncode(_editorState.score.toJson()) != _savedScoreJson,
         );
@@ -1274,6 +1373,17 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   }
 
   void _onNotationSymbolTap(int partIndex, int measureIndex, int symbolIndex) {
+    if (_extendMode || HardwareKeyboard.instance.isShiftPressed) {
+      _extendMode = false;
+      _updateState(
+        (state) => state.extendSelectionTo(
+          partIndex: partIndex,
+          measureIndex: measureIndex,
+          symbolIndex: symbolIndex,
+        ),
+      );
+      return;
+    }
     _updateState((state) {
       final isSame =
           state.selectedPartIndex == partIndex &&
@@ -1289,9 +1399,55 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     });
   }
 
+  /// On a drum staff, a note placed at a height plays the kit piece written
+  /// there (a hi-hat on the hi-hat's line), in that piece's voice.
+  ScoreSymbol _asDrum(ScoreSymbol symbol, int partIndex) {
+    final parts = _editorState.score.parts;
+    if (symbol is! Note || !parts[partIndex].isPercussion) return symbol;
+    final piece = drumAt(symbol.step, symbol.octave);
+    return drumNote(
+      piece,
+      symbol.type,
+      symbol.duration,
+      voice: piece.voice == 2 ? 2 : symbol.voice,
+      staff: symbol.staff,
+    );
+  }
+
+  /// On a tablature staff, a tap enters the string tapped, open; moving the
+  /// note up or down then changes its fret on that string.
+  ScoreSymbol _asTab(ScoreSymbol symbol, int partIndex) {
+    final part = _editorState.score.parts[partIndex];
+    final tuning = part.tabTuning;
+    if (symbol is! Note || !part.isTab || tuning == null) return symbol;
+    // Half spaces above the bottom line, as a treble staff would place it.
+    final height = StaffPitchMapper.offsetFromBottomLine(
+      step: symbol.step,
+      octave: symbol.octave,
+    );
+    final fromBottom = (height * (tuning.length - 1) / 8).round().clamp(
+      0,
+      tuning.length - 1,
+    );
+    final open = spellMidi(tuning[fromBottom]);
+    return symbol.copyWith(
+      step: open.step,
+      octave: open.octave,
+      alter: open.alter == 0 ? null : open.alter,
+      string: tuning.length - fromBottom,
+      fret: 0,
+    );
+  }
+
   void _onInsertTap(NotationInsertTarget? target) {
     if (target == null || _insertSymbolType == null) return;
-    final symbol = _buildSymbol(_insertSymbolType!, target);
+    final symbol = _asDrum(
+      _asTab(
+        _inInputVoice(_buildSymbol(_insertSymbolType!, target)),
+        target.partIndex,
+      ),
+      target.partIndex,
+    );
     _updateState(
       (state) => state.insertSymbolAtMeasureIndex(
         partIndex: target.partIndex,
@@ -1304,7 +1460,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
   void _onPaletteDrop(NotationInsertTarget target, Object data) {
     if (data is! PaletteDragData) return;
-    final symbol = _buildSymbol(data.type, target);
+    final symbol = _asDrum(
+      _asTab(_inInputVoice(_buildSymbol(data.type, target)), target.partIndex),
+      target.partIndex,
+    );
     _updateState(
       (state) => state.insertSymbolAtMeasureIndex(
         partIndex: target.partIndex,
@@ -1381,6 +1540,207 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     return state.copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
   }
 
+  bool get _canEditStaves =>
+      _canApplyIssueFix && !_isDraggingNote && !_isReviewMode;
+
+  Future<void> _showAnnotations({
+    int? initialIndex,
+    AnnotationKind? kind,
+  }) async {
+    if (_commandEditLock != null || !_editorState.hasMeasureContext) return;
+    final original = _editorState.score;
+    final p = _editorState.selectedPartIndex!,
+        m = _editorState.selectedMeasureIndex!;
+    final offset = _editorState.selectedAnnotationOffset;
+    final existing = original.parts[p].measures[m].annotations.indexWhere(
+      (a) => a.kind == kind && a.offset == offset,
+    );
+    final annotations = await showModalBottomSheet<List<ScoreAnnotation>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      constraints: const BoxConstraints(maxWidth: 640),
+      builder: (_) => AnnotationsSheet(
+        annotations: original.parts[p].measures[m].annotations,
+        offset: offset,
+        beatType: _editorState.selectedMeasureTimeSignature?.beatType ?? 4,
+        initialIndex: initialIndex ?? (existing < 0 ? null : existing),
+        initialKind: kind,
+      ),
+    );
+    if (!mounted ||
+        annotations == null ||
+        !identical(original, _editorState.score) ||
+        _commandEditLock != null) {
+      return;
+    }
+    if (jsonEncode(
+          original.parts[p].measures[m].annotations
+              .map((a) => a.toJson())
+              .toList(),
+        ) ==
+        jsonEncode(annotations.map((a) => a.toJson()).toList())) {
+      return;
+    }
+    _updateState((s) => s.setAnnotations(annotations));
+  }
+
+  Future<void> _showLyrics() async {
+    if (_commandEditLock != null ||
+        _editorState.lyricUnavailableReason != null) {
+      return;
+    }
+    final original = _editorState.score;
+    final edited = await showModalBottomSheet<Score>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      constraints: const BoxConstraints(maxWidth: 640),
+      builder: (_) => LyricsSheet(initialState: _editorState),
+    );
+    if (!mounted ||
+        edited == null ||
+        (identical(edited, original) ||
+            jsonEncode(edited.notationProjection()) ==
+                jsonEncode(original.notationProjection())) ||
+        !identical(_editorState.score, original) ||
+        _commandEditLock != null) {
+      return;
+    }
+    _updateState(
+      (s) => s.applyEditWithSymbolSelection(
+        score: edited,
+        partIndex: s.selectedPartIndex!,
+        measureIndex: s.selectedMeasureIndex!,
+        symbolIndex: s.selectedSymbolIndex!,
+        symbol: edited.getSymbolAt(
+          s.selectedPartIndex!,
+          s.selectedMeasureIndex!,
+          s.selectedSymbolIndex!,
+        )!,
+      ),
+    );
+  }
+
+  Future<void> _showMixer() async {
+    if (!_canEditStaves ||
+        _commandEditLock != null ||
+        _editorState.score.parts.isEmpty) {
+      return;
+    }
+    final original = _editorState.score;
+    final mix = await showModalBottomSheet<List<PartPlayback>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      constraints: const BoxConstraints(maxWidth: 560),
+      builder: (_) => MixerSheet(
+        strips: playbackStrips(original),
+        scannedLines:
+            original.playbackLayout == ScorePlaybackLayout.sequentialStaves,
+      ),
+    );
+    if (!mounted ||
+        mix == null ||
+        !identical(_editorState.score, original) ||
+        _commandEditLock != null) {
+      return;
+    }
+    _updateState((state) => state.setPlaybackMix(mix));
+  }
+
+  /// Adds, renames, reorders or removes staves as one undo step.
+  Future<void> _showStaves() async {
+    if (!_canEditStaves || _commandEditLock != null) return;
+    final original = _editorState.score;
+    final plan = await showModalBottomSheet<List<StaffPlanEntry>>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      constraints: const BoxConstraints(maxWidth: 560),
+      builder: (_) => StavesSheet(
+        staves: [
+          for (final part in original.parts)
+            (part.name, part.measures.firstOrNull?.clef, part.joinsPrevious),
+        ],
+        addBlockedReason: _editorState.addStaffBlockedReason,
+      ),
+    );
+    // Playback or another edit can start while the sheet is open.
+    if (!mounted ||
+        plan == null ||
+        !identical(_editorState.score, original) ||
+        _commandEditLock != null) {
+      return;
+    }
+    _updateState((state) => state.rearrangeParts(plan));
+  }
+
+  /// Moves every note by the interval chosen in [TransposeSheet].
+  bool get _canTranspose =>
+      _canApplyIssueFix &&
+      !_isDraggingNote &&
+      !_isReviewMode &&
+      _editorState.hasPlaybackContent;
+
+  Future<void> _showTranspose() async {
+    if (!_canTranspose || _commandEditLock != null) return;
+    final original = _editorState.score;
+    final selection = _editorState.hasRange
+        ? _editorState.selectionPositions
+              .where(
+                (p) =>
+                    original.getSymbolAt(
+                          _editorState.selectedPartIndex!,
+                          p.measure,
+                          p.symbol,
+                        )
+                        is Note,
+              )
+              .length
+        : null;
+    final request = await showModalBottomSheet<TransposeRequest>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      constraints: const BoxConstraints(maxWidth: 560),
+      builder: (_) => TransposeSheet(
+        selectionCount: selection == 0 ? null : selection,
+        currentKey:
+            original
+                .parts
+                .firstOrNull
+                ?.measures
+                .firstOrNull
+                ?.keySignature
+                ?.fifths ??
+            0,
+      ),
+    );
+    // Playback or another edit can start while the sheet is open.
+    if (!mounted ||
+        request == null ||
+        !identical(_editorState.score, original) ||
+        _commandEditLock != null) {
+      return;
+    }
+    _updateState(
+      (state) => request.selectionOnly
+          ? state.transposeSelection(request.options)
+          : state.transposeScore(request.options),
+    );
+  }
+
   Future<void> _showBeamEditor() async {
     if (_isReviewMode ||
         _playbackPending ||
@@ -1427,24 +1787,812 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   }
 
   void _onPaletteTypeTap(PaletteSymbolType type) {
+    if (!_canApplyIssueFix) return;
     setState(() {
-      if (!_insertMode) {
-        _insertMode = true;
-        _insertSymbolType = type;
-      } else if (_insertSymbolType == type) {
-        _insertMode = false;
-        _insertSymbolType = null;
-      } else {
-        _insertSymbolType = type;
-      }
+      _insertMode = true;
+      _insertSymbolType = type;
+    });
+  }
+
+  static final _pitchLetters = {
+    LogicalKeyboardKey.keyA: 'A',
+    LogicalKeyboardKey.keyB: 'B',
+    LogicalKeyboardKey.keyC: 'C',
+    LogicalKeyboardKey.keyD: 'D',
+    LogicalKeyboardKey.keyE: 'E',
+    LogicalKeyboardKey.keyF: 'F',
+    LogicalKeyboardKey.keyG: 'G',
+    // A drum staff's floor tom.
+    LogicalKeyboardKey.keyH: 'H',
+  };
+
+  /// Input goes to a drum staff: letters enter kit pieces.
+  bool get _drumInput {
+    final score = _editorState.score;
+    final part = _editorState.selectedPartIndex ?? 0;
+    return part < score.parts.length && score.parts[part].isPercussion;
+  }
+
+  /// Alt + 2–9 adds that interval above the selected note.
+  static final _intervalDigits = {
+    LogicalKeyboardKey.digit2: 2,
+    LogicalKeyboardKey.digit3: 3,
+    LogicalKeyboardKey.digit4: 4,
+    LogicalKeyboardKey.digit5: 5,
+    LogicalKeyboardKey.digit6: 6,
+    LogicalKeyboardKey.digit7: 7,
+    LogicalKeyboardKey.digit8: 8,
+    LogicalKeyboardKey.digit9: 9,
+  };
+
+  /// Writes the letter's note (or a rest when [step] is null) in the chosen
+  /// value after the input position, starting in the first bar if nothing is
+  /// selected.
+  void _enterFromKeyboard(String? step) {
+    final type = _insertSymbolType ?? PaletteSymbolType.quarterNote;
+    final spec = [
+      wholeDuration,
+      halfDuration,
+      quarterDuration,
+      eighthDuration,
+      sixteenthDuration,
+    ][type.index % 5];
+    _updateState((state) {
+      final input = state.hasMeasureContext
+          ? state
+          : state.copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
+      final drum = step != null && _drumInput ? drumForShortcut(step) : null;
+      final next = step == null
+          ? input.enterRest(spec, voice: _inputVoice)
+          : drum != null
+          ? input.enterDrum(drum, spec)
+          : input.enterNote(step, spec, voice: _inputVoice);
+      return identical(next, input) ? state : next;
+    });
+  }
+
+  /// Enters [piece] in the chosen value after the input position.
+  void _enterDrum(DrumPiece piece) {
+    final type = _insertSymbolType ?? PaletteSymbolType.quarterNote;
+    final spec = [
+      wholeDuration,
+      halfDuration,
+      quarterDuration,
+      eighthDuration,
+      sixteenthDuration,
+    ][type.index % 5];
+    _updateState((state) {
+      final input = state.hasMeasureContext
+          ? state
+          : state.copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
+      final next = input.enterDrum(piece, spec);
+      return identical(next, input) ? state : next;
     });
   }
 
   void _toggleInsertMode() {
+    if (!_canApplyIssueFix) return;
     setState(() {
       _insertMode = !_insertMode;
-      if (!_insertMode) _insertSymbolType = null;
+      _inputVoice = null;
+      _insertSymbolType = _insertMode ? PaletteSymbolType.quarterNote : null;
     });
+  }
+
+  ({int part, int measure, int symbol})? _adjacentSymbol(int direction) {
+    final part = _editorState.selectedPartIndex;
+    if (part == null) return null;
+    final measures = _editorState.score.parts[part].measures;
+    var measure = _editorState.selectedMeasureIndex ?? 0;
+    var symbol = _editorState.selectedSymbolIndex != null
+        ? _editorState.selectedSymbolIndex! + direction
+        : direction > 0
+        ? 0
+        : measures[measure].symbols.length - 1;
+    while (measure >= 0 && measure < measures.length) {
+      final symbols = measures[measure].symbols;
+      while (symbol >= 0 && symbol < symbols.length) {
+        if (symbols[symbol] is Note || symbols[symbol] is Rest) {
+          return (part: part, measure: measure, symbol: symbol);
+        }
+        symbol += direction;
+      }
+      measure += direction;
+      if (measure >= 0 && measure < measures.length) {
+        symbol = direction > 0 ? 0 : measures[measure].symbols.length - 1;
+      }
+    }
+    return null;
+  }
+
+  void _selectAdjacentSymbol(int direction) {
+    if (!_canApplyIssueFix || _reviewOpen) return;
+    final next = _adjacentSymbol(direction);
+    if (next == null) return;
+    _updateState(
+      (s) => s.selectSymbolAt(
+        partIndex: next.part,
+        measureIndex: next.measure,
+        symbolIndex: next.symbol,
+      ),
+    );
+    unawaited(
+      WidgetsBinding.instance.endOfFrame.then((_) {
+        if (mounted) {
+          _notationAreaKey.currentState?.focusMeasure(next.part, next.measure);
+        }
+      }),
+    );
+  }
+
+  void _showEditorHelp() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      backgroundColor: AppColors.surface,
+      constraints: BoxConstraints(
+        maxWidth: 600,
+        maxHeight: MediaQuery.sizeOf(context).height * .9,
+      ),
+      builder: (_) => const EditorHelpSheet(),
+    );
+  }
+
+  String? get _commandEditLock {
+    if (_isReviewMode) return 'This score is open for review';
+    if (_reviewOpen) return 'Close notation review to edit the score';
+    if (!_canApplyIssueFix) return 'Pause playback to edit the score';
+    if (_isDraggingNote) return 'Finish moving the symbol first';
+    return null;
+  }
+
+  void _copySelection() {
+    final clipboard = _editorState.copySelection();
+    if (clipboard == null) return;
+    setState(() => _clipboard = clipboard);
+    _showEditorBanner(
+      _EditorBannerData.success(
+        'Copied ${clipboard.symbolCount} '
+        '${clipboard.symbolCount == 1 ? 'symbol' : 'symbols'}',
+      ),
+    );
+  }
+
+  void _cutSelection() {
+    if (_commandEditLock != null || !_editorState.hasEditableSelection) return;
+    _copySelection();
+    _runEditorCommand(EditorCommand.delete);
+  }
+
+  /// Pastes after the selection, over a range, or into the selected bar.
+  void _pasteClipboard() {
+    final clipboard = _clipboard;
+    if (_commandEditLock != null || clipboard == null) return;
+    final next = _editorState.paste(clipboard);
+    if (identical(next, _editorState)) {
+      _showEditorBanner(
+        _EditorBannerData(
+          message: _editorState.hasMeasureContext
+              ? 'Not enough room to paste here. Select a bar with space, or a range to replace.'
+              : 'Select a bar or symbol to paste into.',
+          backgroundColor: AppColors.surfaceAlt,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+    _updateState((_) => next);
+  }
+
+  void _runEditorCommand(EditorCommand command) {
+    if (_commandEditLock != null) return;
+    _updateState(command.execute);
+  }
+
+  Future<void> _showScoreCommands() async {
+    if (_isDraggingNote || _dragGhostEntry != null) return;
+    final lock = _commandEditLock;
+    final state = _editorState;
+    final choices = [
+      for (final command in EditorCommand.values)
+        EditorCommandChoice(
+          id: command.name,
+          label: command.label,
+          group: command.group,
+          description: command.description,
+          shortcut: command.shortcut,
+          disabledReason: lock ?? command.unavailableReason(state),
+        ),
+      for (final (id, label, keys) in const [
+        ('annotations', 'Text, tempo & chords…', null),
+        ('tempo', 'Tempo marking…', 'Ctrl/Cmd + Alt + T'),
+        ('chord', 'Chord symbol…', 'Ctrl/Cmd + Alt + K'),
+        ('rehearsal', 'Rehearsal mark…', null),
+      ])
+        EditorCommandChoice(
+          id: 'workspace.$id',
+          label: label,
+          group: 'Text',
+          description: 'Add or edit beat-attached score markings',
+          shortcut: keys,
+          disabledReason:
+              lock ?? (state.hasMeasureContext ? null : 'Select a bar'),
+        ),
+      EditorCommandChoice(
+        id: 'workspace.lyrics',
+        label: 'Lyrics…',
+        group: 'Text',
+        description: 'Enter syllables, verses and extension lines on notes',
+        shortcut: 'Ctrl / ⌘ + L',
+        disabledReason: lock ?? state.lyricUnavailableReason,
+      ),
+      EditorCommandChoice(
+        id: 'workspace.entry',
+        label: 'Toggle note entry',
+        group: 'Input',
+        description: 'Choose a value, then tap or drag onto the staff',
+        shortcut: 'N',
+        disabledReason: lock,
+      ),
+      EditorCommandChoice(
+        id: 'workspace.beams',
+        label: 'Edit beams',
+        group: 'Rhythm',
+        description: 'Join, separate or group notes by beat',
+        disabledReason:
+            lock ??
+            (!state.hasMeasureContext
+                ? 'Select a bar with eighth or sixteenth notes'
+                : !state
+                      .score
+                      .parts[state.selectedPartIndex!]
+                      .measures[state.selectedMeasureIndex!]
+                      .symbols
+                      .any(BeamGrouping.eligible)
+                ? 'Select a bar with eighth or sixteenth notes'
+                : null),
+      ),
+      EditorCommandChoice(
+        id: 'workspace.pickup',
+        label: 'Pickup bar',
+        group: 'Bars',
+        description: 'Leave the selected bar out of the bar count',
+        disabledReason:
+            lock ??
+            (state.selectedMeasureImplicit == null ? 'Select a bar' : null),
+      ),
+      EditorCommandChoice(
+        id: 'workspace.barRest',
+        label: 'Bar rest',
+        group: 'Bars',
+        description: 'Fill the selected bar with one whole-bar rest',
+        disabledReason: lock ?? state.barRestUnavailableReason,
+      ),
+      for (final sign in BarSign.values)
+        EditorCommandChoice(
+          id: 'workspace.bar.${sign.name}',
+          label: sign.label,
+          group: 'Repeats',
+          description: 'Add or remove it on the selected bars in every staff',
+          disabledReason:
+              lock ?? (state.barSignOn(sign) == null ? 'Select a bar' : null),
+        ),
+      for (final mark in editorDynamics)
+        EditorCommandChoice(
+          id: 'workspace.dynamic.$mark',
+          label: 'Dynamic $mark',
+          group: 'Dynamics',
+          description: 'Put $mark on the first selected note or rest',
+          disabledReason:
+              lock ?? state.hairpinUnavailableReason(SpannerKind.crescendo),
+        ),
+      EditorCommandChoice(
+        id: 'workspace.copy',
+        label: 'Copy',
+        group: 'Selection',
+        description: 'Copy the selected notes and rests',
+        shortcut: 'Ctrl / ⌘ + C',
+        disabledReason: state.hasEditableSelection
+            ? null
+            : 'Select notes or rests',
+      ),
+      EditorCommandChoice(
+        id: 'workspace.cut',
+        label: 'Cut',
+        group: 'Selection',
+        description: 'Copy the selection, then delete it',
+        shortcut: 'Ctrl / ⌘ + X',
+        disabledReason:
+            lock ??
+            (state.hasEditableSelection ? null : 'Select notes or rests'),
+      ),
+      EditorCommandChoice(
+        id: 'workspace.paste',
+        label: 'Paste',
+        group: 'Selection',
+        description: 'Paste after the selection, over a range, or into a bar',
+        shortcut: 'Ctrl / ⌘ + V',
+        disabledReason:
+            lock ??
+            (_clipboard == null
+                ? 'Copy notes or rests first'
+                : !state.hasMeasureContext
+                ? 'Select a bar or symbol'
+                : null),
+      ),
+      EditorCommandChoice(
+        id: 'workspace.mixer',
+        label: 'Mixer…',
+        group: 'Playback',
+        shortcut: 'F10',
+        description: 'Instrument sounds, volume, pan, mute and solo',
+        disabledReason:
+            lock ??
+            (state.score.parts.isEmpty ? 'Open a score with a staff' : null),
+      ),
+      EditorCommandChoice(
+        id: 'workspace.staves',
+        label: 'Staves and instruments…',
+        group: 'Structure',
+        description: 'Add, rename, reorder or remove staves',
+        disabledReason: lock,
+      ),
+      EditorCommandChoice(
+        id: 'workspace.concertPitch',
+        label: state.score.concertPitch
+            ? 'Concert pitch: off'
+            : 'Concert pitch: on',
+        group: 'Pitch',
+        description: 'Show transposing instruments at sounding pitch',
+        disabledReason:
+            lock ??
+            (state.hasTransposingParts
+                ? null
+                : 'No transposing instruments in this score'),
+      ),
+      EditorCommandChoice(
+        id: 'workspace.transpose',
+        label: 'Transpose…',
+        group: 'Pitch',
+        description: 'Move the score to another key or by an interval',
+        disabledReason:
+            lock ??
+            (state.hasPlaybackContent
+                ? null
+                : 'Add notes or chord symbols first'),
+      ),
+      EditorCommandChoice(
+        id: 'workspace.addBar',
+        label: 'Add bar',
+        group: 'Structure',
+        description: 'Append a measure in every staff',
+        disabledReason:
+            lock ??
+            (state.score.parts.isEmpty ? 'Open a score with a staff' : null),
+      ),
+      EditorCommandChoice(
+        id: 'workspace.fit',
+        label: 'Fit page',
+        group: 'View',
+        description: 'Show the whole page',
+      ),
+      EditorCommandChoice(
+        id: 'workspace.focus',
+        label: 'Focus selected bar',
+        group: 'View',
+        description: 'Zoom to the current measure',
+        disabledReason: state.hasMeasureContext ? null : 'Select a bar',
+      ),
+      EditorCommandChoice(
+        id: 'workspace.save',
+        label: 'Save score',
+        group: 'File',
+        description: 'Save the current project on this device',
+        shortcut: 'Ctrl / ⌘ + S',
+        disabledReason: _isReviewMode
+            ? 'This score is open for review'
+            : _isSaving
+            ? 'A save is in progress'
+            : null,
+      ),
+      const EditorCommandChoice(
+        id: 'workspace.help',
+        label: 'Editor guide',
+        group: 'Help',
+        description: 'Learn editing gestures and keyboard shortcuts',
+      ),
+    ];
+    final id = await showDialog<String>(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: AppColors.surface,
+        insetPadding: const EdgeInsets.all(16),
+        child: SizedBox(
+          width: 640,
+          height: math.min(640, MediaQuery.sizeOf(context).height * .82),
+          child: EditorCommandPalette(choices: choices),
+        ),
+      ),
+    );
+    if (!mounted || id == null) return;
+    final command = EditorCommand.values.where((c) => c.name == id).firstOrNull;
+    if (command != null) {
+      _runEditorCommand(command);
+      return;
+    }
+    // Recheck state after dismissal: playback can have changed with search open.
+    switch (id) {
+      case 'workspace.annotations':
+        await _showAnnotations();
+      case 'workspace.tempo':
+        await _showAnnotations(kind: AnnotationKind.tempo);
+      case 'workspace.chord':
+        await _showAnnotations(kind: AnnotationKind.chord);
+      case 'workspace.rehearsal':
+        await _showAnnotations(kind: AnnotationKind.rehearsal);
+      case 'workspace.lyrics':
+        await _showLyrics();
+      case 'workspace.entry':
+        if (_commandEditLock == null) _toggleInsertMode();
+      case 'workspace.beams':
+        if (_commandEditLock == null) await _showBeamEditor();
+      case 'workspace.transpose':
+        await _showTranspose();
+      case 'workspace.mixer':
+        await _showMixer();
+      case 'workspace.staves':
+        await _showStaves();
+      case 'workspace.concertPitch':
+        if (_commandEditLock == null) {
+          _updateState((s) => s.toggleConcertPitch());
+        }
+      case 'workspace.pickup':
+        if (_commandEditLock == null) {
+          _updateState((s) => s.toggleMeasureImplicit());
+        }
+      case 'workspace.barRest':
+        if (_commandEditLock == null) _updateState((s) => s.setBarRest());
+      case final id when id.startsWith('workspace.bar.'):
+        final sign = BarSign.values.byName(
+          id.substring('workspace.bar.'.length),
+        );
+        if (_commandEditLock == null) {
+          _updateState((s) => s.toggleBarSign(sign));
+        }
+      case final id when id.startsWith('workspace.dynamic.'):
+        if (_commandEditLock == null) {
+          _updateState(
+            (s) => s.setDynamic(id.substring('workspace.dynamic.'.length)),
+          );
+        }
+      case 'workspace.copy':
+        _copySelection();
+      case 'workspace.cut':
+        _cutSelection();
+      case 'workspace.paste':
+        _pasteClipboard();
+      case 'workspace.addBar':
+        if (_commandEditLock == null) {
+          _updateState((s) => s.appendMeasureAtEnd());
+          setState(_jumpToLastPage);
+        }
+      case 'workspace.fit':
+        _notationAreaKey.currentState?._fitToScreen();
+      case 'workspace.focus':
+        if (_editorState.hasMeasureContext) {
+          _notationAreaKey.currentState?.focusMeasure(
+            _editorState.selectedPartIndex!,
+            _editorState.selectedMeasureIndex!,
+          );
+        }
+      case 'workspace.save':
+        if (!_isReviewMode && !_isSaving) await _onSave();
+      case 'workspace.help':
+        _showEditorHelp();
+    }
+  }
+
+  KeyEventResult _handleEditorKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) {
+      return KeyEventResult.ignored;
+    }
+    final focused = FocusManager.instance.primaryFocus?.context;
+    if (ModalRoute.of(context)?.isCurrent != true ||
+        focused?.widget is EditableText ||
+        focused?.findAncestorWidgetOfExactType<EditableText>() != null ||
+        _reviewOpen ||
+        _isReviewMode) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    final keyboard = HardwareKeyboard.instance;
+    final command = keyboard.isControlPressed || keyboard.isMetaPressed;
+    if (key == LogicalKeyboardKey.f10 && !command && !keyboard.isAltPressed) {
+      unawaited(_showMixer());
+      return KeyEventResult.handled;
+    }
+    if (command &&
+        keyboard.isAltPressed &&
+        (key == LogicalKeyboardKey.keyT || key == LogicalKeyboardKey.keyK)) {
+      unawaited(
+        _showAnnotations(
+          kind: key == LogicalKeyboardKey.keyT
+              ? AnnotationKind.tempo
+              : AnnotationKind.chord,
+        ),
+      );
+      return KeyEventResult.handled;
+    }
+    if (command && key == LogicalKeyboardKey.keyK && !keyboard.isAltPressed) {
+      unawaited(_showScoreCommands());
+      return KeyEventResult.handled;
+    }
+    if (command && key == LogicalKeyboardKey.keyS) {
+      if (!_isSaving) _onSave();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.space && !command && !keyboard.isAltPressed) {
+      if (_playbackStatus == PlaybackStatus.playing) {
+        _playback.pause();
+      } else if (_playbackStatus == PlaybackStatus.paused) {
+        _playback.resume(score: _editorState.score);
+      } else if (!_playbackPending && _editorState.hasPlaybackContent) {
+        unawaited(
+          _playFromMeasure(
+            _editorState.selectedMeasureIndex ?? 0,
+            partIndex: _editorState.selectedPartIndex ?? 0,
+          ),
+        );
+      }
+      return KeyEventResult.handled;
+    }
+    if (_commandEditLock != null) return KeyEventResult.ignored;
+    if (command) {
+      if (key == LogicalKeyboardKey.keyL) {
+        unawaited(_showLyrics());
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.keyZ) {
+        _runEditorCommand(
+          keyboard.isShiftPressed ? EditorCommand.redo : EditorCommand.undo,
+        );
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.keyY) {
+        _runEditorCommand(EditorCommand.redo);
+        return KeyEventResult.handled;
+      }
+      if (keyboard.isAltPressed) {
+        final voice =
+            const [
+              LogicalKeyboardKey.digit1,
+              LogicalKeyboardKey.digit2,
+              LogicalKeyboardKey.digit3,
+              LogicalKeyboardKey.digit4,
+            ].indexOf(key) +
+            1;
+        if (voice > 0) {
+          setState(() => _inputVoice = voice);
+          return KeyEventResult.handled;
+        }
+      }
+      // Ctrl + 3, 5, 6, 7: tuplets, as in MuseScore.
+      final tuplet = {
+        LogicalKeyboardKey.digit3: 3,
+        LogicalKeyboardKey.digit5: 5,
+        LogicalKeyboardKey.digit6: 6,
+        LogicalKeyboardKey.digit7: 7,
+      }[key];
+      if (tuplet != null && !keyboard.isAltPressed) {
+        _updateState((s) => s.makeTuplet(tuplet));
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.keyA) {
+        _runEditorCommand(EditorCommand.selectAll);
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.keyC) {
+        _copySelection();
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.keyX) {
+        _cutSelection();
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.keyV) {
+        _pasteClipboard();
+        return KeyEventResult.handled;
+      }
+      if (keyboard.isShiftPressed &&
+          (key == LogicalKeyboardKey.arrowLeft ||
+              key == LogicalKeyboardKey.arrowRight)) {
+        _updateState(
+          (s) => s.extendSelectionByBar(
+            key == LogicalKeyboardKey.arrowLeft ? -1 : 1,
+          ),
+        );
+        return KeyEventResult.handled;
+      }
+      if (!keyboard.isAltPressed &&
+          !keyboard.isShiftPressed &&
+          (key == LogicalKeyboardKey.arrowUp ||
+              key == LogicalKeyboardKey.arrowDown)) {
+        _runEditorCommand(
+          key == LogicalKeyboardKey.arrowUp
+              ? EditorCommand.octaveUp
+              : EditorCommand.octaveDown,
+        );
+        return KeyEventResult.handled;
+      }
+      // MuseScore's Ctrl+Shift+Down/Up: draw the note on the next staff.
+      if (!keyboard.isAltPressed &&
+          keyboard.isShiftPressed &&
+          (key == LogicalKeyboardKey.arrowUp ||
+              key == LogicalKeyboardKey.arrowDown)) {
+        _runEditorCommand(
+          key == LogicalKeyboardKey.arrowUp
+              ? EditorCommand.staffAbove
+              : EditorCommand.staffBelow,
+        );
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+    final letter = _pitchLetters[key];
+    if (keyboard.isAltPressed && !keyboard.isShiftPressed) {
+      final interval = _intervalDigits[key];
+      if (interval == null) return KeyEventResult.ignored;
+      _updateState((s) => s.addChordInterval(interval));
+      return KeyEventResult.handled;
+    }
+    // MuseScore's +: tie (in note entry, a new tied note of the same pitch).
+    if (key == LogicalKeyboardKey.numpadAdd ||
+        key == LogicalKeyboardKey.add ||
+        (keyboard.isShiftPressed && key == LogicalKeyboardKey.equal)) {
+      if (_insertMode) {
+        final type = _insertSymbolType ?? PaletteSymbolType.quarterNote;
+        final spec = [
+          wholeDuration,
+          halfDuration,
+          quarterDuration,
+          eighthDuration,
+          sixteenthDuration,
+        ][type.index % 5];
+        _updateState((s) => s.enterTiedNote(spec));
+      } else {
+        _runEditorCommand(EditorCommand.tie);
+      }
+      return KeyEventResult.handled;
+    }
+    if (keyboard.isShiftPressed &&
+        !keyboard.isAltPressed &&
+        (key == LogicalKeyboardKey.arrowLeft ||
+            key == LogicalKeyboardKey.arrowRight)) {
+      _updateState(
+        (s) => s.extendSelection(key == LogicalKeyboardKey.arrowLeft ? -1 : 1),
+      );
+      return KeyEventResult.handled;
+    }
+    // MuseScore's articulation shortcuts.
+    final markCommand = keyboard.isShiftPressed && !keyboard.isAltPressed
+        ? {
+            LogicalKeyboardKey.keyS: EditorCommand.staccato,
+            LogicalKeyboardKey.keyN: EditorCommand.tenuto,
+            LogicalKeyboardKey.keyV: EditorCommand.accent,
+            LogicalKeyboardKey.keyO: EditorCommand.marcato,
+          }[key]
+        : null;
+    if (markCommand != null) {
+      _runEditorCommand(markCommand);
+      return KeyEventResult.handled;
+    }
+    // MuseScore's < and >: hairpins.
+    final hairpinCommand =
+        key == LogicalKeyboardKey.less ||
+            (keyboard.isShiftPressed && key == LogicalKeyboardKey.comma)
+        ? EditorCommand.crescendo
+        : key == LogicalKeyboardKey.greater ||
+              (keyboard.isShiftPressed && key == LogicalKeyboardKey.period)
+        ? EditorCommand.diminuendo
+        : null;
+    if (hairpinCommand != null) {
+      _runEditorCommand(hairpinCommand);
+      return KeyEventResult.handled;
+    }
+    if (keyboard.isShiftPressed && !keyboard.isAltPressed && letter != null) {
+      _updateState((s) => s.addChordStep(letter));
+      return KeyEventResult.handled;
+    }
+    if (keyboard.isAltPressed || keyboard.isShiftPressed) {
+      return KeyEventResult.ignored;
+    }
+    if (key == LogicalKeyboardKey.keyS) {
+      _runEditorCommand(EditorCommand.slur);
+      return KeyEventResult.handled;
+    }
+    if (letter != null && _drumInput) {
+      final piece = drumForShortcut(letter);
+      if (piece == null) return KeyEventResult.ignored;
+      if (_insertMode) {
+        _enterFromKeyboard(letter);
+      } else {
+        _updateState((s) => s.setSelectedDrum(piece));
+      }
+      return KeyEventResult.handled;
+    }
+    if (letter != null && letter != 'H') {
+      if (_insertMode) {
+        _enterFromKeyboard(letter);
+      } else {
+        _updateState((s) => s.setSelectedNoteStep(letter));
+      }
+      return KeyEventResult.handled;
+    }
+    if (_insertMode &&
+        (key == LogicalKeyboardKey.digit0 ||
+            key == LogicalKeyboardKey.numpad0)) {
+      _enterFromKeyboard(null);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.escape) {
+      setState(() {
+        _insertMode = false;
+        _insertSymbolType = null;
+        _extendMode = false;
+      });
+      _updateState((s) => s.clearSymbolSelectionPreservingMeasureContext());
+    } else if (key == LogicalKeyboardKey.keyN) {
+      _toggleInsertMode();
+    } else if (key == LogicalKeyboardKey.arrowLeft ||
+        key == LogicalKeyboardKey.arrowRight) {
+      _selectAdjacentSymbol(key == LogicalKeyboardKey.arrowLeft ? -1 : 1);
+    } else if (key == LogicalKeyboardKey.arrowUp ||
+        key == LogicalKeyboardKey.arrowDown) {
+      _runEditorCommand(
+        key == LogicalKeyboardKey.arrowUp
+            ? EditorCommand.pitchUp
+            : EditorCommand.pitchDown,
+      );
+    } else if (key == LogicalKeyboardKey.delete ||
+        key == LogicalKeyboardKey.backspace) {
+      _runEditorCommand(EditorCommand.delete);
+    } else {
+      final rhythm = switch (key) {
+        LogicalKeyboardKey.digit3 ||
+        LogicalKeyboardKey.numpad3 => EditorCommand.sixteenth,
+        LogicalKeyboardKey.digit4 ||
+        LogicalKeyboardKey.numpad4 => EditorCommand.eighth,
+        LogicalKeyboardKey.digit5 ||
+        LogicalKeyboardKey.numpad5 => EditorCommand.quarter,
+        LogicalKeyboardKey.digit6 ||
+        LogicalKeyboardKey.numpad6 => EditorCommand.half,
+        LogicalKeyboardKey.digit7 ||
+        LogicalKeyboardKey.numpad7 => EditorCommand.whole,
+        LogicalKeyboardKey.period ||
+        LogicalKeyboardKey.numpadDecimal => EditorCommand.dot,
+        _ => null,
+      };
+      if (rhythm == null) return KeyEventResult.ignored;
+      if (_insertMode && rhythm.duration != null) {
+        final index = switch (rhythm) {
+          EditorCommand.whole => 0,
+          EditorCommand.half => 1,
+          EditorCommand.quarter => 2,
+          EditorCommand.eighth => 3,
+          _ => 4,
+        };
+        _onPaletteTypeTap(
+          PaletteSymbolType.values[index +
+              ((_insertSymbolType?.isRest ?? false) ? 5 : 0)],
+        );
+      } else {
+        // While entering notes a dot applies to the note just written.
+        _runEditorCommand(rhythm);
+      }
+    }
+    return KeyEventResult.handled;
   }
 
   @override
@@ -1455,6 +2603,9 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         _playbackPending;
     final isReadOnly = _isReviewMode;
     final selected = _editorState.selectedSymbol;
+    final simultaneousParts =
+        _editorState.score.playbackLayout ==
+        ScorePlaybackLayout.simultaneousParts;
     final hasSelection = _editorState.hasSelection;
     final hasMeasureContext =
         _editorState.selectedPartIndex != null &&
@@ -1487,17 +2638,22 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
               .number
         : null;
 
-    return PopScope(
+    final editor = PopScope(
       canPop: isReadOnly || !_editorState.hasUnsavedChanges,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _handlePopAttempt();
       },
       child: Scaffold(
         backgroundColor: AppColors.background,
+        // Text entry lives in dialogs/sheets that handle their own insets.
+        // Keep the score workspace stable behind their on-screen keyboard.
+        resizeToAvoidBottomInset: false,
         body: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final isLandscape = constraints.maxWidth > constraints.maxHeight;
+              final isLandscape =
+                  constraints.maxWidth >= 900 ||
+                  (constraints.maxWidth >= 600 && constraints.maxHeight < 500);
 
               final shownScore = _reviewPreview && _reviewPlan != null
                   ? _reviewPlan!.preview
@@ -1509,10 +2665,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                     ? _focusedIssue?.measureIndex
                     : null,
                 reviewFocusPart: _focusedIssue?.partIndex ?? 0,
-                // In portrait the selection card floats over the top of the
-                // canvas; the zoom controls float over its bottom edge.
-                fitInsets: EdgeInsets.only(
-                  top: isLandscape || _reviewOpen ? 0 : _kSelectionCardReserve,
+                fitInsets: const EdgeInsets.only(
                   bottom: _kFloatingControlsReserve,
                 ),
                 editorState: identical(shownScore, _editorState.score)
@@ -1539,8 +2692,18 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 isPlaybackActive: isPlaybackActive,
                 isReadOnly: isReadOnly || _reviewOpen,
                 suppressCanvasDragGhost: _dragSymbolType != null,
-                onToggleInsertMode: _toggleInsertMode,
-                onPaletteTypeTap: _onPaletteTypeTap,
+                onAnnotationTap: (p, m, i) {
+                  if (_commandEditLock != null) return;
+                  setState(
+                    () => _editorState = _editorState.copyWith(
+                      selectedPartIndex: p,
+                      selectedMeasureIndex: m,
+                      selectedSymbolIndex: null,
+                      selectedSymbol: null,
+                    ),
+                  );
+                  unawaited(_showAnnotations(initialIndex: i));
+                },
                 onMeasureTap: (target) {
                   if (_reviewOpen &&
                       target != null &&
@@ -1689,50 +2852,167 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                     )
                   : _InspectorPanel(
                       isLandscape: isLandscape,
+                      insertMode: _insertMode,
+                      insertSymbolType: _insertSymbolType,
+                      inputVoice: _effectiveInputVoice,
+                      onVoiceSelected: (voice) =>
+                          setState(() => _inputVoice = voice),
+                      onDrum: _drumInput ? _enterDrum : null,
+                      onToggleInsertMode: _toggleInsertMode,
+                      onPaletteTypeTap: _onPaletteTypeTap,
+                      onPreviousSymbol: _adjacentSymbol(-1) == null
+                          ? null
+                          : () => _selectAdjacentSymbol(-1),
+                      onNextSymbol: _adjacentSymbol(1) == null
+                          ? null
+                          : () => _selectAdjacentSymbol(1),
                       isPlaybackActive: isPlaybackActive,
                       selected: selected,
                       hasSelection: hasSelection,
                       hasMeasureContext: hasMeasureContext,
                       selectedMeasureNumber: selectedMeasureNumber,
-                      currentPageIndex: _currentPageIndex,
-                      totalPages: _pageMetrics.totalPages,
-                      onPrevPage: onPrevPage,
-                      onNextPage: onNextPage,
-                      onPageOverviewTap: _showPageOverview,
-                      onMoveUp: () =>
-                          _updateState((s) => s.moveSelectedSymbolUp()),
+                      onMoveUp: () => _runEditorCommand(EditorCommand.pitchUp),
                       onMoveDown: () =>
-                          _updateState((s) => s.moveSelectedSymbolDown()),
-                      onWhole: () => _updateState(
-                        (s) => s.setSelectedDuration(wholeDuration),
+                          _runEditorCommand(EditorCommand.pitchDown),
+                      onOctaveUp:
+                          EditorCommand.octaveUp.unavailableReason(
+                                _editorState,
+                              ) ==
+                              null
+                          ? () => _runEditorCommand(EditorCommand.octaveUp)
+                          : null,
+                      onOctaveDown:
+                          EditorCommand.octaveDown.unavailableReason(
+                                _editorState,
+                              ) ==
+                              null
+                          ? () => _runEditorCommand(EditorCommand.octaveDown)
+                          : null,
+                      onAddThird:
+                          EditorCommand.addThird.unavailableReason(
+                                _editorState,
+                              ) ==
+                              null
+                          ? () => _runEditorCommand(EditorCommand.addThird)
+                          : null,
+                      onTie: _editorState.tieUnavailableReason == null
+                          ? () => _runEditorCommand(EditorCommand.tie)
+                          : null,
+                      onStaffMove: (move) => _runEditorCommand(
+                        move > 0
+                            ? EditorCommand.staffBelow
+                            : EditorCommand.staffAbove,
                       ),
-                      onHalf: () => _updateState(
-                        (s) => s.setSelectedDuration(halfDuration),
-                      ),
-                      onQuarter: () => _updateState(
-                        (s) => s.setSelectedDuration(quarterDuration),
-                      ),
-                      onEighth: () => _updateState(
-                        (s) => s.setSelectedDuration(eighthDuration),
-                      ),
-                      onSixteenth: () => _updateState(
-                        (s) => s.setSelectedDuration(sixteenthDuration),
-                      ),
+                      canStaffMove: {
+                        for (final move in [-1, 1])
+                          if (_editorState.crossStaffUnavailableReason(move) ==
+                              null)
+                            move,
+                      },
+                      onSlur: _editorState.slurUnavailableReason == null
+                          ? () => _runEditorCommand(EditorCommand.slur)
+                          : null,
+                      onAnnotations: _editorState.hasMeasureContext
+                          ? () => _showAnnotations()
+                          : null,
+                      onLyrics: _editorState.lyricUnavailableReason == null
+                          ? _showLyrics
+                          : null,
+                      onTriplet: _editorState.tupletUnavailableReason(3) == null
+                          ? () => _runEditorCommand(EditorCommand.triplet)
+                          : null,
+                      selectedGrace: switch (_editorState.selectedSymbol) {
+                        Note(:final grace) => grace,
+                        _ => null,
+                      },
+                      onGrace: _editorState.graceUnavailableReason == null
+                          ? (kind) => _runEditorCommand(
+                              kind == Grace.acciaccatura
+                                  ? EditorCommand.acciaccatura
+                                  : EditorCommand.appoggiatura,
+                            )
+                          : null,
+                      markStates: {
+                        for (final mark in Articulation.values)
+                          mark: _editorState.markUnavailableReason(mark) == null
+                              ? _editorState.hasMark(mark)
+                              : null,
+                      },
+                      onToggleMark: (mark) =>
+                          _updateState((s) => s.toggleMark(mark)),
+                      dynamicMark: _editorState.selectedDynamic,
+                      onDynamic:
+                          _editorState.hairpinUnavailableReason(
+                                SpannerKind.crescendo,
+                              ) ==
+                              null
+                          ? (mark) => _updateState((s) => s.setDynamic(mark))
+                          : null,
+                      onHairpin:
+                          _editorState.hairpinUnavailableReason(
+                                SpannerKind.crescendo,
+                              ) ==
+                              null
+                          ? (kind) => _runEditorCommand(
+                              kind == SpannerKind.crescendo
+                                  ? EditorCommand.crescendo
+                                  : EditorCommand.diminuendo,
+                            )
+                          : null,
+                      rangeCount: _editorState.hasRange
+                          ? _editorState.selectionPositions.length
+                          : 0,
+                      extendMode: _extendMode,
+                      onToggleExtend: () =>
+                          setState(() => _extendMode = !_extendMode),
+                      onSelectBar:
+                          EditorCommand.selectBar.unavailableReason(
+                                _editorState,
+                              ) ==
+                              null
+                          ? () => _runEditorCommand(EditorCommand.selectBar)
+                          : null,
+                      onCopy: _editorState.hasEditableSelection
+                          ? _copySelection
+                          : null,
+                      onCut: _editorState.hasEditableSelection
+                          ? _cutSelection
+                          : null,
+                      onPaste:
+                          _clipboard != null && _editorState.hasMeasureContext
+                          ? _pasteClipboard
+                          : null,
+                      onConvertSymbol: _editorState.hasRange
+                          ? null
+                          : selected is Rest
+                          ? () => _runEditorCommand(EditorCommand.restToNote)
+                          : _editorState.canConvertSelectedNoteToRest
+                          ? () => _runEditorCommand(EditorCommand.noteToRest)
+                          : null,
+                      onWhole: () => _runEditorCommand(EditorCommand.whole),
+                      onHalf: () => _runEditorCommand(EditorCommand.half),
+                      onQuarter: () => _runEditorCommand(EditorCommand.quarter),
+                      onEighth: () => _runEditorCommand(EditorCommand.eighth),
+                      onSixteenth: () =>
+                          _runEditorCommand(EditorCommand.sixteenth),
                       onSetAccidental: (alter) => _updateState(
                         (s) => s.setSelectedNoteAccidental(alter),
                       ),
                       allowedDurations: {
-                        for (final spec in [
-                          wholeDuration,
-                          halfDuration,
-                          quarterDuration,
-                          eighthDuration,
-                          sixteenthDuration,
-                        ])
-                          if (_editorState.canSetSelectedDuration(spec))
-                            spec.type,
+                        if (!_editorState.hasRange)
+                          for (final spec in [
+                            wholeDuration,
+                            halfDuration,
+                            quarterDuration,
+                            eighthDuration,
+                            sixteenthDuration,
+                          ])
+                            if (_editorState.canSetSelectedDuration(spec))
+                              spec.type,
                       },
-                      canToggleDot: _editorState.canToggleSelectedDot,
+                      canToggleDot:
+                          !_editorState.hasRange &&
+                          _editorState.canToggleSelectedDot,
                       onBeams:
                           hasMeasureContext &&
                               _editorState
@@ -1750,6 +3030,15 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                         (s) =>
                             s.setTimeSignatureAtSelectedMeasure(timeSignature),
                       ),
+                      measureImplicit: _editorState.selectedMeasureImplicit,
+                      onTogglePickup: () =>
+                          _updateState((s) => s.toggleMeasureImplicit()),
+                      onBarRest: _editorState.barRestUnavailableReason == null
+                          ? () => _updateState((s) => s.setBarRest())
+                          : null,
+                      barSignOn: _editorState.barSignOn,
+                      onBarSign: (sign) =>
+                          _updateState((s) => s.toggleBarSign(sign)),
                       onSetClef: (clef) {
                         if (clef != null) {
                           _updateState((s) => s.setPartClef(clef));
@@ -1761,6 +3050,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       onMoveToNext: () => _updateState(
                         (s) => s.moveSelectedSymbolToMeasureOffset(1),
                       ),
+                      onStaves: _canEditStaves ? _showStaves : null,
                       onAddMeasure: () {
                         _updateState((s) => s.appendMeasureAtEnd());
                         setState(_jumpToLastPage);
@@ -1773,15 +3063,16 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       onDeleteMeasure: () =>
                           _updateState((s) => s.deleteSelectedMeasure()),
                       onDeleteSymbol: () =>
-                          _updateState((s) => s.deleteSelectedSymbol()),
-                      onToggleDot: () =>
-                          _updateState((s) => s.toggleSelectedDot()),
+                          _runEditorCommand(EditorCommand.delete),
+                      onToggleDot: () => _runEditorCommand(EditorCommand.dot),
                     );
 
               final scoreIsEmpty =
                   _editorState.score.parts.isEmpty ||
                   _editorState.score.parts.every(
-                    (p) => p.measures.every((m) => m.symbols.isEmpty),
+                    (p) => p.measures.every(
+                      (m) => m.symbols.isEmpty && m.annotations.isEmpty,
+                    ),
                   );
 
               return _EditorWorkspace(
@@ -1836,6 +3127,18 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                         onClose: _stopNotationCheck,
                       )
                     : null,
+                navigation: _WorkspaceNavigation(
+                  location: hasMeasureContext
+                      ? '${_editorState.score.parts[selectedPartIndex].name} · Bar $selectedMeasureNumber'
+                      : 'Choose a bar to begin',
+                  currentPageIndex: _currentPageIndex,
+                  totalPages: _pageMetrics.totalPages,
+                  onPrevPage: onPrevPage,
+                  onNextPage: onNextPage,
+                  onPageOverviewTap: _showPageOverview,
+                  onHelp: _showEditorHelp,
+                  onCommands: _showScoreCommands,
+                ),
                 header: _EditorHeader(
                   title:
                       _currentProject?.name ??
@@ -1858,6 +3161,17 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   onRedo: () => _updateState((s) => s.applyRedo()),
                   onClearAllSymbols: _canClearAllSymbols
                       ? _confirmClearAllSymbols
+                      : null,
+                  onTranspose: _canTranspose ? _showTranspose : null,
+                  concertPitch: _editorState.score.concertPitch,
+                  onConcertPitch:
+                      _commandEditLock == null &&
+                          _editorState.hasTransposingParts
+                      ? () => _updateState((s) => s.toggleConcertPitch())
+                      : null,
+                  onStaves: _canEditStaves ? _showStaves : null,
+                  onMixer: _canEditStaves && _editorState.score.parts.isNotEmpty
+                      ? _showMixer
                       : null,
                   onSave: isReadOnly ? null : _onSave,
                   isSaving: _isSaving,
@@ -1899,21 +3213,34 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 notationArea: notationArea,
                 inspectorPanel: inspectorPanel,
                 playbackControls: PlaybackControlsBar(
+                  relativeTempo: _editorState.score.parts.any(
+                    (p) => p.measures.any(
+                      (m) => m.annotations.any((a) => a.tempo != null),
+                    ),
+                  ),
                   playbackService: _playback,
                   isLoading: _playbackPending,
-                  initialMeasure:
-                      _editorState.score.parts
-                          .take(selectedPartIndex)
-                          .fold(0, (sum, part) => sum + part.measures.length) +
-                      selectedMeasureIndex,
-                  measureCounts: [
-                    for (final part in _editorState.score.parts)
-                      part.measures.length,
-                  ],
-                  isEmpty: scoreIsEmpty,
+                  initialMeasure: simultaneousParts
+                      ? selectedMeasureIndex
+                      : _editorState.score.parts
+                                .take(selectedPartIndex)
+                                .fold(
+                                  0,
+                                  (sum, part) => sum + part.measures.length,
+                                ) +
+                            selectedMeasureIndex,
+                  measureCounts: simultaneousParts
+                      ? null
+                      : [
+                          for (final part in _editorState.score.parts)
+                            part.measures.length,
+                        ],
+                  isEmpty: !_editorState.hasPlaybackContent,
                   // The scrubber covers every staff in reading order.
-                  measuresPerPart: measuresPerPart,
-                  totalMeasures: _editorState.score.totalMeasures,
+                  measuresPerPart: simultaneousParts ? null : measuresPerPart,
+                  totalMeasures: simultaneousParts
+                      ? measuresPerPart
+                      : _editorState.score.totalMeasures,
                   onPlay: () => unawaited(
                     _playFromMeasure(
                       _editorState.selectedMeasureIndex ?? 0,
@@ -1939,7 +3266,71 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         ),
       ),
     );
+    return Focus(
+      autofocus: true,
+      includeSemantics: false,
+      onKeyEvent: _handleEditorKey,
+      child: editor,
+    );
   }
+}
+
+class _WorkspaceNavigation extends StatelessWidget {
+  const _WorkspaceNavigation({
+    required this.location,
+    required this.currentPageIndex,
+    required this.totalPages,
+    required this.onPrevPage,
+    required this.onNextPage,
+    required this.onPageOverviewTap,
+    required this.onHelp,
+    required this.onCommands,
+  });
+  final String location;
+  final int currentPageIndex, totalPages;
+  final VoidCallback? onPrevPage, onNextPage;
+  final VoidCallback onPageOverviewTap, onHelp, onCommands;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            location,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+        _PageNav(
+          currentPageIndex: currentPageIndex,
+          totalPages: totalPages,
+          onPrev: onPrevPage,
+          onNext: onNextPage,
+          onPageOverviewTap: onPageOverviewTap,
+        ),
+        IconButton(
+          tooltip: 'Score commands (Ctrl/Cmd+K)',
+          onPressed: onCommands,
+          constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+          icon: const Icon(Icons.manage_search_rounded, size: 22),
+          color: AppColors.accent,
+        ),
+        IconButton(
+          tooltip: 'Editor guide',
+          onPressed: onHelp,
+          constraints: const BoxConstraints.tightFor(width: 44, height: 44),
+          icon: const Icon(Icons.help_outline_rounded, size: 20),
+          color: AppColors.textSecondary,
+        ),
+      ],
+    ),
+  );
 }
 
 class _EditorWorkspace extends StatelessWidget {
@@ -1954,6 +3345,7 @@ class _EditorWorkspace extends StatelessWidget {
     this.reviewPanelFraction = .62,
     this.onReviewResize,
     required this.header,
+    required this.navigation,
     required this.notationArea,
     required this.inspectorPanel,
     required this.playbackControls,
@@ -1969,6 +3361,7 @@ class _EditorWorkspace extends StatelessWidget {
   final double reviewPanelFraction;
   final ValueChanged<double>? onReviewResize;
   final Widget header;
+  final Widget navigation;
   final Widget notationArea;
   final Widget inspectorPanel;
   final Widget playbackControls;
@@ -1983,6 +3376,7 @@ class _EditorWorkspace extends StatelessWidget {
               children: [
                 header,
                 ?checkBar,
+                navigation,
                 Expanded(
                   child: reviewPanel != null
                       ? LayoutBuilder(
@@ -2101,46 +3495,59 @@ class _EditorWorkspace extends StatelessWidget {
                             ),
                           ],
                         )
-                      : Stack(
-                          children: [
-                            Positioned.fill(
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  12,
-                                  0,
-                                  12,
-                                  _kInspectorBarHeight,
-                                ),
-                                child: notationArea,
-                              ),
-                            ),
-                            Positioned.fill(child: inspectorPanel),
-                            if (isDraggingNote)
-                              Positioned(
-                                left: 0,
-                                right: 0,
-                                bottom: 0,
-                                height: _kInspectorBarHeight,
-                                child: Center(
-                                  child: _TrashZone(
-                                    key: trashZoneKey,
-                                    isHovered: () {
-                                      if (dragGlobal == Offset.zero) {
-                                        return false;
-                                      }
-                                      final box =
-                                          trashZoneKey.currentContext
-                                                  ?.findRenderObject()
-                                              as RenderBox?;
-                                      if (box == null) return false;
-                                      return (box.localToGlobal(Offset.zero) &
-                                              box.size)
-                                          .contains(dragGlobal);
-                                    }(),
+                      : LayoutBuilder(
+                          builder: (context, area) {
+                            final dockHeight = math.min(
+                              272 +
+                                  (MediaQuery.textScalerOf(context).scale(12) -
+                                          12) *
+                                      3,
+                              area.maxHeight * .52,
+                            );
+                            return Column(
+                              children: [
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      8,
+                                      0,
+                                      8,
+                                      8,
+                                    ),
+                                    child: notationArea,
                                   ),
                                 ),
-                              ),
-                          ],
+                                SizedBox(
+                                  height: dockHeight,
+                                  child: Stack(
+                                    children: [
+                                      Positioned.fill(child: inspectorPanel),
+                                      if (isDraggingNote)
+                                        Positioned.fill(
+                                          child: Center(
+                                            child: _TrashZone(
+                                              key: trashZoneKey,
+                                              isHovered: () {
+                                                final box =
+                                                    trashZoneKey.currentContext
+                                                            ?.findRenderObject()
+                                                        as RenderBox?;
+                                                return box != null &&
+                                                    (box.localToGlobal(
+                                                              Offset.zero,
+                                                            ) &
+                                                            box.size)
+                                                        .contains(dragGlobal);
+                                              }(),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                 ),
                 if (reviewPanel == null) playbackControls,
@@ -2290,6 +3697,10 @@ enum _HeaderMenuAction {
   checkNotation,
   exportXml,
   exportPdf,
+  transpose,
+  concertPitch,
+  staves,
+  mixer,
   clearAllSymbols,
 }
 
@@ -2341,6 +3752,11 @@ class _EditorHeader extends StatelessWidget {
     this.onScanPage,
     this.onCheckNotation,
     this.onClearAllSymbols,
+    this.onTranspose,
+    this.concertPitch = false,
+    this.onConcertPitch,
+    this.onStaves,
+    this.onMixer,
     this.isSaving = false,
   });
 
@@ -2365,6 +3781,11 @@ class _EditorHeader extends StatelessWidget {
   final VoidCallback? onScanPage;
   final VoidCallback? onCheckNotation;
   final VoidCallback? onClearAllSymbols;
+  final VoidCallback? onTranspose;
+  final bool concertPitch;
+  final VoidCallback? onConcertPitch;
+  final VoidCallback? onStaves;
+  final VoidCallback? onMixer;
   final bool isSaving;
 
   static final ButtonStyle _compactIconButtonStyle = IconButton.styleFrom(
@@ -2389,14 +3810,28 @@ class _EditorHeader extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final stacked = _isStacked(context, constraints.maxWidth);
-        final actions = <Widget>[
-          IconButton(
+        final reviewAction = Tooltip(
+          message: 'Review & Correct',
+          child: TextButton.icon(
             onPressed: onCheckNotation,
             icon: const Icon(Icons.fact_check_outlined, size: 18),
-            color: AppColors.accent,
-            tooltip: 'Review & Correct',
-            style: _compactIconButtonStyle,
+            label: const Text('Review', style: TextStyle(fontSize: 12)),
+            style: TextButton.styleFrom(
+              minimumSize: const Size(44, 44),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+            ),
           ),
+        );
+        final actions = <Widget>[
+          if (stacked)
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: reviewAction,
+              ),
+            )
+          else
+            reviewAction,
           IconButton(
             onPressed: canUndo ? onUndo : null,
             icon: const Icon(Icons.undo_rounded, size: 18),
@@ -2411,7 +3846,6 @@ class _EditorHeader extends StatelessWidget {
             tooltip: 'Redo',
             style: _compactIconButtonStyle,
           ),
-          if (stacked) const Spacer(),
           if (showSubmitButton)
             IconButton(
               onPressed: onSubmit,
@@ -2574,6 +4008,14 @@ class _EditorHeader extends StatelessWidget {
                           onExportXml();
                         } else if (action == _HeaderMenuAction.exportPdf) {
                           onExportPdf();
+                        } else if (action == _HeaderMenuAction.transpose) {
+                          onTranspose?.call();
+                        } else if (action == _HeaderMenuAction.concertPitch) {
+                          onConcertPitch?.call();
+                        } else if (action == _HeaderMenuAction.mixer) {
+                          onMixer?.call();
+                        } else if (action == _HeaderMenuAction.staves) {
+                          onStaves?.call();
                         } else if (action ==
                             _HeaderMenuAction.clearAllSymbols) {
                           onClearAllSymbols?.call();
@@ -2616,6 +4058,43 @@ class _EditorHeader extends StatelessWidget {
                           ),
                         ),
                         if (!isReviewMode) ...[
+                          PopupMenuItem(
+                            value: _HeaderMenuAction.mixer,
+                            enabled: onMixer != null,
+                            child: const _HeaderMenuItem(
+                              icon: Icons.tune_rounded,
+                              label: 'Mixer…',
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: _HeaderMenuAction.transpose,
+                            enabled: onTranspose != null,
+                            child: const _HeaderMenuItem(
+                              icon: Icons.swap_vert_rounded,
+                              label: 'Transpose…',
+                            ),
+                          ),
+                          if (onConcertPitch != null)
+                            PopupMenuItem(
+                              value: _HeaderMenuAction.concertPitch,
+                              child: Semantics(
+                                toggled: concertPitch,
+                                child: _HeaderMenuItem(
+                                  icon: concertPitch
+                                      ? Icons.check_box_rounded
+                                      : Icons.check_box_outline_blank_rounded,
+                                  label: 'Concert pitch',
+                                ),
+                              ),
+                            ),
+                          PopupMenuItem(
+                            value: _HeaderMenuAction.staves,
+                            enabled: onStaves != null,
+                            child: const _HeaderMenuItem(
+                              icon: Icons.queue_music_rounded,
+                              label: 'Staves and instruments…',
+                            ),
+                          ),
                           const PopupMenuDivider(),
                           PopupMenuItem(
                             value: _HeaderMenuAction.clearAllSymbols,
@@ -2648,13 +4127,7 @@ class _EditorHeader extends StatelessWidget {
 // Notation area — A4-like canvas with InteractiveViewer for pan/zoom
 // ---------------------------------------------------------------------------
 
-// Inspector bar height (portrait bottom action bar, sits above PlaybackControlsBar).
-const double _kInspectorBarHeight = 56.0;
-
-/// Canvas height hidden by the selection card in portrait (8 px gap, the
-/// compact card, 8 px gap) and by the floating zoom controls at the bottom.
-/// The page is fitted between them so its first and last staves show.
-const double _kSelectionCardReserve = 64.0;
+/// Leave space below the paper for the floating zoom controls.
 const double _kFloatingControlsReserve = 54.0;
 
 class _NotationArea extends StatefulWidget {
@@ -2682,8 +4155,7 @@ class _NotationArea extends StatefulWidget {
     required this.isPlaybackActive,
     required this.isReadOnly,
     this.suppressCanvasDragGhost = false,
-    required this.onToggleInsertMode,
-    required this.onPaletteTypeTap,
+    this.onAnnotationTap,
     required this.onMeasureTap,
     required this.onSymbolTap,
     required this.onInsertTap,
@@ -2720,8 +4192,7 @@ class _NotationArea extends StatefulWidget {
   final bool isPlaybackActive;
   final bool isReadOnly;
   final bool suppressCanvasDragGhost;
-  final VoidCallback onToggleInsertMode;
-  final ValueChanged<PaletteSymbolType> onPaletteTypeTap;
+  final void Function(int, int, int)? onAnnotationTap;
   final ValueChanged<NotationMeasureTarget?> onMeasureTap;
   final ValueChanged<NotationSymbolTarget?> onSymbolTap;
   final ValueChanged<NotationInsertTarget?> onInsertTap;
@@ -2814,8 +4285,9 @@ class _NotationAreaState extends State<_NotationArea>
     if (freeHeight <= 0) return;
 
     final scale =
-        math.min(viewport.width / content.width, freeHeight / content.height) *
-        0.90;
+        (math.min(viewport.width / content.width, freeHeight / content.height) *
+                0.90)
+            .clamp(.15, 5.0);
 
     final tx = (viewport.width - content.width * scale) / 2;
     final ty =
@@ -2843,6 +4315,7 @@ class _NotationAreaState extends State<_NotationArea>
         column * policy.minMeasureWidth;
     final y =
         policy.verticalPadding +
+        policy.notationTopPadding +
         (row * widget.editorState.score.parts.length + partIndex) *
             policy.rowHeight;
     final freeHeight = math.max(
@@ -2908,7 +4381,7 @@ class _NotationAreaState extends State<_NotationArea>
       return Size(widget.layoutPolicy.pageWidth, 400);
     }
 
-    final allMeasures = score.parts[0].measures;
+    final allMeasures = layoutMeasuresForScore(score);
     final start = widget.pageFirstMeasure.clamp(0, allMeasures.length);
     final end = (start + widget.pageMeasureCount).clamp(
       start,
@@ -2922,10 +4395,14 @@ class _NotationAreaState extends State<_NotationArea>
       measuresPerRow: widget.layoutPolicy.measuresPerRow,
       minMeasureWidth: widget.layoutPolicy.minMeasureWidth,
       rowHeight: widget.layoutPolicy.rowHeight,
-      padding: EdgeInsets.symmetric(
-        horizontal: widget.layoutPolicy.horizontalPadding,
-        vertical: widget.layoutPolicy.verticalPadding,
+      padding: EdgeInsets.fromLTRB(
+        widget.layoutPolicy.horizontalPadding,
+        widget.layoutPolicy.verticalPadding +
+            widget.layoutPolicy.notationTopPadding,
+        widget.layoutPolicy.horizontalPadding,
+        widget.layoutPolicy.verticalPadding,
       ),
+
       rowPrefixWidth: widget.layoutPolicy.rowPrefixWidth,
       partCount: score.parts.length,
     );
@@ -2958,6 +4435,11 @@ class _NotationAreaState extends State<_NotationArea>
       pageMeasureCount: widget.pageMeasureCount,
       selectedMeasureIndex: _rel(widget.editorState.selectedMeasureIndex),
       selectedSymbolIndex: widget.editorState.selectedSymbolIndex,
+      rangeSymbols: {
+        if (widget.editorState.hasRange)
+          for (final p in widget.editorState.selectionPositions)
+            if (_rel(p.measure) case final measure?) (measure, p.symbol),
+      },
       playbackPartIndex: widget.playbackPosition.isNone
           ? null
           : widget.playbackPosition.partIndex,
@@ -3001,6 +4483,11 @@ class _NotationAreaState extends State<_NotationArea>
               ),
               data,
             ),
+      onAnnotationTap:
+          !widget.insertMode && canEdit && widget.onAnnotationTap != null
+          ? (p, m, i) =>
+                widget.onAnnotationTap!(p, m + widget.pageFirstMeasure, i)
+          : null,
       onMeasureTap: !widget.insertMode && !widget.isPlaybackActive
           ? widget.onMeasureTap
           : null,
@@ -3089,11 +4576,6 @@ class _NotationAreaState extends State<_NotationArea>
                             widget.reviewFocusPart,
                             widget.reviewFocusMeasure!,
                           );
-                        } else if (widget.editorState.hasSymbolSelection) {
-                          focusMeasure(
-                            widget.editorState.selectedPartIndex!,
-                            widget.editorState.selectedMeasureIndex!,
-                          );
                         } else {
                           _fitToScreen();
                         }
@@ -3110,11 +4592,6 @@ class _NotationAreaState extends State<_NotationArea>
                           focusMeasure(
                             widget.reviewFocusPart,
                             widget.reviewFocusMeasure!,
-                          );
-                        } else if (widget.editorState.hasSymbolSelection) {
-                          focusMeasure(
-                            widget.editorState.selectedPartIndex!,
-                            widget.editorState.selectedMeasureIndex!,
                           );
                         } else {
                           _fitToScreen();
@@ -3168,53 +4645,6 @@ class _NotationAreaState extends State<_NotationArea>
                 ),
               ),
 
-              // Insert mode banner
-              if (widget.insertMode)
-                Positioned(
-                  top: 8,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.accent.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: AppColors.accent.withValues(alpha: 0.5),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.edit_rounded,
-                            size: 12,
-                            color: AppColors.accent,
-                          ),
-                          const SizedBox(width: 5),
-                          Flexible(
-                            child: Text(
-                              widget.insertSymbolType != null
-                                  ? 'Tap the staff to place a ${_typeLabel(widget.insertSymbolType!)}'
-                                  : 'Choose a symbol, then tap the staff',
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: AppColors.accent,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
               // Trash zone — only shown here in landscape; portrait renders it
               // in the outer Stack so it overlays the inspector bar.
               if (widget.showTrashZone && widget.isDraggingNote)
@@ -3250,49 +4680,24 @@ class _NotationAreaState extends State<_NotationArea>
                   valueListenable: _transformController,
                   builder: (context, transform, _) => _FloatingControls(
                     zoomPercent: (transform.entry(0, 0) * 100).round(),
-                    insertMode: widget.insertMode && !widget.isPlaybackActive,
-                    showInsertToggle: !widget.isReadOnly,
                     onZoomIn: transform.entry(0, 0) >= 5 ? null : _zoomIn,
                     onZoomOut: transform.entry(0, 0) <= .15 ? null : _zoomOut,
                     onFitToScreen: _fitToScreen,
-                    onToggleInsertMode: widget.isPlaybackActive
-                        ? null
-                        : widget.onToggleInsertMode,
+                    onFocusBar: widget.editorState.hasMeasureContext
+                        ? () => focusMeasure(
+                            widget.editorState.selectedPartIndex!,
+                            widget.editorState.selectedMeasureIndex!,
+                          )
+                        : null,
                   ),
                 ),
               ),
             ],
           ),
         ),
-        if (!widget.isReadOnly &&
-            (widget.insertMode || !widget.editorState.hasSymbolSelection))
-          IgnorePointer(
-            ignoring: widget.isPlaybackActive,
-            child: SymbolPalette(
-              selectedType: widget.insertMode && !widget.isPlaybackActive
-                  ? widget.insertSymbolType
-                  : null,
-              onTypeTap: widget.isPlaybackActive
-                  ? null
-                  : widget.onPaletteTypeTap,
-            ),
-          ),
       ],
     );
   }
-
-  String _typeLabel(PaletteSymbolType t) => switch (t) {
-    PaletteSymbolType.wholeNote => 'whole note',
-    PaletteSymbolType.halfNote => 'half note',
-    PaletteSymbolType.quarterNote => 'quarter note',
-    PaletteSymbolType.eighthNote => 'eighth note',
-    PaletteSymbolType.sixteenthNote => 'sixteenth note',
-    PaletteSymbolType.wholeRest => 'whole rest',
-    PaletteSymbolType.halfRest => 'half rest',
-    PaletteSymbolType.quarterRest => 'quarter rest',
-    PaletteSymbolType.eighthRest => 'eighth rest',
-    PaletteSymbolType.sixteenthRest => 'sixteenth rest',
-  };
 
   NotationPreviewGlyph? _previewGlyphForDragData(Object data) {
     if (data is! PaletteDragData) return null;
@@ -3314,109 +4719,25 @@ class _NotationAreaState extends State<_NotationArea>
 class _FloatingControls extends StatelessWidget {
   const _FloatingControls({
     required this.zoomPercent,
-    required this.insertMode,
-    required this.showInsertToggle,
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onFitToScreen,
-    required this.onToggleInsertMode,
+    required this.onFocusBar,
   });
 
   final int zoomPercent;
-  final bool insertMode;
-  final bool showInsertToggle;
   final VoidCallback? onZoomIn;
   final VoidCallback? onZoomOut;
   final VoidCallback onFitToScreen;
-  final VoidCallback? onToggleInsertMode;
+  final VoidCallback? onFocusBar;
 
   @override
   Widget build(BuildContext context) {
-    final compactInsert =
-        MediaQuery.sizeOf(context).width < 360 &&
-        MediaQuery.textScalerOf(context).scale(11) > 15;
     return Wrap(
       alignment: WrapAlignment.end,
       spacing: 6,
       runSpacing: 6,
       children: [
-        if (showInsertToggle) ...[
-          Semantics(
-            button: true,
-            toggled: insertMode,
-            enabled: onToggleInsertMode != null,
-            label: insertMode ? 'Finish inserting symbols' : 'Insert symbols',
-            onTap: onToggleInsertMode,
-            excludeSemantics: true,
-            child: Tooltip(
-              message: onToggleInsertMode == null
-                  ? 'Pause playback to insert symbols'
-                  : insertMode
-                  ? 'Finish inserting symbols'
-                  : 'Insert symbols',
-              child: compactInsert
-                  ? IconButton(
-                      onPressed: onToggleInsertMode,
-                      constraints: const BoxConstraints(
-                        minWidth: 44,
-                        minHeight: 44,
-                      ),
-                      icon: Icon(
-                        insertMode ? Icons.check_rounded : Icons.add_rounded,
-                      ),
-                      color: AppColors.accent,
-                      style: IconButton.styleFrom(
-                        backgroundColor: AppColors.surface.withValues(
-                          alpha: .9,
-                        ),
-                        side: const BorderSide(color: AppColors.border),
-                      ),
-                    )
-                  : TextButton(
-                      onPressed: onToggleInsertMode,
-                      style: TextButton.styleFrom(
-                        minimumSize: const Size(76, 44),
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        shape: StadiumBorder(
-                          side: BorderSide(
-                            color: insertMode
-                                ? AppColors.accent
-                                : AppColors.border,
-                          ),
-                        ),
-                        backgroundColor: insertMode
-                            ? AppColors.accent.withValues(alpha: 0.2)
-                            : AppColors.surface.withValues(alpha: 0.9),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            insertMode
-                                ? Icons.check_rounded
-                                : Icons.add_rounded,
-                            size: 13,
-                            color: insertMode
-                                ? AppColors.accent
-                                : AppColors.textSecondary,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            insertMode ? 'Done' : 'Insert',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: insertMode
-                                  ? AppColors.accent
-                                  : AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-            ),
-          ),
-        ],
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
           decoration: BoxDecoration(
@@ -3432,14 +4753,19 @@ class _FloatingControls extends StatelessWidget {
                 tooltip: 'Zoom out',
                 onPressed: onZoomOut,
               ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Text(
-                  '$zoomPercent%',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
-                    fontWeight: FontWeight.w600,
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      '$zoomPercent%',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -3453,6 +4779,11 @@ class _FloatingControls extends StatelessWidget {
                 icon: Icons.fit_screen_rounded,
                 tooltip: 'Fit page',
                 onPressed: onFitToScreen,
+              ),
+              _ZoomBtn(
+                icon: Icons.center_focus_strong_rounded,
+                tooltip: 'Focus selected bar',
+                onPressed: onFocusBar,
               ),
             ],
           ),
@@ -3558,7 +4889,7 @@ class _ReviewPanel extends StatelessWidget {
             right: 0,
             bottom: 0,
             child: Container(
-              height: _kInspectorBarHeight,
+              height: 56,
               padding: const EdgeInsets.symmetric(horizontal: 10),
               decoration: const BoxDecoration(
                 color: AppColors.surface,
@@ -3803,18 +5134,47 @@ class _MeasureCommentDialogState extends State<_MeasureCommentDialog> {
 class _InspectorPanel extends StatefulWidget {
   const _InspectorPanel({
     required this.isLandscape,
+    required this.insertMode,
+    required this.insertSymbolType,
+    required this.inputVoice,
+    required this.onVoiceSelected,
+    this.onDrum,
+    required this.onToggleInsertMode,
+    required this.onPaletteTypeTap,
+    required this.onPreviousSymbol,
+    required this.onNextSymbol,
     required this.isPlaybackActive,
     required this.selected,
     required this.hasSelection,
     required this.hasMeasureContext,
     required this.selectedMeasureNumber,
-    required this.currentPageIndex,
-    required this.totalPages,
-    required this.onPrevPage,
-    required this.onNextPage,
-    required this.onPageOverviewTap,
     required this.onMoveUp,
     required this.onMoveDown,
+    required this.onOctaveUp,
+    required this.onOctaveDown,
+    required this.onConvertSymbol,
+    required this.onAddThird,
+    required this.onTie,
+    required this.onSlur,
+    required this.onTriplet,
+    this.canStaffMove = const {},
+    this.onStaffMove,
+    required this.selectedGrace,
+    required this.onGrace,
+    required this.onLyrics,
+    required this.onAnnotations,
+    required this.rangeCount,
+    required this.markStates,
+    required this.onToggleMark,
+    required this.dynamicMark,
+    required this.onDynamic,
+    required this.onHairpin,
+    required this.extendMode,
+    required this.onToggleExtend,
+    required this.onSelectBar,
+    required this.onCopy,
+    required this.onCut,
+    required this.onPaste,
     required this.onWhole,
     required this.onHalf,
     required this.onQuarter,
@@ -3824,10 +5184,16 @@ class _InspectorPanel extends StatefulWidget {
     required this.currentMeasureClef,
     required this.currentTimeSignature,
     required this.onSetTimeSignature,
+    required this.measureImplicit,
+    required this.onTogglePickup,
+    required this.onBarRest,
+    required this.barSignOn,
+    required this.onBarSign,
     required this.onSetClef,
     required this.onMoveToPrev,
     required this.onMoveToNext,
     required this.onAddMeasure,
+    required this.onStaves,
     required this.onAddPage,
     required this.canDeleteMeasure,
     required this.onDeleteMeasure,
@@ -3839,18 +5205,51 @@ class _InspectorPanel extends StatefulWidget {
   });
 
   final bool isLandscape;
+  final bool insertMode;
+  final PaletteSymbolType? insertSymbolType;
+
+  /// The voice new notes go into (1–4).
+  final int inputVoice;
+  final ValueChanged<int> onVoiceSelected;
+
+  /// On a drum staff: enters a kit piece at the input position.
+  final ValueChanged<DrumPiece>? onDrum;
+  final VoidCallback onToggleInsertMode;
+  final ValueChanged<PaletteSymbolType> onPaletteTypeTap;
+  final VoidCallback? onPreviousSymbol, onNextSymbol;
   final bool isPlaybackActive;
   final ScoreSymbol? selected;
   final bool hasSelection;
   final bool hasMeasureContext;
   final int? selectedMeasureNumber;
-  final int currentPageIndex;
-  final int totalPages;
-  final VoidCallback? onPrevPage;
-  final VoidCallback? onNextPage;
-  final VoidCallback onPageOverviewTap;
   final VoidCallback onMoveUp;
   final VoidCallback onMoveDown;
+  final VoidCallback? onOctaveUp, onOctaveDown, onConvertSymbol, onAddThird;
+  final VoidCallback? onTie, onSlur, onTriplet, onLyrics, onAnnotations;
+
+  /// Cross-staff moves the selected note allows (−1 above, +1 below).
+  final Set<int> canStaffMove;
+  final ValueChanged<int>? onStaffMove;
+  final Grace? selectedGrace;
+  final ValueChanged<Grace>? onGrace;
+
+  /// Symbols in a range selection; 0 without one.
+  final int rangeCount;
+
+  /// Each mark's state for the selection: on, off, or null when it cannot
+  /// be added.
+  final Map<Articulation, bool?> markStates;
+  final ValueChanged<Articulation> onToggleMark;
+
+  /// The selection's dynamic, and null callbacks when none can be added.
+  final String? dynamicMark;
+  final ValueChanged<String>? onDynamic;
+  final ValueChanged<SpannerKind>? onHairpin;
+
+  /// Whether the next tap extends the selection (touch stand-in for Shift).
+  final bool extendMode;
+  final VoidCallback onToggleExtend;
+  final VoidCallback? onSelectBar, onCopy, onCut, onPaste;
   final VoidCallback onWhole;
   final VoidCallback onHalf;
   final VoidCallback onQuarter;
@@ -3860,10 +5259,16 @@ class _InspectorPanel extends StatefulWidget {
   final Clef? currentMeasureClef;
   final TimeSignature? currentTimeSignature;
   final ValueChanged<TimeSignature> onSetTimeSignature;
+  final bool? measureImplicit;
+  final VoidCallback onTogglePickup;
+  final VoidCallback? onBarRest;
+  final bool? Function(BarSign sign) barSignOn;
+  final ValueChanged<BarSign> onBarSign;
   final ValueChanged<Clef?> onSetClef;
   final VoidCallback onMoveToPrev;
   final VoidCallback onMoveToNext;
   final VoidCallback onAddMeasure;
+  final VoidCallback? onStaves;
   final VoidCallback onAddPage;
   final bool canDeleteMeasure;
   final VoidCallback onDeleteMeasure;
@@ -3878,35 +5283,17 @@ class _InspectorPanel extends StatefulWidget {
 }
 
 class _InspectorPanelState extends State<_InspectorPanel> {
-  int? _activeGroupIndex;
-
-  static const _groupIcons = [
-    Icons.unfold_more_rounded,
-    Icons.tag_rounded,
-    Icons.music_note_rounded,
-    Icons.av_timer_rounded,
-    Icons.hourglass_empty_rounded,
-    Icons.grid_on_rounded,
-  ];
-
-  @override
-  void didUpdateWidget(_InspectorPanel oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.isPlaybackActive &&
-        !oldWidget.isPlaybackActive &&
-        _activeGroupIndex != null) {
-      // Use post-frame to avoid calling setState during a build cycle.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _activeGroupIndex = null);
-      });
-    }
-  }
+  bool _barTools = false;
+  int _barGroup = 5;
 
   VoidCallback? _wrapAction(VoidCallback? action) =>
       widget.isPlaybackActive ? null : action;
 
   List<_ActionGroup> _buildGroups() {
-    final isNoteSelected = widget.selected is Note;
+    // Pitch moves apply to a whole range; single-note edits do not.
+    final hasRange = widget.rangeCount > 1;
+    final canMovePitch = hasRange || widget.selected is Note;
+    final isNoteSelected = !hasRange && widget.selected is Note;
     final currentAlter = isNoteSelected
         ? (widget.selected as Note).alter
         : null;
@@ -3933,12 +5320,14 @@ class _InspectorPanelState extends State<_InspectorPanel> {
           _ActionTile(
             icon: Icons.keyboard_arrow_up_rounded,
             label: 'Up',
-            onPressed: _wrapAction(isNoteSelected ? widget.onMoveUp : null),
+            tooltip: 'Raise pitch by one step (↑)',
+            onPressed: _wrapAction(canMovePitch ? widget.onMoveUp : null),
           ),
           _ActionTile(
             icon: Icons.keyboard_arrow_down_rounded,
             label: 'Down',
-            onPressed: _wrapAction(isNoteSelected ? widget.onMoveDown : null),
+            tooltip: 'Lower pitch by one step (↓)',
+            onPressed: _wrapAction(canMovePitch ? widget.onMoveDown : null),
           ),
           _ActionTile(
             icon: Icons.delete_rounded,
@@ -4037,25 +5426,24 @@ class _InspectorPanelState extends State<_InspectorPanel> {
       _ActionGroup(
         label: 'TIME',
         children: [
-          for (final (beats, beatType, name) in const [
-            (2, 4, 'Two'),
-            (3, 4, 'Three'),
-            (4, 4, 'Common'),
-            (2, 2, 'Cut'),
-            (3, 8, 'Three'),
-            (6, 8, 'Six'),
+          for (final (time, short, name) in const [
+            (TimeSignature(beats: 2, beatType: 4), '2/4', 'Two'),
+            (TimeSignature(beats: 3, beatType: 4), '3/4', 'Three'),
+            (TimeSignature(beats: 4, beatType: 4), '4/4', 'Four'),
+            (TimeSignature.common, 'C', 'Common'),
+            (TimeSignature(beats: 2, beatType: 2), '2/2', 'Two'),
+            (TimeSignature.cut, '¢', 'Cut'),
+            (TimeSignature(beats: 3, beatType: 8), '3/8', 'Three'),
+            (TimeSignature(beats: 6, beatType: 8), '6/8', 'Six'),
           ])
             _ClefTile(
-              shortLabel: '$beats/$beatType',
+              shortLabel: short,
               label: name,
-              isActive:
-                  widget.currentTimeSignature?.beats == beats &&
-                  widget.currentTimeSignature?.beatType == beatType,
+              semanticLabel: '$name time, ${time.beats}/${time.beatType}',
+              isActive: widget.currentTimeSignature == time,
               onPressed: _wrapAction(
                 hasMeasureContext
-                    ? () => widget.onSetTimeSignature(
-                        TimeSignature(beats: beats, beatType: beatType),
-                      )
+                    ? () => widget.onSetTimeSignature(time)
                     : null,
               ),
             ),
@@ -4070,6 +5458,7 @@ class _InspectorPanelState extends State<_InspectorPanel> {
             onPressed: _wrapAction(widget.onBeams),
           ),
           _DurTile(
+            isRest: widget.selected is Rest,
             label: 'W',
             sublabel: 'Whole',
             isActive: currentType == 'whole',
@@ -4078,6 +5467,7 @@ class _InspectorPanelState extends State<_InspectorPanel> {
             ),
           ),
           _DurTile(
+            isRest: widget.selected is Rest,
             label: 'H',
             sublabel: 'Half',
             isActive: currentType == 'half',
@@ -4086,8 +5476,9 @@ class _InspectorPanelState extends State<_InspectorPanel> {
             ),
           ),
           _DurTile(
+            isRest: widget.selected is Rest,
             label: '♩',
-            sublabel: 'Qtr',
+            sublabel: 'Quarter',
             isActive: currentType == 'quarter',
             onPressed: _wrapAction(
               widget.allowedDurations.contains('quarter')
@@ -4096,8 +5487,9 @@ class _InspectorPanelState extends State<_InspectorPanel> {
             ),
           ),
           _DurTile(
+            isRest: widget.selected is Rest,
             label: '♪',
-            sublabel: '8th',
+            sublabel: 'Eighth',
             isActive: currentType == 'eighth',
             onPressed: _wrapAction(
               widget.allowedDurations.contains('eighth')
@@ -4106,6 +5498,7 @@ class _InspectorPanelState extends State<_InspectorPanel> {
             ),
           ),
           _DurTile(
+            isRest: widget.selected is Rest,
             label: '♬',
             sublabel: '16th',
             isActive: currentType == 'sixteenth' || currentType == '16th',
@@ -4116,6 +5509,7 @@ class _InspectorPanelState extends State<_InspectorPanel> {
             ),
           ),
           _DurTile(
+            isRest: widget.selected is Rest,
             label: '.',
             sublabel: 'Dot',
             isActive: isDotted,
@@ -4130,35 +5524,56 @@ class _InspectorPanelState extends State<_InspectorPanel> {
         children: [
           _ActionTile(
             icon: Icons.skip_previous_rounded,
-            label: 'Prev',
+            label: 'Previous bar',
+            tooltip: 'Move the selected symbol to the previous bar',
             onPressed: _wrapAction(
               widget.hasSelection ? widget.onMoveToPrev : null,
             ),
           ),
           _ActionTile(
             icon: Icons.skip_next_rounded,
-            label: 'Next',
+            label: 'Next bar',
+            tooltip: 'Move the selected symbol to the next bar',
             onPressed: _wrapAction(
               widget.hasSelection ? widget.onMoveToNext : null,
             ),
           ),
           _ActionTile(
             icon: Icons.add_rounded,
-            label: 'Add',
+            label: 'Add bar',
+            tooltip: 'Add a bar at the end of the score',
             onPressed: _wrapAction(widget.onAddMeasure),
           ),
           _ActionTile(
             icon: Icons.add_box_rounded,
-            label: 'Page',
+            label: 'Add page',
+            tooltip: 'Add a page at the end of the score',
             onPressed: _wrapAction(widget.onAddPage),
           ),
           _ActionTile(
             icon: Icons.remove_rounded,
-            label: 'Del',
+            label: 'Delete bar',
+            tooltip: 'Delete the selected bar',
             onPressed: _wrapAction(
               widget.canDeleteMeasure ? widget.onDeleteMeasure : null,
             ),
             danger: true,
+          ),
+          _ActionTile(
+            icon: Icons.first_page_rounded,
+            label: 'Pickup',
+            tooltip:
+                'Leave this bar out of the bar count, as a pickup or other incomplete bar',
+            selected: widget.measureImplicit ?? false,
+            onPressed: _wrapAction(
+              widget.measureImplicit == null ? null : widget.onTogglePickup,
+            ),
+          ),
+          _ActionTile(
+            icon: Icons.crop_7_5_rounded,
+            label: 'Bar rest',
+            tooltip: 'Fill this bar with one rest lasting the whole bar',
+            onPressed: _wrapAction(widget.onBarRest),
           ),
         ],
       ),
@@ -4168,298 +5583,530 @@ class _InspectorPanelState extends State<_InspectorPanel> {
   @override
   Widget build(BuildContext context) {
     final groups = _buildGroups();
+    final selected = widget.selected;
+    final mode = widget.insertMode
+        ? EditorToolMode.insert
+        : _barTools
+        ? EditorToolMode.measure
+        : EditorToolMode.edit;
+    final type = selected is Note
+        ? selected.type
+        : selected is Rest
+        ? selected.type
+        : '';
+    final duration = switch (type) {
+      'sixteenth' || '16th' => '16th',
+      '' => '',
+      _ => '${type[0].toUpperCase()}${type.substring(1)}',
+    };
+    final dots = selected is Note
+        ? selected.dots
+        : selected is Rest
+        ? selected.dots
+        : 0;
+    final insertionType =
+        widget.insertSymbolType ?? PaletteSymbolType.quarterNote;
+    final insertionName = [
+      'Whole',
+      'Half',
+      'Quarter',
+      'Eighth',
+      '16th',
+    ][insertionType.index % 5];
+    final title = switch (mode) {
+      EditorToolMode.insert =>
+        '$insertionName ${insertionType.isRest ? 'rest' : 'note'}',
+      EditorToolMode.measure => 'Bar ${widget.selectedMeasureNumber ?? '—'}',
+      EditorToolMode.edit =>
+        selected is Note
+            ? selected.pitch
+            : selected is Rest
+            ? 'Rest'
+            : 'Select a note or rest',
+    };
 
-    final selectionCard = _SelectionCard(
-      selected: widget.selected,
-      hasSelection: widget.hasSelection,
-      hasMeasureContext: widget.hasMeasureContext,
-      selectedMeasureNumber: widget.selectedMeasureNumber,
-      currentPageIndex: widget.currentPageIndex,
-      totalPages: widget.totalPages,
-      onPrevPage: widget.onPrevPage,
-      onNextPage: widget.onNextPage,
-      onPageOverviewTap: widget.onPageOverviewTap,
-      compact: !widget.isLandscape,
-    );
-
-    if (widget.isLandscape) {
-      return Container(
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    Widget content;
+    if (mode == EditorToolMode.insert) {
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
             children: [
-              selectionCard,
-              const SizedBox(height: 14),
-              ...groups.map(
-                (g) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: _LandscapeGroup(group: g),
+              for (final rests in [false, true]) ...[
+                ChoiceChip(
+                  label: Text(rests ? 'Rests' : 'Notes'),
+                  selected: insertionType.isRest == rests,
+                  onSelected: widget.isPlaybackActive
+                      ? null
+                      : (_) => widget.onPaletteTypeTap(
+                          PaletteSymbolType.values[insertionType.index % 5 +
+                              (rests ? 5 : 0)],
+                        ),
+                ),
+              ],
+            ],
+          ),
+          if (widget.onDrum case final onDrum?) ...[
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final piece in drumKit.where((d) => d.shortcut != null))
+                  ActionChip(
+                    label: Text('${piece.name} · ${piece.shortcut}'),
+                    tooltip: 'Enter ${piece.name} (${piece.shortcut})',
+                    onPressed: widget.isPlaybackActive
+                        ? null
+                        : () => onDrum(piece),
+                  ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 4),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const Text(
+                'Voice',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              for (var voice = 1; voice <= 4; voice++)
+                Tooltip(
+                  message:
+                      'Voice $voice (Ctrl/Cmd + Alt + $voice)${voice == 1 ? '' : ' · starts where the selected note starts'}',
+                  child: ChoiceChip(
+                    avatar: CircleAvatar(
+                      radius: 5,
+                      backgroundColor: _voiceColors[voice - 1],
+                    ),
+                    label: Text('$voice'),
+                    showCheckmark: false,
+                    selected: widget.inputVoice == voice,
+                    onSelected: widget.isPlaybackActive
+                        ? null
+                        : (_) => widget.onVoiceSelected(voice),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          IgnorePointer(
+            ignoring: widget.isPlaybackActive,
+            child: SymbolPalette(
+              selectedType: insertionType,
+              restsOnly: insertionType.isRest,
+              onTypeTap: widget.isPlaybackActive
+                  ? null
+                  : widget.onPaletteTypeTap,
+            ),
+          ),
+        ],
+      );
+    } else if (mode == EditorToolMode.measure) {
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          EditorToolRow(
+            wrap: true,
+            children: [
+              for (final (index, label) in [
+                (5, 'Measures'),
+                (3, 'Time'),
+                (6, 'Repeats'),
+                (2, 'Clef'),
+              ])
+                ChoiceChip(
+                  label: Text(label),
+                  selected: _barGroup == index,
+                  onSelected: widget.isPlaybackActive
+                      ? null
+                      : (_) => setState(() => _barGroup = index),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          EditorToolRow(
+            wrap: widget.isLandscape,
+            children: [
+              if (_barGroup == 6)
+                for (final sign in BarSign.values)
+                  _ClefTile(
+                    shortLabel: sign.short,
+                    label: sign.label,
+                    semanticLabel: sign.label,
+                    isActive: widget.barSignOn(sign) ?? false,
+                    onPressed: _wrapAction(
+                      widget.barSignOn(sign) == null
+                          ? null
+                          : () => widget.onBarSign(sign),
+                    ),
+                  )
+              else
+                ...groups[_barGroup].children,
+              if (_barGroup == 5) groups[4].children.first,
+              if (_barGroup == 2)
+                _ActionTile(
+                  icon: Icons.queue_music_rounded,
+                  label: 'Staves',
+                  tooltip: 'Add, rename, reorder or remove staves',
+                  onPressed: _wrapAction(widget.onStaves),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _barGroup == 2
+                ? 'Clef changes apply to this staff. Staves adds, renames or reorders instruments.'
+                : _barGroup == 3
+                ? 'Time signature starts at this bar in every staff.'
+                : _barGroup == 6
+                ? 'Repeats, endings and jumps apply to the selected bars in every staff; playback follows them.'
+                : 'Prev / Next moves the selected symbol to the neighboring bar.',
+            style: const TextStyle(
+              fontSize: 11,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      );
+    } else if (!widget.hasSelection) {
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: Text(
+              'Tap a note or rest on the score to change it. To write music, choose Add notes, then tap the staff. Hold a symbol to drag it.',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.5,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          if (widget.onPaste != null)
+            EditorToolRow(
+              wrap: widget.isLandscape,
+              children: [
+                _ActionTile(
+                  icon: Icons.content_paste_rounded,
+                  label: 'Paste',
+                  tooltip: 'Paste into this bar (Ctrl/Cmd + V)',
+                  onPressed: _wrapAction(widget.onPaste),
+                ),
+              ],
+            ),
+        ],
+      );
+    } else {
+      final durationTools = groups[4].children;
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          EditorToolRow(
+            wrap: widget.isLandscape,
+            children: [
+              ...durationTools.skip(1),
+              durationTools.first,
+              _ActionTile(
+                icon: Icons.filter_3_rounded,
+                label: 'Triplet',
+                tooltip:
+                    'Three shorter notes in this note\'s time (Ctrl/Cmd + 3; 5, 6, 7 for other tuplets)',
+                onPressed: _wrapAction(widget.onTriplet),
+              ),
+              for (final (kind, label, tip) in const [
+                (
+                  Grace.acciaccatura,
+                  'Acciacc.',
+                  'Acciaccatura: a slashed grace note before this note',
+                ),
+                (
+                  Grace.appoggiatura,
+                  'Appogg.',
+                  'Appoggiatura: a grace note before this note, on the beat',
+                ),
+              ])
+                _ActionTile(
+                  icon: kind == Grace.acciaccatura
+                      ? Icons.music_note_outlined
+                      : Icons.music_note_rounded,
+                  label: label,
+                  tooltip: tip,
+                  selected: widget.selectedGrace == kind,
+                  onPressed: _wrapAction(
+                    widget.onGrace == null ? null : () => widget.onGrace!(kind),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          EditorToolRow(
+            wrap: widget.isLandscape,
+            children: [...groups[0].children.take(2), ...groups[1].children],
+          ),
+          const SizedBox(height: 8),
+          EditorToolRow(
+            wrap: widget.isLandscape,
+            children: [
+              _ActionTile(
+                icon: Icons.keyboard_double_arrow_up_rounded,
+                label: 'Octave up',
+                tooltip: 'Raise by one octave (Ctrl/Cmd + Up)',
+                onPressed: _wrapAction(widget.onOctaveUp),
+              ),
+              _ActionTile(
+                icon: Icons.keyboard_double_arrow_down_rounded,
+                label: 'Octave down',
+                tooltip: 'Lower by one octave (Ctrl/Cmd + Down)',
+                onPressed: _wrapAction(widget.onOctaveDown),
+              ),
+              _ActionTile(
+                icon: Icons.swap_horiz_rounded,
+                label: selected is Rest ? 'To C4 note' : 'To rest',
+                tooltip: selected is Rest
+                    ? 'Replace with a C4 note, keeping duration'
+                    : 'Replace a note outside a chord with a rest, keeping duration',
+                onPressed: _wrapAction(widget.onConvertSymbol),
+              ),
+              _ActionTile(
+                icon: Icons.library_add_rounded,
+                label: 'Add 3rd',
+                tooltip:
+                    'Add a chord note a third above (Alt + 3; Shift + A–G adds a letter)',
+                onPressed: _wrapAction(widget.onAddThird),
+              ),
+              _ActionTile(
+                icon: Icons.link_rounded,
+                label: 'Tie',
+                tooltip:
+                    'Tie to the next note of the same pitch, or remove the tie (+)',
+                onPressed: _wrapAction(widget.onTie),
+              ),
+              _ActionTile(
+                icon: Icons.gesture_rounded,
+                label: 'Slur',
+                tooltip:
+                    'Slur the selected notes, or this note to the next (S)',
+                onPressed: _wrapAction(widget.onSlur),
+              ),
+              // Shown only where the note's instrument has another staff.
+              for (final (move, icon, label) in const [
+                (-1, Icons.vertical_align_top_rounded, 'Staff up'),
+                (1, Icons.vertical_align_bottom_rounded, 'Staff down'),
+              ])
+                if (widget.canStaffMove.contains(move))
+                  _ActionTile(
+                    icon: icon,
+                    label: label,
+                    tooltip:
+                        'Draw this note on the staff ${move > 0 ? 'below' : 'above'} (Ctrl/Cmd + Shift + ${move > 0 ? 'Down' : 'Up'})',
+                    onPressed: _wrapAction(
+                      widget.onStaffMove == null
+                          ? null
+                          : () => widget.onStaffMove!(move),
+                    ),
+                  ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          EditorToolRow(
+            wrap: widget.isLandscape,
+            children: [
+              _ActionTile(
+                icon: Icons.linear_scale_rounded,
+                label: 'Extend',
+                tooltip: widget.extendMode
+                    ? 'Tap a note or rest to extend the selection to it'
+                    : 'Then tap a note or rest to select everything up to it (Shift + tap)',
+                selected: widget.extendMode,
+                onPressed: _wrapAction(widget.onToggleExtend),
+              ),
+              _ActionTile(
+                icon: Icons.select_all_rounded,
+                label: 'Select bar',
+                tooltip: 'Select every note and rest in this bar',
+                onPressed: _wrapAction(widget.onSelectBar),
+              ),
+              _ActionTile(
+                icon: Icons.copy_rounded,
+                label: 'Copy',
+                tooltip: 'Copy the selection (Ctrl/Cmd + C)',
+                onPressed: _wrapAction(widget.onCopy),
+              ),
+              _ActionTile(
+                icon: Icons.content_cut_rounded,
+                label: 'Cut',
+                tooltip: 'Copy the selection, then delete it (Ctrl/Cmd + X)',
+                onPressed: _wrapAction(widget.onCut),
+              ),
+              _ActionTile(
+                icon: Icons.content_paste_rounded,
+                label: 'Paste',
+                tooltip:
+                    'Paste after the selection, or over a range (Ctrl/Cmd + V)',
+                onPressed: _wrapAction(widget.onPaste),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          EditorToolRow(
+            wrap: widget.isLandscape,
+            children: [
+              for (final (mark, icon, label, keys) in const [
+                (
+                  Articulation.staccato,
+                  Icons.fiber_manual_record,
+                  'Staccato',
+                  'Shift + S',
+                ),
+                (
+                  Articulation.staccatissimo,
+                  Icons.change_history,
+                  'Staccatiss.',
+                  null,
+                ),
+                (
+                  Articulation.tenuto,
+                  Icons.horizontal_rule,
+                  'Tenuto',
+                  'Shift + N',
+                ),
+                (
+                  Articulation.accent,
+                  Icons.chevron_right,
+                  'Accent',
+                  'Shift + V',
+                ),
+                (
+                  Articulation.marcato,
+                  Icons.keyboard_arrow_up,
+                  'Marcato',
+                  'Shift + O',
+                ),
+                (
+                  Articulation.fermata,
+                  Icons.remove_red_eye_outlined,
+                  'Fermata',
+                  null,
+                ),
+                (Articulation.trill, Icons.waves, 'Trill', null),
+                (Articulation.mordent, Icons.show_chart, 'Mordent', null),
+                (Articulation.turn, Icons.all_inclusive, 'Turn', null),
+              ])
+                _ActionTile(
+                  icon: icon,
+                  label: label,
+                  tooltip: keys == null ? label : '$label ($keys)',
+                  selected: widget.markStates[mark] ?? false,
+                  onPressed: widget.markStates[mark] == null
+                      ? null
+                      : _wrapAction(() => widget.onToggleMark(mark)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          EditorToolRow(
+            wrap: widget.isLandscape,
+            children: [
+              _ActionTile(
+                icon: Icons.text_fields,
+                label: 'Text & tempo',
+                tooltip: 'Text, tempo and chord symbols in this bar',
+                onPressed: _wrapAction(widget.onAnnotations),
+              ),
+              _ActionTile(
+                icon: Icons.lyrics_outlined,
+                label: 'Lyrics',
+                tooltip: 'Lyrics on the selected note (Ctrl/Cmd + L)',
+                onPressed: _wrapAction(widget.onLyrics),
+              ),
+              for (final mark in editorDynamics)
+                ChoiceChip(
+                  label: Text(
+                    mark,
+                    style: const TextStyle(
+                      fontStyle: FontStyle.italic,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  tooltip: 'Dynamic $mark on the first selected note',
+                  showCheckmark: false,
+                  selected: widget.dynamicMark == mark,
+                  onSelected:
+                      widget.onDynamic == null || widget.isPlaybackActive
+                      ? null
+                      : (_) => widget.onDynamic!(mark),
+                ),
+              _ActionTile(
+                icon: Icons.trending_up_rounded,
+                label: 'Cresc.',
+                tooltip: 'Crescendo hairpin over the selection (<)',
+                onPressed: _wrapAction(
+                  widget.onHairpin == null
+                      ? null
+                      : () => widget.onHairpin!(SpannerKind.crescendo),
+                ),
+              ),
+              _ActionTile(
+                icon: Icons.trending_down_rounded,
+                label: 'Dim.',
+                tooltip: 'Diminuendo hairpin over the selection (>)',
+                onPressed: _wrapAction(
+                  widget.onHairpin == null
+                      ? null
+                      : () => widget.onHairpin!(SpannerKind.diminuendo),
                 ),
               ),
             ],
           ),
-        ),
+        ],
       );
     }
-
-    // ── Portrait: bottom inspector bar ────────────────────────────────────
-    return LayoutBuilder(
-      builder: (context, constraints) => Stack(
-        children: [
-          // Barrier — tapping canvas dismisses the open popup
-          if (_activeGroupIndex != null)
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onTap: () => setState(() => _activeGroupIndex = null),
-              ),
-            ),
-          // Selection card — top of canvas
-          Positioned(top: 8, left: 8, right: 8, child: selectionCard),
-          // Active group popup — floats above the bottom bar
-          if (_activeGroupIndex != null && !widget.isPlaybackActive)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: _kInspectorBarHeight + 8,
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxHeight: math.max(
-                      0,
-                      constraints.maxHeight - _kInspectorBarHeight - 16,
-                    ),
-                  ),
-                  child: SingleChildScrollView(
-                    child: _ToolGroupPopup(group: groups[_activeGroupIndex!]),
-                  ),
-                ),
-              ),
-            ),
-          // Bottom inspector bar
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: _BottomInspectorBar(
-              groups: groups,
-              icons: _groupIcons,
-              activeIndex: _activeGroupIndex,
-              disabled: widget.isPlaybackActive,
-              onGroupTap: (i) => setState(() {
-                _activeGroupIndex = _activeGroupIndex == i ? null : i;
-              }),
-            ),
-          ),
-        ],
-      ),
+    return EditorToolDock(
+      mode: mode,
+      disabled: widget.isPlaybackActive,
+      onModeChanged: (next) {
+        if ((next == EditorToolMode.insert) != widget.insertMode) {
+          widget.onToggleInsertMode();
+        }
+        setState(() => _barTools = next == EditorToolMode.measure);
+      },
+      title: title,
+      subtitle: switch (mode) {
+        EditorToolMode.insert =>
+          widget.onDrum != null
+              ? 'Tap the staff or a drum below, or type A–H'
+              : 'Tap the staff or type A–G · hold a symbol to drag',
+        EditorToolMode.measure => 'Structure and staff settings',
+        EditorToolMode.edit =>
+          widget.rangeCount > 1
+              ? '${widget.rangeCount} symbols selected · pitch moves apply to all'
+              : widget.hasSelection
+              ? '${dots > 0 ? 'Dotted ' : ''}$duration ${selected is Note ? 'note' : 'rest'} · Bar ${widget.selectedMeasureNumber}'
+              : 'Tap the score to select a symbol',
+      },
+      showSymbolNavigation: mode == EditorToolMode.edit,
+      onPreviousSymbol: widget.onPreviousSymbol,
+      onNextSymbol: widget.onNextSymbol,
+      onDeleteSymbol: widget.hasSelection ? widget.onDeleteSymbol : null,
+      child: content,
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// Action group data model
-// ---------------------------------------------------------------------------
-
 class _ActionGroup {
   const _ActionGroup({required this.label, required this.children});
-
   final String label;
   final List<Widget> children;
 }
 
-class _LandscapeGroup extends StatelessWidget {
-  const _LandscapeGroup({required this.group});
-
-  final _ActionGroup group;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          group.label,
-          style: const TextStyle(
-            fontSize: 10,
-            color: AppColors.textSecondary,
-            letterSpacing: 0.8,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Wrap(spacing: 6, runSpacing: 6, children: group.children),
-      ],
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Bottom inspector bar (portrait)
-// ---------------------------------------------------------------------------
-
-class _BottomInspectorBar extends StatelessWidget {
-  const _BottomInspectorBar({
-    required this.groups,
-    required this.icons,
-    required this.activeIndex,
-    required this.onGroupTap,
-    this.disabled = false,
-  });
-
-  final List<_ActionGroup> groups;
-  final List<IconData> icons;
-  final int? activeIndex;
-  final ValueChanged<int> onGroupTap;
-  final bool disabled;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: _kInspectorBarHeight,
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.border)),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x33000000),
-            blurRadius: 8,
-            offset: Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: List.generate(groups.length, (i) {
-          final isActive = activeIndex == i;
-          final iconColor = disabled
-              ? AppColors.textSecondary.withValues(alpha: 0.3)
-              : isActive
-              ? AppColors.accent
-              : AppColors.textSecondary;
-          final label = groups[i].label;
-          final title = '${label[0]}${label.substring(1).toLowerCase()}';
-          final shortLabel = MediaQuery.textScalerOf(context).scale(10) > 14
-              ? switch (label) {
-                  'ACCIDENTAL' => 'Acc.',
-                  'DURATION' => 'Dur.',
-                  'MEASURE' => 'Bar',
-                  _ => title,
-                }
-              : title;
-          return Expanded(
-            child: Semantics(
-              button: true,
-              selected: isActive,
-              enabled: !disabled,
-              label: '$title tools',
-              onTap: disabled ? null : () => onGroupTap(i),
-              excludeSemantics: true,
-              child: Tooltip(
-                message: '$title tools',
-                child: TextButton(
-                  onPressed: disabled ? null : () => onGroupTap(i),
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    minimumSize: const Size(48, _kInspectorBarHeight),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    shape: const RoundedRectangleBorder(),
-                  ),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    decoration: BoxDecoration(
-                      color: isActive && !disabled
-                          ? AppColors.accent.withValues(alpha: 0.10)
-                          : Colors.transparent,
-                      border: Border(
-                        top: BorderSide(
-                          color: isActive && !disabled
-                              ? AppColors.accent
-                              : Colors.transparent,
-                          width: 2,
-                        ),
-                      ),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(icons[i], size: 20, color: iconColor),
-                        const SizedBox(height: 2),
-                        Text(
-                          // Title case fits the narrow tabs at a readable size.
-                          shortLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: iconColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
-}
-
-class _ToolGroupPopup extends StatelessWidget {
-  const _ToolGroupPopup({required this.group});
-
-  final _ActionGroup group;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 220),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
-            blurRadius: 14,
-            offset: const Offset(-4, 0),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            group.label,
-            style: const TextStyle(
-              fontSize: 10,
-              color: AppColors.textSecondary,
-              letterSpacing: 1.0,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(spacing: 4, runSpacing: 4, children: group.children),
-        ],
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Trash zone (drag-to-delete target)
-// ---------------------------------------------------------------------------
+// Drag-to-delete target, available while a symbol is held.
 
 class _TrashZone extends StatelessWidget {
   const _TrashZone({super.key, required this.isHovered});
@@ -4502,205 +6149,6 @@ class _TrashZone extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Selection card
 // ---------------------------------------------------------------------------
-
-class _SelectionCard extends StatelessWidget {
-  const _SelectionCard({
-    required this.selected,
-    required this.hasSelection,
-    required this.hasMeasureContext,
-    required this.selectedMeasureNumber,
-    required this.currentPageIndex,
-    required this.totalPages,
-    required this.onPrevPage,
-    required this.onNextPage,
-    required this.onPageOverviewTap,
-    this.compact = false,
-  });
-
-  final ScoreSymbol? selected;
-  final bool hasSelection;
-  final bool hasMeasureContext;
-  final int? selectedMeasureNumber;
-  final int currentPageIndex;
-  final int totalPages;
-  final VoidCallback? onPrevPage;
-  final VoidCallback? onNextPage;
-  final VoidCallback onPageOverviewTap;
-  final bool compact;
-
-  String get _pitchLabel => selected is Note ? (selected as Note).pitch : '—';
-  String get _durLabel {
-    if (selected is Note) return (selected as Note).type;
-    if (selected is Rest) return (selected as Rest).type;
-    return '—';
-  }
-
-  bool get _isNote => selected is Note;
-
-  @override
-  Widget build(BuildContext context) {
-    final pageNav = _PageNav(
-      currentPageIndex: currentPageIndex,
-      totalPages: totalPages,
-      onPrev: onPrevPage,
-      onNext: onNextPage,
-      onPageOverviewTap: onPageOverviewTap,
-    );
-
-    if (compact) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Row(
-                children: [
-                  if (hasSelection) ...[
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: AppColors.accent.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      child: Icon(
-                        _isNote
-                            ? Icons.music_note_rounded
-                            : Icons.horizontal_rule_rounded,
-                        size: 13,
-                        color: AppColors.accent,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        _pitchLabel,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Flexible(
-                      child: Text(
-                        _durLabel,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ),
-                  ] else
-                    Expanded(
-                      child: Text(
-                        hasMeasureContext && selectedMeasureNumber != null
-                            ? 'Measure $selectedMeasureNumber selected'
-                            : 'Tap a symbol to select',
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            pageNav,
-          ],
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Text(
-                  'SELECTION',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: AppColors.textSecondary,
-                    letterSpacing: 1.0,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              pageNav,
-            ],
-          ),
-          const SizedBox(height: 10),
-          if (hasSelection)
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: AppColors.accent.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Icon(
-                    _isNote
-                        ? Icons.music_note_rounded
-                        : Icons.horizontal_rule_rounded,
-                    size: 16,
-                    color: AppColors.accent,
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _isNote ? _pitchLabel : 'Rest',
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    Text(
-                      _durLabel,
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            )
-          else
-            Text(
-              hasMeasureContext && selectedMeasureNumber != null
-                  ? 'Measure $selectedMeasureNumber selected. Tap a note or rest to edit a symbol.'
-                  : 'Tap a note or rest to select it',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-            ),
-        ],
-      ),
-    );
-  }
-}
 
 class _PageOverviewSheet extends StatelessWidget {
   const _PageOverviewSheet({
@@ -4951,7 +6399,9 @@ double _toolTileWidth(
   final painter = TextPainter(
     text: TextSpan(
       text: label,
-      style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w600),
+      style: DefaultTextStyle.of(
+        context,
+      ).style.copyWith(fontSize: fontSize, fontWeight: FontWeight.w600),
     ),
     textScaler: MediaQuery.textScalerOf(context),
     textDirection: Directionality.of(context),
@@ -4961,18 +6411,35 @@ double _toolTileWidth(
   return width;
 }
 
+/// MuseScore Studio's voice colours: blue, green, orange, purple.
+const _voiceColors = [
+  Color(0xFF0065BF),
+  Color(0xFF007F00),
+  Color(0xFFC53F00),
+  Color(0xFFC31989),
+];
+
+/// The dynamics the Edit dock and search offer.
+const editorDynamics = ['pp', 'p', 'mp', 'mf', 'f', 'ff', 'sfz'];
+
 class _ActionTile extends StatelessWidget {
   const _ActionTile({
     required this.icon,
     required this.label,
     required this.onPressed,
+    this.tooltip,
     this.danger = false,
+    this.selected,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback? onPressed;
+  final String? tooltip;
   final bool danger;
+
+  /// Non-null for a toggle; true draws it switched on.
+  final bool? selected;
 
   @override
   Widget build(BuildContext context) {
@@ -4984,45 +6451,55 @@ class _ActionTile extends StatelessWidget {
         ? (danger ? const Color(0xFFEF4444) : AppColors.textPrimary)
         : AppColors.textSecondary.withValues(alpha: 0.35);
 
+    final on = selected ?? false;
     return Tooltip(
-      message: label,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(8),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          width: _toolTileWidth(context, label, minimum: 52),
-          constraints: const BoxConstraints(minHeight: 48),
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-          decoration: BoxDecoration(
-            color: enabled ? AppColors.surfaceAlt : AppColors.background,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: enabled
-                  ? (danger
-                        ? const Color(0xFFEF4444).withValues(alpha: 0.4)
-                        : AppColors.border)
-                  : AppColors.border.withValues(alpha: 0.4),
-            ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 17, color: iconColor),
-              const SizedBox(height: 3),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: enabled
-                      ? activeColor
-                      : AppColors.textSecondary.withValues(alpha: 0.3),
-                  fontWeight: FontWeight.w500,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+      message: tooltip ?? label,
+      child: Semantics(
+        toggled: selected,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(8),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            width: _toolTileWidth(context, label, minimum: 52),
+            constraints: const BoxConstraints(minHeight: 48),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            decoration: BoxDecoration(
+              color: on
+                  ? AppColors.accent.withValues(alpha: 0.18)
+                  : enabled
+                  ? AppColors.surfaceAlt
+                  : AppColors.background,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: on
+                    ? AppColors.accent
+                    : enabled
+                    ? (danger
+                          ? const Color(0xFFEF4444).withValues(alpha: 0.4)
+                          : AppColors.border)
+                    : AppColors.border.withValues(alpha: 0.4),
               ),
-            ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 17, color: iconColor),
+                const SizedBox(height: 3),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: enabled
+                        ? activeColor
+                        : AppColors.textSecondary.withValues(alpha: 0.3),
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -5049,66 +6526,74 @@ class _AccTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final enabled = onPressed != null;
 
-    return Tooltip(
-      message: sublabel,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(8),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          width: math.max(
-            _toolTileWidth(context, sublabel),
-            _toolTileWidth(context, label, fontSize: 15),
-          ),
-          constraints: const BoxConstraints(minHeight: 48),
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-          decoration: BoxDecoration(
-            color: isActive
-                ? _accent.withValues(alpha: 0.15)
-                : enabled
-                ? AppColors.surfaceAlt
-                : AppColors.background,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isActive
-                  ? _accent.withValues(alpha: 0.6)
-                  : enabled
-                  ? AppColors.border
-                  : AppColors.border.withValues(alpha: 0.4),
+    return Semantics(
+      button: true,
+      selected: isActive,
+      enabled: enabled,
+      label: '$sublabel accidental',
+      onTap: onPressed,
+      excludeSemantics: true,
+      child: Tooltip(
+        message: sublabel,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(8),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            width: math.max(
+              _toolTileWidth(context, sublabel),
+              _toolTileWidth(context, label, fontSize: 15),
             ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontFamilyFallback: const ['NotoMusic'],
-                  color: isActive
-                      ? _accent
-                      : enabled
-                      ? AppColors.textPrimary
-                      : AppColors.textSecondary.withValues(alpha: 0.35),
-                  fontWeight: FontWeight.w700,
-                  height: 1.2,
-                ),
+            constraints: const BoxConstraints(minHeight: 48),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            decoration: BoxDecoration(
+              color: isActive
+                  ? _accent.withValues(alpha: 0.15)
+                  : enabled
+                  ? AppColors.surfaceAlt
+                  : AppColors.background,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isActive
+                    ? _accent.withValues(alpha: 0.6)
+                    : enabled
+                    ? AppColors.border
+                    : AppColors.border.withValues(alpha: 0.4),
               ),
-              const SizedBox(height: 1),
-              Text(
-                sublabel,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: isActive
-                      ? _accent
-                      : enabled
-                      ? AppColors.textSecondary
-                      : AppColors.textSecondary.withValues(alpha: 0.3),
-                  fontWeight: FontWeight.w500,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontFamilyFallback: const ['NotoMusic'],
+                    color: isActive
+                        ? _accent
+                        : enabled
+                        ? AppColors.textPrimary
+                        : AppColors.textSecondary.withValues(alpha: 0.35),
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
+                  ),
                 ),
-                maxLines: 1,
-              ),
-            ],
+                const SizedBox(height: 1),
+                Text(
+                  sublabel,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: isActive
+                        ? _accent
+                        : enabled
+                        ? AppColors.textSecondary
+                        : AppColors.textSecondary.withValues(alpha: 0.3),
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -5122,10 +6607,12 @@ class _ClefTile extends StatelessWidget {
     required this.label,
     required this.isActive,
     required this.onPressed,
+    this.semanticLabel,
   });
 
   final String shortLabel;
   final String label;
+  final String? semanticLabel;
   final bool isActive;
   final VoidCallback? onPressed;
 
@@ -5135,63 +6622,75 @@ class _ClefTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final enabled = onPressed != null;
 
-    return Tooltip(
-      message: label,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(8),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          width: _toolTileWidth(context, label),
-          constraints: const BoxConstraints(minHeight: 48),
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-          decoration: BoxDecoration(
-            color: isActive
-                ? _accent.withValues(alpha: 0.15)
-                : enabled
-                ? AppColors.surfaceAlt
-                : AppColors.background,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
+    return Semantics(
+      button: true,
+      selected: isActive,
+      enabled: enabled,
+      label:
+          semanticLabel ??
+          (shortLabel.contains('/')
+              ? '$shortLabel time signature'
+              : '$label clef'),
+      onTap: onPressed,
+      excludeSemantics: true,
+      child: Tooltip(
+        message: label,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(8),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            width: _toolTileWidth(context, label),
+            constraints: const BoxConstraints(minHeight: 48),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            decoration: BoxDecoration(
               color: isActive
-                  ? _accent.withValues(alpha: 0.6)
+                  ? _accent.withValues(alpha: 0.15)
                   : enabled
-                  ? AppColors.border
-                  : AppColors.border.withValues(alpha: 0.4),
+                  ? AppColors.surfaceAlt
+                  : AppColors.background,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isActive
+                    ? _accent.withValues(alpha: 0.6)
+                    : enabled
+                    ? AppColors.border
+                    : AppColors.border.withValues(alpha: 0.4),
+              ),
             ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                shortLabel,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: isActive
-                      ? _accent
-                      : enabled
-                      ? AppColors.textPrimary
-                      : AppColors.textSecondary.withValues(alpha: 0.35),
-                  fontWeight: FontWeight.w700,
-                  height: 1.2,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  shortLabel,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: isActive
+                        ? _accent
+                        : enabled
+                        ? AppColors.textPrimary
+                        : AppColors.textSecondary.withValues(alpha: 0.35),
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 1),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: isActive
-                      ? _accent
-                      : enabled
-                      ? AppColors.textSecondary
-                      : AppColors.textSecondary.withValues(alpha: 0.3),
-                  fontWeight: FontWeight.w500,
+                const SizedBox(height: 1),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: isActive
+                        ? _accent
+                        : enabled
+                        ? AppColors.textSecondary
+                        : AppColors.textSecondary.withValues(alpha: 0.3),
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -5392,12 +6891,14 @@ class _MetadataFieldState extends State<_MetadataField> {
 class _DurTile extends StatelessWidget {
   const _DurTile({
     required this.label,
+    this.isRest = false,
     required this.sublabel,
     required this.isActive,
     required this.onPressed,
   });
 
   final String label;
+  final bool isRest;
   final String sublabel;
   final bool isActive;
   final VoidCallback? onPressed;
@@ -5408,65 +6909,94 @@ class _DurTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final enabled = onPressed != null;
 
-    return Tooltip(
-      message: sublabel,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(8),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          width: math.max(
-            _toolTileWidth(context, sublabel),
-            _toolTileWidth(context, label, fontSize: 15),
-          ),
-          constraints: const BoxConstraints(minHeight: 48),
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-          decoration: BoxDecoration(
-            color: isActive
-                ? _accent.withValues(alpha: 0.15)
-                : enabled
-                ? AppColors.surfaceAlt
-                : AppColors.background,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isActive
-                  ? _accent.withValues(alpha: 0.6)
-                  : enabled
-                  ? AppColors.border
-                  : AppColors.border.withValues(alpha: 0.4),
+    return Semantics(
+      button: true,
+      selected: isActive,
+      enabled: enabled,
+      label: sublabel == 'Dot' ? 'Dotted duration' : '$sublabel duration',
+      onTap: onPressed,
+      excludeSemantics: true,
+      child: Tooltip(
+        message: sublabel,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(8),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            width: math.max(
+              _toolTileWidth(context, sublabel),
+              _toolTileWidth(context, label, fontSize: 15),
             ),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 15,
-                  color: isActive
-                      ? _accent
-                      : enabled
-                      ? AppColors.textPrimary
-                      : AppColors.textSecondary.withValues(alpha: 0.35),
-                  fontWeight: FontWeight.w700,
-                  height: 1.2,
-                ),
+            constraints: const BoxConstraints(minHeight: 48),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+            decoration: BoxDecoration(
+              color: isActive
+                  ? _accent.withValues(alpha: 0.15)
+                  : enabled
+                  ? AppColors.surfaceAlt
+                  : AppColors.background,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isActive
+                    ? _accent.withValues(alpha: 0.6)
+                    : enabled
+                    ? AppColors.border
+                    : AppColors.border.withValues(alpha: 0.4),
               ),
-              const SizedBox(height: 1),
-              Text(
-                sublabel,
-                style: TextStyle(
-                  fontSize: 10,
-                  color: isActive
-                      ? _accent
-                      : enabled
-                      ? AppColors.textSecondary
-                      : AppColors.textSecondary.withValues(alpha: 0.3),
-                  fontWeight: FontWeight.w500,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (label != '.')
+                  CustomPaint(
+                    size: const Size(22, 22),
+                    painter: PaletteSymbolPainter(
+                      type:
+                          PaletteSymbolType.values[(isRest ? 5 : 0) +
+                              switch (label) {
+                                'W' => 0,
+                                'H' => 1,
+                                '♩' => 2,
+                                '♪' => 3,
+                                _ => 4,
+                              }],
+                      color: isActive
+                          ? _accent
+                          : enabled
+                          ? AppColors.textPrimary
+                          : AppColors.textSecondary.withValues(alpha: .35),
+                    ),
+                  )
+                else
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: isActive
+                          ? _accent
+                          : enabled
+                          ? AppColors.textPrimary
+                          : AppColors.textSecondary.withValues(alpha: 0.35),
+                      fontWeight: FontWeight.w700,
+                      height: 1.2,
+                    ),
+                  ),
+                const SizedBox(height: 1),
+                Text(
+                  sublabel,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: isActive
+                        ? _accent
+                        : enabled
+                        ? AppColors.textSecondary
+                        : AppColors.textSecondary.withValues(alpha: 0.3),
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
                 ),
-                maxLines: 1,
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

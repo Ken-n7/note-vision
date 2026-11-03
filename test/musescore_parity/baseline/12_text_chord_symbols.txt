@@ -1,0 +1,3 @@
+# 12_text_chord_symbols — MuseScore4 4.7.5 vs Note Vision
+## notation: 21/21 MuseScore facts match
+## playback: 51/51 MuseScore facts match

@@ -1,0 +1,2 @@
+# T04_to_b_flat_closest — MuseScore4 4.7.5 vs Note Vision
+## pitches: 14/14 MuseScore facts match

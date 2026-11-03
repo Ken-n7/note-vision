@@ -1,0 +1,7 @@
+# 17_segno_coda — MuseScore4 4.7.5 vs Note Vision
+## notation: 14/16 MuseScore facts match, 2 differ in Note Vision
+- P1 m2 @4 s=1 direction segno
+- P1 m5 @4 s=1 direction coda
++ P1 m2 @0 s=1 direction segno
++ P1 m5 @0 s=1 direction coda
+## playback: 15/15 MuseScore facts match

@@ -48,12 +48,11 @@ Score beamScore({List<ScoreSymbol>? symbols}) => Score(
 );
 
 Future<void> openBeams(WidgetTester tester, {bool portrait = true}) async {
-  if (portrait) {
-    await tester.tap(find.byTooltip('Duration tools'));
+  if (find.text('Beams').evaluate().isEmpty) {
+    await tester.tap(find.byKey(const ValueKey('editor-mode-measure')));
     await tester.pumpAndSettle();
-  } else {
-    await tester.ensureVisible(find.text('Beams'));
   }
+  await tester.ensureVisible(find.text('Beams'));
   await tester.tap(find.text('Beams'));
   await tester.pumpAndSettle();
   expect(find.byType(BeamEditorSheet), findsOneWidget);
@@ -214,6 +213,8 @@ void main() {
 
   testWidgets('beam editing is disabled during playback', (tester) async {
     final (playback, _) = await pumpControls(tester, score: beamScore());
+    await tester.tap(find.byKey(const ValueKey('editor-mode-measure')));
+    await tester.pumpAndSettle();
     expect(controlsAction(tester, 'Beams').onTap, isNotNull);
     playback.emit(PlaybackStatus.playing);
     await tester.pumpAndSettle();

@@ -1,18 +1,29 @@
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show mapEquals, setEquals;
+import 'package:flutter/foundation.dart' show listEquals, mapEquals, setEquals;
 import 'package:flutter/material.dart';
 
 import '../../models/beam_grouping.dart';
 import '../../models/clef.dart';
 import '../../models/key_signature.dart';
 import '../../models/measure.dart';
+import '../../models/musical_time.dart';
+import '../../models/navigation_mark.dart';
 import '../../models/note.dart';
 import '../../models/rest.dart';
 import '../../models/score_symbol.dart';
+import '../../models/spanner.dart';
 import '../../models/time_signature.dart';
 import 'score_notation_metrics.dart';
+import 'mark_glyphs.dart';
 import 'staff_pitch_mapper.dart';
+import 'voice_layout.dart';
+import 'engraving_layout.dart';
+import 'lyric_layout.dart';
+import 'annotation_layout.dart';
+
+/// How large a grace note is drawn, editor and PDF.
+const double graceScale = 0.65;
 
 class ScoreNotationPainter extends CustomPainter {
   const ScoreNotationPainter({
@@ -26,6 +37,13 @@ class ScoreNotationPainter extends CustomPainter {
     this.selectedMeasureIndex,
     this.selectedSymbolIndex,
     this.selectedSymbolIndices = const {},
+    this.rangeSymbols = const {},
+    this.joinedParts = const {},
+    this.tabTunings = const {},
+    this.spanners = const [],
+    this.lyricParts,
+    this.engraving,
+    this.firstMeasureIndex = 0,
     this.playbackPartIndex,
     this.playbackMeasureIndex,
     this.playbackSymbolIndex,
@@ -50,6 +68,16 @@ class ScoreNotationPainter extends CustomPainter {
 
   /// All parts — one inner list per part, each containing that part's measures.
   final List<List<Measure>> parts;
+
+  /// Tablature staves (by part index) and their strings, lowest first.
+  final Map<int, List<int>> tabTunings;
+  final List<List<Measure>>? lyricParts;
+  final EngravingLayout? engraving;
+  static final _engravingCache = Expando<EngravingLayout>();
+  EngravingLayout get _engraving =>
+      engraving ?? (_engravingCache[this] ??= EngravingLayout(parts));
+
+  final int firstMeasureIndex;
   final int measuresPerRow;
   final double minMeasureWidth;
   final double rowHeight;
@@ -59,6 +87,21 @@ class ScoreNotationPainter extends CustomPainter {
   final int? selectedMeasureIndex;
   final int? selectedSymbolIndex;
   final Set<int> selectedSymbolIndices;
+
+  /// A range selection in [selectedPartIndex]: (absolute measure, symbol).
+  final Set<(int, int)> rangeSymbols;
+
+  /// Parts that are a further staff of the part above (a grand staff): the
+  /// two are braced and their barlines run through both.
+  final Set<int> joinedParts;
+
+  /// Ties and slurs, drawn between the notes they join.
+  final List<Spanner> spanners;
+
+  /// Where each note with a review ID was drawn during this paint (kept
+  /// outside the const painter).
+  static final _drawnNotes = Expando<Map<String, _NotePoint>>();
+  Map<String, _NotePoint> get _notePoints => _drawnNotes[this] ??= {};
 
   /// Currently playing symbol position emitted by PlaybackService.
   /// All three must be non-null for the playback highlight to render.
@@ -70,8 +113,10 @@ class ScoreNotationPainter extends CustomPainter {
   final int? playbackNextSymbolIndex;
   final int? playheadPartIndex;
   final int? playheadMeasureIndex;
+
   /// Index of the symbol within its measure that the playhead is on.
   final int? playheadSymbolIndex;
+
   /// 0→1 fractional progress within the current note (from AnimationController).
   final double playbackProgress;
   final bool showPlaybackSymbolHighlight;
@@ -81,16 +126,198 @@ class ScoreNotationPainter extends CustomPainter {
   final NotationPreviewGlyph? insertionPreviewGlyph;
 
   static const double staffLineSpacing = ScoreNotationMetrics.staffLineSpacing;
+
+  /// This paint's rows, so a cross-staff note finds the staff it is drawn
+  /// on.
+  static final _paintedRows = Expando<List<_RowMetrics>>();
+  List<_RowMetrics> get _rows => _paintedRows[this] ?? const [];
   static const double tapTargetSize = ScoreNotationMetrics.tapTargetSize;
 
   @override
   void paint(Canvas canvas, Size size) {
     final metrics = _buildRowMetrics();
+    _paintedRows[this] = metrics;
+    _notePoints.clear();
     for (final row in metrics) {
       _drawRow(canvas, row);
     }
+    _drawLyrics(canvas, metrics);
+    _drawAnnotations(canvas, metrics);
+    if (spanners.isNotEmpty) _drawSpanners(canvas);
     if (parts.length > 1) _drawSystemConnectors(canvas, metrics);
+    if (joinedParts.isNotEmpty) _drawGrandStaves(canvas, metrics);
     _drawPlaybackPlayhead(canvas, metrics);
+  }
+
+  static TextPainter _lyricText(String value) => TextPainter(
+    text: TextSpan(
+      text: value,
+      style: const TextStyle(
+        fontFamily: ScoreNotationMetrics.textFontFamily,
+        fontSize: LyricLayout.fontSize,
+        color: Color(0xFF111827),
+      ),
+    ),
+    textDirection: TextDirection.ltr,
+  )..layout();
+
+  void _drawLyrics(Canvas canvas, List<_RowMetrics> rows) {
+    if (!(lyricParts ?? parts)
+        .expand((p) => p)
+        .expand((m) => m.symbols)
+        .whereType<Note>()
+        .any((n) => n.lyrics.isNotEmpty)) {
+      return;
+    }
+    for (final row in rows) {
+      final part = row.partIndex;
+      final drawing = LyricLayout.build(
+        notes: LyricLayout.anchors(
+          measures: lyricParts?[part] ?? parts[part],
+          pageMeasures: parts[part],
+          firstMeasure: lyricParts == null ? 0 : firstMeasureIndex,
+          perRow: measuresPerRow,
+          contentX: padding.left + rowPrefixWidth,
+          measureWidth: minMeasureWidth,
+          prefixWidth: rowPrefixWidth,
+          engraving: _engraving,
+          part: part,
+        ),
+        system: row.rowIndex,
+        staffTop: row.staffTop,
+        staffBottom: row.staffBottom,
+        left: padding.left + rowPrefixWidth,
+        right: row.rowEndX - 4,
+        textWidth: (v) => _lyricText(v).width,
+        aboveClearance: EngravingLayout.verticalClearance(
+          lyricParts ?? parts,
+        ).$1,
+        belowClearance: EngravingLayout.verticalClearance(
+          lyricParts ?? parts,
+        ).$2,
+      );
+      for (final t in drawing.texts) {
+        final painter = _lyricText(t.text);
+        final baseline = painter.computeDistanceToActualBaseline(
+          TextBaseline.alphabetic,
+        );
+        painter.paint(canvas, Offset(t.x, t.y - baseline));
+      }
+      for (final line in drawing.lines) {
+        canvas.drawLine(
+          Offset(line.x1, line.y),
+          Offset(line.x2, line.y),
+          Paint()
+            ..color = const Color(0xFF111827)
+            ..strokeWidth = 0.8,
+        );
+      }
+    }
+  }
+
+  void _drawAnnotations(Canvas canvas, List<_RowMetrics> rows) {
+    final all = lyricParts ?? parts;
+    for (final row in rows) {
+      for (final (i, m) in row.measures.indexed) {
+        final absolute = row.globalStartMeasureIndex + i;
+        final texts = AnnotationLayout.build(
+          parts: all,
+          part: row.partIndex,
+          measure: absolute + (lyricParts == null ? 0 : firstMeasureIndex),
+          visible: m,
+          startX: row.contentStartX + i * minMeasureWidth,
+          width: minMeasureWidth,
+          staffTop: row.staffTop,
+          staffBottom: row.staffBottom,
+          inset: row.laneInset(i),
+          lyricAbove: LyricLayout.aboveHeight(all),
+          placement: _engraving.place(
+            absolute,
+            minMeasureWidth,
+            measuresPerRow,
+            rowPrefixWidth,
+          ),
+        );
+        for (final t in texts) {
+          final painter = _lyricText(t.annotation.label);
+          final baseline = painter.computeDistanceToActualBaseline(
+            TextBaseline.alphabetic,
+          );
+          if (t.annotation.kind == AnnotationKind.rehearsal) {
+            canvas.drawRect(
+              Rect.fromLTWH(
+                t.x - 4,
+                t.y - baseline - 3,
+                painter.width + 8,
+                painter.height + 6,
+              ),
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1
+                ..color = const Color(0xFF111827),
+            );
+          }
+          painter.paint(canvas, Offset(t.x, t.y - baseline));
+        }
+      }
+    }
+  }
+
+  static List<(int, int, int, Rect)> buildAnnotationTargets({
+    required List<List<Measure>> parts,
+    required List<List<Measure>> allParts,
+    required int firstMeasureIndex,
+    required int measuresPerRow,
+    required double minMeasureWidth,
+    required double rowHeight,
+    required EdgeInsets padding,
+    required double rowPrefixWidth,
+    EngravingLayout? engraving,
+  }) {
+    final rows = _buildRowMetricsStatic(
+      parts: parts,
+      measuresPerRow: measuresPerRow,
+      minMeasureWidth: minMeasureWidth,
+      rowHeight: rowHeight,
+      padding: padding,
+      rowPrefixWidth: rowPrefixWidth,
+    );
+    return [
+      for (final row in rows)
+        for (final (i, m) in row.measures.indexed)
+          for (final t in AnnotationLayout.build(
+            parts: allParts,
+            part: row.partIndex,
+            measure: firstMeasureIndex + row.globalStartMeasureIndex + i,
+            visible: m,
+            startX: row.contentStartX + i * minMeasureWidth,
+            width: minMeasureWidth,
+            staffTop: row.staffTop,
+            staffBottom: row.staffBottom,
+            inset: row.laneInset(i),
+            lyricAbove: LyricLayout.aboveHeight(allParts),
+            placement: (engraving ?? EngravingLayout(parts)).place(
+              row.globalStartMeasureIndex + i,
+              minMeasureWidth,
+              measuresPerRow,
+              rowPrefixWidth,
+            ),
+          ))
+            (
+              t.owner,
+              row.globalStartMeasureIndex + i,
+              t.index,
+              Rect.fromLTWH(
+                t.x,
+                t.y -
+                    _lyricText(
+                      t.annotation.label,
+                    ).computeDistanceToActualBaseline(TextBaseline.alphabetic),
+                _lyricText(t.annotation.label).width,
+                _lyricText(t.annotation.label).height,
+              ).inflate(4),
+            ),
+    ];
   }
 
   List<_RowMetrics> _buildRowMetrics() {
@@ -200,6 +427,7 @@ class ScoreNotationPainter extends CustomPainter {
     required double rowHeight,
     required EdgeInsets padding,
     required double rowPrefixWidth,
+    EngravingLayout? engraving,
   }) {
     final rows = _buildRowMetricsStatic(
       parts: parts,
@@ -209,6 +437,7 @@ class ScoreNotationPainter extends CustomPainter {
       rowPrefixWidth: rowPrefixWidth,
       minMeasureWidth: minMeasureWidth,
     );
+    final spacing = engraving ?? EngravingLayout(parts);
     final targets = <NotationSymbolTarget>[];
 
     for (final row in rows) {
@@ -220,37 +449,34 @@ class ScoreNotationPainter extends CustomPainter {
         final measure = row.measures[measureInRow];
         final measureStartX =
             row.contentStartX + (measureInRow * minMeasureWidth);
-        final measureEndX = measureStartX + minMeasureWidth;
         if (measure.symbols.isEmpty) continue;
 
-        final inset = row.laneInset(measureInRow);
-        final drawableWidth = math.max(
-          12.0,
-          (measureEndX - measureStartX) -
-              inset -
-              ScoreNotationMetrics.measureInnerPadding,
-        );
-
+        final layout = VoiceLayout.of(measure.symbols);
         for (
           var symbolIndex = 0;
           symbolIndex < measure.symbols.length;
           symbolIndex++
         ) {
           final symbol = measure.symbols[symbolIndex];
-          if (symbol is Note && symbol.isChordTone) {
-            continue;
-          }
-          final visualSlot = _visualSlotForIndex(measure.symbols, symbolIndex);
-          final slotCount = _visualSlotCount(measure.symbols);
-          final progress = (visualSlot + 1) / (slotCount + 1);
-          final x = measureStartX + inset + (drawableWidth * progress);
-          final y = _symbolCenterY(
-            symbol,
-            row.staffTop,
-            row.staffBottom,
-            row.clefSign,
-            clefLine: row.clefLine,
+          final placement = spacing.place(
+            row.globalStartMeasureIndex + measureInRow,
+            minMeasureWidth,
+            measuresPerRow,
+            rowPrefixWidth,
           );
+          final x =
+              measureStartX + placement.symbolX(row.partIndex, symbolIndex);
+          final y =
+              _symbolCenterY(
+                symbol,
+                row.staffTop,
+                row.staffBottom,
+                row.clefSign,
+                clefLine: row.clefLine,
+              ) +
+              (symbol is Rest
+                  ? layout.restOffset(symbolIndex) * staffLineSpacing
+                  : 0);
           targets.add(
             NotationSymbolTarget(
               partIndex: row.partIndex,
@@ -268,6 +494,89 @@ class ScoreNotationPainter extends CustomPainter {
       }
     }
     return targets;
+  }
+
+  /// Text underlays are selectable through the same note callback as their
+  /// noteheads. They do not become drag handles or insertion targets.
+  static List<NotationSymbolTarget> buildLyricTargets({
+    required List<List<Measure>> parts,
+    required List<List<Measure>> lyricParts,
+    required int firstMeasureIndex,
+    required int measuresPerRow,
+    required double minMeasureWidth,
+    required double rowHeight,
+    required EdgeInsets padding,
+    required double rowPrefixWidth,
+    EngravingLayout? engraving,
+  }) {
+    if (!lyricParts
+        .expand((p) => p)
+        .expand((m) => m.symbols)
+        .whereType<Note>()
+        .any((n) => n.lyrics.isNotEmpty)) {
+      return const [];
+    }
+    final rows = _buildRowMetricsStatic(
+      parts: parts,
+      measuresPerRow: measuresPerRow,
+      rowHeight: rowHeight,
+      padding: padding,
+      rowPrefixWidth: rowPrefixWidth,
+      minMeasureWidth: minMeasureWidth,
+    );
+    final result = <NotationSymbolTarget>[];
+    for (final row in rows) {
+      final locations = <Note, (int, int)>{
+        for (final (m, measure) in parts[row.partIndex].indexed)
+          for (final (n, symbol) in measure.symbols.indexed)
+            if (symbol is Note) symbol: (m, n),
+      };
+      final drawing = LyricLayout.build(
+        notes: LyricLayout.anchors(
+          measures: lyricParts[row.partIndex],
+          pageMeasures: parts[row.partIndex],
+          firstMeasure: firstMeasureIndex,
+          perRow: measuresPerRow,
+          contentX: padding.left + rowPrefixWidth,
+          measureWidth: minMeasureWidth,
+          prefixWidth: rowPrefixWidth,
+          engraving: engraving ?? EngravingLayout(parts),
+          part: row.partIndex,
+        ),
+        system: row.rowIndex,
+        staffTop: row.staffTop,
+        staffBottom: row.staffBottom,
+        left: row.contentStartX,
+        right: row.rowEndX - 4,
+        textWidth: (v) => _lyricText(v).width,
+        aboveClearance: EngravingLayout.verticalClearance(lyricParts).$1,
+        belowClearance: EngravingLayout.verticalClearance(lyricParts).$2,
+      );
+      for (final text in drawing.texts) {
+        final location = locations[text.note];
+        if (location == null) continue;
+        final painter = _lyricText(text.text);
+        final baseline = painter.computeDistanceToActualBaseline(
+          TextBaseline.alphabetic,
+        );
+        final rect = Rect.fromLTWH(
+          text.x,
+          text.y - baseline,
+          painter.width,
+          painter.height,
+        ).inflate(3);
+        result.add(
+          NotationSymbolTarget(
+            partIndex: row.partIndex,
+            measureIndex: location.$1,
+            symbolIndex: location.$2,
+            center: rect.center,
+            hitRect: rect,
+          ),
+        );
+      }
+    }
+    return result;
   }
 
   static double _symbolCenterY(
@@ -315,6 +624,44 @@ class ScoreNotationPainter extends CustomPainter {
       ..strokeWidth = ScoreNotationMetrics.barlineStrokeWidth;
 
     switch (row.clefSign.toUpperCase()) {
+      case 'T':
+        // TAB, written down the start of the staff.
+        for (final (k, letter) in ['T', 'A', 'B'].indexed) {
+          final glyph = TextPainter(
+            text: TextSpan(
+              text: letter,
+              style: const TextStyle(
+                fontSize: 13,
+                fontFamily: ScoreNotationMetrics.textFontFamily,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF111827),
+                height: 1,
+              ),
+            ),
+            textDirection: TextDirection.ltr,
+          )..layout();
+          glyph.paint(
+            canvas,
+            Offset(
+              row.rowStartX + ScoreNotationMetrics.trebleClefXOffset,
+              row.staffTop + k * (row.staffBottom - row.staffTop) / 3,
+            ),
+          );
+        }
+      case 'P':
+        // A percussion clef: two thick bars over the middle of the staff.
+        final bar = Paint()..color = const Color(0xFF111827);
+        for (final dx in [0.0, 6.0]) {
+          canvas.drawRect(
+            Rect.fromLTWH(
+              row.rowStartX + ScoreNotationMetrics.trebleClefXOffset + dx,
+              row.staffTop + staffLineSpacing,
+              3,
+              staffLineSpacing * 2,
+            ),
+            bar,
+          );
+        }
       case 'F':
         _drawBassClef(canvas, x: row.rowStartX + 8, y: row.staffTop - 4);
       case 'C':
@@ -334,11 +681,40 @@ class ScoreNotationPainter extends CustomPainter {
           ),
         );
     }
+    // An octave clef's small 8, below (sounding lower) or above.
+    if (row.clef?.octave case final octave? when octave != 0) {
+      final eight = TextPainter(
+        text: const TextSpan(
+          text: '8',
+          style: TextStyle(
+            fontSize: 9,
+            fontFamily: ScoreNotationMetrics.textFontFamily,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF111827),
+            height: 1,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      eight.paint(
+        canvas,
+        Offset(
+          row.rowStartX + ScoreNotationMetrics.trebleClefXOffset + 7,
+          octave < 0
+              ? row.staffBottom + 1.6 * staffLineSpacing
+              : row.staffTop - 2.6 * staffLineSpacing,
+        ),
+      );
+    }
 
     _drawRowSignatures(canvas, row);
 
-    for (var i = 0; i < ScoreNotationMetrics.staffLineCount; i++) {
-      final y = row.staffTop + (i * staffLineSpacing);
+    // A tablature staff has a line per string, inside the staff's height.
+    final strings = tabTunings[row.partIndex]?.length;
+    final lineCount = strings ?? ScoreNotationMetrics.staffLineCount;
+    for (var i = 0; i < lineCount; i++) {
+      final y =
+          row.staffTop + i * (row.staffBottom - row.staffTop) / (lineCount - 1);
       canvas.drawLine(
         Offset(row.rowStartX, y),
         Offset(row.rowEndX, y),
@@ -370,7 +746,8 @@ class ScoreNotationPainter extends CustomPainter {
     final keySig = firstMeasure.keySignature;
     var signatureX = row.rowStartX + ScoreNotationMetrics.rowSignatureStartX;
 
-    if (keySig != null) {
+    // A percussion or tablature staff has no key.
+    if (keySig != null && row.clefSign != 'P' && row.clefSign != 'T') {
       signatureX = _drawKeySignature(
         canvas,
         signatureX,
@@ -408,13 +785,17 @@ class ScoreNotationPainter extends CustomPainter {
       final measureX = row.contentStartX + (measureInRow * minMeasureWidth);
       final nextMeasureX = measureX + minMeasureWidth;
 
-      _drawMeasureNumber(
-        canvas,
-        text: '${measure.number}',
-        x: measureX + ScoreNotationMetrics.measureNumberOffsetX,
-        y: row.staffTop + ScoreNotationMetrics.measureNumberOffsetY,
-        style: measureNumberStyle,
-      );
+      // A grand staff numbers its bars once, above the upper staff; a
+      // pickup is not numbered.
+      if (!joinedParts.contains(row.partIndex) && !measure.implicit) {
+        _drawMeasureNumber(
+          canvas,
+          text: '${measure.number}',
+          x: measureX + ScoreNotationMetrics.measureNumberOffsetX,
+          y: row.staffTop + ScoreNotationMetrics.measureNumberOffsetY,
+          style: measureNumberStyle,
+        );
+      }
 
       if (measureInRow > 0) {
         canvas.drawLine(
@@ -423,6 +804,20 @@ class ScoreNotationPainter extends CustomPainter {
           barPaint,
         );
       }
+      final barIndex = row.globalStartMeasureIndex + measureInRow;
+      _drawMarkShapes(
+        canvas,
+        barShapes(
+          width: minMeasureWidth,
+          spacing: staffLineSpacing,
+          left: measure.leftBarlineType,
+          right: measure.rightBarlineType,
+          ending: endingAt(parts[row.partIndex], barIndex),
+          navigation: measure.navigation,
+          first: row.partIndex == 0,
+        ),
+        Offset(measureX, row.staffTop),
+      );
 
       if (row.timeInMeasure[measureInRow]) {
         _drawTimeSignature(
@@ -445,6 +840,7 @@ class ScoreNotationPainter extends CustomPainter {
         staffBottom: row.staffBottom,
         clefSign: row.clefSign,
         clefLine: row.clefLine,
+        row: row,
       );
     }
   }
@@ -461,14 +857,19 @@ class ScoreNotationPainter extends CustomPainter {
     required double staffBottom,
     required String clefSign,
     int clefLine = 2,
+    _RowMetrics? row,
   }) {
     final middleLineY =
         staffTop + staffLineSpacing * ScoreNotationMetrics.middleStaffLineIndex;
     final barMark = issueMarks['$partIndex:$absoluteMeasureIndex'];
     if (barMark != null) {
       canvas.drawRect(
-        Rect.fromLTRB(measureStartX + 1, staffTop - 10, measureEndX - 1,
-            staffBottom + 10),
+        Rect.fromLTRB(
+          measureStartX + 1,
+          staffTop - 10,
+          measureEndX - 1,
+          staffBottom + 10,
+        ),
         Paint()..color = barMark.withValues(alpha: 0.12),
       );
     }
@@ -504,12 +905,15 @@ class ScoreNotationPainter extends CustomPainter {
     if (measure.symbols.isEmpty) return;
 
     final symbolCount = measure.symbols.length;
-    final slotCount = _visualSlotCount(measure.symbols);
-    const innerPadding = ScoreNotationMetrics.measureInnerPadding;
-    final drawableWidth = math.max(
-      12.0,
-      (measureEndX - measureStartX) - laneInset - innerPadding,
+    final layout = VoiceLayout.of(measure.symbols);
+    final placement = _engraving.place(
+      absoluteMeasureIndex,
+      minMeasureWidth,
+      measuresPerRow,
+      rowPrefixWidth,
     );
+    final geometry = placement.bar.staff[partIndex];
+    const innerPadding = ScoreNotationMetrics.measureInnerPadding;
     final drag = dragFeedback;
     final hasDragInMeasure =
         drag != null &&
@@ -530,7 +934,10 @@ class ScoreNotationPainter extends CustomPainter {
         : 0.0;
 
     // Build beam groups before drawing so we know which notes suppress flags.
-    final beamGroups = _buildBeamGroups(measure.symbols);
+    // A tablature staff shows frets without stems or beams.
+    final beamGroups = tabTunings[partIndex] != null
+        ? const <List<int>>[]
+        : _buildBeamGroups(measure.symbols);
     final beamedIndices = <int>{};
     for (final group in beamGroups) {
       if (group.length >= 2) beamedIndices.addAll(group);
@@ -538,40 +945,132 @@ class ScoreNotationPainter extends CustomPainter {
 
     // Collect rendered (x, y) per symbol index for beam bar drawing.
     final notePositions = <int, Offset>{};
+    // Every drawn note and rest, with how far its stem reaches above it.
+    final tupletPoints = <int, (Offset, double)>{};
 
     for (var i = 0; i < symbolCount; i++) {
       if (activeDrag != null && i == activeDrag.draggedSymbolIndex) continue;
       final symbol = measure.symbols[i];
-      var visualIndex = _visualSlotForIndex(measure.symbols, i);
-      if (activeDrag != null) {
-        final draggedSlot = _visualSlotForIndex(
-          measure.symbols,
-          activeDrag.draggedSymbolIndex,
-        );
-        final compactIndex = visualIndex > draggedSlot
-            ? visualIndex - 1
-            : visualIndex;
-        visualIndex = compactIndex >= activeDrag.targetSymbolIndex
-            ? compactIndex + 1
-            : compactIndex;
-      }
-      final progress = (visualIndex + 1) / (slotCount + 1);
-      final x = measureStartX + laneInset + (drawableWidth * progress);
+      final x = measureStartX + placement.symbolX(partIndex, i);
 
+      // On a tablature staff a note is its fret number on its string.
+      if (symbol is Note && tabTunings[partIndex] != null) {
+        final strings = tabTunings[partIndex]!.length;
+        final string = (symbol.string ?? 1).clamp(1, strings);
+        final y =
+            staffTop + (string - 1) * (staffBottom - staffTop) / (strings - 1);
+        notePositions[i] = Offset(x, y);
+        tupletPoints[i] = (Offset(x, y), 8.0);
+        if ((symbol.reviewId, row) case (final id?, final row?)) {
+          _notePoints[id] = _NotePoint(
+            Offset(x, y),
+            stemUp: true,
+            row: row,
+            dynamic: symbol.dynamicMark != null,
+          );
+        }
+        final isSelected =
+            selectedPartIndex == partIndex &&
+                selectedMeasureIndex == absoluteMeasureIndex &&
+                (selectedSymbolIndex == i ||
+                    selectedSymbolIndices.contains(i)) ||
+            selectedPartIndex == partIndex &&
+                rangeSymbols.contains((absoluteMeasureIndex, i));
+        if (playbackPartIndex == partIndex &&
+            playbackMeasureIndex == absoluteMeasureIndex &&
+            playbackSymbolIndex == i &&
+            showPlaybackSymbolHighlight) {
+          _drawPlaybackHighlight(canvas, Offset(x, y));
+        }
+        if (isSelected) _drawSelectionHighlight(canvas, Offset(x, y));
+        final fret = TextPainter(
+          text: TextSpan(
+            text: '${symbol.fret ?? '?'}',
+            style: const TextStyle(
+              fontSize: 9,
+              fontFamily: ScoreNotationMetrics.textFontFamily,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF111827),
+              height: 1,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        final box = Rect.fromCenter(
+          center: Offset(x, y),
+          width: fret.width + 2,
+          height: fret.height,
+        );
+        canvas.drawRect(box, Paint()..color = Colors.white);
+        fret.paint(canvas, box.topLeft + const Offset(1, 0));
+        continue;
+      }
       if (symbol is Note) {
+        // A cross-staff note sits on the staff it moves to, in its clef.
+        final target = symbol.staffMove == 0 || row == null
+            ? null
+            : _rows
+                  .where(
+                    (r) =>
+                        r.rowIndex == row.rowIndex &&
+                        r.partIndex == partIndex + symbol.staffMove,
+                  )
+                  .firstOrNull;
+        final noteTop = target?.staffTop ?? staffTop;
         final y = StaffPitchMapper.yForPitch(
           step: symbol.step,
           octave: symbol.octave,
-          bottomLineY: staffBottom,
+          bottomLineY: target?.staffBottom ?? staffBottom,
           lineSpacing: staffLineSpacing,
-          clefSign: clefSign,
-          clefLine: clefLine,
+          clefSign: target?.clefSign ?? clefSign,
+          clefLine: target?.clefLine ?? clefLine,
         );
         notePositions[i] = Offset(x, y);
+        tupletPoints[i] = (
+          Offset(x, y),
+          (layout.stemUp(i) ?? y > middleLineY)
+              ? ScoreNotationMetrics.stemLengthFor(staffLineSpacing)
+              : 8.0,
+        );
+        if (symbol.marks.isNotEmpty) {
+          _drawMarkShapes(
+            canvas,
+            markShapes(
+              symbol.marks,
+              stemUp: layout.stemUp(i) ?? y > middleLineY,
+              staffTop: staffTop - y,
+              stemReach: tupletPoints[i]!.$2,
+            ),
+            Offset(x, y),
+          );
+        }
+        if ((symbol.reviewId, row) case (final id?, final row?)) {
+          _notePoints[id] = _NotePoint(
+            Offset(x, y),
+            stemUp: layout.stemUp(i) ?? y > middleLineY,
+            row: row,
+            dynamic: symbol.dynamicMark != null,
+          );
+        }
+        if (symbol.dynamicMark case final mark?) {
+          final up = layout.stemUp(i) ?? y > middleLineY;
+          final lowest = up
+              ? y + 6
+              : y + ScoreNotationMetrics.stemLengthFor(staffLineSpacing);
+          _drawDynamic(
+            canvas,
+            mark,
+            x,
+            math.max(staffBottom + _dynamicsBelow, lowest + 12),
+          );
+        }
         final isSelected =
             selectedPartIndex == partIndex &&
-            selectedMeasureIndex == absoluteMeasureIndex &&
-            (selectedSymbolIndex == i || selectedSymbolIndices.contains(i));
+                selectedMeasureIndex == absoluteMeasureIndex &&
+                (selectedSymbolIndex == i ||
+                    selectedSymbolIndices.contains(i)) ||
+            selectedPartIndex == partIndex &&
+                rangeSymbols.contains((absoluteMeasureIndex, i));
         final isPlaying =
             playbackPartIndex == partIndex &&
             playbackMeasureIndex == absoluteMeasureIndex &&
@@ -580,7 +1079,25 @@ class ScoreNotationPainter extends CustomPainter {
           _drawPlaybackHighlight(canvas, Offset(x, y));
         }
         if (isSelected) _drawSelectionHighlight(canvas, Offset(x, y));
-        _drawIssueMark(canvas, partIndex, absoluteMeasureIndex, i, Offset(x, y));
+        _drawIssueMark(
+          canvas,
+          partIndex,
+          absoluteMeasureIndex,
+          i,
+          Offset(x, y),
+        );
+        for (final line in ScoreNotationMetrics.ledgerYs(y - noteTop)) {
+          final half =
+              ScoreNotationMetrics.ledgerHalfWidth *
+              (symbol.grace == null ? 1 : graceScale);
+          canvas.drawLine(
+            Offset(x - half, noteTop + line),
+            Offset(x + half, noteTop + line),
+            Paint()
+              ..color = const Color(0xFF111827)
+              ..strokeWidth = ScoreNotationMetrics.staffLineStrokeWidth,
+          );
+        }
         _drawNote(
           canvas,
           symbol,
@@ -589,19 +1106,30 @@ class ScoreNotationPainter extends CustomPainter {
           middleLineY: middleLineY,
           suppressFlag: beamedIndices.contains(i),
           drawStem: !beamedIndices.contains(i),
+          stemUp: geometry.stemUps[i],
+          stemAnchorX: measureStartX + placement.stemX(partIndex, i),
+          stemStartY: y + geometry.stemStarts[i],
+          stemEndY: y + geometry.stemEnds[i],
+          accidentalOffset: placement.bar.staff[partIndex].accidentalOffsets[i],
         );
       } else if (symbol is Rest) {
-        final y = _symbolCenterY(
-          symbol,
-          staffTop,
-          staffBottom,
-          clefSign,
-          clefLine: clefLine,
-        );
+        final restShift = layout.restOffset(i) * staffLineSpacing;
+        final y =
+            _symbolCenterY(
+              symbol,
+              staffTop,
+              staffBottom,
+              clefSign,
+              clefLine: clefLine,
+            ) +
+            restShift;
         final isSelected =
             selectedPartIndex == partIndex &&
-            selectedMeasureIndex == absoluteMeasureIndex &&
-            (selectedSymbolIndex == i || selectedSymbolIndices.contains(i));
+                selectedMeasureIndex == absoluteMeasureIndex &&
+                (selectedSymbolIndex == i ||
+                    selectedSymbolIndices.contains(i)) ||
+            selectedPartIndex == partIndex &&
+                rangeSymbols.contains((absoluteMeasureIndex, i));
         final isPlaying =
             playbackPartIndex == partIndex &&
             playbackMeasureIndex == absoluteMeasureIndex &&
@@ -610,10 +1138,47 @@ class ScoreNotationPainter extends CustomPainter {
           _drawPlaybackHighlight(canvas, Offset(x, y));
         }
         if (isSelected) _drawSelectionHighlight(canvas, Offset(x, y));
-        _drawIssueMark(canvas, partIndex, absoluteMeasureIndex, i, Offset(x, y));
-        _drawRest(canvas, symbol, x: x, staffTop: staffTop);
+        _drawIssueMark(
+          canvas,
+          partIndex,
+          absoluteMeasureIndex,
+          i,
+          Offset(x, y),
+        );
+        _drawRest(canvas, symbol, x: x, staffTop: staffTop + restShift);
+        tupletPoints[i] = (Offset(x, y), 10.0);
+        if ((symbol.reviewId, row) case (final id?, final row?)) {
+          _notePoints[id] = _NotePoint(
+            Offset(x, y),
+            stemUp: false,
+            row: row,
+            dynamic: symbol.dynamicMark != null,
+          );
+        }
+        if (symbol.dynamicMark case final mark?) {
+          _drawDynamic(canvas, mark, x, staffBottom + _dynamicsBelow);
+        }
+        if (symbol.marks.isNotEmpty) {
+          _drawMarkShapes(
+            canvas,
+            markShapes(
+              symbol.marks,
+              stemUp: false,
+              staffTop: staffTop - y,
+              stemReach: 10,
+            ),
+            Offset(x, y),
+          );
+        }
       }
     }
+    _drawTuplets(
+      canvas,
+      measure.symbols,
+      tupletPoints,
+      beamedIndices,
+      staffTop,
+    );
 
     // Draw stems and beam bars for groups of 2+.
     _drawBeamBars(
@@ -622,6 +1187,7 @@ class ScoreNotationPainter extends CustomPainter {
       notePositions,
       middleLineY,
       measure.symbols,
+      geometry,
     );
 
     if (!hasDragInMeasure || draggedSymbol == null || !drag.showGhostAtDrag) {
@@ -671,6 +1237,7 @@ class ScoreNotationPainter extends CustomPainter {
     Map<int, Offset> notePositions,
     double middleLineY,
     List<ScoreSymbol> symbols,
+    StaffEngraving geometry,
   ) {
     final beamPaint = Paint()
       ..color = const Color(0xFF111827)
@@ -694,12 +1261,14 @@ class ScoreNotationPainter extends CustomPainter {
 
       final averageY =
           heads.map((p) => p.dy).reduce((a, b) => a + b) / heads.length;
-      final stemUp = averageY > middleLineY;
+      final stemUp = geometry.stemUps[group.first] ?? averageY > middleLineY;
       final dir = stemUp ? -1.0 : 1.0; // from the heads towards the beam
-      final xOff = stemUp
-          ? ScoreNotationMetrics.stemXOffset
-          : -ScoreNotationMetrics.stemXOffset;
-      final xs = [for (final p in heads) p.dx + xOff];
+      final xs = [
+        for (final (k, p) in heads.indexed)
+          p.dx +
+              geometry.stemOffsets[group[k]] -
+              geometry.headOffsets[group[k]],
+      ];
       final run = xs.last - xs.first;
       final slope = run <= 0
           ? 0.0
@@ -711,14 +1280,14 @@ class ScoreNotationPainter extends CustomPainter {
       // 85 % of a normal one.
       var shift = 0.0;
       for (var k = 0; k < heads.length; k++) {
-        final needed = heads[k].dy + dir * stemLen * 0.85 - line(xs[k]);
+        final needed = heads[k].dy + geometry.stemEnds[group[k]] - line(xs[k]);
         shift = stemUp ? math.min(shift, needed) : math.max(shift, needed);
       }
       double beamY(double x) => line(x) + shift;
 
       for (var k = 0; k < heads.length; k++) {
         canvas.drawLine(
-          Offset(xs[k], heads[k].dy),
+          Offset(xs[k], heads[k].dy + geometry.stemStarts[group[k]]),
           Offset(xs[k], beamY(xs[k])),
           stemPaint,
         );
@@ -831,10 +1400,11 @@ class ScoreNotationPainter extends CustomPainter {
     if (partIndex == null || measureIndex == null) return;
 
     // Find the row that contains this measure.
-    final partRows = rows
-        .where((r) => r.partIndex == partIndex)
-        .toList()
-      ..sort((a, b) => a.globalStartMeasureIndex.compareTo(b.globalStartMeasureIndex));
+    final partRows = rows.where((r) => r.partIndex == partIndex).toList()
+      ..sort(
+        (a, b) =>
+            a.globalStartMeasureIndex.compareTo(b.globalStartMeasureIndex),
+      );
     if (partRows.isEmpty) return;
 
     _RowMetrics? currentRow;
@@ -849,51 +1419,49 @@ class ScoreNotationPainter extends CustomPainter {
 
     // Locate the measure and compute its slot geometry.
     final measureRelIdx = measureIndex - currentRow.globalStartMeasureIndex;
-    if (measureRelIdx < 0 || measureRelIdx >= currentRow.measures.length) return;
+    if (measureRelIdx < 0 || measureRelIdx >= currentRow.measures.length) {
+      return;
+    }
     final measure = currentRow.measures[measureRelIdx];
 
-    const ip = ScoreNotationMetrics.measureInnerPadding;
-    final measureStartX = currentRow.contentStartX + measureRelIdx * minMeasureWidth;
-    final inset = currentRow.laneInset(measureRelIdx);
-    final dw = math.max(12.0, minMeasureWidth - inset - ip);
-    final laneStartX = measureStartX + inset;
-
-    final symbols = measure.symbols;
-    final slotCount = _visualSlotCount(symbols);
-    if (slotCount == 0) return;
-
-    // Count how many non-chord-tone symbols appear before symIndex to get the slot.
-    final effectiveSymIndex = symIndex ?? 0;
-    var slot = 0;
-    for (var i = 0; i < effectiveSymIndex && i < symbols.length; i++) {
-      final sym = symbols[i];
-      if (sym is Note && sym.isChordTone) continue;
-      slot++;
+    final measureStartX =
+        currentRow.contentStartX + measureRelIdx * minMeasureWidth;
+    final placement = _engraving.place(
+      measureIndex,
+      minMeasureWidth,
+      measuresPerRow,
+      rowPrefixWidth,
+    );
+    final valid =
+        symIndex != null && symIndex >= 0 && symIndex < measure.symbols.length;
+    final currentX =
+        measureStartX +
+        (valid
+            ? placement.symbolX(partIndex, symIndex)
+            : placement.timeX(MusicalTime.zero));
+    final nextMeasure = playbackNextMeasureIndex;
+    final nextSymbol = playbackNextSymbolIndex;
+    var nextX = measureStartX + minMeasureWidth - 8;
+    if (nextMeasure != null &&
+        nextSymbol != null &&
+        playbackNextPartIndex == partIndex &&
+        nextMeasure >= currentRow.globalStartMeasureIndex &&
+        nextMeasure <
+            currentRow.globalStartMeasureIndex + currentRow.measures.length &&
+        nextSymbol >= 0 &&
+        nextSymbol < parts[partIndex][nextMeasure].symbols.length) {
+      nextX =
+          currentRow.contentStartX +
+          (nextMeasure - currentRow.globalStartMeasureIndex) * minMeasureWidth +
+          _engraving
+              .place(
+                nextMeasure,
+                minMeasureWidth,
+                measuresPerRow,
+                rowPrefixWidth,
+              )
+              .symbolX(partIndex, nextSymbol);
     }
-    slot = slot.clamp(0, slotCount - 1);
-
-    final currentX = laneStartX + dw * (slot + 1) / (slotCount + 1);
-
-    // Next X: the next symbol in this measure, or the first symbol of the next
-    // measure in the same row, or the right barline if at the end of the row.
-    double nextX;
-    if (slot + 1 < slotCount) {
-      nextX = laneStartX + dw * (slot + 2) / (slotCount + 1);
-    } else if (measureRelIdx + 1 < currentRow.measures.length) {
-      final nextMeasure = currentRow.measures[measureRelIdx + 1];
-      final nextMeasureStartX =
-          currentRow.contentStartX + (measureRelIdx + 1) * minMeasureWidth;
-      final nextInset = currentRow.laneInset(measureRelIdx + 1);
-      final nextLaneStartX = nextMeasureStartX + nextInset;
-      final nextDw = math.max(12.0, minMeasureWidth - nextInset - ip);
-      final nextSlotCount = _visualSlotCount(nextMeasure.symbols);
-      nextX = nextSlotCount > 0
-          ? nextLaneStartX + nextDw * 1 / (nextSlotCount + 1)
-          : nextMeasureStartX + minMeasureWidth;
-    } else {
-      nextX = currentRow.contentStartX + currentRow.measures.length * minMeasureWidth;
-    }
-
     // Lerp using T (0→1 from AnimationController).
     final t = playbackProgress.clamp(0.0, 1.0);
     final x = currentX + t * (nextX - currentX);
@@ -1039,7 +1607,43 @@ class ScoreNotationPainter extends CustomPainter {
     required double middleLineY,
     bool suppressFlag = false,
     bool drawStem = true,
+    bool? stemUp,
+    double? accidentalOffset,
+    double? stemAnchorX,
+    double? stemStartY,
+    double? stemEndY,
   }) {
+    if (note.grace case final grace?) {
+      // Small, stem up and flagged; an acciaccatura's stem is slashed.
+      canvas
+        ..save()
+        ..translate(x, y)
+        ..scale(graceScale)
+        ..translate(-x, -y);
+      _drawNote(
+        canvas,
+        note.copyWith(grace: null),
+        x: x,
+        y: y,
+        middleLineY: middleLineY,
+        stemUp: true,
+        accidentalOffset: accidentalOffset,
+      );
+      if (grace == Grace.acciaccatura) {
+        final stemX = x + ScoreNotationMetrics.stemXOffset;
+        final mid =
+            y - ScoreNotationMetrics.stemLengthFor(staffLineSpacing) * .6;
+        canvas.drawLine(
+          Offset(stemX - 6, mid + 5),
+          Offset(stemX + 8, mid - 5),
+          Paint()
+            ..color = const Color(0xFF111827)
+            ..strokeWidth = 1.4,
+        );
+      }
+      canvas.restore();
+      return;
+    }
     final normalizedType = note.type.trim().toLowerCase();
     final isBreve = normalizedType == 'breve';
     final isWhole = normalizedType == 'whole' || isBreve;
@@ -1094,27 +1698,54 @@ class ScoreNotationPainter extends CustomPainter {
         tp.paint(
           canvas,
           Offset(
-            x - headWidth / 2 - tp.width - ScoreNotationMetrics.accidentalGap,
+            x +
+                (accidentalOffset ??
+                    (-headWidth / 2 -
+                        tp.width -
+                        ScoreNotationMetrics.accidentalGap)),
             y - tp.height * 0.6,
           ),
         );
       }
     }
 
-    canvas.save();
-    canvas.translate(x, y);
-    canvas.rotate(ScoreNotationMetrics.noteheadRotation);
-    final noteRect = Rect.fromCenter(
-      center: Offset.zero,
-      width: headWidth,
-      height: headHeight,
-    );
-    if (isWhole || isHalf) {
-      canvas.drawOval(noteRect, strokePaint);
+    final head = note.notehead;
+    final hw = headWidth / 2, hh = headHeight / 2;
+    if (head == 'x' || head == 'circle-x') {
+      // A cymbal's cross, and an open hi-hat's circled cross.
+      final pen = Paint()
+        ..color = const Color(0xFF111827)
+        ..strokeWidth = 1.6
+        ..strokeCap = StrokeCap.round
+        ..style = PaintingStyle.stroke;
+      canvas
+        ..drawLine(Offset(x - hw, y - hh), Offset(x + hw, y + hh), pen)
+        ..drawLine(Offset(x - hw, y + hh), Offset(x + hw, y - hh), pen);
+      if (head == 'circle-x') canvas.drawCircle(Offset(x, y), hw * 1.3, pen);
+    } else if (head == 'diamond') {
+      final diamond = Path()
+        ..moveTo(x - hw, y)
+        ..lineTo(x, y - hh * 1.2)
+        ..lineTo(x + hw, y)
+        ..lineTo(x, y + hh * 1.2)
+        ..close();
+      canvas.drawPath(diamond, isWhole || isHalf ? strokePaint : fillPaint);
     } else {
-      canvas.drawOval(noteRect, fillPaint);
+      canvas.save();
+      canvas.translate(x, y);
+      canvas.rotate(ScoreNotationMetrics.noteheadRotation);
+      final noteRect = Rect.fromCenter(
+        center: Offset.zero,
+        width: headWidth,
+        height: headHeight,
+      );
+      if (isWhole || isHalf) {
+        canvas.drawOval(noteRect, strokePaint);
+      } else {
+        canvas.drawOval(noteRect, fillPaint);
+      }
+      canvas.restore();
     }
-    canvas.restore();
 
     if (isBreve) {
       final sidePaint = Paint()
@@ -1167,8 +1798,11 @@ class ScoreNotationPainter extends CustomPainter {
         canvas,
         x: x,
         y: y,
-        stemUp: y > middleLineY,
+        stemUp: stemUp ?? y > middleLineY,
         flags: flags,
+        stemAnchorX: stemAnchorX,
+        stemStartY: stemStartY,
+        stemEndY: stemEndY,
       );
     }
     _drawAugmentationDots(
@@ -1185,18 +1819,27 @@ class ScoreNotationPainter extends CustomPainter {
     required double y,
     required bool stemUp,
     required int flags,
+    double? stemAnchorX,
+    double? stemStartY,
+    double? stemEndY,
   }) {
     final stemPaint = Paint()
       ..color = const Color(0xFF111827)
       ..strokeWidth = ScoreNotationMetrics.stemStrokeWidth;
 
     final stemLength = ScoreNotationMetrics.stemLengthFor(staffLineSpacing);
-    final stemX = stemUp
-        ? x + ScoreNotationMetrics.stemXOffset
-        : x - ScoreNotationMetrics.stemXOffset;
-    final endY = stemUp ? y - stemLength : y + stemLength;
+    final stemX =
+        stemAnchorX ??
+        (stemUp
+            ? x + ScoreNotationMetrics.stemXOffset
+            : x - ScoreNotationMetrics.stemXOffset);
+    final endY = stemEndY ?? (stemUp ? y - stemLength : y + stemLength);
 
-    canvas.drawLine(Offset(stemX, y), Offset(stemX, endY), stemPaint);
+    canvas.drawLine(
+      Offset(stemX, stemStartY ?? y),
+      Offset(stemX, endY),
+      stemPaint,
+    );
 
     // Filled and outlined, so one flag reads as one solid hook (an outline
     // alone looks like two strokes, i.e. like a sixteenth's two flags).
@@ -1237,6 +1880,8 @@ class ScoreNotationPainter extends CustomPainter {
     required double x,
     required double staffTop,
   }) {
+    // A bar rest is drawn as a whole rest in any meter.
+    if (rest.measureRest) rest = rest.copyWith(type: 'whole', dots: 0);
     final type = rest.type.trim().toLowerCase();
     final paint = Paint()
       ..color = const Color(0xFF111827)
@@ -1364,29 +2009,6 @@ class ScoreNotationPainter extends CustomPainter {
     }
   }
 
-  static int _visualSlotCount(List<ScoreSymbol> symbols) {
-    var count = 0;
-    for (final symbol in symbols) {
-      if (symbol is Note && symbol.isChordTone) {
-        continue;
-      }
-      count++;
-    }
-    return math.max(count, 1);
-  }
-
-  static int _visualSlotForIndex(List<ScoreSymbol> symbols, int index) {
-    var slot = -1;
-    for (var i = 0; i <= index; i++) {
-      final symbol = symbols[i];
-      if (symbol is Note && symbol.isChordTone) {
-        continue;
-      }
-      slot++;
-    }
-    return math.max(slot, 0);
-  }
-
   void _drawMeasureNumber(
     Canvas canvas, {
     required String text,
@@ -1458,6 +2080,324 @@ class ScoreNotationPainter extends CustomPainter {
 
   /// Draws a thin vertical line on the far left connecting all staves that
   /// belong to the same system (multi-part scores only).
+  /// How far below the bottom line dynamics and hairpins sit.
+  static const _dynamicsBelow = 22.0;
+
+  /// [mark] centred at ([x], [y]).
+  void _drawDynamic(Canvas canvas, String mark, double x, double y) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: mark,
+        style: const TextStyle(
+          color: Color(0xFF111827),
+          fontSize: 14,
+          fontStyle: FontStyle.italic,
+          fontWeight: FontWeight.w800,
+          fontFamily: ScoreNotationMetrics.textFontFamily,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    painter.paint(
+      canvas,
+      Offset(x - painter.width / 2, y - painter.height / 2),
+    );
+  }
+
+  void _drawMarkShapes(Canvas canvas, List<MarkShape> shapes, Offset at) {
+    const ink = Color(0xFF111827);
+    Offset point((double, double) q) => at + Offset(q.$1, q.$2);
+    for (final shape in shapes) {
+      switch (shape) {
+        case MarkDot(:final x, :final y, :final radius):
+          canvas.drawCircle(point((x, y)), radius, Paint()..color = ink);
+        case MarkLines(:final points, :final width, :final filled):
+          final path = Path()
+            ..moveTo(point(points.first).dx, point(points.first).dy);
+          for (final q in points.skip(1)) {
+            path.lineTo(point(q).dx, point(q).dy);
+          }
+          if (filled) path.close();
+          canvas.drawPath(
+            path,
+            Paint()
+              ..color = ink
+              ..style = filled ? PaintingStyle.fill : PaintingStyle.stroke
+              ..strokeWidth = width
+              ..strokeJoin = StrokeJoin.round,
+          );
+        case MarkCurve(
+          :final start,
+          :final segments,
+          :final width,
+          :final filled,
+        ):
+          final path = Path()..moveTo(point(start).dx, point(start).dy);
+          for (final (c1, c2, end) in segments) {
+            path.cubicTo(
+              point(c1).dx,
+              point(c1).dy,
+              point(c2).dx,
+              point(c2).dy,
+              point(end).dx,
+              point(end).dy,
+            );
+          }
+          if (filled) path.close();
+          canvas.drawPath(
+            path,
+            Paint()
+              ..color = ink
+              ..style = filled ? PaintingStyle.fill : PaintingStyle.stroke
+              ..strokeWidth = width,
+          );
+        case MarkText(:final text, :final x, :final y, :final size):
+          final painter = TextPainter(
+            text: TextSpan(
+              text: text,
+              style: TextStyle(
+                color: ink,
+                fontSize: size,
+                fontStyle: FontStyle.italic,
+                fontWeight: FontWeight.w700,
+                fontFamily: ScoreNotationMetrics.textFontFamily,
+              ),
+            ),
+            textDirection: TextDirection.ltr,
+          )..layout();
+          painter.paint(
+            canvas,
+            point((x, y)) - Offset(painter.width / 2, painter.height / 2),
+          );
+      }
+    }
+  }
+
+  /// Each tuplet's number above its notes, with a bracket unless all of its
+  /// notes are beamed together (as MuseScore shows them).
+  void _drawTuplets(
+    Canvas canvas,
+    List<ScoreSymbol> symbols,
+    Map<int, (Offset, double)> points,
+    Set<int> beamed,
+    double staffTop,
+  ) {
+    var group = <int>[];
+    for (final (i, symbol) in symbols.indexed) {
+      final tuplet = switch (symbol) {
+        Note(isChordTone: true) => null,
+        Note(:final tuplet) || Rest(:final tuplet) => tuplet,
+        _ => null,
+      };
+      if (tuplet == null) continue;
+      if (tuplet.start) group = [];
+      group.add(i);
+      if (!tuplet.stop) continue;
+      final drawn = [for (final k in group) ?points[k]];
+      if (drawn.isEmpty) continue;
+      final x1 = drawn.first.$1.dx - 6;
+      final x2 = drawn.last.$1.dx + 6;
+      final top =
+          math.min(
+            staffTop - 4,
+            drawn.map((p) => p.$1.dy - p.$2).reduce(math.min),
+          ) -
+          6;
+      final label = TextPainter(
+        text: TextSpan(
+          text: '${tuplet.actual}',
+          style: const TextStyle(
+            color: Color(0xFF111827),
+            fontSize: 11,
+            fontStyle: FontStyle.italic,
+            fontWeight: FontWeight.w700,
+            fontFamily: ScoreNotationMetrics.textFontFamily,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final mid = (x1 + x2) / 2;
+      label.paint(
+        canvas,
+        Offset(mid - label.width / 2, top - label.height / 2),
+      );
+      if (!group.every(beamed.contains)) {
+        final ink = Paint()
+          ..color = const Color(0xFF111827)
+          ..strokeWidth = 1;
+        final gap = label.width / 2 + 3;
+        canvas
+          ..drawLine(Offset(x1, top + 5), Offset(x1, top), ink)
+          ..drawLine(Offset(x1, top), Offset(mid - gap, top), ink)
+          ..drawLine(Offset(mid + gap, top), Offset(x2, top), ink)
+          ..drawLine(Offset(x2, top), Offset(x2, top + 5), ink);
+      }
+      group = [];
+    }
+  }
+
+  /// Ties and slurs as thin crescents on the side away from the stems. One
+  /// that crosses into another row is drawn as two halves, each open at the
+  /// row edge.
+  void _drawSpanners(Canvas canvas) {
+    final paint = Paint()..color = const Color(0xFF111827);
+    for (final spanner in spanners) {
+      final a = _notePoints[spanner.from];
+      final b = _notePoints[spanner.to];
+      if (a == null && b == null) continue;
+      if (spanner.kind.isHairpin) {
+        _drawHairpin(canvas, spanner.kind == SpannerKind.crescendo, a, b);
+        continue;
+      }
+      final tie = spanner.kind == SpannerKind.tie;
+      final dir = (a ?? b)!.stemUp ? 1.0 : -1.0; // 1 draws below the heads
+      final lift = tie ? 5.0 : 9.0;
+      Offset start(_NotePoint p) => p.head + Offset(tie ? 5 : 0, dir * lift);
+      Offset end(_NotePoint p) => p.head + Offset(tie ? -5 : 0, dir * lift);
+      void arc(Offset p1, Offset p2) {
+        final length = (p2.dx - p1.dx).abs();
+        if (length < 2) return;
+        final height = tie
+            ? (3 + length * 0.04).clamp(3.0, 7.0)
+            : (length * 0.12).clamp(5.0, 16.0);
+        Offset at(double t, double h) => Offset(
+          p1.dx + (p2.dx - p1.dx) * t,
+          p1.dy + (p2.dy - p1.dy) * t + dir * h,
+        );
+        final outer = height * 1.3;
+        final inner = outer - 1.6;
+        canvas.drawPath(
+          Path()
+            ..moveTo(p1.dx, p1.dy)
+            ..cubicTo(
+              at(.25, outer).dx,
+              at(.25, outer).dy,
+              at(.75, outer).dx,
+              at(.75, outer).dy,
+              p2.dx,
+              p2.dy,
+            )
+            ..cubicTo(
+              at(.75, inner).dx,
+              at(.75, inner).dy,
+              at(.25, inner).dx,
+              at(.25, inner).dy,
+              p1.dx,
+              p1.dy,
+            )
+            ..close(),
+          paint,
+        );
+      }
+
+      if (a != null && b != null && identical(a.row, b.row)) {
+        arc(start(a), end(b));
+        continue;
+      }
+      if (a != null) {
+        final p = start(a);
+        arc(p, Offset(a.row.rowEndX - 2, p.dy));
+      }
+      if (b != null) {
+        final p = end(b);
+        arc(Offset(b.row.contentStartX + 4, p.dy), p);
+      }
+    }
+  }
+
+  /// A hairpin on the dynamics line, from its first note (after a dynamic
+  /// there) to past its last; across a line break each half is open at the
+  /// row edge, half way open.
+  void _drawHairpin(
+    Canvas canvas,
+    bool crescendo,
+    _NotePoint? a,
+    _NotePoint? b,
+  ) {
+    final ink = Paint()
+      ..color = const Color(0xFF111827)
+      ..strokeWidth = 1.2;
+    const open = 4.0;
+    void wedge(_RowMetrics row, double x1, double x2, double from, double to) {
+      if (x2 - x1 < 4) return;
+      final y = row.staffBottom + _dynamicsBelow;
+      canvas
+        ..drawLine(Offset(x1, y - from), Offset(x2, y - to), ink)
+        ..drawLine(Offset(x1, y + from), Offset(x2, y + to), ink);
+    }
+
+    double startX(_NotePoint p) => p.head.dx - 4 + (p.dynamic ? 12 : 0);
+    double endX(_NotePoint p) => p.head.dx + 12;
+    final (narrow, wide) = crescendo ? (0.0, open) : (open, 0.0);
+    if (a != null && b != null && identical(a.row, b.row)) {
+      wedge(a.row, startX(a), endX(b), narrow, wide);
+      return;
+    }
+    const half = open / 2;
+    if (a != null) {
+      wedge(a.row, startX(a), a.row.rowEndX - 2, narrow, half);
+    }
+    if (b != null) {
+      wedge(b.row, b.row.contentStartX + 4, endX(b), half, wide);
+    }
+  }
+
+  /// Braces each joined staff to the one above and runs barlines between
+  /// them.
+  void _drawGrandStaves(Canvas canvas, List<_RowMetrics> metrics) {
+    final ink = Paint()
+      ..color = const Color(0xFF111827)
+      ..strokeWidth = ScoreNotationMetrics.systemConnectorStrokeWidth;
+    final brace = Paint()..color = const Color(0xFF111827);
+    for (final lower in metrics) {
+      if (!joinedParts.contains(lower.partIndex)) continue;
+      final upper = metrics
+          .where(
+            (r) =>
+                r.rowIndex == lower.rowIndex &&
+                r.partIndex == lower.partIndex - 1,
+          )
+          .firstOrNull;
+      if (upper == null) continue;
+      for (var m = 1; m <= lower.measures.length; m++) {
+        final x = lower.contentStartX + m * minMeasureWidth;
+        canvas.drawLine(
+          Offset(x, upper.staffBottom),
+          Offset(x, lower.staffTop),
+          ink,
+        );
+      }
+      canvas.drawLine(
+        Offset(upper.rowStartX, upper.staffTop),
+        Offset(upper.rowStartX, lower.staffBottom),
+        ink,
+      );
+      // A brace: two thin-ended curves meeting at a point in the middle.
+      final top = upper.staffTop;
+      final bottom = lower.staffBottom;
+      final mid = (top + bottom) / 2;
+      final x = upper.rowStartX - 4;
+      const w = 7.0;
+      canvas.drawPath(
+        Path()
+          ..moveTo(x, top)
+          ..cubicTo(x - w * 1.4, top + 6, x + w * 0.2, mid - 8, x - w, mid)
+          ..cubicTo(x + w * 0.2, mid + 8, x - w * 1.4, bottom - 6, x, bottom)
+          ..cubicTo(
+            x - w * 0.9,
+            bottom - 6,
+            x - w * 0.4,
+            mid + 6,
+            x - w - 1.5,
+            mid,
+          )
+          ..cubicTo(x - w * 0.4, mid - 6, x - w * 0.9, top + 6, x, top)
+          ..close(),
+        brace,
+      );
+    }
+  }
+
   void _drawSystemConnectors(Canvas canvas, List<_RowMetrics> metrics) {
     // Group rows by systemIndex
     final Map<int, List<_RowMetrics>> systems = {};
@@ -1658,7 +2598,9 @@ class ScoreNotationPainter extends CustomPainter {
         octave: pitch.$2,
         bottomLineY: staffBottom,
         lineSpacing: staffLineSpacing,
-        clefSign: clefSign,
+        // The orders are written for the plain clef: an octave clef's key
+        // signature sits where the plain clef's does.
+        clefSign: clefSign[0],
         clefLine: clefLine,
       );
 
@@ -1691,6 +2633,35 @@ class ScoreNotationPainter extends CustomPainter {
     required double y,
     required TimeSignature signature,
   }) {
+    if (signature.symbol case final symbol?) {
+      // C or ¢ on the middle line, about two spaces tall.
+      final sign = TextPainter(
+        text: const TextSpan(
+          text: 'C',
+          style: TextStyle(
+            fontSize: ScoreNotationMetrics.timeSignatureFontSize * 1.35,
+            fontFamily: ScoreNotationMetrics.textFontFamily,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF111827),
+            height: 1,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final mid = y + 2 * staffLineSpacing;
+      sign.paint(canvas, Offset(x, mid - sign.height / 2));
+      if (symbol == TimeSymbol.cut) {
+        final cx = x + sign.width / 2;
+        canvas.drawLine(
+          Offset(cx, mid - 2.6 * staffLineSpacing),
+          Offset(cx, mid + 2.6 * staffLineSpacing),
+          Paint()
+            ..color = const Color(0xFF111827)
+            ..strokeWidth = 1.4,
+        );
+      }
+      return;
+    }
     final top = TextPainter(
       text: TextSpan(
         text: '${signature.beats}',
@@ -1734,6 +2705,8 @@ class ScoreNotationPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant ScoreNotationPainter oldDelegate) {
     return oldDelegate.parts != parts ||
+        oldDelegate.lyricParts != lyricParts ||
+        oldDelegate.firstMeasureIndex != firstMeasureIndex ||
         oldDelegate.measuresPerRow != measuresPerRow ||
         oldDelegate.minMeasureWidth != minMeasureWidth ||
         oldDelegate.rowHeight != rowHeight ||
@@ -1743,6 +2716,9 @@ class ScoreNotationPainter extends CustomPainter {
         oldDelegate.selectedMeasureIndex != selectedMeasureIndex ||
         oldDelegate.selectedSymbolIndex != selectedSymbolIndex ||
         !setEquals(oldDelegate.selectedSymbolIndices, selectedSymbolIndices) ||
+        !setEquals(oldDelegate.rangeSymbols, rangeSymbols) ||
+        !setEquals(oldDelegate.joinedParts, joinedParts) ||
+        !listEquals(oldDelegate.spanners, spanners) ||
         oldDelegate.playbackPartIndex != playbackPartIndex ||
         oldDelegate.playbackMeasureIndex != playbackMeasureIndex ||
         oldDelegate.playbackSymbolIndex != playbackSymbolIndex ||
@@ -1865,6 +2841,39 @@ class NotationInsertTarget {
       octave.hashCode;
 }
 
+/// The ending bar [index] of [measures] belongs to: its label where the
+/// ending starts, and whether its bracket closes at this bar.
+({String? label, bool closes})? endingAt(List<Measure> measures, int index) {
+  if (index < 0 || index >= measures.length) return null;
+  for (var k = index; k >= 0; k--) {
+    final m = measures[k];
+    if (k < index && m.endingEnd != null) return null;
+    if (m.endingStart.isNotEmpty) {
+      return (
+        label: k == index ? '${m.endingStart.join(', ')}.' : null,
+        closes: measures[index].endingEnd == EndingEnd.closed,
+      );
+    }
+  }
+  return null;
+}
+
+/// A drawn note, for ties and slurs.
+class _NotePoint {
+  const _NotePoint(
+    this.head, {
+    required this.stemUp,
+    required this.row,
+    this.dynamic = false,
+  });
+  final Offset head;
+  final bool stemUp;
+  final _RowMetrics row;
+
+  /// Whether a dynamic is written under it.
+  final bool dynamic;
+}
+
 class _RowMetrics {
   const _RowMetrics({
     required this.rowIndex,
@@ -1903,6 +2912,6 @@ class _RowMetrics {
     timeInMeasure: timeInMeasure[measureInRow],
   );
 
-  String get clefSign => clef?.sign ?? 'G';
+  String get clefSign => clef?.layoutSign ?? 'G';
   int get clefLine => clef?.line ?? 2;
 }

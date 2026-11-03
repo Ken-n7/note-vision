@@ -14,7 +14,9 @@ import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/model/editor_state_history.dart';
 
-Score reviewScore([List<int> beats = const [4, 2, 4, 4, 3, 4, 4]]) =>
+/// A 4/4 staff with [beats] quarter notes per bar. A 5-beat bar holds a
+/// note detected twice (its F repeated), which the checker offers to remove.
+Score reviewScore([List<int> beats = const [4, 5, 4, 4, 5, 4, 4]]) =>
     NotationReviewService.ensureIdentity(
       Score(
         id: 'review',
@@ -35,7 +37,9 @@ Score reviewScore([List<int> beats = const [4, 2, 4, 4, 3, 4, 4]]) =>
                   symbols: [
                     for (var n = 0; n < beats[m]; n++)
                       Note(
-                        step: ['C', 'D', 'E', 'F', 'G', 'A', 'B'][n % 7],
+                        step: beats[m] == 5 && n == 4
+                            ? 'F'
+                            : ['C', 'D', 'E', 'F', 'G', 'A', 'B'][n % 7],
                         octave: 4,
                         duration: 2,
                         type: 'quarter',

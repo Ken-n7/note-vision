@@ -1,0 +1,9 @@
+# 20_instrument_mix — MuseScore4 4.7.5 vs Note Vision
+## notation: 16/16 MuseScore facts match
+## playback: 7/11 MuseScore facts match, 2 differ in Note Vision
+- @0 key=60 dur=365/96
+- @0 key=60 dur=365/96
+- program 44
+- program 45
++ @0 key=60 dur=4
++ @0 key=60 dur=4

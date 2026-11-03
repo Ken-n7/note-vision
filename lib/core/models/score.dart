@@ -1,14 +1,19 @@
 import 'score_review.dart';
 import 'dart:math' as math;
 
-import 'barline_type.dart';
 import 'clef.dart';
 import 'measure.dart';
 import 'note.dart';
 import 'part.dart';
+import 'spanner.dart';
 import 'rest.dart';
 import 'score_symbol.dart';
 import 'time_signature.dart';
+import 'musicxml_source.dart';
+
+export 'spanner.dart';
+
+enum ScorePlaybackLayout { sequentialStaves, simultaneousParts }
 
 class Score {
   static const Object _keep = Object();
@@ -19,6 +24,13 @@ class Score {
   final List<Part> parts;
   final List<ScoreSourcePage> sourcePages;
   final List<ScoreReviewEntry> reviewHistory;
+  final MusicXmlSource? musicXmlSource;
+  final ScorePlaybackLayout? _playbackLayout;
+  ScorePlaybackLayout get playbackLayout =>
+      _playbackLayout ??
+      (musicXmlSource == null
+          ? ScorePlaybackLayout.sequentialStaves
+          : ScorePlaybackLayout.simultaneousParts);
 
   const Score({
     required this.id,
@@ -27,7 +39,18 @@ class Score {
     required this.parts,
     this.sourcePages = const [],
     this.reviewHistory = const [],
-  });
+    this.musicXmlSource,
+    ScorePlaybackLayout? playbackLayout,
+    this.spanners = const [],
+    this.concertPitch = false,
+  }) : _playbackLayout = playbackLayout;
+
+  /// Transposing parts are written at sounding pitch (MuseScore Studio's
+  /// Concert pitch). Off, they are written as their players read them.
+  final bool concertPitch;
+
+  /// Ties and slurs between notes.
+  final List<Spanner> spanners;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -38,12 +61,31 @@ class Score {
       'sourcePages': sourcePages.map((p) => p.toJson()).toList(),
     if (reviewHistory.isNotEmpty)
       'reviewHistory': reviewHistory.map((e) => e.toJson()).toList(),
+    if (musicXmlSource != null) 'musicXmlSource': musicXmlSource!.toJson(),
+    if (_playbackLayout != null || musicXmlSource != null)
+      'playbackLayout': playbackLayout.name,
+    if (spanners.isNotEmpty)
+      'spanners': spanners.map((s) => s.toJson()).toList(),
+    if (concertPitch) 'concertPitch': true,
   };
 
   factory Score.fromJson(Map<String, dynamic> json) => Score(
     id: json['id'] as String,
     title: json['title'] as String,
     composer: (json['composer'] as String?) ?? '',
+    concertPitch: json['concertPitch'] == true,
+    playbackLayout: json['playbackLayout'] == null
+        ? null
+        : ScorePlaybackLayout.values.firstWhere(
+            (v) => v.name == json['playbackLayout'],
+            orElse: () =>
+                throw const FormatException('Unknown score playback layout'),
+          ),
+    musicXmlSource: json['musicXmlSource'] == null
+        ? null
+        : MusicXmlSource.fromJson(
+            Map<String, dynamic>.from(json['musicXmlSource'] as Map),
+          ),
     sourcePages: (json['sourcePages'] as List? ?? [])
         .map(
           (p) => ScoreSourcePage.fromJson(Map<String, dynamic>.from(p as Map)),
@@ -57,6 +99,9 @@ class Score {
     parts: (json['parts'] as List<dynamic>)
         .map((p) => Part.fromJson(p as Map<String, dynamic>))
         .toList(),
+    spanners: (json['spanners'] as List? ?? [])
+        .map((s) => Spanner.fromJson(Map<String, dynamic>.from(s as Map)))
+        .toList(),
   );
 
   Score copyWith({
@@ -65,14 +110,33 @@ class Score {
     List<Part>? parts,
     List<ScoreSourcePage>? sourcePages,
     List<ScoreReviewEntry>? reviewHistory,
+    MusicXmlSource? musicXmlSource,
+    ScorePlaybackLayout? playbackLayout,
+    List<Spanner>? spanners,
+    bool? concertPitch,
   }) => Score(
     id: id,
+    concertPitch: concertPitch ?? this.concertPitch,
     title: title ?? this.title,
     composer: composer ?? this.composer,
     parts: parts ?? this.parts,
     sourcePages: sourcePages ?? this.sourcePages,
     reviewHistory: reviewHistory ?? this.reviewHistory,
+    musicXmlSource: musicXmlSource ?? this.musicXmlSource,
+    playbackLayout: playbackLayout ?? _playbackLayout,
+    spanners: spanners ?? this.spanners,
   );
+
+  /// The editable projection excludes retained source and review decisions.
+  /// It is the baseline against which preservation-aware export compares edits.
+  Map<String, dynamic> notationProjection() => {
+    'id': id,
+    'title': title,
+    'composer': composer,
+    'parts': parts.map((p) => p.toJson()).toList(),
+    if (spanners.isNotEmpty)
+      'spanners': spanners.map((s) => s.toJson()).toList(),
+  };
 
   int get partCount => parts.length;
 
@@ -99,11 +163,7 @@ class Score {
         }
       }
       changed |= partChanged;
-      updatedParts.add(
-        partChanged
-            ? Part(id: part.id, name: part.name, measures: measures)
-            : part,
-      );
+      updatedParts.add(partChanged ? part.copyWith(measures: measures) : part);
     }
     return changed ? copyWith(parts: updatedParts) : this;
   }
@@ -200,17 +260,14 @@ class Score {
         continue;
       }
       final sp = other.parts[i];
-      final existingCount = cp.measures.length;
       updatedParts.add(
-        Part(
-          id: cp.id,
-          name: cp.name,
+        cp.copyWith(
           measures: [
             ...cp.measures,
             for (int j = 0; j < sp.measures.length; j++)
               _copyMeasure(
                 sp.measures[j],
-                number: existingCount + j + 1,
+                number: (cp.measures.lastOrNull?.number ?? 0) + j + 1,
                 startsNewPage: j == 0, // each scanned page starts a new page
               ),
           ],
@@ -246,11 +303,7 @@ class Score {
         Measure(number: insertAt + 1, symbols: const []),
       );
 
-      updatedParts[pi] = Part(
-        id: part.id,
-        name: part.name,
-        measures: _renumberMeasures(measures),
-      );
+      updatedParts[pi] = part.copyWith(measures: _renumberMeasures(measures));
     }
 
     return copyWith(parts: updatedParts);
@@ -270,15 +323,25 @@ class Score {
       final measures = List<Measure>.from(part.measures)
         ..removeAt(measureIndex);
 
-      updatedParts[pi] = Part(
-        id: part.id,
-        name: part.name,
-        measures: _renumberMeasures(measures),
-      );
+      updatedParts[pi] = part.copyWith(measures: _renumberMeasures(measures));
     }
 
     return copyWith(parts: updatedParts);
   }
+
+  /// Leaves the bar at [measureIndex] out of the bar count (a pickup) in
+  /// every part, or counts it again, renumbering the bars.
+  Score setMeasureImplicit(int measureIndex, bool implicit) => copyWith(
+    parts: [
+      for (final part in parts)
+        part.copyWith(
+          measures: _renumberMeasures([
+            for (final (i, m) in part.measures.indexed)
+              i == measureIndex ? m.copyWith(implicit: implicit) : m,
+          ]),
+        ),
+    ],
+  );
 
   Score reorderSymbol(
     int partIndex,
@@ -330,19 +393,17 @@ class Score {
     final updatedMeasures = List<Measure>.from(part.measures);
     updatedMeasures[measureIndex] = updatedMeasure;
 
-    updatedParts[partIndex] = Part(
-      id: part.id,
-      name: part.name,
-      measures: updatedMeasures,
-    );
+    updatedParts[partIndex] = part.copyWith(measures: updatedMeasures);
 
     return copyWith(parts: updatedParts);
   }
 
+  /// Numbers bars from 1 in order; a pickup (implicit bar) is not counted
+  /// and takes the number before it (0 at the start), as MuseScore numbers.
   List<Measure> _renumberMeasures(List<Measure> measures) {
+    var n = 0;
     return [
-      for (int i = 0; i < measures.length; i++)
-        _copyMeasure(measures[i], number: i + 1),
+      for (final m in measures) _copyMeasure(m, number: m.implicit ? n : ++n),
     ];
   }
 
@@ -357,25 +418,23 @@ class Score {
     Object? leftBarlineType = _keep,
     Object? rightBarlineType = _keep,
   }) {
-    return Measure(
-      number: number ?? measure.number,
-      reviewId: measure.reviewId,
-      source: measure.source,
-      clef: identical(clef, _keep) ? measure.clef : clef as Clef?,
-      timeSignature: identical(timeSignature, _keep)
-          ? measure.timeSignature
-          : timeSignature as TimeSignature?,
-      keySignature: measure.keySignature,
-      symbols: symbols ?? measure.symbols,
-      startsNewPage: startsNewPage ?? measure.startsNewPage,
-      startsNewSystem: startsNewSystem ?? measure.startsNewSystem,
-      leftBarlineType: identical(leftBarlineType, _keep)
-          ? measure.leftBarlineType
-          : leftBarlineType as BarlineType?,
-      rightBarlineType: identical(rightBarlineType, _keep)
-          ? measure.rightBarlineType
-          : rightBarlineType as BarlineType?,
+    var copy = measure.copyWith(
+      number: number,
+      symbols: symbols,
+      startsNewPage: startsNewPage,
+      startsNewSystem: startsNewSystem,
     );
+    if (!identical(clef, _keep)) copy = copy.copyWith(clef: clef);
+    if (!identical(timeSignature, _keep)) {
+      copy = copy.copyWith(timeSignature: timeSignature);
+    }
+    if (!identical(leftBarlineType, _keep)) {
+      copy = copy.copyWith(leftBarlineType: leftBarlineType);
+    }
+    if (!identical(rightBarlineType, _keep)) {
+      copy = copy.copyWith(rightBarlineType: rightBarlineType);
+    }
+    return copy;
   }
 
   @override

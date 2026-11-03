@@ -1,3 +1,5 @@
+import '../editor/presentation/editor_layout_policy.dart';
+import '../../core/widgets/score_notation/engraving_layout.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
@@ -10,8 +12,14 @@ import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/models/time_signature.dart';
+import 'package:note_vision/core/widgets/score_notation/mark_glyphs.dart';
+import 'package:note_vision/core/widgets/score_notation/lyric_layout.dart';
+import 'package:note_vision/core/widgets/score_notation/annotation_layout.dart';
+import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart'
+    show endingAt, graceScale;
 import 'package:note_vision/core/widgets/score_notation/score_notation_metrics.dart';
 import 'package:note_vision/core/widgets/score_notation/staff_pitch_mapper.dart';
+import 'package:note_vision/core/widgets/score_notation/voice_layout.dart';
 import 'package:pdf/pdf.dart';
 
 /// Renders a [Score] as an engraved A4 PDF and returns the raw bytes.
@@ -19,7 +27,10 @@ import 'package:pdf/pdf.dart';
 /// Uses the same pitch-to-position math as [ScoreNotationPainter] so that
 /// the PDF output matches the editor canvas layout.
 class PdfScoreRenderer {
-  const PdfScoreRenderer({this.compress = true});
+  const PdfScoreRenderer({this.compress = true}) : _policy = null;
+  PdfScoreRenderer._configured(Score score, {required this.compress})
+    : _policy = EditorLayoutPolicy.forScore(score);
+  final EditorLayoutPolicy? _policy;
 
   /// PDF stream compression. Tests can disable this to inspect generated
   /// content streams without changing production output.
@@ -28,8 +39,8 @@ class PdfScoreRenderer {
   // ── Page & layout constants ──────────────────────────────────────────────
   // These mirror EditorLayoutPolicy.standard so exported pages use the same
   // measure grouping as the editor canvas.
-  static const double _editorPageW = 760.0;
-  static const double _editorPageH = 1120.0;
+  double get _editorPageW => _policy?.pageWidth ?? 760.0;
+  double get _editorPageH => _policy?.pageHeight ?? 1120.0;
   static const double _editorPadX = 16.0;
   static const double _editorPadY = 28.0;
   static const double _editorRowH = 140.0;
@@ -37,25 +48,25 @@ class PdfScoreRenderer {
   static const double _editorLineSpacing =
       ScoreNotationMetrics.staffLineSpacing;
   static const double _editorStaffTopOffset = 28.0;
-  static const int _measuresPerSystem = 4;
+  int get _measuresPerSystem => _policy?.measuresPerRow ?? 4;
   static const int _baseRowsPerPage = 5;
   static const double _editorFirstPageHeaderOffset = 88.0;
 
-  static final double _scale = PdfPageFormat.a4.height / _editorPageH;
-  static final double _pageX0 =
-      (PdfPageFormat.a4.width - _editorPageW * _scale) / 2;
-  static final double _pageY0 =
-      (PdfPageFormat.a4.height - _editorPageH * _scale) / 2;
-  static final double _padX = _editorPadX * _scale;
-  static final double _padY = _editorPadY * _scale;
-  static final double _prefixW = _editorPrefixW * _scale;
-  static final double _mw =
+  double get _scale => math.min(
+    PdfPageFormat.a4.height / _editorPageH,
+    PdfPageFormat.a4.width / _editorPageW,
+  );
+  double get _pageX0 => (PdfPageFormat.a4.width - _editorPageW * _scale) / 2;
+  double get _pageY0 => (PdfPageFormat.a4.height - _editorPageH * _scale) / 2;
+  double get _padX => _editorPadX * _scale;
+  double get _padY => _editorPadY * _scale;
+  double get _prefixW => _editorPrefixW * _scale;
+  double get _mw =>
       ((_editorPageW - _editorPadX * 2 - _editorPrefixW) / _measuresPerSystem) *
       _scale;
-  static final double _ls = _editorLineSpacing * _scale;
-  static final double _staffH = ScoreNotationMetrics.staffHeightFor(_ls);
-  static final double _firstPageHeaderOffset =
-      _editorFirstPageHeaderOffset * _scale;
+  double get _ls => _editorLineSpacing * _scale;
+  double get _staffH => ScoreNotationMetrics.staffHeightFor(_ls);
+  double get _firstPageHeaderOffset => _editorFirstPageHeaderOffset * _scale;
 
   static const double _titleFontSize = 20.0;
   static const double _composerFontSize = 10.5;
@@ -67,7 +78,10 @@ class PdfScoreRenderer {
   // ── Public API ────────────────────────────────────────────────────────────
 
   /// Returns raw PDF bytes for [score].
-  Future<Uint8List> render(Score score) async {
+  Future<Uint8List> render(Score score) =>
+      PdfScoreRenderer._configured(score, compress: compress)._render(score);
+
+  Future<Uint8List> _render(Score score) async {
     final doc = PdfDocument(compress: compress);
     final font = PdfTtfFont(
       doc,
@@ -119,7 +133,8 @@ class PdfScoreRenderer {
   }
 
   List<PdfPageLayoutInfo> debugPageLayoutForTesting(Score score) {
-    return _paginate(score)
+    return PdfScoreRenderer._configured(score, compress: compress)
+        ._paginate(score)
         .map(
           (page) => PdfPageLayoutInfo(
             firstMeasureIndex: page.firstMeasureIndex,
@@ -132,7 +147,10 @@ class PdfScoreRenderer {
   }
 
   List<List<Measure>> debugPageSliceForTesting(Score score, int pageIndex) {
-    final pages = _paginate(score);
+    final pages = PdfScoreRenderer._configured(
+      score,
+      compress: compress,
+    )._paginate(score);
     if (pageIndex < 0 || pageIndex >= pages.length) {
       return const <List<Measure>>[];
     }
@@ -167,10 +185,17 @@ class PdfScoreRenderer {
 
   List<_PageData> _paginate(Score score) {
     final partCount = score.parts.length;
-    final rowsPerPage = _rowsPerPageForPartCount(partCount);
-    final referenceMeasures = score.parts.isEmpty
-        ? const <Measure>[]
-        : score.parts.first.measures;
+    final rowsPerPage =
+        _policy?.rowsPerPage ??
+        _rowsPerPageForPartCount(
+          partCount,
+          extraHeight:
+              (LyricLayout.extraHeight(score.parts.map((p) => p.measures)) +
+              AnnotationLayout.extraHeight(
+                score.parts.map((p) => p.measures).toList(),
+              )),
+        );
+    final referenceMeasures = layoutMeasuresForScore(score);
     final pageStarts = _pageStartIndices(
       referenceMeasures,
       rowsPerPage: rowsPerPage,
@@ -205,35 +230,29 @@ class PdfScoreRenderer {
     return result;
   }
 
-  static int _rowsPerPageForPartCount(int partCount) {
+  int _rowsPerPageForPartCount(int partCount, {double extraHeight = 0}) {
     final normalizedPartCount = math.max(1, partCount);
-    final availableHeight = _editorPageH - (_editorPadY * 2);
+    final availableHeight =
+        _editorPageH - (_editorPadY * 2) - _editorFirstPageHeaderOffset;
     final maxRowsThatFit =
-        (availableHeight / (normalizedPartCount * _editorRowH)).floor();
+        (availableHeight / (normalizedPartCount * (_editorRowH + extraHeight)))
+            .floor();
     return math.max(1, math.min(_baseRowsPerPage, maxRowsThatFit));
   }
 
-  static List<int> _pageStartIndices(
+  List<int> _pageStartIndices(
     List<Measure> measures, {
     required int rowsPerPage,
   }) {
-    if (measures.isEmpty) return const [0];
-
-    final hasExplicitBreaks = measures.any((m) => m.startsNewPage);
-    if (!hasExplicitBreaks) {
-      final measuresPerPage = _measuresPerSystem * rowsPerPage;
-      final count = math.max(
-        1,
-        (measures.length + measuresPerPage - 1) ~/ measuresPerPage,
-      );
-      return List.generate(count, (i) => i * measuresPerPage);
-    }
-
-    final indices = <int>[0];
-    for (var i = 1; i < measures.length; i++) {
-      if (measures[i].startsNewPage) indices.add(i);
-    }
-    return indices;
+    return pageStartIndicesForMeasures(
+      measures,
+      layoutPolicy:
+          _policy ??
+          EditorLayoutPolicy(
+            measuresPerRow: _measuresPerSystem,
+            rowsPerPage: rowsPerPage,
+          ),
+    );
   }
 
   List<List<Measure>> _sliceScoreForPage(Score score, _PageData page) {
@@ -270,16 +289,10 @@ class PdfScoreRenderer {
     final slice = <Measure>[];
     for (var i = start; i < end; i++) {
       final measure = measures[i];
-      final normalized = Measure(
-        number: measure.number,
+      final normalized = measure.copyWith(
         clef: measure.clef ?? activeClef,
         timeSignature: measure.timeSignature ?? activeTimeSignature,
         keySignature: measure.keySignature ?? activeKeySignature,
-        symbols: measure.symbols,
-        startsNewPage: measure.startsNewPage,
-        startsNewSystem: measure.startsNewSystem,
-        leftBarlineType: measure.leftBarlineType,
-        rightBarlineType: measure.rightBarlineType,
       );
       slice.add(normalized);
       activeClef = normalized.clef;
@@ -303,8 +316,14 @@ class PdfScoreRenderer {
     required bool isFirstPage,
   }) {
     final pageH = fmt.height;
+    final allParts = EngravingLayout.forScore(score).parts;
     final partCount = score.parts.length;
     final pageParts = _sliceScoreForPage(score, page);
+    final engraving = EngravingLayout(
+      pageParts,
+      score: score,
+      firstMeasure: page.firstMeasureIndex,
+    );
     final maxMeasures = pageParts.fold(0, (m, p) => math.max(m, p.length));
     final systemCount = maxMeasures == 0
         ? 0
@@ -315,6 +334,18 @@ class PdfScoreRenderer {
       _drawScoreHeader(g, score, font, fontBold, fmt);
     }
 
+    final clearance = EngravingLayout.forScore(score).clearance;
+    final rowHeight =
+        clearance.$1 +
+        clearance.$2 +
+        _editorRowH +
+        (LyricLayout.extraHeight(allParts) +
+            AnnotationLayout.extraHeight(allParts));
+    final above =
+        clearance.$1 +
+        LyricLayout.aboveHeight(allParts) +
+        AnnotationLayout.aboveHeight(allParts);
+    final notePoints = <String, _PdfNotePoint>{};
     for (var s = 0; s < systemCount; s++) {
       final startM = s * page.measuresPerSystem;
 
@@ -331,26 +362,465 @@ class PdfScoreRenderer {
         // staffTop = top staff line in PDF coords (y from bottom).
         final editorStaffTop =
             _editorPadY +
-            s * partCount * _editorRowH +
-            pi * _editorRowH +
+            s * partCount * rowHeight +
+            pi * rowHeight +
+            above +
             _editorStaffTopOffset;
         final staffTop =
             pageH - _pageY0 - editorStaffTop * _scale - headerOffset;
 
+        final joined = pi > 0 && score.parts[pi].joinsPrevious;
         _drawStaffRow(
           g,
           font,
           fontBold,
           musicFont,
+          placements: [
+            for (var i = startM; i < endM; i++)
+              engraving.place(
+                i,
+                _mw / _scale,
+                page.measuresPerSystem,
+                _editorPrefixW,
+              ),
+          ],
+          partIndex: pi,
           pageMeasures: partMeasures,
           rowStart: startM,
           rowMeasures: rowMeasures,
           staffTop: staffTop,
           clefSign: _clefSign(rowMeasures),
           clefLine: _clefLine(rowMeasures),
+          numberBars: !joined,
+          topStaff: pi == 0,
+          tabTuning: score.parts[pi].isTab ? score.parts[pi].tabTuning : null,
+          // The staves of the same instrument above and below, for notes
+          // drawn across staves.
+          crossStaves: {
+            for (final move in [-1, 1])
+              if (pi + move >= 0 &&
+                  pi + move < partCount &&
+                  startM < pageParts[pi + move].length &&
+                  (move > 0
+                      ? score.parts[pi + move].joinsPrevious
+                      : score.parts[pi].joinsPrevious))
+                move: (
+                  top: staffTop - move * rowHeight * _scale,
+                  sign: _clefSign(
+                    pageParts[pi + move].sublist(
+                      startM,
+                      math.min(endM, pageParts[pi + move].length),
+                    ),
+                  ),
+                  line: _clefLine(
+                    pageParts[pi + move].sublist(
+                      startM,
+                      math.min(endM, pageParts[pi + move].length),
+                    ),
+                  ),
+                ),
+          },
+          notePoints: notePoints,
         );
+        for (final (i, m) in rowMeasures.indexed) {
+          final annotationTexts = AnnotationLayout.build(
+            parts: allParts,
+            part: pi,
+            measure: page.firstMeasureIndex + startM + i,
+            visible: m,
+            startX: _editorPadX + _editorPrefixW + i * _mw / _scale,
+            width: _mw / _scale,
+            staffTop: 0,
+            staffBottom: _staffH / _scale,
+            inset: ScoreNotationMetrics.laneInset(
+              timeInMeasure: ScoreNotationMetrics.timeSignatureInMeasure(
+                partMeasures,
+                startM + i,
+                measureInRow: i,
+                rowPrefixWidth: _editorPrefixW,
+              ),
+            ),
+            placement: engraving.place(
+              startM + i,
+              _mw / _scale,
+              page.measuresPerSystem,
+              _editorPrefixW,
+            ),
+            lyricAbove: LyricLayout.aboveHeight(allParts),
+          );
+          for (final t in annotationTexts) {
+            final x = _pageX0 + t.x * _scale, y = staffTop - t.y * _scale;
+            _text(
+              g,
+              font,
+              AnnotationLayout.fontSize * _scale,
+              t.annotation.label,
+              x,
+              y,
+            );
+            if (t.annotation.kind == AnnotationKind.rehearsal) {
+              final w =
+                  font.stringMetrics(t.annotation.label).width *
+                  AnnotationLayout.fontSize *
+                  _scale;
+              g
+                ..setColor(_ink)
+                ..setLineWidth(_scale)
+                ..drawRect(
+                  x - 4 * _scale,
+                  y - 4 * _scale,
+                  w + 8 * _scale,
+                  20 * _scale,
+                )
+                ..strokePath();
+            }
+          }
+        }
+        final lyricDrawing = LyricLayout.build(
+          notes: LyricLayout.anchors(
+            measures: score.parts[pi].measures,
+            pageMeasures: partMeasures,
+            firstMeasure: page.firstMeasureIndex,
+            perRow: page.measuresPerSystem,
+            contentX: _editorPadX + _editorPrefixW,
+            measureWidth: _mw / _scale,
+            prefixWidth: _editorPrefixW,
+            engraving: engraving,
+            part: pi,
+          ),
+          aboveClearance: clearance.$1,
+          belowClearance: clearance.$2,
+          system: s,
+          staffTop: 0,
+          staffBottom: ScoreNotationMetrics.staffHeightFor(_editorLineSpacing),
+          left: _editorPadX + _editorPrefixW,
+          right:
+              _editorPadX +
+              _editorPrefixW +
+              rowMeasures.length * _mw / _scale -
+              4,
+          textWidth: (text) =>
+              font.stringMetrics(text).width * LyricLayout.fontSize,
+        );
+        for (final t in lyricDrawing.texts) {
+          _text(
+            g,
+            font,
+            LyricLayout.fontSize * _scale,
+            t.text,
+            _pageX0 + t.x * _scale,
+            staffTop - t.y * _scale,
+          );
+        }
+        for (final line in lyricDrawing.lines) {
+          _line(
+            g,
+            _pageX0 + line.x1 * _scale,
+            staffTop - line.y * _scale,
+            _pageX0 + line.x2 * _scale,
+            staffTop - line.y * _scale,
+            0.8 * _scale,
+          );
+        }
+        if (joined) {
+          _drawGrandStaff(
+            g,
+            upperTop: staffTop + rowHeight * _scale,
+            lowerTop: staffTop,
+            measures: rowMeasures.length,
+          );
+        }
       }
     }
+    _drawSpanners(g, score.spanners, notePoints);
+  }
+
+  /// How far below the bottom line dynamics and hairpins sit.
+  double get _dynamicsBelow => 22 * _scale;
+
+  /// [mark] centred at ([x], [y]), as in the editor.
+  void _drawDynamic(
+    PdfGraphics g,
+    PdfFont font,
+    String mark,
+    double x,
+    double y,
+  ) {
+    final size = 14 * _scale;
+    final width = font.stringMetrics(mark).width * size;
+    _text(g, font, size, mark, x - width / 2, y - size * 0.35);
+  }
+
+  /// The editor's mark shapes, scaled, with y flipped (PDF y points up).
+  void _drawMarkShapes(
+    PdfGraphics g,
+    PdfFont font,
+    List<MarkShape> shapes,
+    double x,
+    double y,
+  ) {
+    double px(double dx) => x + dx * _scale;
+    double py(double dy) => y - dy * _scale;
+    g.setColor(_ink);
+    for (final shape in shapes) {
+      switch (shape) {
+        case MarkDot(x: final dx, y: final dy, :final radius):
+          g
+            ..drawEllipse(px(dx), py(dy), radius * _scale, radius * _scale)
+            ..fillPath();
+        case MarkLines(:final points, :final width, :final filled):
+          g.moveTo(px(points.first.$1), py(points.first.$2));
+          for (final (dx, dy) in points.skip(1)) {
+            g.lineTo(px(dx), py(dy));
+          }
+          if (filled) {
+            g
+              ..closePath()
+              ..fillPath();
+          } else {
+            g
+              ..setLineWidth(width * _scale)
+              ..strokePath();
+          }
+        case MarkCurve(
+          :final start,
+          :final segments,
+          :final width,
+          :final filled,
+        ):
+          g.moveTo(px(start.$1), py(start.$2));
+          for (final (c1, c2, end) in segments) {
+            g.curveTo(
+              px(c1.$1),
+              py(c1.$2),
+              px(c2.$1),
+              py(c2.$2),
+              px(end.$1),
+              py(end.$2),
+            );
+          }
+          if (filled) {
+            g
+              ..closePath()
+              ..fillPath();
+          } else {
+            g
+              ..setLineWidth(width * _scale)
+              ..strokePath();
+          }
+        case MarkText(:final text, x: final dx, y: final dy, :final size):
+          final scaled = size * _scale;
+          final width = font.stringMetrics(text).width * scaled;
+          _text(
+            g,
+            font,
+            scaled,
+            text,
+            px(dx) - width / 2,
+            py(dy) - scaled * 0.35,
+          );
+      }
+    }
+  }
+
+  /// Hairpins as in the editor (PDF y points up).
+  void _drawHairpin(
+    PdfGraphics g,
+    bool crescendo,
+    _PdfNotePoint? a,
+    _PdfNotePoint? b,
+  ) {
+    final open = 4 * _scale;
+    final width = 1.2 * _scale;
+    void wedge(double rowTop, double x1, double x2, double from, double to) {
+      if (x2 - x1 < 4 * _scale) return;
+      final y = rowTop - _staffH - _dynamicsBelow;
+      _line(g, x1, y + from, x2, y + to, width);
+      _line(g, x1, y - from, x2, y - to, width);
+    }
+
+    double startX(_PdfNotePoint p) =>
+        p.x - 4 * _scale + (p.dynamic ? 12 * _scale : 0);
+    double endX(_PdfNotePoint p) => p.x + 12 * _scale;
+    final (narrow, wide) = crescendo ? (0.0, open) : (open, 0.0);
+    if (a != null && b != null && a.rowTop == b.rowTop) {
+      wedge(a.rowTop, startX(a), endX(b), narrow, wide);
+      return;
+    }
+    final half = open / 2;
+    if (a != null) {
+      wedge(a.rowTop, startX(a), a.rowEndX - 2 * _scale, narrow, half);
+    }
+    if (b != null) {
+      wedge(b.rowTop, b.rowStartX + 4 * _scale, endX(b), half, wide);
+    }
+  }
+
+  /// Tuplet numbers and brackets as in the editor (PDF y points up).
+  void _drawTuplets(
+    PdfGraphics g,
+    PdfFont font,
+    List<ScoreSymbol> symbols,
+    List<double> xs,
+    List<double> ys, {
+    required bool Function(int) stemUp,
+    required Set<int> beamed,
+    required double staffTop,
+  }) {
+    var group = <int>[];
+    for (final (i, symbol) in symbols.indexed) {
+      final tuplet = switch (symbol) {
+        Note(isChordTone: true) => null,
+        Note(:final tuplet) || Rest(:final tuplet) => tuplet,
+        _ => null,
+      };
+      if (tuplet == null) continue;
+      if (tuplet.start) group = [];
+      group.add(i);
+      if (!tuplet.stop) continue;
+      final x1 = xs[group.first] - 6 * _scale;
+      final x2 = xs[group.last] + 6 * _scale;
+      var top = staffTop + 4 * _scale;
+      for (final k in group) {
+        final reach = symbols[k] is Rest
+            ? 10 * _scale
+            : stemUp(k)
+            ? ScoreNotationMetrics.stemLengthFor(_ls)
+            : 8 * _scale;
+        top = math.max(top, ys[k] + reach);
+      }
+      top += 6 * _scale;
+      final size = 11 * _scale;
+      final label = '${tuplet.actual}';
+      final width = font.stringMetrics(label).width * size;
+      final mid = (x1 + x2) / 2;
+      _text(g, font, size, label, mid - width / 2, top - size * 0.35);
+      if (!group.every(beamed.contains)) {
+        final w = 1 * _scale;
+        final gap = width / 2 + 3 * _scale;
+        _line(g, x1, top - 5 * _scale, x1, top, w);
+        _line(g, x1, top, mid - gap, top, w);
+        _line(g, mid + gap, top, x2, top, w);
+        _line(g, x2, top, x2, top - 5 * _scale, w);
+      }
+      group = [];
+    }
+  }
+
+  /// Ties and slurs as in the editor (PDF y points up): thin crescents on
+  /// the side away from the stems, split into halves across rows.
+  void _drawSpanners(
+    PdfGraphics g,
+    List<Spanner> spanners,
+    Map<String, _PdfNotePoint> points,
+  ) {
+    for (final spanner in spanners) {
+      final a = points[spanner.from];
+      final b = points[spanner.to];
+      if (a == null && b == null) continue;
+      if (spanner.kind.isHairpin) {
+        _drawHairpin(g, spanner.kind == SpannerKind.crescendo, a, b);
+        continue;
+      }
+      final tie = spanner.kind == SpannerKind.tie;
+      final dir = (a ?? b)!.stemUp ? -1.0 : 1.0; // -1 draws below the heads
+      final lift = (tie ? 5.0 : 9.0) * _scale;
+      final inset = (tie ? 5.0 : 0.0) * _scale;
+      void arc(double x1, double y1, double x2, double y2) {
+        final length = (x2 - x1).abs();
+        if (length < 2 * _scale) return;
+        final height =
+            (tie
+                ? (3 + length / _scale * 0.04).clamp(3.0, 7.0)
+                : (length / _scale * 0.12).clamp(5.0, 16.0)) *
+            _scale *
+            1.3;
+        final inner = height - 1.6 * _scale;
+        double x(double t) => x1 + (x2 - x1) * t;
+        double y(double t, double h) => y1 + (y2 - y1) * t + dir * h;
+        g
+          ..setColor(_ink)
+          ..moveTo(x1, y1)
+          ..curveTo(x(.25), y(.25, height), x(.75), y(.75, height), x2, y2)
+          ..curveTo(x(.75), y(.75, inner), x(.25), y(.25, inner), x1, y1)
+          ..closePath()
+          ..fillPath();
+      }
+
+      if (a != null && b != null && a.rowTop == b.rowTop) {
+        arc(a.x + inset, a.y + dir * lift, b.x - inset, b.y + dir * lift);
+        continue;
+      }
+      if (a != null) {
+        final y = a.y + dir * lift;
+        arc(a.x + inset, y, a.rowEndX - 2 * _scale, y);
+      }
+      if (b != null) {
+        final y = b.y + dir * lift;
+        arc(b.rowStartX + 4 * _scale, y, b.x - inset, y);
+      }
+    }
+  }
+
+  /// Braces a joined staff to the one above and runs barlines between them,
+  /// as in the editor (PDF y points up).
+  void _drawGrandStaff(
+    PdfGraphics g, {
+    required double upperTop,
+    required double lowerTop,
+    required int measures,
+  }) {
+    final rowStartX = _pageX0 + _padX;
+    final contentStartX = rowStartX + _prefixW;
+    final upperBottom = upperTop - _staffH;
+    final lowerBottom = lowerTop - _staffH;
+    final width = ScoreNotationMetrics.barlineStrokeWidth * _scale;
+    for (var m = 0; m <= measures; m++) {
+      final x = contentStartX + m * _mw;
+      _line(g, x, upperBottom, x, lowerTop, width);
+    }
+    _line(g, rowStartX, upperTop, rowStartX, lowerBottom, width);
+    final mid = (upperTop + lowerBottom) / 2;
+    final x = rowStartX - 4 * _scale;
+    final w = 7 * _scale;
+    final s = _scale;
+    g
+      ..setColor(_ink)
+      ..moveTo(x, upperTop)
+      ..curveTo(
+        x - w * 1.4,
+        upperTop - 6 * s,
+        x + w * 0.2,
+        mid + 8 * s,
+        x - w,
+        mid,
+      )
+      ..curveTo(
+        x + w * 0.2,
+        mid - 8 * s,
+        x - w * 1.4,
+        lowerBottom + 6 * s,
+        x,
+        lowerBottom,
+      )
+      ..curveTo(
+        x - w * 0.9,
+        lowerBottom + 6 * s,
+        x - w * 0.4,
+        mid - 6 * s,
+        x - w - 1.5 * s,
+        mid,
+      )
+      ..curveTo(
+        x - w * 0.4,
+        mid + 6 * s,
+        x - w * 0.9,
+        upperTop - 6 * s,
+        x,
+        upperTop,
+      )
+      ..closePath()
+      ..fillPath();
   }
 
   void _drawScoreHeader(
@@ -406,11 +876,18 @@ class PdfScoreRenderer {
     PdfFont fontBold,
     PdfFont musicFont, {
     required List<Measure> pageMeasures,
+    required List<BarPlacement> placements,
+    required int partIndex,
     required int rowStart,
     required List<Measure> rowMeasures,
     required double staffTop,
     required String clefSign,
     required int clefLine,
+    bool numberBars = true,
+    bool topStaff = true,
+    Map<String, _PdfNotePoint>? notePoints,
+    List<int>? tabTuning,
+    Map<int, ({double top, String sign, int line})> crossStaves = const {},
   }) {
     // staffTop = y of top staff line (PDF: y from bottom)
     // staffBottom = y of bottom staff line
@@ -429,9 +906,10 @@ class PdfScoreRenderer {
         ),
     ];
 
-    // 5 staff lines
-    for (var i = 0; i < ScoreNotationMetrics.staffLineCount; i++) {
-      final lineY = staffTop - i * _ls;
+    // 5 staff lines, or a tablature staff's line per string in that height.
+    final lineCount = tabTuning?.length ?? ScoreNotationMetrics.staffLineCount;
+    for (var i = 0; i < lineCount; i++) {
+      final lineY = staffTop - i * _staffH / (lineCount - 1);
       _line(
         g,
         rowStartX,
@@ -462,7 +940,32 @@ class PdfScoreRenderer {
     );
 
     // Clef
-    if (clefSign.toUpperCase() == 'F') {
+    if (clefSign == 'T') {
+      // TAB, written down the start of the staff.
+      for (final (k, letter) in ['T', 'A', 'B'].indexed) {
+        _text(
+          g,
+          fontBold,
+          13 * _scale,
+          letter,
+          rowStartX + ScoreNotationMetrics.trebleClefXOffset * _scale,
+          staffTop - (k + 1) * _staffH / 3 + 2 * _scale,
+        );
+      }
+    } else if (clefSign == 'P') {
+      // A percussion clef: two thick bars over the middle of the staff.
+      for (final dx in [0.0, 6.0]) {
+        g
+          ..setColor(_ink)
+          ..drawRect(
+            rowStartX + (ScoreNotationMetrics.trebleClefXOffset + dx) * _scale,
+            staffTop - 3 * _ls,
+            3 * _scale,
+            2 * _ls,
+          )
+          ..fillPath();
+      }
+    } else if (clefSign.toUpperCase() == 'F') {
       _drawBassClef(g, rowStartX + 8 * _scale, staffTop, staffBottom);
     } else if (clefSign.toUpperCase() == 'C') {
       _drawCClef(
@@ -480,13 +983,26 @@ class PdfScoreRenderer {
         staffTop,
       );
     }
+    // An octave clef's small 8, below (sounding lower) or above.
+    if (clefSign.length > 1) {
+      final below = clefSign.contains('-');
+      _text(
+        g,
+        fontBold,
+        9 * _scale,
+        '8',
+        rowStartX + (ScoreNotationMetrics.trebleClefXOffset + 7) * _scale,
+        below ? staffBottom - 2.6 * _ls : staffTop + 2.2 * _ls,
+      );
+    }
 
     // Key signature at the start of every system; the time signature on the
     // page's first system and where it changes.
     var sigX = rowStartX + ScoreNotationMetrics.rowSignatureStartX * _scale;
     if (rowMeasures.isNotEmpty) {
       final first = rowMeasures.first;
-      if (first.keySignature != null) {
+      // A percussion staff has no key.
+      if (first.keySignature != null && clefSign != 'P' && clefSign != 'T') {
         sigX = _drawKeySignature(
           g,
           musicFont,
@@ -504,8 +1020,7 @@ class PdfScoreRenderer {
           fontBold,
           sigX + 10 * _scale,
           staffTop,
-          first.timeSignature!.beats,
-          first.timeSignature!.beatType,
+          first.timeSignature!,
         );
       }
     }
@@ -534,25 +1049,46 @@ class PdfScoreRenderer {
           fontBold,
           measureStartX + ScoreNotationMetrics.timeSignatureInMeasureX * _scale,
           staffTop,
-          measure.timeSignature!.beats,
-          measure.timeSignature!.beatType,
+          measure.timeSignature!,
         );
       }
 
-      // Measure number
-      _text(
+      // Repeat signs, barline styles, endings and navigation, as drawn in
+      // the editor (endings and navigation on the top staff only).
+      _drawMarkShapes(
         g,
         font,
-        ScoreNotationMetrics.measureNumberFontSize * _scale,
-        '${measure.number}',
-        measureStartX + ScoreNotationMetrics.measureNumberOffsetX * _scale,
-        staffTop - ScoreNotationMetrics.measureNumberOffsetY * _scale,
+        barShapes(
+          width: _mw / _scale,
+          spacing: _ls / _scale,
+          left: measure.leftBarlineType,
+          right: measure.rightBarlineType,
+          ending: endingAt(pageMeasures, rowStart + mi),
+          navigation: measure.navigation,
+          first: topStaff,
+        ),
+        measureStartX,
+        staffTop,
       );
+
+      // Measure number (once per grand staff, above the upper staff)
+      if (numberBars && !measure.implicit) {
+        _text(
+          g,
+          font,
+          ScoreNotationMetrics.measureNumberFontSize * _scale,
+          '${measure.number}',
+          measureStartX + ScoreNotationMetrics.measureNumberOffsetX * _scale,
+          staffTop - ScoreNotationMetrics.measureNumberOffsetY * _scale,
+        );
+      }
 
       _drawMeasureSymbols(
         g,
         musicFont,
         measure,
+        placement: placements[mi],
+        partIndex: partIndex,
         laneInset:
             ScoreNotationMetrics.laneInset(timeInMeasure: timeInMeasure[mi]) *
             _scale,
@@ -562,6 +1098,12 @@ class PdfScoreRenderer {
         staffBottom: staffBottom,
         clefSign: clefSign,
         clefLine: clefLine,
+        notePoints: notePoints,
+        rowStartX: contentStartX,
+        tabTuning: tabTuning,
+        crossStaves: crossStaves,
+        rowEndX: staffEndX,
+        textFont: font,
       );
     }
   }
@@ -574,46 +1116,47 @@ class PdfScoreRenderer {
     PdfFont musicFont,
     Measure measure, {
     required double laneInset,
+    required BarPlacement placement,
+    required int partIndex,
     required double measureStartX,
     required double measureEndX,
     required double staffTop,
     required double staffBottom,
     required String clefSign,
     int clefLine = 2,
+    Map<String, _PdfNotePoint>? notePoints,
+    double rowStartX = 0,
+    List<int>? tabTuning,
+    Map<int, ({double top, String sign, int line})> crossStaves = const {},
+    double rowEndX = 0,
+    PdfFont? textFont,
   }) {
     if (measure.symbols.isEmpty) return;
 
-    final innerPad = ScoreNotationMetrics.measureInnerPadding * _scale;
-    final drawableW = math.max(
-      12.0,
-      (measureEndX - measureStartX) - laneInset - innerPad,
-    );
+    final geometry = placement.bar.staff[partIndex];
     final count = measure.symbols.length;
-    final slotCount = _visualSlotCount(measure.symbols);
+    final layout = VoiceLayout.of(measure.symbols);
     final middleLineY =
         staffTop - _ls * ScoreNotationMetrics.middleStaffLineIndex;
 
     // Pre-compute x/y positions for all symbols.
     final xs = List<double>.generate(
       count,
-      (i) =>
-          measureStartX +
-          laneInset +
-          drawableW *
-              (_visualSlotForIndex(measure.symbols, i) + 1) /
-              (slotCount + 1),
+      (i) => measureStartX + placement.symbolX(partIndex, i) * _scale,
     );
     final ys = <double>[];
     for (var i = 0; i < count; i++) {
       final sym = measure.symbols[i];
       if (sym is Note) {
+        // A cross-staff note sits on the staff it moves to, in its clef.
+        final cross = crossStaves[sym.staffMove];
         ys.add(
           _yForPitch(
             step: sym.step,
             octave: sym.octave,
-            bottomLineY: staffBottom,
-            clefSign: clefSign,
-            clefLine: clefLine,
+            bottomLineY: cross == null ? staffBottom : cross.top - _staffH,
+            clefSign: cross?.sign ?? clefSign,
+            clefLine: cross?.line ?? clefLine,
           ),
         );
       } else {
@@ -621,8 +1164,11 @@ class PdfScoreRenderer {
       }
     }
 
-    // Build beam groups: runs of consecutive beamed eighth notes.
-    final beamGroups = _buildBeamGroups(measure.symbols);
+    // Build beam groups: runs of consecutive beamed eighth notes. A
+    // tablature staff shows frets without stems or beams.
+    final beamGroups = tabTuning != null
+        ? const <List<int>>[]
+        : _buildBeamGroups(measure.symbols);
     final beamedIndices = <int>{};
     for (final group in beamGroups) {
       if (group.length >= 2) {
@@ -636,7 +1182,80 @@ class PdfScoreRenderer {
       final x = xs[i];
       final y = ys[i];
 
+      // On a tablature staff a note is its fret number on its string.
+      if (symbol is Note && tabTuning != null) {
+        final string = (symbol.string ?? 1).clamp(1, tabTuning.length);
+        final sy = staffTop - (string - 1) * _staffH / (tabTuning.length - 1);
+        if (symbol.reviewId case final id? when notePoints != null) {
+          notePoints[id] = _PdfNotePoint(
+            x: x,
+            y: sy,
+            stemUp: true,
+            rowTop: staffTop,
+            rowStartX: rowStartX,
+            rowEndX: rowEndX,
+            dynamic: symbol.dynamicMark != null,
+          );
+        }
+        final text = '${symbol.fret ?? '?'}';
+        final size = 9 * _scale;
+        final font = textFont ?? musicFont;
+        final w = font.stringMetrics(text).width * size;
+        g
+          ..setColor(PdfColors.white)
+          ..drawRect(
+            x - w / 2 - _scale,
+            sy - size * 0.45,
+            w + 2 * _scale,
+            size * 0.9,
+          )
+          ..fillPath()
+          ..setColor(_ink);
+        _text(g, font, size, text, x - w / 2, sy - size * 0.35);
+        continue;
+      }
       if (symbol is Note) {
+        if (symbol.reviewId case final id? when notePoints != null) {
+          notePoints[id] = _PdfNotePoint(
+            x: x,
+            y: y,
+            stemUp: layout.stemUp(i) ?? y < middleLineY,
+            rowTop: staffTop,
+            rowStartX: rowStartX,
+            rowEndX: rowEndX,
+            dynamic: symbol.dynamicMark != null,
+          );
+        }
+        if ((symbol.dynamicMark, textFont) case (final mark?, final font?)) {
+          final up = layout.stemUp(i) ?? y < middleLineY;
+          final lowest = up
+              ? y - 6 * _scale
+              : y - ScoreNotationMetrics.stemLengthFor(_ls);
+          _drawDynamic(
+            g,
+            font,
+            mark,
+            x,
+            math.min(staffBottom - _dynamicsBelow, lowest - 12 * _scale),
+          );
+        }
+        final noteTop = crossStaves[symbol.staffMove]?.top ?? staffTop;
+        for (final line in ScoreNotationMetrics.ledgerYs(
+          (noteTop - y) / _scale,
+        )) {
+          final half =
+              ScoreNotationMetrics.ledgerHalfWidth *
+              _scale *
+              (symbol.grace == null ? 1 : graceScale);
+          _line(
+            g,
+            x - half,
+            noteTop - line * _scale,
+            x + half,
+            noteTop - line * _scale,
+            ScoreNotationMetrics.staffLineStrokeWidth * _scale,
+          );
+        }
         _drawNote(
           g,
           musicFont,
@@ -647,10 +1266,80 @@ class PdfScoreRenderer {
           suppressFlag: beamedIndices.contains(i),
           // A beamed note's stem is drawn with its beam, to reach it.
           drawStem: !beamedIndices.contains(i),
+          stemUp: geometry.stemUps[i],
+          stemAnchorX: measureStartX + placement.stemX(partIndex, i) * _scale,
+          stemStartY: y - geometry.stemStarts[i] * _scale,
+          stemEndY: y - geometry.stemEnds[i] * _scale,
+          accidentalOffset: placement.bar.staff[partIndex].accidentalOffsets[i],
         );
+        if (symbol.marks.isNotEmpty && textFont != null) {
+          final up = layout.stemUp(i) ?? y < middleLineY;
+          _drawMarkShapes(
+            g,
+            textFont,
+            markShapes(
+              symbol.marks,
+              stemUp: up,
+              staffTop: (y - staffTop) / _scale,
+              stemReach: up
+                  ? ScoreNotationMetrics.stemLengthFor(_ls) / _scale
+                  : 8,
+            ),
+            x,
+            y,
+          );
+        }
       } else if (symbol is Rest) {
-        _drawRest(g, musicFont, symbol, x: x, staffTop: staffTop);
+        // PDF y points up, so the editor's upward offset is added.
+        _drawRest(
+          g,
+          musicFont,
+          symbol,
+          x: x,
+          staffTop: staffTop - layout.restOffset(i) * _ls,
+        );
+        if (symbol.reviewId case final id? when notePoints != null) {
+          notePoints[id] = _PdfNotePoint(
+            x: x,
+            y: y,
+            stemUp: false,
+            rowTop: staffTop,
+            rowStartX: rowStartX,
+            rowEndX: rowEndX,
+            dynamic: symbol.dynamicMark != null,
+          );
+        }
+        if ((symbol.dynamicMark, textFont) case (final mark?, final font?)) {
+          _drawDynamic(g, font, mark, x, staffBottom - _dynamicsBelow);
+        }
+        if (symbol.marks.isNotEmpty && textFont != null) {
+          _drawMarkShapes(
+            g,
+            textFont,
+            markShapes(
+              symbol.marks,
+              stemUp: false,
+              staffTop: (y - staffTop) / _scale,
+              stemReach: 10,
+            ),
+            x,
+            y,
+          );
+        }
       }
+    }
+
+    if (textFont != null) {
+      _drawTuplets(
+        g,
+        textFont,
+        measure.symbols,
+        xs,
+        ys,
+        stemUp: (i) => layout.stemUp(i) ?? ys[i] < middleLineY,
+        beamed: beamedIndices,
+        staffTop: staffTop,
+      );
     }
 
     // Stems and beams for groups of 2+, as in the editor (PDF y points up).
@@ -663,14 +1352,12 @@ class PdfScoreRenderer {
       if (group.length < 2) continue;
       final headYs = [for (final i in group) ys[i]];
       final averageY = headYs.reduce((a, b) => a + b) / headYs.length;
-      final stemUp = averageY < middleLineY;
+      final stemUp = geometry.stemUps[group.first] ?? averageY < middleLineY;
       final dir = stemUp ? 1.0 : -1.0; // from the heads towards the beam
-      final xOff =
-          (stemUp
-              ? ScoreNotationMetrics.stemXOffset
-              : -ScoreNotationMetrics.stemXOffset) *
-          _scale;
-      final stemXs = [for (final i in group) xs[i] + xOff];
+      final stemXs = [
+        for (final i in group)
+          measureStartX + placement.stemX(partIndex, i) * _scale,
+      ];
       final run = stemXs.last - stemXs.first;
       final slope = run <= 0
           ? 0.0
@@ -682,7 +1369,8 @@ class PdfScoreRenderer {
       // 85 % of a normal one.
       var shift = 0.0;
       for (var k = 0; k < group.length; k++) {
-        final needed = headYs[k] + dir * stemLen * 0.85 - line(stemXs[k]);
+        final needed =
+            headYs[k] - geometry.stemEnds[group[k]] * _scale - line(stemXs[k]);
         shift = stemUp ? math.max(shift, needed) : math.min(shift, needed);
       }
       double beamY(double x) => line(x) + shift;
@@ -691,7 +1379,7 @@ class PdfScoreRenderer {
         _line(
           g,
           stemXs[k],
-          headYs[k],
+          headYs[k] - geometry.stemStarts[group[k]] * _scale,
           stemXs[k],
           beamY(stemXs[k]),
           ScoreNotationMetrics.stemStrokeWidth * _scale,
@@ -768,7 +1456,48 @@ class PdfScoreRenderer {
     required double middleLineY,
     bool suppressFlag = false,
     bool drawStem = true,
+    bool? stemUp,
+    double? accidentalOffset,
+    double? stemAnchorX,
+    double? stemStartY,
+    double? stemEndY,
   }) {
+    if (note.grace case final grace?) {
+      // Small, stem up and flagged; an acciaccatura's stem is slashed.
+      g
+        ..saveContext()
+        ..setTransform(
+          Matrix4.identity()
+            ..translateByDouble(x, y, 0, 1)
+            ..scaleByDouble(graceScale, graceScale, 1, 1)
+            ..translateByDouble(-x, -y, 0, 1),
+        );
+      _drawNote(
+        g,
+        font,
+        note.copyWith(grace: null),
+        x: x,
+        y: y,
+        middleLineY: middleLineY,
+        stemUp: true,
+        accidentalOffset: accidentalOffset,
+      );
+      if (grace == Grace.acciaccatura) {
+        final stemX = x + ScoreNotationMetrics.stemXOffset * _scale;
+        final mid =
+            y + ScoreNotationMetrics.stemLengthFor(_ls / _scale) * .6 * _scale;
+        _line(
+          g,
+          stemX - 6 * _scale,
+          mid - 5 * _scale,
+          stemX + 8 * _scale,
+          mid + 5 * _scale,
+          1.4 * _scale,
+        );
+      }
+      g.restoreContext();
+      return;
+    }
     final type = note.type.trim().toLowerCase();
     final isBreve = type == 'breve';
     final isWhole = type == 'whole' || isBreve;
@@ -784,7 +1513,9 @@ class PdfScoreRenderer {
         font,
         ScoreNotationMetrics.accidentalFontSize * _scale,
         accidental,
-        x - ScoreNotationMetrics.pdfAccidentalXOffset * _scale,
+        x +
+            (accidentalOffset ?? -ScoreNotationMetrics.pdfAccidentalXOffset) *
+                _scale,
         y - ScoreNotationMetrics.pdfAccidentalYOffset * _scale,
       );
     }
@@ -799,8 +1530,33 @@ class PdfScoreRenderer {
             ? ScoreNotationMetrics.noteheadWholeHeight
             : ScoreNotationMetrics.noteheadDefaultHeight) *
         _scale;
-    final hw = headW / 2;
-    if (isWhole || isHalf) {
+    final hw = headW / 2, hh = headH / 2;
+    final head = note.notehead;
+    if (head == 'x' || head == 'circle-x') {
+      // A cymbal's cross, and an open hi-hat's circled cross.
+      _line(g, x - hw, y - hh, x + hw, y + hh, 1.6 * _scale);
+      _line(g, x - hw, y + hh, x + hw, y - hh, 1.6 * _scale);
+      if (head == 'circle-x') {
+        g
+          ..setLineWidth(1.6 * _scale)
+          ..drawEllipse(x, y, hw * 1.3, hw * 1.3)
+          ..strokePath();
+      }
+    } else if (head == 'diamond') {
+      g
+        ..moveTo(x - hw, y)
+        ..lineTo(x, y + hh * 1.2)
+        ..lineTo(x + hw, y)
+        ..lineTo(x, y - hh * 1.2)
+        ..closePath();
+      if (isWhole || isHalf) {
+        g
+          ..setLineWidth(ScoreNotationMetrics.openNoteStrokeWidth * _scale)
+          ..strokePath();
+      } else {
+        g.fillPath();
+      }
+    } else if (isWhole || isHalf) {
       _drawRotatedOval(g, x: x, y: y, width: headW, height: headH, fill: false);
     } else {
       _drawRotatedOval(g, x: x, y: y, width: headW, height: headH, fill: true);
@@ -841,12 +1597,14 @@ class PdfScoreRenderer {
     }
 
     if (!drawStem) return;
-    final stemUp = y < middleLineY;
     _drawStem(
       g,
       x: x,
       y: y,
-      stemUp: stemUp,
+      stemUp: stemUp ?? y < middleLineY,
+      stemAnchorX: stemAnchorX,
+      stemStartY: stemStartY,
+      stemEndY: stemEndY,
       flags: suppressFlag
           ? 0
           : isEighth
@@ -886,18 +1644,23 @@ class PdfScoreRenderer {
     required double y,
     required bool stemUp,
     required int flags,
+    double? stemAnchorX,
+    double? stemStartY,
+    double? stemEndY,
   }) {
     final stemLen = ScoreNotationMetrics.stemLengthFor(_ls);
-    final stemX = stemUp
-        ? x + ScoreNotationMetrics.stemXOffset * _scale
-        : x - ScoreNotationMetrics.stemXOffset * _scale;
-    final endY = stemUp ? y + stemLen : y - stemLen;
+    final stemX =
+        stemAnchorX ??
+        (stemUp
+            ? x + ScoreNotationMetrics.stemXOffset * _scale
+            : x - ScoreNotationMetrics.stemXOffset * _scale);
+    final endY = stemEndY ?? (stemUp ? y + stemLen : y - stemLen);
 
     g.setColor(_ink);
     _line(
       g,
       stemX,
-      y,
+      stemStartY ?? y,
       stemX,
       endY,
       ScoreNotationMetrics.stemStrokeWidth * _scale,
@@ -969,6 +1732,8 @@ class PdfScoreRenderer {
     required double x,
     required double staffTop,
   }) {
+    // A bar rest is drawn as a whole rest in any meter.
+    if (rest.measureRest) rest = rest.copyWith(type: 'whole', dots: 0);
     final type = rest.type.trim().toLowerCase();
     g.setColor(_ink);
 
@@ -1415,7 +2180,8 @@ class PdfScoreRenderer {
         step: pitch.$1,
         octave: pitch.$2,
         bottomLineY: staffBottom,
-        clefSign: clefSign,
+        // Written for the plain clef, as on screen.
+        clefSign: clefSign[0],
         clefLine: clefLine,
       );
       _text(
@@ -1440,9 +2206,21 @@ class PdfScoreRenderer {
     PdfFont font,
     double x,
     double staffTop,
-    int beats,
-    int beatType,
+    TimeSignature signature,
   ) {
+    final size = ScoreNotationMetrics.timeSignatureFontSize * _scale;
+    if (signature.symbol case final symbol?) {
+      // C or ¢ on the middle line, about two spaces tall (y points up; a
+      // capital's middle sits about 0.35 of the size above the baseline).
+      final mid = staffTop - 2 * _ls;
+      _text(g, font, size * 1.35, 'C', x, mid - 0.35 * size * 1.35);
+      if (symbol == TimeSymbol.cut) {
+        final cx = x + font.stringMetrics('C').width * size * 1.35 / 2;
+        _line(g, cx, mid + 2.6 * _ls, cx, mid - 2.6 * _ls, 1.2 * _scale);
+      }
+      return;
+    }
+    final beats = signature.beats, beatType = signature.beatType;
     _text(
       g,
       font,
@@ -1554,32 +2332,9 @@ class PdfScoreRenderer {
     return (font.stringMetrics(text) * size).advanceWidth;
   }
 
-  int _visualSlotCount(List<dynamic> symbols) {
-    var count = 0;
-    for (final symbol in symbols) {
-      if (symbol is Note && symbol.isChordTone) {
-        continue;
-      }
-      count++;
-    }
-    return math.max(count, 1);
-  }
-
-  int _visualSlotForIndex(List<dynamic> symbols, int index) {
-    var slot = -1;
-    for (var i = 0; i <= index; i++) {
-      final symbol = symbols[i];
-      if (symbol is Note && symbol.isChordTone) {
-        continue;
-      }
-      slot++;
-    }
-    return math.max(slot, 0);
-  }
-
   static String _clefSign(List<Measure> measures) {
     for (final m in measures) {
-      if (m.clef != null) return m.clef!.sign;
+      if (m.clef != null) return m.clef!.layoutSign;
     }
     return 'G';
   }
@@ -1648,4 +2403,22 @@ class _PdfPoint {
 
   final double x;
   final double y;
+}
+
+/// A drawn note, for ties and slurs.
+class _PdfNotePoint {
+  const _PdfNotePoint({
+    required this.x,
+    required this.y,
+    required this.stemUp,
+    required this.rowTop,
+    required this.rowStartX,
+    required this.rowEndX,
+    this.dynamic = false,
+  });
+  final double x, y, rowTop, rowStartX, rowEndX;
+  final bool stemUp;
+
+  /// Whether a dynamic is written under it.
+  final bool dynamic;
 }

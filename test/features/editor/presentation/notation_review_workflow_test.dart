@@ -129,26 +129,19 @@ Score _score({bool withScan = false}) {
               timeSignature: m == 0
                   ? const TimeSignature(beats: 4, beatType: 4)
                   : null,
+              // Bars 2 and 5 hold their last note twice, as a doubled
+              // detection would (same place on the page).
               symbols: [
-                for (
-                  var n = 0;
-                  n <
-                      (m == 1
-                          ? 2
-                          : m == 4
-                          ? 3
-                          : 4);
-                  n++
-                )
+                for (var n = 0; n < (m == 1 || m == 4 ? 5 : 4); n++)
                   Note(
-                    step: ['C', 'D', 'E', 'G'][n],
+                    step: ['C', 'D', 'E', 'G', 'G'][n],
                     octave: 4,
                     duration: 2,
                     type: 'quarter',
                     source: withScan
                         ? SourceRegion(
                             pageId: 'scan',
-                            x: (90 + n * 140) / 600,
+                            x: (90 + (n < 4 ? n : 3) * 140) / 600,
                             y: .2,
                             width: .04,
                             height: .4,
@@ -267,7 +260,8 @@ void main() {
       final preview = tester.widget<ScoreNotationViewer>(
         find.byType(ScoreNotationViewer).first,
       );
-      expect(preview.score!.parts.first.measures[1].symbols, hasLength(3));
+      // The doubled note is gone from bar 2.
+      expect(preview.score!.parts.first.measures[1].symbols, hasLength(4));
       await _capture(tester, '$name-preview');
       await _tap(tester, find.text('Apply change'));
       expect(
@@ -346,7 +340,7 @@ void main() {
       await _tap(tester, find.text('Listen to proposed'));
       expect(
         playback.playedScore!.parts.first.measures[1].symbols,
-        hasLength(3),
+        hasLength(4),
       );
       expect(playback.first, 0);
       expect(playback.last, 2);

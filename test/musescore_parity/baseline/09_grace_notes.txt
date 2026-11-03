@@ -1,0 +1,11 @@
+# 09_grace_notes — MuseScore4 4.7.5 vs Note Vision
+## notation: 12/12 MuseScore facts match
+## playback: 8/9 MuseScore facts match, 7 differ in Note Vision
+- @0 key=74 dur=0
++ @0 key=74 dur=1/2
++ @1 key=71 dur=1/4
++ @1 key=71 vel=80
++ @17/8 key=77 dur=1/8
++ @17/8 key=77 vel=80
++ @2 key=76 dur=1/8
++ @2 key=76 vel=80

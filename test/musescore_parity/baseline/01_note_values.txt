@@ -1,0 +1,3 @@
+# 01_note_values — MuseScore4 4.7.5 vs Note Vision
+## notation: 20/20 MuseScore facts match
+## playback: 17/17 MuseScore facts match

@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import '../models/measure.dart';
 import '../models/note.dart';
-import '../models/part.dart';
 import '../models/rest.dart';
 import '../models/score.dart';
 import '../models/score_review.dart';
@@ -427,9 +426,7 @@ class NotationReviewService {
           () {
             final order = entry.beforePartOrder[part.id];
             if (order == null) {
-              return Part(
-                id: part.id,
-                name: part.name,
+              return part.copyWith(
                 measures: [
                   for (final measure in part.measures)
                     if (entry.beforeMeasures.containsKey(measure.reviewId))
@@ -443,9 +440,7 @@ class NotationReviewService {
               );
             }
             final measures = {for (final m in part.measures) m.reviewId: m};
-            return Part(
-              id: part.id,
-              name: part.name,
+            return part.copyWith(
               measures: [
                 for (var index = 0; index < order.length; index++)
                   if (entry.beforeMeasures.containsKey(order[index]))

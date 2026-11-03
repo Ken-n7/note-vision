@@ -467,7 +467,11 @@ class _ImportScoreScreenState extends State<ImportScoreScreen> {
       setState(() {
         _selectedFileName = imported!.fileName;
         _errors = const [];
-        _warnings = parsed.warnings;
+        _warnings = [
+          ...parsed.warnings,
+          if (score.musicXmlSource?.requiresPreservation == true)
+            'Some notation is retained for MusicXML export but is not yet displayed or played.',
+        ];
         _importedScore = score;
         _isLoading = false;
       });

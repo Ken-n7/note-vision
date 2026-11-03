@@ -6,6 +6,9 @@ import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/features/editor/model/editor_snapshot.dart';
 
+/// A position in the selected part: measure and symbol index.
+typedef SymbolPosition = ({int measure, int symbol});
+
 class EditorState {
   static const int maxHistoryDepth = 50;
   static const Object _unset = Object();
@@ -15,6 +18,11 @@ class EditorState {
   final int? selectedMeasureIndex;
   final int? selectedSymbolIndex;
   final ScoreSymbol? selectedSymbol;
+
+  /// The other end of a range selection in the selected part; the selected
+  /// symbol is the end that moves. Any state change that does not pass it
+  /// on (every edit, undo and plain selection) drops the range.
+  final SymbolPosition? rangeAnchor;
   final List<EditorSnapshot> undoStack;
   final List<EditorSnapshot> redoStack;
   final bool hasUnsavedChanges;
@@ -25,6 +33,7 @@ class EditorState {
     int? selectedMeasureIndex,
     int? selectedSymbolIndex,
     ScoreSymbol? selectedSymbol,
+    SymbolPosition? rangeAnchor,
     List<EditorSnapshot>? undoStack,
     List<EditorSnapshot>? redoStack,
     bool hasUnsavedChanges = false,
@@ -45,6 +54,7 @@ class EditorState {
       selectedMeasureIndex: normalizedSelection.measureIndex,
       selectedSymbolIndex: normalizedSelection.symbolIndex,
       selectedSymbol: normalizedSelection.symbol,
+      rangeAnchor: _normalizeAnchor(score, normalizedSelection, rangeAnchor),
       undoStack: undoStack,
       redoStack: redoStack,
       hasUnsavedChanges: hasUnsavedChanges,
@@ -57,6 +67,7 @@ class EditorState {
     required this.selectedMeasureIndex,
     required this.selectedSymbolIndex,
     required this.selectedSymbol,
+    required this.rangeAnchor,
     List<EditorSnapshot>? undoStack,
     List<EditorSnapshot>? redoStack,
     required this.hasUnsavedChanges,
@@ -70,6 +81,7 @@ class EditorState {
     Object? selectedSymbolIndex = _unset,
     Object? selectedSymbol = _unset,
     bool clearSelection = false,
+    SymbolPosition? rangeAnchor,
     List<EditorSnapshot>? undoStack,
     List<EditorSnapshot>? redoStack,
     bool? hasUnsavedChanges,
@@ -104,6 +116,7 @@ class EditorState {
       selectedMeasureIndex: normalizedSelection.measureIndex,
       selectedSymbolIndex: normalizedSelection.symbolIndex,
       selectedSymbol: normalizedSelection.symbol,
+      rangeAnchor: rangeAnchor,
       undoStack: undoStack ?? this.undoStack,
       redoStack: redoStack ?? this.redoStack,
       hasUnsavedChanges: hasUnsavedChanges ?? this.hasUnsavedChanges,
@@ -133,6 +146,26 @@ class EditorState {
     return List<EditorSnapshot>.from(
       stack.sublist(stack.length - maxHistoryDepth),
     );
+  }
+
+  /// An anchor needs a selected symbol in the same part, and must differ
+  /// from it.
+  static SymbolPosition? _normalizeAnchor(
+    Score score,
+    _Selection selection,
+    SymbolPosition? anchor,
+  ) {
+    if (anchor == null || selection.symbolIndex == null) return null;
+    final measures = score.parts[selection.partIndex!].measures;
+    if (anchor.measure < 0 ||
+        anchor.measure >= measures.length ||
+        anchor.symbol < 0 ||
+        anchor.symbol >= measures[anchor.measure].symbols.length ||
+        (anchor.measure == selection.measureIndex &&
+            anchor.symbol == selection.symbolIndex)) {
+      return null;
+    }
+    return anchor;
   }
 
   static _Selection _normalizeSelection({
@@ -200,6 +233,7 @@ class EditorState {
         'selectedMeasureIndex: $selectedMeasureIndex, '
         'selectedSymbolIndex: $selectedSymbolIndex, '
         'selectedSymbol: $selectedSymbol, '
+        'rangeAnchor: $rangeAnchor, '
         'undoDepth: ${undoStack.length}, '
         'redoDepth: ${redoStack.length}, '
         'hasUnsavedChanges: $hasUnsavedChanges'

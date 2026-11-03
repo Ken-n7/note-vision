@@ -19,7 +19,8 @@ class ScorePageThumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final layoutPolicy = EditorLayoutPolicy.forPartCount(score.parts.length);
+    // Laid out as the editor lays out the score (Stage 4I engraving).
+    final layoutPolicy = EditorLayoutPolicy.forScore(score);
     final thumbnailHeight =
         height ?? cardWidth * layoutPolicy.pageHeight / layoutPolicy.pageWidth;
 
@@ -37,15 +38,16 @@ class ScorePageThumbnail extends StatelessWidget {
       );
     }
 
+    final measures = layoutMeasuresForScore(score);
     final pageStarts = pageStartIndicesForMeasures(
-      score.parts.first.measures,
+      measures,
       layoutPolicy: layoutPolicy,
     );
     final clampedPageIndex = pageIndex.clamp(0, pageStarts.length - 1).toInt();
     final firstMeasureIndex = pageStarts[clampedPageIndex];
     final nextMeasureIndex = clampedPageIndex + 1 < pageStarts.length
         ? pageStarts[clampedPageIndex + 1]
-        : score.parts.first.measures.length;
+        : measures.length;
     final pageMeasureCount = nextMeasureIndex - firstMeasureIndex;
     final scale = cardWidth / layoutPolicy.pageWidth;
 

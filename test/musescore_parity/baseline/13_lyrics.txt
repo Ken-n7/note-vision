@@ -1,0 +1,3 @@
+# 13_lyrics — MuseScore4 4.7.5 vs Note Vision
+## notation: 10/10 MuseScore facts match
+## playback: 11/11 MuseScore facts match

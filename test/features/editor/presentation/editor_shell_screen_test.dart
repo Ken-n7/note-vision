@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:note_vision/features/editor/presentation/widgets/editor_tool_dock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/measure.dart';
@@ -174,16 +175,16 @@ void main() {
     // A single note in 4/4 is not in triple time, so the rules say Jazz.
     expect(find.text('Score Editor · Jazz'), findsOneWidget);
     expect(find.text('Save'), findsOneWidget);
-    expect(find.text('Up'), findsOneWidget);
-    expect(find.text('Down'), findsOneWidget);
-    expect(find.text('Whole'), findsWidgets);
-    expect(find.text('Half'), findsWidgets);
-    expect(find.text('Qtr'), findsOneWidget);
-    expect(find.text('8th'), findsOneWidget);
-    expect(find.text('CLEF'), findsOneWidget);
+    expect(find.text('Select a note or rest'), findsOneWidget);
+    expect(find.byKey(const ValueKey('editor-mode-edit')), findsOneWidget);
+    expect(find.byKey(const ValueKey('editor-mode-insert')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('editor-mode-measure')));
+    await tester.pumpAndSettle();
+    expect(find.text('Add bar'), findsOneWidget);
+    await tester.tap(find.text('Clef'));
+    await tester.pumpAndSettle();
     expect(find.text('Treble'), findsOneWidget);
     expect(find.text('Bass'), findsOneWidget);
-    expect(find.text('Add'), findsOneWidget);
     expect(find.byTooltip('Undo'), findsOneWidget);
     expect(find.byTooltip('Redo'), findsOneWidget);
     expect(find.byTooltip('More'), findsOneWidget);
@@ -233,7 +234,7 @@ void main() {
   );
 
   for (final size in const [Size(1600, 900), Size(390, 844)]) {
-    testWidgets('notation check lists a short bar and fills it on accept '
+    testWidgets('notation check lists a doubled note and removes it on accept '
         '(${size.width.toInt()} wide)', (tester) async {
       const quarter = Note(step: 'C', octave: 4, duration: 2, type: 'quarter');
       final score = Score(
@@ -251,7 +252,10 @@ void main() {
                 timeSignature: TimeSignature(beats: 4, beatType: 4),
                 symbols: [quarter, quarter, quarter, quarter],
               ),
-              const Measure(number: 2, symbols: [quarter, quarter]),
+              const Measure(
+                number: 2,
+                symbols: [quarter, quarter, quarter, quarter, quarter],
+              ),
               const Measure(
                 number: 3,
                 symbols: [quarter, quarter, quarter, quarter],
@@ -272,7 +276,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.text('Bar 2 has 2 beats; a bar of 4/4 needs 4 beats.'),
+        find.text('Bar 2 has 5 beats; a bar of 4/4 holds only 4 beats.'),
         findsOneWidget,
       );
 
@@ -305,13 +309,14 @@ void main() {
 
     await pumpEditorShell(tester, score: score);
 
-    final moveUpButton = actionTileForLabel(tester, 'Up');
-    expect(moveUpButton.onTap, isNull);
+    expect(find.text('Up'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('editor-mode-measure')));
+    await tester.pumpAndSettle();
 
-    final addMeasureButton = actionTileForLabel(tester, 'Add');
+    final addMeasureButton = actionTileForLabel(tester, 'Add bar');
     expect(addMeasureButton.onTap, isNotNull);
 
-    await tester.tap(find.text('Add'));
+    await tester.tap(find.text('Add bar'));
     await tester.pump();
 
     expect(tester.takeException(), isNull);
@@ -328,7 +333,7 @@ void main() {
       of: find.text('Up'),
       matching: find.byType(InkWell),
     );
-    expect(tester.widget<InkWell>(moveUpButtonFinder.first).onTap, isNull);
+    expect(moveUpButtonFinder, findsNothing);
 
     final notationBox = tester.renderObject<RenderBox>(
       find.byType(ScoreNotationViewer),
@@ -340,7 +345,7 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(find.text('SELECTION'), findsOneWidget);
+    expect(find.byType(EditorToolDock), findsOneWidget);
     expect(find.text('C4'), findsWidgets);
     expect(tester.widget<InkWell>(moveUpButtonFinder.first).onTap, isNotNull);
 
@@ -351,7 +356,7 @@ void main() {
     );
     await tester.pump();
     expect(find.text('Rest'), findsOneWidget);
-    expect(find.text('quarter'), findsOneWidget);
+    expect(find.text('Quarter rest · Bar 1'), findsOneWidget);
 
     await tester.tapAt(
       notationBox.localToGlobal(
@@ -359,12 +364,11 @@ void main() {
       ),
     );
     await tester.pump();
-    expect(
-      find.text('Measure 1 selected. Tap a note or rest to edit a symbol.'),
-      findsOneWidget,
-    );
-    expect(tester.widget<InkWell>(moveUpButtonFinder.first).onTap, isNull);
-    expect(actionTileForLabel(tester, 'Add').onTap, isNotNull);
+    expect(find.text('Select a note or rest'), findsOneWidget);
+    expect(moveUpButtonFinder, findsNothing);
+    await tester.tap(find.byKey(const ValueKey('editor-mode-measure')));
+    await tester.pumpAndSettle();
+    expect(actionTileForLabel(tester, 'Add bar').onTap, isNotNull);
   });
 
   testWidgets(
@@ -463,7 +467,7 @@ void main() {
     await pumpEditorShell(tester, score: score);
 
     final notationRect = tester.getRect(find.byType(ScoreNotationViewer));
-    final symbolLabelRect = tester.getRect(find.text('SELECTION'));
+    final symbolLabelRect = tester.getRect(find.byType(EditorToolDock));
 
     expect(symbolLabelRect.left, greaterThan(notationRect.right));
     expect(tester.takeException(), isNull);
@@ -513,7 +517,9 @@ void main() {
       );
       await tester.pump();
 
-      await tester.tap(find.text('Next'));
+      await tester.tap(find.byKey(const ValueKey('editor-mode-measure')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Next bar'));
       await tester.pumpAndSettle();
 
       final viewerAfter = tester.widget<ScoreNotationViewer>(
@@ -564,7 +570,9 @@ void main() {
       );
       await tester.pump();
 
-      await tester.tap(find.text('Add'));
+      await tester.tap(find.byKey(const ValueKey('editor-mode-measure')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add bar'));
       await tester.pumpAndSettle();
 
       final viewerAfter = tester.widget<ScoreNotationViewer>(
@@ -616,7 +624,9 @@ void main() {
       );
       await tester.pump();
 
-      await tester.tap(find.text('Add'));
+      await tester.tap(find.byKey(const ValueKey('editor-mode-measure')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add bar'));
       await tester.pumpAndSettle();
 
       var viewer = tester.widget<ScoreNotationViewer>(
@@ -625,9 +635,9 @@ void main() {
       expect(viewer.firstMeasureIndex, 20);
 
       // The landscape tool panel scrolls; Del sits at its bottom.
-      await tester.ensureVisible(find.text('Del'));
+      await tester.ensureVisible(find.text('Delete bar'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Del'));
+      await tester.tap(find.text('Delete bar'));
       await tester.pumpAndSettle();
 
       viewer = tester.widget<ScoreNotationViewer>(
@@ -702,53 +712,52 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Save'), findsOneWidget);
-    expect(find.text('Pitch'), findsOneWidget);
-    expect(find.text('Clef'), findsOneWidget);
+    expect(find.byKey(const ValueKey('editor-mode-edit')), findsOneWidget);
+    expect(find.byKey(const ValueKey('editor-mode-measure')), findsOneWidget);
   });
 
-  testWidgets(
-    'compact selection card shows pitch and duration without overflow',
-    (tester) async {
-      tester.view.physicalSize = const Size(360, 800);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets('contextual dock shows pitch and duration without overflow', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(360, 800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
-      final score = buildScore();
-      await tester.pumpWidget(
-        MaterialApp(
-          home: EditorShellScreen(
-            args: EditorShellArgs(
-              score: score,
-              initialState: EditorState(score: score),
-            ),
+    final score = buildScore();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: EditorShellScreen(
+          args: EditorShellArgs(
+            score: score,
+            initialState: EditorState(score: score),
           ),
         ),
-      );
-      await tester.pumpAndSettle();
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      // Select a note via callback to trigger the compact selection card.
-      final viewer = tester.widget<ScoreNotationViewer>(
-        find.byType(ScoreNotationViewer),
-      );
-      viewer.onSymbolTap!(
-        const NotationSymbolTarget(
-          partIndex: 0,
-          measureIndex: 0,
-          symbolIndex: 0,
-          center: Offset.zero,
-          hitRect: Rect.zero,
-        ),
-      );
-      await tester.pump();
+    // Select a note via callback to trigger the compact selection card.
+    final viewer = tester.widget<ScoreNotationViewer>(
+      find.byType(ScoreNotationViewer),
+    );
+    viewer.onSymbolTap!(
+      const NotationSymbolTarget(
+        partIndex: 0,
+        measureIndex: 0,
+        symbolIndex: 0,
+        center: Offset.zero,
+        hitRect: Rect.zero,
+      ),
+    );
+    await tester.pump();
 
-      expect(tester.takeException(), isNull);
-      expect(find.text('C4'), findsWidgets);
-      expect(find.text('quarter'), findsOneWidget);
-    },
-  );
+    expect(tester.takeException(), isNull);
+    expect(find.text('C4'), findsWidgets);
+    expect(find.text('Quarter note · Bar 1'), findsOneWidget);
+  });
 
-  group('portrait inspector group popup stays open after action tap', () {
+  group('portrait contextual controls stay available after edits', () {
     Future<void> pumpPortrait(WidgetTester tester, Score score) async {
       tester.view.physicalSize = const Size(360, 800);
       tester.view.devicePixelRatio = 1.0;
@@ -781,13 +790,11 @@ void main() {
       );
     }
 
-    testWidgets('PITCH — Up tap keeps popup open', (tester) async {
+    testWidgets('pitch can be raised repeatedly', (tester) async {
       await pumpPortrait(tester, buildScore());
       selectFirstNote(tester);
       await tester.pump();
 
-      await tester.tap(find.text('Pitch').last);
-      await tester.pump();
       expect(find.text('Up'), findsOneWidget);
 
       await tester.tap(find.text('Up'));
@@ -795,13 +802,13 @@ void main() {
       expect(find.text('Up'), findsOneWidget);
     });
 
-    testWidgets('ACCIDENTAL — sharp tap keeps popup open', (tester) async {
+    testWidgets('accidental tools remain available after a change', (
+      tester,
+    ) async {
       await pumpPortrait(tester, buildScore());
       selectFirstNote(tester);
       await tester.pump();
 
-      await tester.tap(find.text('Accidental'));
-      await tester.pump();
       expect(find.text('♯'), findsOneWidget);
 
       await tester.tap(find.text('♯'));
@@ -809,46 +816,48 @@ void main() {
       expect(find.text('♯'), findsOneWidget);
     });
 
-    testWidgets('DURATION — 8th tap keeps popup open', (tester) async {
+    testWidgets('duration tools remain available after a change', (
+      tester,
+    ) async {
       await pumpPortrait(tester, buildScore());
       selectFirstNote(tester);
       await tester.pump();
 
-      await tester.tap(find.text('Duration'));
-      await tester.pump();
-      expect(find.text('8th'), findsOneWidget);
+      expect(find.text('Eighth'), findsOneWidget);
 
-      await tester.tap(find.text('8th'));
+      await tester.tap(find.text('Eighth'));
       await tester.pump();
-      expect(find.text('8th'), findsOneWidget);
+      expect(find.text('Eighth'), findsOneWidget);
     });
 
-    testWidgets('MEASURE — Add tap keeps popup open', (tester) async {
+    testWidgets('bar tools remain available after adding a measure', (
+      tester,
+    ) async {
       await pumpPortrait(tester, buildScore());
       selectFirstNote(tester);
       await tester.pump();
 
-      await tester.tap(find.text('Measure'));
+      await tester.tap(find.byKey(const ValueKey('editor-mode-measure')));
       await tester.pump();
-      expect(find.text('Add'), findsOneWidget);
+      expect(find.text('Add bar'), findsOneWidget);
 
-      await tester.tap(find.text('Add'));
+      await tester.tap(find.byKey(const ValueKey('editor-mode-measure')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add bar'));
       await tester.pump();
-      expect(find.text('Add'), findsOneWidget);
+      expect(find.text('Add bar'), findsOneWidget);
     });
 
-    testWidgets('PITCH — re-tapping tab closes popup', (tester) async {
+    testWidgets('Edit mode keeps the selection and tools available', (
+      tester,
+    ) async {
       await pumpPortrait(tester, buildScore());
       selectFirstNote(tester);
       await tester.pump();
-
-      await tester.tap(find.text('Pitch').last);
+      await tester.tap(find.byKey(const ValueKey('editor-mode-edit')));
       await tester.pump();
       expect(find.text('Up'), findsOneWidget);
-
-      await tester.tap(find.text('Pitch').last);
-      await tester.pump();
-      expect(find.text('Up'), findsNothing);
+      expect(find.text('C4'), findsOneWidget);
     });
   });
 
@@ -951,7 +960,14 @@ void main() {
 
       expect(actionTileForLabel(tester, 'Up').onTap, isNull);
       expect(actionTileForLabel(tester, 'Down').onTap, isNull);
-      expect(actionTileForLabel(tester, 'Add').onTap, isNull);
+      expect(
+        tester
+            .widget<TextButton>(
+              find.byKey(const ValueKey('editor-mode-measure')),
+            )
+            .onPressed,
+        isNull,
+      );
     });
 
     testWidgets('landscape: interactions restored when playback stops', (
@@ -1048,53 +1064,42 @@ void main() {
       },
     );
 
-    testWidgets('portrait: tab taps suppressed while playing', (tester) async {
-      await pumpPortrait(tester, buildScore());
-
-      emitPlaying();
-      await tester.pump();
-
-      // Tapping a tab while disabled should not open the popup.
-      await tester.tap(find.text('Pitch').last);
-      await tester.pump();
-      expect(find.text('Up'), findsNothing);
-    });
-
-    testWidgets('portrait: open popup hidden when playback starts', (
+    testWidgets('portrait: mode changes are disabled while playing', (
       tester,
     ) async {
       await pumpPortrait(tester, buildScore());
-
-      // Open the PITCH popup.
-      await tester.tap(find.text('Pitch').last);
-      await tester.pump();
-      expect(find.text('Up'), findsOneWidget);
-
-      // Start playback — popup should be suppressed.
       emitPlaying();
       await tester.pumpAndSettle();
-      expect(find.text('Up'), findsNothing);
+      final button = tester.widget<TextButton>(
+        find.byKey(const ValueKey('editor-mode-insert')),
+      );
+      expect(button.onPressed, isNull);
     });
 
-    testWidgets('portrait: tabs re-enable after playback stops', (
+    testWidgets('portrait: visible bar controls lock when playback starts', (
       tester,
     ) async {
       await pumpPortrait(tester, buildScore());
+      await tester.tap(find.byKey(const ValueKey('editor-mode-measure')));
+      await tester.pump();
+      expect(actionTileForLabel(tester, 'Add bar').onTap, isNotNull);
+      emitPlaying();
+      await tester.pumpAndSettle();
+      expect(actionTileForLabel(tester, 'Add bar').onTap, isNull);
+    });
 
+    testWidgets('portrait: bar controls re-enable after playback stops', (
+      tester,
+    ) async {
+      await pumpPortrait(tester, buildScore());
+      await tester.tap(find.byKey(const ValueKey('editor-mode-measure')));
+      await tester.pump();
       emitPlaying();
       await tester.pump();
-
-      // Confirm tab is suppressed.
-      await tester.tap(find.text('Pitch').last);
-      await tester.pump();
-      expect(find.text('Up'), findsNothing);
-
-      // Stop playback — tab should work again.
+      expect(actionTileForLabel(tester, 'Add bar').onTap, isNull);
       emitStopped();
       await tester.pump();
-      await tester.tap(find.text('Pitch').last);
-      await tester.pump();
-      expect(find.text('Up'), findsOneWidget);
+      expect(actionTileForLabel(tester, 'Add bar').onTap, isNotNull);
     });
 
     testWidgets(
@@ -1222,7 +1227,7 @@ void main() {
     await tester.pump();
 
     // Open the DURATION group popup first, then change duration
-    await tester.tap(find.text('Duration'), warnIfMissed: false);
+    await tester.ensureVisible(find.text('Whole').first);
     await tester.pump();
     await tester.tap(find.text('Whole').first, warnIfMissed: false);
     await tester.pump();

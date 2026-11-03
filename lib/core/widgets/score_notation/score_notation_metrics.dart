@@ -21,6 +21,7 @@ abstract final class ScoreNotationMetrics {
   static const staffLineSpacing = 12.0;
   static const staffLineCount = 5;
   static const middleStaffLineIndex = 2.0;
+
   /// Tap area around a note or rest. Larger than the glyph so notes are
   /// easy to hit on a phone; where areas overlap the nearest symbol wins.
   static const tapTargetSize = 32.0;
@@ -48,6 +49,13 @@ abstract final class ScoreNotationMetrics {
   static const accidentalGap = 3.0;
   static const pdfAccidentalXOffset = 18.0;
   static const pdfAccidentalYOffset = 6.0;
+
+  /// Ledger lines retain the normal staff grid, including for grace notes.
+  static List<double> ledgerYs(double y) => [
+    for (var line = -12.0; line >= y - .01; line -= 12) line,
+    for (var line = 60.0; line <= y + .01; line += 12) line,
+  ];
+  static const ledgerHalfWidth = 11.0;
 
   static const stemLengthStaffSpaces = 3.4;
   static const stemXOffset = 6.0;

@@ -10,6 +10,13 @@ import 'package:note_vision/core/services/playback_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _Midi extends MidiPro {
+  @override
+  Future<void> controlChange({
+    required int controller,
+    required int value,
+    int channel = 0,
+    int sfId = 1,
+  }) async {}
   Completer<int>? loading;
   bool failLoad = false;
   final keys = <int>[];
