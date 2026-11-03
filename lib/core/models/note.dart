@@ -54,7 +54,13 @@ class Note extends ScoreSymbol {
     this.grace,
     this.drum,
     this.notehead,
+    this.string,
+    this.fret,
   }) : _legacyBeamed = beamed;
+
+  /// On a tablature staff: the string (1 is the highest) and fret written
+  /// for this note. The pitch is what sounds.
+  final int? string, fret;
 
   /// On a percussion staff, the kit piece as its General MIDI key (38 is
   /// the snare); [step] and [octave] then give only its staff position
@@ -107,7 +113,11 @@ class Note extends ScoreSymbol {
     Object? grace = _keep,
     Object? drum = _keep,
     Object? notehead = _keep,
+    Object? string = _keep,
+    Object? fret = _keep,
   }) => Note(
+    string: identical(string, _keep) ? this.string : string as int?,
+    fret: identical(fret, _keep) ? this.fret : fret as int?,
     drum: identical(drum, _keep) ? this.drum : drum as int?,
     notehead: identical(notehead, _keep) ? this.notehead : notehead as String?,
     grace: identical(grace, _keep) ? this.grace : grace as Grace?,
@@ -163,6 +173,8 @@ class Note extends ScoreSymbol {
     if (grace != null) 'grace': grace!.name,
     if (drum != null) 'drum': drum,
     if (notehead != null) 'notehead': notehead,
+    if (string != null) 'string': string,
+    if (fret != null) 'fret': fret,
   };
 
   factory Note.fromJson(Map<String, dynamic> json) => Note(
@@ -173,6 +185,8 @@ class Note extends ScoreSymbol {
     grace: Grace.values.where((g) => g.name == json['grace']).firstOrNull,
     drum: json['drum'] as int?,
     notehead: json['notehead'] as String?,
+    string: json['string'] as int?,
+    fret: json['fret'] as int?,
     step: json['step'] as String,
     octave: json['octave'] as int,
     alter: json['alter'] as int?,

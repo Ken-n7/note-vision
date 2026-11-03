@@ -968,6 +968,34 @@ Device check (2026-11-01): release **2005**, built from `f801e50` with
   percussion kits and timpani templates, jazz combo and concert band
   templates, custom kits, rolls and sticking.
 
-Next: 5D part 3 — tablature, then cross-staff notation. Retained-source rhythm export for complex documents,
+## Stage 5D (part 3) — guitar tablature
+
+- `Clef.tab` (MusicXML `<sign>TAB</sign>`, written without a line) makes a
+  tablature staff (`Part.isTab`) with `Part.tabTuning` (open strings as MIDI,
+  lowest first, from `<staff-details>` `<staff-tuning>`; standard guitar
+  E2 A2 D3 G3 B3 E4 when absent). `Note.string` (1 = highest) and
+  `Note.fret` come from `<technical>`. Pitch stays the sounding pitch, so
+  playback and transposition are unchanged (MuseScore's MIDI agrees).
+- `tabPosition` / `tabPlace` choose a string and fret (the note's own string
+  when it reaches, else the lowest fret); `placeTabNotes` runs after every
+  edit, so moving a tab note changes its fret on the same string. Export
+  always writes string and fret, and no accidentals on TAB staves, as
+  MuseScore does.
+- Drawing (editor and PDF): a line per string inside the staff's height,
+  TAB clef, no key signature, fret numbers on white over their string; no
+  noteheads, stems or beams (MuseScore's simple tab). Selection, ties and
+  slurs attach to the fret numbers.
+- Editor: tapping a TAB staff in note entry enters the string tapped, open;
+  Up/Down then change the fret. Letters enter pitches placed automatically.
+  Staves sheet adds Guitar TAB; the Guitar tablature template matches
+  MuseScore's.
+- Parity: `25_tablature` (single notes, chords, sharps): notation 20/20,
+  playback 29/29 (facts now include string, fret and tuning).
+- Not yet: Guitar + Tablature (a standard staff and a linked TAB staff that
+  mirrors it), rhythm stems on tab, entering frets by number, bends, slides,
+  hammer-ons, other tunings and string counts from the editor (imported ones
+  are kept), bass tab.
+
+Next: 5D part 4 — cross-staff notation. Retained-source rhythm export for complex documents,
 global timewise measure slots and richer editable notation still need work;
 continue using the Stage 2B timeline rather than adding flat-list timing rules.

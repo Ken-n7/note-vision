@@ -36,6 +36,7 @@ String _clefLabel(Clef clef) => switch (clef) {
   Clef(sign: 'C') => 'Alto clef',
   Clef(octave: -1) => 'Treble clef 8vb',
   Clef(isPercussion: true) => 'Percussion clef',
+  Clef(isTab: true) => 'Tablature',
   _ => 'Treble clef',
 };
 

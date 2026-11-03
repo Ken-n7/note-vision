@@ -393,6 +393,7 @@ class PdfScoreRenderer {
           clefLine: _clefLine(rowMeasures),
           numberBars: !joined,
           topStaff: pi == 0,
+          tabTuning: score.parts[pi].isTab ? score.parts[pi].tabTuning : null,
           notePoints: notePoints,
         );
         for (final (i, m) in rowMeasures.indexed) {
@@ -859,6 +860,7 @@ class PdfScoreRenderer {
     bool numberBars = true,
     bool topStaff = true,
     Map<String, _PdfNotePoint>? notePoints,
+    List<int>? tabTuning,
   }) {
     // staffTop = y of top staff line (PDF: y from bottom)
     // staffBottom = y of bottom staff line
@@ -877,9 +879,10 @@ class PdfScoreRenderer {
         ),
     ];
 
-    // 5 staff lines
-    for (var i = 0; i < ScoreNotationMetrics.staffLineCount; i++) {
-      final lineY = staffTop - i * _ls;
+    // 5 staff lines, or a tablature staff's line per string in that height.
+    final lineCount = tabTuning?.length ?? ScoreNotationMetrics.staffLineCount;
+    for (var i = 0; i < lineCount; i++) {
+      final lineY = staffTop - i * _staffH / (lineCount - 1);
       _line(
         g,
         rowStartX,
@@ -910,7 +913,19 @@ class PdfScoreRenderer {
     );
 
     // Clef
-    if (clefSign == 'P') {
+    if (clefSign == 'T') {
+      // TAB, written down the start of the staff.
+      for (final (k, letter) in ['T', 'A', 'B'].indexed) {
+        _text(
+          g,
+          fontBold,
+          13 * _scale,
+          letter,
+          rowStartX + ScoreNotationMetrics.trebleClefXOffset * _scale,
+          staffTop - (k + 1) * _staffH / 3 + 2 * _scale,
+        );
+      }
+    } else if (clefSign == 'P') {
       // A percussion clef: two thick bars over the middle of the staff.
       for (final dx in [0.0, 6.0]) {
         g
@@ -960,7 +975,7 @@ class PdfScoreRenderer {
     if (rowMeasures.isNotEmpty) {
       final first = rowMeasures.first;
       // A percussion staff has no key.
-      if (first.keySignature != null && clefSign != 'P') {
+      if (first.keySignature != null && clefSign != 'P' && clefSign != 'T') {
         sigX = _drawKeySignature(
           g,
           musicFont,
@@ -1058,6 +1073,7 @@ class PdfScoreRenderer {
         clefLine: clefLine,
         notePoints: notePoints,
         rowStartX: contentStartX,
+        tabTuning: tabTuning,
         rowEndX: staffEndX,
         textFont: font,
       );
@@ -1082,6 +1098,7 @@ class PdfScoreRenderer {
     int clefLine = 2,
     Map<String, _PdfNotePoint>? notePoints,
     double rowStartX = 0,
+    List<int>? tabTuning,
     double rowEndX = 0,
     PdfFont? textFont,
   }) {
@@ -1116,8 +1133,11 @@ class PdfScoreRenderer {
       }
     }
 
-    // Build beam groups: runs of consecutive beamed eighth notes.
-    final beamGroups = _buildBeamGroups(measure.symbols);
+    // Build beam groups: runs of consecutive beamed eighth notes. A
+    // tablature staff shows frets without stems or beams.
+    final beamGroups = tabTuning != null
+        ? const <List<int>>[]
+        : _buildBeamGroups(measure.symbols);
     final beamedIndices = <int>{};
     for (final group in beamGroups) {
       if (group.length >= 2) {
@@ -1131,6 +1151,38 @@ class PdfScoreRenderer {
       final x = xs[i];
       final y = ys[i];
 
+      // On a tablature staff a note is its fret number on its string.
+      if (symbol is Note && tabTuning != null) {
+        final string = (symbol.string ?? 1).clamp(1, tabTuning.length);
+        final sy = staffTop - (string - 1) * _staffH / (tabTuning.length - 1);
+        if (symbol.reviewId case final id? when notePoints != null) {
+          notePoints[id] = _PdfNotePoint(
+            x: x,
+            y: sy,
+            stemUp: true,
+            rowTop: staffTop,
+            rowStartX: rowStartX,
+            rowEndX: rowEndX,
+            dynamic: symbol.dynamicMark != null,
+          );
+        }
+        final text = '${symbol.fret ?? '?'}';
+        final size = 9 * _scale;
+        final font = textFont ?? musicFont;
+        final w = font.stringMetrics(text).width * size;
+        g
+          ..setColor(PdfColors.white)
+          ..drawRect(
+            x - w / 2 - _scale,
+            sy - size * 0.45,
+            w + 2 * _scale,
+            size * 0.9,
+          )
+          ..fillPath()
+          ..setColor(_ink);
+        _text(g, font, size, text, x - w / 2, sy - size * 0.35);
+        continue;
+      }
       if (symbol is Note) {
         if (symbol.reviewId case final id? when notePoints != null) {
           notePoints[id] = _PdfNotePoint(

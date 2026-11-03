@@ -6,6 +6,7 @@ import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/part_playback.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/models/tablature.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/services/transposer.dart';
 
@@ -91,6 +92,9 @@ const scoreTemplates = <ScoreTemplate>[
   ]),
   ScoreTemplate('Solo', 'Guitar', [
     (name: 'Classical Guitar', clef: _treble8vb, grand: false),
+  ]),
+  ScoreTemplate('Solo', 'Guitar tablature', [
+    (name: 'Guitar', clef: Clef.tab, grand: false),
   ]),
   ScoreTemplate('Solo', 'Piano', [_piano]),
   ScoreTemplate('Jazz', 'Lead sheet', [
@@ -203,6 +207,7 @@ Score buildNewScore(NewScoreOptions o, {String? id}) {
         name: staff.name,
         playback: playback,
         transposition: transpositionFor(staff.name),
+        tabTuning: staff.clef.isTab ? standardGuitarTuning : null,
         measures: measures(staff.clef, top: parts.isEmpty),
       ),
     );

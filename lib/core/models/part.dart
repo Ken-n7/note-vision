@@ -23,7 +23,15 @@ class Part {
     this.staff = 1,
     this.playback = const PartPlayback(),
     this.transposition,
+    this.tabTuning,
   });
+
+  /// A tablature staff's open strings as MIDI notes, lowest first.
+  final List<int>? tabTuning;
+
+  /// A tablature staff: its first clef is a TAB clef.
+  bool get isTab =>
+      measures.map((m) => m.clef).nonNulls.firstOrNull?.isTab ?? false;
 
   /// A transposing instrument's interval from written to sounding pitch.
   /// Notes and key signatures are stored as written, unless the score is in
@@ -44,6 +52,7 @@ class Part {
     if (staff > 1) 'staff': staff,
     if (playback != const PartPlayback()) 'playback': playback.toJson(),
     if (transposition != null) 'transposition': transposition!.toJson(),
+    if (tabTuning != null) 'tabTuning': tabTuning,
   };
 
   factory Part.fromJson(Map<String, dynamic> json) => Part(
@@ -54,6 +63,7 @@ class Part {
       json['playback'] as Map<String, dynamic>? ?? {},
     ),
     transposition: Transposition.fromJson(json['transposition']),
+    tabTuning: (json['tabTuning'] as List?)?.cast<int>(),
     measures: (json['measures'] as List<dynamic>)
         .map((m) => Measure.fromJson(m as Map<String, dynamic>))
         .toList(),
@@ -66,7 +76,11 @@ class Part {
     List<Measure>? measures,
     PartPlayback? playback,
     Object? transposition = _keep,
+    Object? tabTuning = _keep,
   }) => Part(
+    tabTuning: identical(tabTuning, _keep)
+        ? this.tabTuning
+        : tabTuning as List<int>?,
     transposition: identical(transposition, _keep)
         ? this.transposition
         : transposition as Transposition?,

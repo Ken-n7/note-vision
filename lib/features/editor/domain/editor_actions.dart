@@ -8,6 +8,7 @@ import 'package:note_vision/core/models/beam_grouping.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/barline_type.dart';
 import 'package:note_vision/core/models/drum_kit.dart';
+import 'package:note_vision/core/models/tablature.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/navigation_mark.dart';
 import 'package:note_vision/core/models/note.dart';
@@ -1800,7 +1801,9 @@ extension EditorActions on EditorState {
     return transposer
         .concertPitch(
           concert.copyWith(
-            parts: [concert.parts.single.copyWith(transposition: transposition)],
+            parts: [
+              concert.parts.single.copyWith(transposition: transposition),
+            ],
           ),
           false,
         )
@@ -1869,6 +1872,8 @@ extension EditorActions on EditorState {
               ],
             ),
             transpositionFor(entry.name),
+          ).copyWith(
+            tabTuning: entry.clef?.isTab == true ? standardGuitarTuning : null,
           ),
     ];
     final next = score.copyWith(

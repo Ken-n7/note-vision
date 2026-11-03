@@ -214,7 +214,7 @@ int defaultProgramFor(String name) => switch (name.toLowerCase().replaceFirst(
   'viola' => 41,
   'cello' || 'violoncello' => 42,
   'double bass' => 43,
-  'guitar' || 'classical guitar' => 24,
+  'guitar' || 'classical guitar' || 'guitar tab' => 24,
   // MuseScore Studio's bass guitar is picked; its band guitars are clean
   // electric guitars.
   'bass guitar' => 34,

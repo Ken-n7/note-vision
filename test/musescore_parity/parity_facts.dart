@@ -59,6 +59,17 @@ List<String> notationFacts(XmlDocument doc) {
                 '${symbol == null || symbol == 'normal' ? '' : ' $symbol'}',
               );
             }
+            for (final d in e.findElements('staff-details')) {
+              final tuning = [
+                for (final t in d.findElements('staff-tuning'))
+                  '${_text(t, 'tuning-step')}${_alter(_text(t, 'tuning-alter'))}'
+                      '${_text(t, 'tuning-octave')}',
+              ];
+              lines.add(
+                '$m s=${d.getAttribute('number') ?? 1} staff-lines='
+                '${_text(d, 'staff-lines')} tuning=${tuning.join(',')}',
+              );
+            }
             final staves = _text(e, 'staves');
             if (staves != null && staves != '1') lines.add('$m staves=$staves');
             for (final clef in e.findElements('clef')) {
@@ -190,7 +201,11 @@ String _note(XmlElement e, MusicalTime duration, XmlElement? grace) {
     for (final n in notations) ...[
       for (final group in ['articulations', 'ornaments', 'technical'])
         for (final g in n.findElements(group))
-          for (final mark in g.childElements) mark.name.local,
+          for (final mark in g.childElements)
+            // A tab note's string and fret, with their numbers.
+            const {'string', 'fret'}.contains(mark.name.local)
+                ? '${mark.name.local}${mark.innerText.trim()}'
+                : mark.name.local,
       for (final mark in n.childElements)
         if (const {
           'fermata',

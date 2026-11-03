@@ -10,38 +10,41 @@ class Clef extends ScoreSymbol {
   /// so only its staff position follows this.
   final int octave;
 
-  const Clef({
-    required this.sign,
-    required this.line,
-    this.octave = 0,
-  });
+  const Clef({required this.sign, required this.line, this.octave = 0});
 
   static const percussion = Clef(sign: 'percussion', line: 3);
 
   bool get isPercussion => sign == 'percussion';
+
+  /// A tablature staff: lines are strings, notes are fret numbers.
+  static const tab = Clef(sign: 'TAB', line: 5);
+
+  bool get isTab => sign == 'TAB';
 
   /// The sign staff drawing passes around, carrying the octave (`G-1`), so
   /// [StaffPitchMapper] places notes for octave clefs. A percussion clef is
   /// `P`: its notes sit where a treble clef's would.
   String get layoutSign => isPercussion
       ? 'P'
+      : isTab
+      ? 'T'
       : octave == 0
       ? sign
       : '$sign$octave';
 
   @override
   Map<String, dynamic> toJson() => {
-        'symbolType': 'clef',
-        'sign': sign,
-        'line': line,
-        if (octave != 0) 'octave': octave,
-      };
+    'symbolType': 'clef',
+    'sign': sign,
+    'line': line,
+    if (octave != 0) 'octave': octave,
+  };
 
   factory Clef.fromJson(Map<String, dynamic> json) => Clef(
-        sign: json['sign'] as String,
-        line: json['line'] as int,
-        octave: json['octave'] as int? ?? 0,
-      );
+    sign: json['sign'] as String,
+    line: json['line'] as int,
+    octave: json['octave'] as int? ?? 0,
+  );
 
   @override
   bool operator ==(Object other) =>

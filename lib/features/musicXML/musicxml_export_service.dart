@@ -12,6 +12,7 @@ import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/note_value.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/services/transposer.dart';
+import 'package:note_vision/core/models/tablature.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
@@ -221,6 +222,9 @@ class MusicXmlExportService {
             endingNumbers: endingNumbers,
             transposition: staffParts.first.transposition,
             partId: staffParts.first.id,
+            tabTunings: [
+              for (final p in staffParts) p.isTab ? p.tabTuning : null,
+            ],
           );
         }
       },
@@ -261,6 +265,7 @@ class MusicXmlExportService {
     String endingNumbers = '1',
     Transposition? transposition,
     String partId = 'P1',
+    List<List<int>?> tabTunings = const [],
   }) {
     final measure = staffMeasures.first;
     b.element(
@@ -334,11 +339,50 @@ class MusicXmlExportService {
                   attributes: {if (staves > 1) 'number': '${k + 1}'},
                   nest: () {
                     b.element('sign', nest: clef.sign);
-                    if (!clef.isPercussion) {
+                    if (!clef.isPercussion && !clef.isTab) {
                       b.element('line', nest: clef.line.toString());
                     }
                     if (clef.octave != 0) {
                       b.element('clef-octave-change', nest: '${clef.octave}');
+                    }
+                  },
+                );
+              }
+              // A tablature staff's lines and the strings' tuning.
+              for (final (k, tuning) in tabTunings.indexed) {
+                if (!isFirst || tuning == null) continue;
+                b.element(
+                  'staff-details',
+                  attributes: {if (staves > 1) 'number': '${k + 1}'},
+                  nest: () {
+                    b.element('staff-lines', nest: '${tuning.length}');
+                    for (final (i, midi) in tuning.indexed) {
+                      const names = [
+                        ('C', 0),
+                        ('C', 1),
+                        ('D', 0),
+                        ('D', 1),
+                        ('E', 0),
+                        ('F', 0),
+                        ('F', 1),
+                        ('G', 0),
+                        ('G', 1),
+                        ('A', 0),
+                        ('A', 1),
+                        ('B', 0),
+                      ];
+                      final (step, alter) = names[midi % 12];
+                      b.element(
+                        'staff-tuning',
+                        attributes: {'line': '${i + 1}'},
+                        nest: () {
+                          b.element('tuning-step', nest: step);
+                          if (alter != 0) {
+                            b.element('tuning-alter', nest: '$alter');
+                          }
+                          b.element('tuning-octave', nest: '${midi ~/ 12 - 1}');
+                        },
+                      );
                     }
                   },
                 );
@@ -408,6 +452,7 @@ class MusicXmlExportService {
                 symbol,
                 soundingAlter: accidentals[k].sounding(symbol),
                 partId: partId,
+                tabTuning: k < tabTunings.length ? tabTunings[k] : null,
                 // Grace notes keep their own beams among themselves.
                 beamValues: symbol.grace != null
                     ? symbol.beams
@@ -463,8 +508,19 @@ class MusicXmlExportService {
     Map<int, BeamValue> beamValues = const {},
     _Marks? marks,
     String partId = 'P1',
+    List<int>? tabTuning,
   }) {
     final id = note.reviewId;
+    // On a tablature staff every note names its string and fret.
+    final tab = tabTuning == null
+        ? null
+        : tabPlace(
+            note.step,
+            soundingAlter,
+            note.octave,
+            tabTuning,
+            string: note.string,
+          );
     final tieStop = id != null && (marks?.tieStops.contains(id) ?? false);
     final tieStart = id != null && (marks?.tieStarts.contains(id) ?? false);
     final slurs = id == null ? const <(String, int)>[] : marks?.slurs[id] ?? [];
@@ -531,7 +587,10 @@ class MusicXmlExportService {
           2 => 'double-sharp',
           _ => null,
         };
-        if (accidental != null) b.element('accidental', nest: accidental);
+        // A tablature staff shows frets, not accidentals.
+        if (accidental != null && tab == null) {
+          b.element('accidental', nest: accidental);
+        }
         _buildTimeModification(b, note.tuplet);
         if (note.drum != null) {
           b.element('stem', nest: (note.voice ?? 1).isOdd ? 'up' : 'down');
@@ -553,6 +612,7 @@ class MusicXmlExportService {
             tieStart ||
             slurs.isNotEmpty ||
             bracket ||
+            tab != null ||
             note.marks.isNotEmpty) {
           b.element(
             'notations',
@@ -567,6 +627,15 @@ class MusicXmlExportService {
               }
               _buildTupletMarks(b, note.tuplet);
               _buildMarks(b, note.marks);
+              if (tab != null) {
+                b.element(
+                  'technical',
+                  nest: () {
+                    b.element('string', nest: '${tab.string}');
+                    b.element('fret', nest: '${tab.fret}');
+                  },
+                );
+              }
             },
           );
         }

@@ -29,6 +29,7 @@ const museScoreTemplates = {
   'Brass quartet': '05-Brass_Quartet',
   'Brass quintet': '06-Brass_Quintet',
   'Rock band': '01-Rock_Band',
+  'Guitar tablature': '03-Guitar_Tablature',
   'Guitar': '01-Guitar',
   'Piano': '04-Piano',
   'Lead sheet': '01-Jazz_Lead_Sheet',

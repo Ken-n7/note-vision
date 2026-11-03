@@ -8,6 +8,7 @@ import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/navigation_mark.dart';
 import 'package:note_vision/core/models/drum_kit.dart';
+import 'package:note_vision/core/models/tablature.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/note_value.dart';
 import 'package:note_vision/core/models/part.dart';
@@ -71,8 +72,30 @@ class MusicXmlScoreConverter {
           int read(String name) =>
               int.tryParse(_firstInnerText(transpose, name)?.trim() ?? '') ??
               0;
+          // A tablature staff's strings, lowest first.
+          final details = root
+              .findAllElements('part')
+              .where((e) => e.getAttribute('id') == sourceId)
+              .expand((e) => e.findAllElements('staff-details'))
+              .where(
+                (d) =>
+                    (int.tryParse(d.getAttribute('number') ?? '') ?? 1) ==
+                    part.staff,
+              )
+              .firstOrNull;
+          final tuning = [
+            for (final t in details?.findElements('staff-tuning') ?? <XmlElement>[])
+              midiOf(
+                _firstInnerText(t, 'tuning-step')?.trim() ?? 'E',
+                int.tryParse(_firstInnerText(t, 'tuning-alter') ?? '') ?? 0,
+                int.tryParse(_firstInnerText(t, 'tuning-octave') ?? '') ?? 4,
+              ),
+          ];
           return Accidentals.writtenFromSounding(
             part.copyWith(
+              tabTuning: tuning.isEmpty
+                  ? (part.isTab ? standardGuitarTuning : null)
+                  : tuning,
               playback: MusicXmlInstruments.read(declaration),
               transposition: transpose == null
                   ? null
@@ -369,7 +392,7 @@ class MusicXmlScoreConverter {
         final sign = _firstInnerText(clef, 'sign')?.trim();
         final line =
             int.tryParse(_firstInnerText(clef, 'line') ?? '') ??
-            (sign == 'percussion' ? 3 : null);
+            (sign == 'percussion' ? 3 : sign == 'TAB' ? 5 : null);
         if (sign != null && sign.isNotEmpty && line != null) {
           return Clef(sign: sign, line: line, octave: _clefOctave(clef));
         }
@@ -779,11 +802,24 @@ class MusicXmlScoreConverter {
       marks: marks,
       grace: grace,
       notehead: notehead,
+      string: _technical(noteElement, 'string'),
+      fret: _technical(noteElement, 'fret'),
       drum: unpitched == null
           ? null
           : _drumKey(noteElement, step, octave, notehead),
     );
   }
+
+  int? _technical(XmlElement note, String name) => int.tryParse(
+    note
+            .findElements('notations')
+            .expand((n) => n.findElements('technical'))
+            .expand((t) => t.findElements(name))
+            .firstOrNull
+            ?.innerText
+            .trim() ??
+        '',
+  );
 
   /// A drum note's General MIDI key: its instrument's `<midi-unpitched>`
   /// (1-based), else the kit piece written at its position.
@@ -861,7 +897,7 @@ class MusicXmlScoreConverter {
     final sign = _firstInnerText(clefElement, 'sign')?.trim();
     final line =
         int.tryParse(_firstInnerText(clefElement, 'line') ?? '') ??
-        (sign == 'percussion' ? 3 : null);
+        (sign == 'percussion' ? 3 : sign == 'TAB' ? 5 : null);
     if (sign == null || sign.isEmpty || line == null) {
       return null;
     }

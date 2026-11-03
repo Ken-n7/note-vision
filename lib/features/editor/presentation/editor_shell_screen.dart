@@ -8,6 +8,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/models/drum_kit.dart';
+import 'package:note_vision/core/services/tab_placement.dart';
+import 'package:note_vision/core/models/tablature.dart';
 import 'package:flutter/services.dart';
 import 'package:note_vision/core/config/app_features.dart';
 import 'package:note_vision/core/models/clef.dart';
@@ -1245,7 +1247,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     setState(() {
       final prev = _editorState;
       final nextState = updater(_editorState);
-      final identified = NotationReviewService.ensureIdentity(nextState.score);
+      // Tab notes follow their pitch to a string and fret.
+      final identified = NotationReviewService.ensureIdentity(
+        placeTabNotes(nextState.score),
+      );
       // Assigning review IDs rebuilds every symbol in place, so the
       // selection is found again by its position.
       _editorState = nextState.copyWith(
@@ -1409,10 +1414,38 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     );
   }
 
+  /// On a tablature staff, a tap enters the string tapped, open; moving the
+  /// note up or down then changes its fret on that string.
+  ScoreSymbol _asTab(ScoreSymbol symbol, int partIndex) {
+    final part = _editorState.score.parts[partIndex];
+    final tuning = part.tabTuning;
+    if (symbol is! Note || !part.isTab || tuning == null) return symbol;
+    // Half spaces above the bottom line, as a treble staff would place it.
+    final height = StaffPitchMapper.offsetFromBottomLine(
+      step: symbol.step,
+      octave: symbol.octave,
+    );
+    final fromBottom = (height * (tuning.length - 1) / 8).round().clamp(
+      0,
+      tuning.length - 1,
+    );
+    final open = spellMidi(tuning[fromBottom]);
+    return symbol.copyWith(
+      step: open.step,
+      octave: open.octave,
+      alter: open.alter == 0 ? null : open.alter,
+      string: tuning.length - fromBottom,
+      fret: 0,
+    );
+  }
+
   void _onInsertTap(NotationInsertTarget? target) {
     if (target == null || _insertSymbolType == null) return;
     final symbol = _asDrum(
-      _inInputVoice(_buildSymbol(_insertSymbolType!, target)),
+      _asTab(
+        _inInputVoice(_buildSymbol(_insertSymbolType!, target)),
+        target.partIndex,
+      ),
       target.partIndex,
     );
     _updateState(
@@ -1428,7 +1461,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   void _onPaletteDrop(NotationInsertTarget target, Object data) {
     if (data is! PaletteDragData) return;
     final symbol = _asDrum(
-      _inInputVoice(_buildSymbol(data.type, target)),
+      _asTab(_inInputVoice(_buildSymbol(data.type, target)), target.partIndex),
       target.partIndex,
     );
     _updateState(

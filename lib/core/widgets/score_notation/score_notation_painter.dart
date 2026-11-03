@@ -39,6 +39,7 @@ class ScoreNotationPainter extends CustomPainter {
     this.selectedSymbolIndices = const {},
     this.rangeSymbols = const {},
     this.joinedParts = const {},
+    this.tabTunings = const {},
     this.spanners = const [],
     this.lyricParts,
     this.engraving,
@@ -67,6 +68,9 @@ class ScoreNotationPainter extends CustomPainter {
 
   /// All parts — one inner list per part, each containing that part's measures.
   final List<List<Measure>> parts;
+
+  /// Tablature staves (by part index) and their strings, lowest first.
+  final Map<int, List<int>> tabTunings;
   final List<List<Measure>>? lyricParts;
   final EngravingLayout? engraving;
   static final _engravingCache = Expando<EngravingLayout>();
@@ -614,6 +618,30 @@ class ScoreNotationPainter extends CustomPainter {
       ..strokeWidth = ScoreNotationMetrics.barlineStrokeWidth;
 
     switch (row.clefSign.toUpperCase()) {
+      case 'T':
+        // TAB, written down the start of the staff.
+        for (final (k, letter) in ['T', 'A', 'B'].indexed) {
+          final glyph = TextPainter(
+            text: TextSpan(
+              text: letter,
+              style: const TextStyle(
+                fontSize: 13,
+                fontFamily: ScoreNotationMetrics.textFontFamily,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF111827),
+                height: 1,
+              ),
+            ),
+            textDirection: TextDirection.ltr,
+          )..layout();
+          glyph.paint(
+            canvas,
+            Offset(
+              row.rowStartX + ScoreNotationMetrics.trebleClefXOffset,
+              row.staffTop + k * (row.staffBottom - row.staffTop) / 3,
+            ),
+          );
+        }
       case 'P':
         // A percussion clef: two thick bars over the middle of the staff.
         final bar = Paint()..color = const Color(0xFF111827);
@@ -675,8 +703,12 @@ class ScoreNotationPainter extends CustomPainter {
 
     _drawRowSignatures(canvas, row);
 
-    for (var i = 0; i < ScoreNotationMetrics.staffLineCount; i++) {
-      final y = row.staffTop + (i * staffLineSpacing);
+    // A tablature staff has a line per string, inside the staff's height.
+    final strings = tabTunings[row.partIndex]?.length;
+    final lineCount = strings ?? ScoreNotationMetrics.staffLineCount;
+    for (var i = 0; i < lineCount; i++) {
+      final y =
+          row.staffTop + i * (row.staffBottom - row.staffTop) / (lineCount - 1);
       canvas.drawLine(
         Offset(row.rowStartX, y),
         Offset(row.rowEndX, y),
@@ -708,8 +740,8 @@ class ScoreNotationPainter extends CustomPainter {
     final keySig = firstMeasure.keySignature;
     var signatureX = row.rowStartX + ScoreNotationMetrics.rowSignatureStartX;
 
-    // A percussion staff has no key.
-    if (keySig != null && row.clefSign != 'P') {
+    // A percussion or tablature staff has no key.
+    if (keySig != null && row.clefSign != 'P' && row.clefSign != 'T') {
       signatureX = _drawKeySignature(
         canvas,
         signatureX,
@@ -896,7 +928,10 @@ class ScoreNotationPainter extends CustomPainter {
         : 0.0;
 
     // Build beam groups before drawing so we know which notes suppress flags.
-    final beamGroups = _buildBeamGroups(measure.symbols);
+    // A tablature staff shows frets without stems or beams.
+    final beamGroups = tabTunings[partIndex] != null
+        ? const <List<int>>[]
+        : _buildBeamGroups(measure.symbols);
     final beamedIndices = <int>{};
     for (final group in beamGroups) {
       if (group.length >= 2) beamedIndices.addAll(group);
@@ -912,6 +947,58 @@ class ScoreNotationPainter extends CustomPainter {
       final symbol = measure.symbols[i];
       final x = measureStartX + placement.symbolX(partIndex, i);
 
+      // On a tablature staff a note is its fret number on its string.
+      if (symbol is Note && tabTunings[partIndex] != null) {
+        final strings = tabTunings[partIndex]!.length;
+        final string = (symbol.string ?? 1).clamp(1, strings);
+        final y =
+            staffTop + (string - 1) * (staffBottom - staffTop) / (strings - 1);
+        notePositions[i] = Offset(x, y);
+        tupletPoints[i] = (Offset(x, y), 8.0);
+        if ((symbol.reviewId, row) case (final id?, final row?)) {
+          _notePoints[id] = _NotePoint(
+            Offset(x, y),
+            stemUp: true,
+            row: row,
+            dynamic: symbol.dynamicMark != null,
+          );
+        }
+        final isSelected =
+            selectedPartIndex == partIndex &&
+                selectedMeasureIndex == absoluteMeasureIndex &&
+                (selectedSymbolIndex == i ||
+                    selectedSymbolIndices.contains(i)) ||
+            selectedPartIndex == partIndex &&
+                rangeSymbols.contains((absoluteMeasureIndex, i));
+        if (playbackPartIndex == partIndex &&
+            playbackMeasureIndex == absoluteMeasureIndex &&
+            playbackSymbolIndex == i &&
+            showPlaybackSymbolHighlight) {
+          _drawPlaybackHighlight(canvas, Offset(x, y));
+        }
+        if (isSelected) _drawSelectionHighlight(canvas, Offset(x, y));
+        final fret = TextPainter(
+          text: TextSpan(
+            text: '${symbol.fret ?? '?'}',
+            style: const TextStyle(
+              fontSize: 9,
+              fontFamily: ScoreNotationMetrics.textFontFamily,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF111827),
+              height: 1,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        final box = Rect.fromCenter(
+          center: Offset(x, y),
+          width: fret.width + 2,
+          height: fret.height,
+        );
+        canvas.drawRect(box, Paint()..color = Colors.white);
+        fret.paint(canvas, box.topLeft + const Offset(1, 0));
+        continue;
+      }
       if (symbol is Note) {
         final y = StaffPitchMapper.yForPitch(
           step: symbol.step,
