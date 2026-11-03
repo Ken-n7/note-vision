@@ -1,6 +1,6 @@
 # 21_engraving — MuseScore4 4.7.5 vs Note Vision
 ## notation: 41/41 MuseScore facts match
-## playback: 40/75 MuseScore facts match, 35 differ in Note Vision
+## playback: 45/75 MuseScore facts match, 30 differ in Note Vision
 - @0 key=60 dur=91/96
 - @1 key=62 dur=15/32
 - @10 key=69 dur=91/48
@@ -28,12 +28,7 @@
 - @5 key=67 dur=23/96
 - @6 key=60 dur=23/96
 - @7 key=67 dur=23/96
-- @8 key=36 dur=8
-- @8 key=60 dur=8
-- @8 key=64 dur=8
 - @8 key=65 dur=91/96
-- @8 key=67 dur=8
-- @8 key=71 dur=8
 - @9 key=67 dur=91/96
 - @9/2 key=64 dur=23/96
 + @0 key=60 dur=1
@@ -63,11 +58,6 @@
 + @5 key=67 dur=1/4
 + @6 key=60 dur=1/4
 + @7 key=67 dur=1/4
-+ @8 key=36 dur=4
-+ @8 key=60 dur=4
-+ @8 key=64 dur=4
 + @8 key=65 dur=1
-+ @8 key=67 dur=4
-+ @8 key=71 dur=4
 + @9 key=67 dur=1
 + @9/2 key=64 dur=1/4

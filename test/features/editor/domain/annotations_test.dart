@@ -347,6 +347,30 @@ void main() {
     expect(ChordSymbol.parse('Bbmaj7')!.label, 'Bbmaj7');
     expect(ChordSymbol.parse('C nonsense'), isNull);
   });
+  test('a chord sounds across barlines until the next chord or N.C.', () {
+    final score = plain([
+      [
+        const ScoreAnnotation(
+          kind: AnnotationKind.chord,
+          chord: ChordSymbol(root: 'C'),
+        ),
+      ],
+      [],
+      [
+        ScoreAnnotation(
+          kind: AnnotationKind.chord,
+          offset: MusicalTime(2),
+          chord: ChordSymbol.parse('N.C.'),
+        ),
+      ],
+    ]);
+    final chords = const PlaybackConverter()
+        .buildEvents(score)
+        .where((e) => e.isHarmony);
+    expect(chords.map((e) => e.midiNote), [36, 60, 64, 67]);
+    // Two whole bars and half the third, at 120 BPM.
+    expect(chords.map((e) => e.baseDurationMs).toSet(), {5000});
+  });
   test(
     'transposition moves chord root and slash bass but preserves other text',
     () {

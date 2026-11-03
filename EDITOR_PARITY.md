@@ -616,7 +616,8 @@ release 2004 played the same project with no errors. No iOS device test.
 - `ChordSymbol` parses common major/minor, seventh, sixth, ninth, suspended,
   diminished/augmented/power chords, accidentals and slash basses; `N.C.` stops
   the previous chord. Supported kinds realize piano bass/chord voicings until
-  the next harmony or bar end, without taking over note highlights. Transpose
+  the next harmony on the staff (across barlines, in play order) or the end of
+  the part, as MuseScore plays them, without taking over note highlights. Transpose
   moves roots and slash basses along with notes (range edits match selected
   onsets). Unsupported kinds/degrees retain their XML and are not guessed for
   accompaniment.

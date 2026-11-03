@@ -305,52 +305,62 @@ class PlaybackConverter {
             )
         ? score
         : const Transposer().concertPitch(score, true);
+    // Each chord symbol sounds until the next one on its staff, across
+    // barlines, or to the end of its part, as MuseScore Studio plays them.
+    final entries =
+        <({ScoreTimelineMeasure m, ScoreAnnotation a, MusicalTime at})>[];
+    final partEnds = <int, MusicalTime>{};
     for (final m in timeline.measures) {
+      final end = m.onset + m.duration;
+      final known = partEnds[m.partIndex];
+      if (known == null || known.compareTo(end) < 0) {
+        partEnds[m.partIndex] = end;
+      }
       final chords =
           sounding.parts[m.partIndex].measures[m.measureIndex].annotations
               .where((a) => a.kind == AnnotationKind.chord && a.chord != null)
               .toList()
             ..sort((a, b) => a.offset.compareTo(b.offset));
-      for (final (i, a) in chords.indexed) {
+      for (final a in chords) {
         if (a.offset.isNegative || a.offset.compareTo(m.duration) >= 0) {
           continue;
         }
-        final next = chords
-            .skip(i + 1)
-            .where((v) => v.staff == a.staff)
-            .firstOrNull;
-        final end = next != null && next.offset.compareTo(m.duration) < 0
-            ? next.offset
-            : m.duration;
-        final start = baseMilliseconds(m.onset + a.offset),
-            stop = baseMilliseconds(m.onset + end);
-        final nearest = notes
-            .where(
-              (e) =>
-                  e.partIndex == m.partIndex &&
-                  e.measureIndex == m.measureIndex &&
-                  e.baseOnsetMs <= start,
-            )
-            .lastOrNull;
-        // Chord degrees/altered voicings outside the supported kind table stay
-        // visible and round-trip, but are not guessed for accompaniment.
-        if (a.sourceXml?.contains('<degree') ?? false) continue;
-        for (final key in a.chord!.midiNotes) {
-          events.add(
-            PlaybackEvent(
-              partIndex: m.partIndex,
-              measureIndex: m.measureIndex,
-              symbolIndex: nearest?.symbolIndex ?? -1,
-              midiNote: key,
-              baseDurationMs: stop - start,
-              baseOnsetMs: start,
-              isHarmony: true,
-              velocity: nearest?.velocity ?? defaultVelocity,
-              baseMeasureOnsetMs: baseMilliseconds(m.onset),
-              baseMeasureDurationMs: baseMilliseconds(m.duration),
-            ),
-          );
-        }
+        entries.add((m: m, a: a, at: m.onset + a.offset));
+      }
+    }
+    for (final (i, (:m, :a, :at)) in entries.indexed) {
+      final next = entries
+          .skip(i + 1)
+          .where((e) => e.m.partIndex == m.partIndex && e.a.staff == a.staff)
+          .firstOrNull;
+      final start = baseMilliseconds(at),
+          stop = baseMilliseconds(next?.at ?? partEnds[m.partIndex]!);
+      final nearest = notes
+          .where(
+            (e) =>
+                e.partIndex == m.partIndex &&
+                e.measureIndex == m.measureIndex &&
+                e.baseOnsetMs <= start,
+          )
+          .lastOrNull;
+      // Chord degrees/altered voicings outside the supported kind table stay
+      // visible and round-trip, but are not guessed for accompaniment.
+      if (a.sourceXml?.contains('<degree') ?? false) continue;
+      for (final key in a.chord!.midiNotes) {
+        events.add(
+          PlaybackEvent(
+            partIndex: m.partIndex,
+            measureIndex: m.measureIndex,
+            symbolIndex: nearest?.symbolIndex ?? -1,
+            midiNote: key,
+            baseDurationMs: stop - start,
+            baseOnsetMs: start,
+            isHarmony: true,
+            velocity: nearest?.velocity ?? defaultVelocity,
+            baseMeasureOnsetMs: baseMilliseconds(m.onset),
+            baseMeasureDurationMs: baseMilliseconds(m.duration),
+          ),
+        );
       }
     }
   }
