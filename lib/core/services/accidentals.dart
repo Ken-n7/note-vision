@@ -55,7 +55,9 @@ class Accidentals {
 
   /// [part] with each note's alter read as the sounding alteration (as in a
   /// MusicXML `<alter>`) and turned into the accidental to write.
-  static Part writtenFromSounding(Part part) {
+  /// Notes [shown] says were written with an accidental keep it, even one
+  /// the key already gives (a courtesy natural).
+  static Part writtenFromSounding(Part part, {bool Function(Note)? shown}) {
     final state = Accidentals();
     return part.copyWith(
       measures: [
@@ -65,9 +67,17 @@ class Accidentals {
             return m.copyWith(
               symbols: [
                 for (final s in m.symbols)
-                  s is Note
-                      ? s.copyWith(alter: state.written(s, s.alter ?? 0))
-                      : s,
+                  if (s is Note)
+                    () {
+                      final written = state.written(s, s.alter ?? 0);
+                      return s.copyWith(
+                        alter: (shown?.call(s) ?? false)
+                            ? s.alter ?? 0
+                            : written,
+                      );
+                    }()
+                  else
+                    s,
               ],
             );
           }(),

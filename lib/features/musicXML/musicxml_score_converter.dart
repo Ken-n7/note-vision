@@ -92,6 +92,7 @@ class MusicXmlScoreConverter {
               ),
           ];
           return Accidentals.writtenFromSounding(
+            shown: (n) => _shownAccidentals[n] ?? false,
             part.copyWith(
               tabTuning: tuning.isEmpty
                   ? (part.isTab ? standardGuitarTuning : null)
@@ -808,7 +809,7 @@ class MusicXmlScoreConverter {
       return null;
     }
 
-    return Note(
+    final note = Note(
       step: step,
       octave: octave,
       alter: alter,
@@ -834,7 +835,14 @@ class MusicXmlScoreConverter {
           ? null
           : _drumKey(noteElement, step, octave, notehead),
     );
+    // A written accidental is kept even where the key gives it.
+    if (unpitched == null && noteElement.getElement('accidental') != null) {
+      _shownAccidentals[note] = true;
+    }
+    return note;
   }
+
+  static final _shownAccidentals = Expando<bool>();
 
   int? _technical(XmlElement note, String name) => int.tryParse(
     note

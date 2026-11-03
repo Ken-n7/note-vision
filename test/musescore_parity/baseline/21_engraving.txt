@@ -1,7 +1,5 @@
 # 21_engraving — MuseScore4 4.7.5 vs Note Vision
-## notation: 40/41 MuseScore facts match, 1 differ in Note Vision
-- P1 m4 @0 v=1 s=1 note E4 dur=2 half acc=natural
-+ P1 m4 @0 v=1 s=1 note E4 dur=2 half
+## notation: 41/41 MuseScore facts match
 ## playback: 40/75 MuseScore facts match, 35 differ in Note Vision
 - @0 key=60 dur=91/96
 - @1 key=62 dur=15/32
