@@ -407,6 +407,8 @@ void main() {
             )
             .first,
       ),
+      // Flutter 3.40 renames this isSemantics; keep both versions building.
+      // ignore: deprecated_member_use
       containsSemantics(isToggled: true),
     );
     await tester.tap(find.text('Staccato'));
