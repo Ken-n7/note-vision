@@ -835,6 +835,15 @@ Device check (2026-11-01): release **2005**, built from `f801e50` with
   releases, coincident-pitch MIDI note-offs, and MuseScore holding chord
   accompaniment beyond the bar. This is not pixel or audio parity; all
   previous baselines are unchanged.
+- Follow-up: the courtesy natural is kept and chord symbols sound until the
+  next chord (notation **41/41**, playback **45/75**). The other 30 are
+  explained, not bugs: MuseScore gives an instrument it identifies from
+  `<score-instrument>` (piano, flute, ...) a default `gateTime` of 95, so its
+  MIDI releases each note about 5% early (a part with no declared
+  instrument, or one it maps to a 100 gate, plays full length; this is also
+  the release gap in `15_ensemble` and `20_instrument_mix`). The unison C♯ in
+  bar 4 is cut to zero length in its MIDI export where Note Vision holds it
+  with note-off counts. Note Vision plays notes for their full value.
 - Verification: **899 tests passed** with flutter test --no-pub
   --concurrency=2 --reporter expanded; flutter analyze --no-pub reports
   **no issues**; git diff --check clean. All **31** MuseScore comparison /
