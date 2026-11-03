@@ -795,7 +795,77 @@ Device check (2026-11-01): release **2005**, built from `f801e50` with
   `/tmp/nv5a-phone/`. Native DocumentsUI required keyboard navigation to
   select the file on this phone, as in the previous device check.
 
-Next: 4I engraving (proportional spacing and collisions), 5C new-score wizard,
+## Stage 4I — proportional spacing and collision handling
+
+- Shared EngravingLayout / BarPlacement owns notehead and beat positions for
+  the canvas, symbol/lyric/annotation targets, insertion/drop indicators,
+  playhead and PDF. It uses the Stage 2B live rational timeline, preserving
+  source gaps and distinct sub-1/960 onsets; text offsets stay rational,
+  including thirds. Unsupported source edits retain an editable written
+  preview without relaxing playback or preservation restrictions.
+- Duration springs give doubled durations 1.5× the ideal extra spacing,
+  constrained by glyph/text bounds. Onset columns are shared across staves
+  and voices; grace groups get compact columns immediately before their
+  main note. Whole-bar rests stay centered.
+- Chord seconds alternate noteheads around a shared stem. Touching voices
+  move apart; accidentals with overlapping vertical extents occupy separate
+  columns. Chord stems and beams reach all their heads. Ledger lines follow
+  the same staff grid in both renderers, including grace notes. Displaced
+  chord tones can be selected directly.
+- Horizontal bounds reserve room for accidentals, dots, ledger lines,
+  visible lyrics and text. Same-kind text at the same beat stacks in separate
+  reserved lanes. Vertical clearance accounts for notes, stems and marks,
+  moving lyrics/text out of their way and keeping adjacent staves apart.
+- EditorLayoutPolicy.forScore chooses up to four equal-width bars per row
+  from the score's most demanding bar and reserves shared staff headroom.
+  Exceptionally large bars/systems expand the logical page; PDF scales it
+  uniformly onto A4. Automatic pages are added inside imported/manual page
+  break sections when needed, preserving explicit breaks without clipping
+  dense systems. The longest staff supplies layout page slots, so shorter
+  parts neither crash the layout nor hide longer parts' final measures.
+- Geometry and policy cache by immutable score/page identity; playback frames
+  reuse them. Projects, note durations, source XML and audio conversion are
+  unchanged; rendering saved projects needs no migration.
+- Independent MuseScore Studio **4.7.5** case 21_engraving exercises mixed
+  durations, dense beams, grace notes, lyrics, simultaneous text, chord
+  seconds/accidentals and an overlapping voice. Its SVG was inspected beside
+  the canvas/PDF. Semantic baseline: notation **40/41**, playback **40/75**.
+  Existing differences include normalization of a courtesy natural, voice
+  releases, coincident-pitch MIDI note-offs, and MuseScore holding chord
+  accompaniment beyond the bar. This is not pixel or audio parity; all
+  previous baselines are unchanged.
+- Verification: **899 tests passed** with flutter test --no-pub
+  --concurrency=2 --reporter expanded; flutter analyze --no-pub reports
+  **no issues**; git diff --check clean. All **31** MuseScore comparison /
+  transposition cases pass their recorded baselines. New tests cover rational
+  source gaps/thirds, grace spacing, aligned staves, chord/accidental/stem
+  geometry, word bounds, text lanes, head selection, extreme-pitch headroom,
+  uneven part lengths, ledger lines and overflow pagination.
+- Canvas/PDF fixture: NV_EDITOR_SCREENSHOTS=/tmp/note-vision-4i flutter test
+  --no-pub test/features/pdf/engraving_test.dart. Both artifacts inspected;
+  PDF text extracted. Editor control regressions also cover phone,
+  small/large-text, landscape and tablet configurations.
+- Device check (2026-11-03, release **2007**, Realme RMX1851 / Android 11):
+  21_engraving imported and saved as **Engraving QA**; the editor shows one
+  bar per row with compact grace notes, lyrics and stacked text clear of the
+  notes, and chord accidentals in separate columns. The import preview and
+  collection cards still used the old fixed grid (four bars crammed into a
+  row); `ScorePageThumbnail` now uses `EditorLayoutPolicy.forScore` and the
+  editor's layout measures (`score_page_thumbnail_test.dart`), confirmed on
+  the phone. Android's picker ignored adb taps on file rows, so the file was
+  picked by hand. On this 5 GB machine a release build with the project's
+  4 GB Gradle heap was killed with the desktop session; build with
+  `GRADLE_OPTS="-Dorg.gradle.jvmargs='-Xmx2g -XX:MaxMetaspaceSize=768m'"`.
+- Remaining: variable bar widths and per-system density, soft system breaks /
+  system locks, user spacing/style controls, full optical engraving,
+  automatic slur/tuplet/ending/navigation placement, advanced dot/rest/voice
+  collision rules, cross-staff notation and beamed grace drawing. Conservative
+  score-wide density/headroom can leave sparse bars with extra space. Very
+  large logical pages produce smaller PDF notation when fitted to A4.
+- References: [MuseScore spacing](https://handbook.musescore.org/formatting/score-size-and-spacing),
+  [systems and horizontal spacing](https://handbook.musescore.org/formatting/systems-and-horizontal-spacing).
+
+Next: 5C new-score wizard,
 5D specialised notation. Retained-source rhythm export for complex documents,
 global timewise measure slots and richer editable notation still need work;
 continue using the Stage 2B timeline rather than adding flat-list timing rules.

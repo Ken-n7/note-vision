@@ -204,7 +204,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       );
     }
 
-    final measures = score.parts.first.measures;
+    final measures = layoutMeasuresForScore(score);
     return EditorPageMetrics(
       layoutPolicy: _layoutPolicy,
       pageStartIndices: pageStartIndicesForMeasures(
@@ -1070,7 +1070,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     final pageStarts = state.score.parts.isEmpty
         ? const [0]
         : pageStartIndicesForMeasures(
-            state.score.parts.first.measures,
+            layoutMeasuresForScore(state.score),
             layoutPolicy: _layoutPolicy,
           );
 
@@ -1079,7 +1079,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         state.score.parts.first.measures.isNotEmpty) {
       final measureIndex = state.selectedMeasureIndex!.clamp(
         0,
-        state.score.parts.first.measures.length - 1,
+        layoutMeasuresForScore(state.score).length - 1,
       );
       return _clampPageIndexForStarts(
         pageStarts,
@@ -4152,6 +4152,7 @@ class _NotationAreaState extends State<_NotationArea>
         column * policy.minMeasureWidth;
     final y =
         policy.verticalPadding +
+        policy.notationTopPadding +
         (row * widget.editorState.score.parts.length + partIndex) *
             policy.rowHeight;
     final freeHeight = math.max(
@@ -4217,7 +4218,7 @@ class _NotationAreaState extends State<_NotationArea>
       return Size(widget.layoutPolicy.pageWidth, 400);
     }
 
-    final allMeasures = score.parts[0].measures;
+    final allMeasures = layoutMeasuresForScore(score);
     final start = widget.pageFirstMeasure.clamp(0, allMeasures.length);
     final end = (start + widget.pageMeasureCount).clamp(
       start,
@@ -4231,10 +4232,14 @@ class _NotationAreaState extends State<_NotationArea>
       measuresPerRow: widget.layoutPolicy.measuresPerRow,
       minMeasureWidth: widget.layoutPolicy.minMeasureWidth,
       rowHeight: widget.layoutPolicy.rowHeight,
-      padding: EdgeInsets.symmetric(
-        horizontal: widget.layoutPolicy.horizontalPadding,
-        vertical: widget.layoutPolicy.verticalPadding,
+      padding: EdgeInsets.fromLTRB(
+        widget.layoutPolicy.horizontalPadding,
+        widget.layoutPolicy.verticalPadding +
+            widget.layoutPolicy.notationTopPadding,
+        widget.layoutPolicy.horizontalPadding,
+        widget.layoutPolicy.verticalPadding,
       ),
+
       rowPrefixWidth: widget.layoutPolicy.rowPrefixWidth,
       partCount: score.parts.length,
     );

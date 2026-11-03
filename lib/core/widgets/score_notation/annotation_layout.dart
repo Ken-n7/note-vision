@@ -1,9 +1,6 @@
-import 'dart:math' as math;
 import '../../models/measure.dart';
-import '../../models/note.dart';
-import '../../models/rest.dart';
-import '../../models/note_value.dart';
-import 'voice_layout.dart';
+import 'engraving_layout.dart';
+import '../../models/musical_time.dart';
 
 class AnnotationTextLayout {
   const AnnotationTextLayout(
@@ -20,16 +17,53 @@ class AnnotationTextLayout {
 
 abstract final class AnnotationLayout {
   static const lineHeight = 20.0, fontSize = 12.0;
-  static List<AnnotationKind> kinds(List<List<Measure>> parts, bool below) => {
-    for (final p in parts)
-      for (final m in p)
-        for (final a in m.annotations)
-          if (!a.hidden && a.below == below) a.kind,
-  }.toList()..sort((a, b) => a.index.compareTo(b.index));
+  static final _rows = Expando<Map<(AnnotationKind, bool), int>>();
+  static Map<(AnnotationKind, bool), int> _rowCounts(
+    List<List<Measure>> parts,
+  ) => _rows[parts] ??= _countRows(parts);
+  static Map<(AnnotationKind, bool), int> _countRows(
+    List<List<Measure>> parts,
+  ) {
+    final result = <(AnnotationKind, bool), int>{};
+    for (var p = 0; p < parts.length; p++) {
+      for (var m = 0; m < parts[p].length; m++) {
+        final counts = <(AnnotationKind, bool, MusicalTime), int>{};
+        for (final (_, _, a) in at(parts, p, m)) {
+          final key = (a.kind, a.below, a.offset), lane = (a.kind, a.below);
+          final n = (counts[key] ?? 0) + 1;
+          counts[key] = n;
+          if (n > (result[lane] ?? 0)) result[lane] = n;
+        }
+      }
+    }
+    return result;
+  }
+
+  static List<AnnotationKind> kinds(List<List<Measure>> parts, bool below) => [
+    for (final k in _rowCounts(parts).keys)
+      if (k.$2 == below) k.$1,
+  ]..sort((a, b) => a.index.compareTo(b.index));
+  static int rowsFor(
+    List<List<Measure>> parts,
+    AnnotationKind kind,
+    bool below,
+  ) => _rowCounts(parts)[(kind, below)] ?? 1;
+  static double lane(List<List<Measure>> parts, ScoreAnnotation annotation) {
+    var row = 0;
+    for (final k in kinds(parts, annotation.below)) {
+      if (k == annotation.kind) break;
+      row += rowsFor(parts, k, annotation.below);
+    }
+    return row * lineHeight;
+  }
+
   static double aboveHeight(List<List<Measure>> parts) =>
-      kinds(parts, false).length * lineHeight;
+      kinds(parts, false).fold(0, (n, k) => n + rowsFor(parts, k, false)) *
+      lineHeight;
   static double extraHeight(List<List<Measure>> parts) =>
-      (kinds(parts, false).length + kinds(parts, true).length) * lineHeight;
+      aboveHeight(parts) +
+      kinds(parts, true).fold(0, (n, k) => n + rowsFor(parts, k, true)) *
+          lineHeight;
   static List<(int, int, ScoreAnnotation)> at(
     List<List<Measure>> parts,
     int part,
@@ -51,58 +85,23 @@ abstract final class AnnotationLayout {
     required double staffBottom,
     required double inset,
     double lyricAbove = 0,
+    BarPlacement? placement,
   }) {
-    final layout = VoiceLayout.of(visible.symbols);
-    final positions = <double, double>{};
-    final ends = <(int, int), double>{};
-    var chordOnset = 0.0;
-    for (final (i, s) in visible.symbols.indexed) {
-      final lane = switch (s) {
-        Note(:final voice, :final staff) ||
-        Rest(:final voice, :final staff) => (voice ?? 1, staff ?? 1),
-        _ => (1, 1),
-      };
-      final onset = s is Note && s.isChordTone ? chordOnset : ends[lane] ?? 0;
-      if (!(s is Note && s.isChordTone)) {
-        chordOnset = onset;
-        ends[lane] = onset + symbolQuarters(s);
-      }
-      positions.putIfAbsent(
-        onset,
-        () =>
-            startX +
-            inset +
-            (width - inset - 16) *
-                (layout.columns[i] + 1) /
-                (layout.columnCount + 1),
-      );
-    }
-    final sorted = positions.keys.toList()..sort();
-    double xAt(double at) {
-      if (sorted.isEmpty) {
-        final duration = (visible.timeSignature == null
-            ? 4.0
-            : visible.timeSignature!.beats *
-                  4.0 /
-                  visible.timeSignature!.beatType);
-        return startX +
-            inset +
-            (width - inset - 16) * (at / duration).clamp(0, 1);
-      }
-      if (at <= sorted.first) return positions[sorted.first]!;
-      for (var i = 1; i < sorted.length; i++) {
-        if (at <= sorted[i]) {
-          final a = sorted[i - 1], b = sorted[i];
-          return positions[a]! +
-              (positions[b]! - positions[a]!) * (at - a) / (b - a);
-        }
-      }
-      final end = ends.values.fold(0.0, math.max);
-      return positions[sorted.last]! +
-          (startX + width - 12 - positions[sorted.last]!) *
-              ((at - sorted.last) /
-                      (end - sorted.last == 0 ? 1 : end - sorted.last))
-                  .clamp(0, 1);
+    final placed =
+        placement ??
+        EngravingLayout([
+          [visible],
+        ]).bars.single.place(width: width, inset: inset);
+    double xAt(MusicalTime at) => startX + placed.timeX(at);
+
+    final clearance = EngravingLayout.verticalClearance(parts);
+    final duplicates = <(AnnotationKind, bool, MusicalTime), int>{};
+    final entries = at(parts, part, measure);
+    double annotationLane(ScoreAnnotation a) {
+      final key = (a.kind, a.below, a.offset);
+      final duplicate = duplicates[key] ?? 0;
+      duplicates[key] = duplicate + 1;
+      return lane(parts, a) + duplicate * lineHeight;
     }
 
     final belowLyrics = {
@@ -112,21 +111,19 @@ abstract final class AnnotationLayout {
             if (!l.hidden && !l.above) (n.voice ?? 1, n.staff ?? 1, l.verse),
     }.length;
     return [
-      for (final (owner, i, a) in at(parts, part, measure))
+      for (final (owner, i, a) in entries)
         AnnotationTextLayout(
           owner,
           i,
           a,
-          xAt(a.offset.asDouble),
+          xAt(a.offset),
           a.below
               ? staffBottom +
                     46 +
                     belowLyrics * 18 +
-                    kinds(parts, true).indexOf(a.kind) * lineHeight
-              : staffTop -
-                    40 -
-                    lyricAbove -
-                    kinds(parts, false).indexOf(a.kind) * lineHeight,
+                    clearance.$2 +
+                    annotationLane(a)
+              : staffTop - 40 - lyricAbove - (clearance.$1 + annotationLane(a)),
         ),
     ];
   }

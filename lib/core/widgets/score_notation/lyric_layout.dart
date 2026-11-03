@@ -1,8 +1,7 @@
 import 'dart:math' as math;
 import '../../models/note.dart';
 import '../../models/measure.dart';
-import 'voice_layout.dart';
-import 'score_notation_metrics.dart';
+import 'engraving_layout.dart';
 
 /// Geometry in editor coordinates (y down), reused by the screen and PDF.
 /// Call with notes from the entire part, including notes outside this page,
@@ -93,6 +92,8 @@ abstract final class LyricLayout {
     required double contentX,
     required double measureWidth,
     required double prefixWidth,
+    EngravingLayout? engraving,
+    int part = 0,
   }) {
     final result = <LyricAnchor>[];
     final systems = (pageMeasures.length / perRow).ceil();
@@ -105,21 +106,7 @@ abstract final class LyricLayout {
           : relative ~/ perRow;
       final inPage = relative >= 0 && relative < pageMeasures.length;
       final column = inPage ? relative % perRow : 0;
-      final layout = VoiceLayout.of(measure.symbols);
-      final inset = ScoreNotationMetrics.laneInset(
-        timeInMeasure:
-            inPage &&
-            ScoreNotationMetrics.timeSignatureInMeasure(
-              pageMeasures,
-              relative,
-              measureInRow: column,
-              rowPrefixWidth: prefixWidth,
-            ),
-      );
-      final width = math.max(
-        12.0,
-        measureWidth - inset - ScoreNotationMetrics.measureInnerPadding,
-      );
+      final spacing = engraving ?? EngravingLayout([pageMeasures]);
       for (final (i, note) in measure.symbols.indexed) {
         if (note is! Note) continue;
         result.add(
@@ -128,8 +115,11 @@ abstract final class LyricLayout {
             system,
             contentX +
                 column * measureWidth +
-                inset +
-                width * (layout.columns[i] + 1) / (layout.columnCount + 1),
+                (inPage
+                    ? spacing
+                          .place(relative, measureWidth, perRow, prefixWidth)
+                          .symbolX(part, i)
+                    : 0),
           ),
         );
       }
@@ -145,6 +135,8 @@ abstract final class LyricLayout {
     required double left,
     required double right,
     required double Function(String) textWidth,
+    double aboveClearance = 0,
+    double belowClearance = 0,
   }) {
     final result = LyricDrawing();
     final allLanes = lanes(notes.map((a) => a.note));
@@ -154,8 +146,8 @@ abstract final class LyricLayout {
           .toList()
           .indexOf(lane);
       final y = lane.$4
-          ? staffTop - 38 - side * lineHeight
-          : staffBottom + below + side * lineHeight;
+          ? staffTop - 38 - aboveClearance - side * lineHeight
+          : staffBottom + below + belowClearance + side * lineHeight;
       final voice = notes
           .where(
             (a) =>

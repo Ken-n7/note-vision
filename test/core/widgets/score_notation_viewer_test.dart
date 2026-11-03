@@ -83,73 +83,79 @@ void main() {
   });
 
   group('ScoreNotationViewer', () {
-    test('sliceMeasuresWithInheritedMetadata carries signatures into later pages', () {
-      final measures = [
-        Measure(
-          number: 1,
-          clef: const Clef(sign: 'F', line: 4),
-          timeSignature: const TimeSignature(beats: 4, beatType: 4),
-          keySignature: const KeySignature(fifths: -1),
-          symbols: const [
-            Note(step: 'C', octave: 3, duration: 1, type: 'quarter'),
-          ],
-        ),
-        Measure(
-          number: 2,
-          symbols: const [
-            Note(step: 'D', octave: 3, duration: 1, type: 'quarter'),
-          ],
-        ),
-      ];
+    test(
+      'sliceMeasuresWithInheritedMetadata carries signatures into later pages',
+      () {
+        final measures = [
+          Measure(
+            number: 1,
+            clef: const Clef(sign: 'F', line: 4),
+            timeSignature: const TimeSignature(beats: 4, beatType: 4),
+            keySignature: const KeySignature(fifths: -1),
+            symbols: const [
+              Note(step: 'C', octave: 3, duration: 1, type: 'quarter'),
+            ],
+          ),
+          Measure(
+            number: 2,
+            symbols: const [
+              Note(step: 'D', octave: 3, duration: 1, type: 'quarter'),
+            ],
+          ),
+        ];
 
-      final sliced = sliceMeasuresWithInheritedMetadata(
-        measures: measures,
-        firstMeasureIndex: 1,
-        pageMeasureCount: 1,
-      );
+        final sliced = sliceMeasuresWithInheritedMetadata(
+          measures: measures,
+          firstMeasureIndex: 1,
+          pageMeasureCount: 1,
+        );
 
-      expect(sliced, hasLength(1));
-      expect(sliced.single.clef?.sign, 'F');
-      expect(sliced.single.timeSignature?.beats, 4);
-      expect(sliced.single.timeSignature?.beatType, 4);
-      expect(sliced.single.keySignature?.fifths, -1);
-    });
+        expect(sliced, hasLength(1));
+        expect(sliced.single.clef?.sign, 'F');
+        expect(sliced.single.timeSignature?.beats, 4);
+        expect(sliced.single.timeSignature?.beatType, 4);
+        expect(sliced.single.keySignature?.fifths, -1);
+      },
+    );
 
-    test('sliceMeasuresWithInheritedMetadata preserves explicit later overrides', () {
-      final measures = [
-        Measure(
-          number: 1,
-          clef: const Clef(sign: 'G', line: 2),
-          timeSignature: const TimeSignature(beats: 4, beatType: 4),
-          keySignature: const KeySignature(fifths: 0),
-          symbols: const [
-            Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
-          ],
-        ),
-        Measure(
-          number: 2,
-          clef: const Clef(sign: 'F', line: 4),
-          timeSignature: const TimeSignature(beats: 3, beatType: 4),
-          keySignature: const KeySignature(fifths: -2),
-          symbols: const [
-            Note(step: 'A', octave: 3, duration: 1, type: 'quarter'),
-          ],
-        ),
-      ];
+    test(
+      'sliceMeasuresWithInheritedMetadata preserves explicit later overrides',
+      () {
+        final measures = [
+          Measure(
+            number: 1,
+            clef: const Clef(sign: 'G', line: 2),
+            timeSignature: const TimeSignature(beats: 4, beatType: 4),
+            keySignature: const KeySignature(fifths: 0),
+            symbols: const [
+              Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+            ],
+          ),
+          Measure(
+            number: 2,
+            clef: const Clef(sign: 'F', line: 4),
+            timeSignature: const TimeSignature(beats: 3, beatType: 4),
+            keySignature: const KeySignature(fifths: -2),
+            symbols: const [
+              Note(step: 'A', octave: 3, duration: 1, type: 'quarter'),
+            ],
+          ),
+        ];
 
-      final sliced = sliceMeasuresWithInheritedMetadata(
-        measures: measures,
-        firstMeasureIndex: 1,
-        pageMeasureCount: 1,
-      );
+        final sliced = sliceMeasuresWithInheritedMetadata(
+          measures: measures,
+          firstMeasureIndex: 1,
+          pageMeasureCount: 1,
+        );
 
-      expect(sliced, hasLength(1));
-      expect(sliced.single.clef?.sign, 'F');
-      expect(sliced.single.clef?.line, 4);
-      expect(sliced.single.timeSignature?.beats, 3);
-      expect(sliced.single.timeSignature?.beatType, 4);
-      expect(sliced.single.keySignature?.fifths, -2);
-    });
+        expect(sliced, hasLength(1));
+        expect(sliced.single.clef?.sign, 'F');
+        expect(sliced.single.clef?.line, 4);
+        expect(sliced.single.timeSignature?.beats, 3);
+        expect(sliced.single.timeSignature?.beatType, 4);
+        expect(sliced.single.keySignature?.fifths, -2);
+      },
+    );
 
     testWidgets('draws the playhead in an empty bar of another staff', (
       tester,
@@ -249,14 +255,32 @@ void main() {
                 number: 1,
                 symbols: const [
                   Rest(duration: 2, type: 'half', staff: 1),
-                  Note(step: 'B', octave: 4, duration: 4, type: 'whole', staff: 1),
-                  Note(step: 'E', octave: 5, duration: 1, type: 'quarter', staff: 1),
+                  Note(
+                    step: 'B',
+                    octave: 4,
+                    duration: 4,
+                    type: 'whole',
+                    staff: 1,
+                  ),
+                  Note(
+                    step: 'E',
+                    octave: 5,
+                    duration: 1,
+                    type: 'quarter',
+                    staff: 1,
+                  ),
                 ],
               ),
               Measure(
                 number: 2,
                 symbols: const [
-                  Note(step: 'D', octave: 5, duration: 1, type: 'flag8thUp', staff: 1),
+                  Note(
+                    step: 'D',
+                    octave: 5,
+                    duration: 1,
+                    type: 'flag8thUp',
+                    staff: 1,
+                  ),
                   Rest(duration: 4, type: 'whole', staff: 1),
                 ],
               ),
@@ -429,7 +453,9 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(home: Scaffold(body: ScoreNotationViewer(score: score))),
+        MaterialApp(
+          home: Scaffold(body: ScoreNotationViewer(score: score)),
+        ),
       );
 
       expect(find.byType(ScoreNotationViewer), findsOneWidget);
@@ -467,163 +493,179 @@ void main() {
       );
 
       await tester.pumpWidget(
-        MaterialApp(home: Scaffold(body: ScoreNotationViewer(score: score))),
-      );
-
-      expect(find.byType(ScoreNotationViewer), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('renders multi-part score with system connectors without exception',
-        (tester) async {
-      final score = Score(
-        id: 'grand-staff',
-        title: 'Grand Staff',
-        composer: '',
-        parts: [
-          Part(
-            id: 'P1',
-            name: 'Treble',
-            measures: [
-              Measure(
-                number: 1,
-                timeSignature: const TimeSignature(beats: 4, beatType: 4),
-                symbols: const [
-                  Note(step: 'E', octave: 5, duration: 1, type: 'quarter'),
-                  Note(step: 'C', octave: 5, duration: 1, type: 'quarter'),
-                  Rest(duration: 2, type: 'half'),
-                ],
-              ),
-            ],
-          ),
-          Part(
-            id: 'P2',
-            name: 'Bass',
-            measures: [
-              Measure(
-                number: 1,
-                clef: const Clef(sign: 'F', line: 4),
-                timeSignature: const TimeSignature(beats: 4, beatType: 4),
-                symbols: const [
-                  Note(step: 'C', octave: 3, duration: 1, type: 'quarter'),
-                  Note(step: 'G', octave: 2, duration: 1, type: 'quarter'),
-                  Rest(duration: 2, type: 'half'),
-                ],
-              ),
-            ],
-          ),
-        ],
-      );
-
-      await tester.pumpWidget(
-        MaterialApp(home: Scaffold(body: ScoreNotationViewer(score: score))),
-      );
-
-      expect(find.byType(ScoreNotationViewer), findsOneWidget);
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('buildSymbolTargets returns correct Y positions for alto C clef notes',
-        (tester) async {
-      const alto = Clef(sign: 'C', line: 3);
-      final measures = [
-        Measure(
-          number: 1,
-          clef: alto,
-          symbols: const [
-            Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
-            Note(step: 'F', octave: 3, duration: 1, type: 'quarter'),
-          ],
-        ),
-      ];
-
-      const rowHeight = 140.0;
-      const padding = EdgeInsets.all(16);
-      const minMeasureWidth = 140.0;
-      const measuresPerRow = 4;
-      final layout = const NotationLayoutCalculator().calculate(
-        measures: measures,
-        measuresPerRow: measuresPerRow,
-        minMeasureWidth: minMeasureWidth,
-        rowHeight: rowHeight,
-        padding: padding,
-      );
-
-      final targets = ScoreNotationPainter.buildSymbolTargets(
-        parts: [measures],
-        measuresPerRow: layout.measuresPerRow,
-        minMeasureWidth: minMeasureWidth,
-        rowHeight: rowHeight,
-        padding: padding,
-        rowPrefixWidth: layout.rowPrefixWidth,
-      );
-
-      // C4 is on line 3 of alto clef (middle line) — Y should be above bottom line.
-      final c4Target = targets.firstWhere((t) => t.symbolIndex == 0);
-      // F3 is the bottom line of alto clef — Y should equal bottomLineY.
-      final f3Target = targets.firstWhere((t) => t.symbolIndex == 1);
-
-      // C4 sits higher on the staff (lower Y value) than the bottom-line F3.
-      expect(c4Target.center.dy, lessThan(f3Target.center.dy));
-      expect(tester.takeException(), isNull);
-    });
-
-    testWidgets('drag across measure boundary produces cross-measure reorder event', (tester) async {
-      final score = Score(
-        id: 'drag-boundary',
-        title: 'Drag boundary',
-        composer: 'Tester',
-        parts: [
-          Part(
-            id: 'P1',
-            name: 'Part 1',
-            measures: [
-              Measure(
-                number: 1,
-                symbols: const [
-                  Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
-                ],
-              ),
-              Measure(
-                number: 2,
-                symbols: const [
-                  Rest(duration: 1, type: 'quarter'),
-                  Note(step: 'E', octave: 4, duration: 1, type: 'quarter'),
-                ],
-              ),
-            ],
-          ),
-        ],
-      );
-
-      NotationSymbolReorder? reorderEvent;
-      await tester.pumpWidget(
         MaterialApp(
-          home: Scaffold(
-            body: ScoreNotationViewer(
-              score: score,
-              onDragCompleted: (event, _) {
-                reorderEvent = event;
-              },
+          home: Scaffold(body: ScoreNotationViewer(score: score)),
+        ),
+      );
+
+      expect(find.byType(ScoreNotationViewer), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'renders multi-part score with system connectors without exception',
+      (tester) async {
+        final score = Score(
+          id: 'grand-staff',
+          title: 'Grand Staff',
+          composer: '',
+          parts: [
+            Part(
+              id: 'P1',
+              name: 'Treble',
+              measures: [
+                Measure(
+                  number: 1,
+                  timeSignature: const TimeSignature(beats: 4, beatType: 4),
+                  symbols: const [
+                    Note(step: 'E', octave: 5, duration: 1, type: 'quarter'),
+                    Note(step: 'C', octave: 5, duration: 1, type: 'quarter'),
+                    Rest(duration: 2, type: 'half'),
+                  ],
+                ),
+              ],
+            ),
+            Part(
+              id: 'P2',
+              name: 'Bass',
+              measures: [
+                Measure(
+                  number: 1,
+                  clef: const Clef(sign: 'F', line: 4),
+                  timeSignature: const TimeSignature(beats: 4, beatType: 4),
+                  symbols: const [
+                    Note(step: 'C', octave: 3, duration: 1, type: 'quarter'),
+                    Note(step: 'G', octave: 2, duration: 1, type: 'quarter'),
+                    Rest(duration: 2, type: 'half'),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(body: ScoreNotationViewer(score: score)),
+          ),
+        );
+
+        expect(find.byType(ScoreNotationViewer), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'buildSymbolTargets returns correct Y positions for alto C clef notes',
+      (tester) async {
+        const alto = Clef(sign: 'C', line: 3);
+        final measures = [
+          Measure(
+            number: 1,
+            clef: alto,
+            symbols: const [
+              Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+              Note(step: 'F', octave: 3, duration: 1, type: 'quarter'),
+            ],
+          ),
+        ];
+
+        const rowHeight = 140.0;
+        const padding = EdgeInsets.all(16);
+        const minMeasureWidth = 140.0;
+        const measuresPerRow = 4;
+        final layout = const NotationLayoutCalculator().calculate(
+          measures: measures,
+          measuresPerRow: measuresPerRow,
+          minMeasureWidth: minMeasureWidth,
+          rowHeight: rowHeight,
+          padding: padding,
+        );
+
+        final targets = ScoreNotationPainter.buildSymbolTargets(
+          parts: [measures],
+          measuresPerRow: layout.measuresPerRow,
+          minMeasureWidth: minMeasureWidth,
+          rowHeight: rowHeight,
+          padding: padding,
+          rowPrefixWidth: layout.rowPrefixWidth,
+        );
+
+        // C4 is on line 3 of alto clef (middle line) — Y should be above bottom line.
+        final c4Target = targets.firstWhere((t) => t.symbolIndex == 0);
+        // F3 is the bottom line of alto clef — Y should equal bottomLineY.
+        final f3Target = targets.firstWhere((t) => t.symbolIndex == 1);
+
+        // C4 sits higher on the staff (lower Y value) than the bottom-line F3.
+        expect(c4Target.center.dy, lessThan(f3Target.center.dy));
+        expect(tester.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'drag across measure boundary produces cross-measure reorder event',
+      (tester) async {
+        final score = Score(
+          id: 'drag-boundary',
+          title: 'Drag boundary',
+          composer: 'Tester',
+          parts: [
+            Part(
+              id: 'P1',
+              name: 'Part 1',
+              measures: [
+                Measure(
+                  number: 1,
+                  symbols: const [
+                    Note(step: 'C', octave: 4, duration: 1, type: 'quarter'),
+                  ],
+                ),
+                Measure(
+                  number: 2,
+                  symbols: const [
+                    Rest(duration: 1, type: 'quarter'),
+                    Note(step: 'E', octave: 4, duration: 1, type: 'quarter'),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        );
+
+        NotationSymbolReorder? reorderEvent;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: ScoreNotationViewer(
+                score: score,
+                onDragCompleted: (event, _) {
+                  reorderEvent = event;
+                },
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      final origin = tester.getTopLeft(find.byType(ScoreNotationViewer));
-      final gesture = await tester.startGesture(origin + const Offset(184, 68));
-      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 20));
-      await gesture.moveTo(origin + const Offset(315, 68));
-      await tester.pump();
-      await gesture.up();
-      await tester.pump();
+        final origin = tester.getTopLeft(find.byType(ScoreNotationViewer));
+        final gesture = await tester.startGesture(
+          origin + const Offset(184, 68),
+        );
+        await tester.pump(kLongPressTimeout + const Duration(milliseconds: 20));
+        await gesture.moveTo(origin + const Offset(315, 68));
+        await tester.pump();
+        await gesture.up();
+        await tester.pump();
 
-      // Cross-measure drag is now allowed — event fires with different from/to measures.
-      if (reorderEvent != null) {
-        expect(reorderEvent!.fromMeasureIndex, isNot(equals(reorderEvent!.toMeasureIndex)));
-      }
-      expect(tester.takeException(), isNull);
-    });
+        // Cross-measure drag is now allowed — event fires with different from/to measures.
+        if (reorderEvent != null) {
+          expect(
+            reorderEvent!.fromMeasureIndex,
+            isNot(equals(reorderEvent!.toMeasureIndex)),
+          );
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
 
     test('notation layout exposes explicit system ranges', () {
       final measures = List.generate(
@@ -649,59 +691,62 @@ void main() {
       expect(layout.systems[2].endMeasureIndexExclusive, 5);
     });
 
-    test('sliceScoreForLayout normalizes inherited metadata for each part on the page', () {
-      final score = Score(
-        id: 'multi-part-slice',
-        title: 'Slice',
-        composer: 'Tester',
-        parts: const [
-          Part(
-            id: 'P1',
-            name: 'Top',
-            measures: [
-              Measure(
-                number: 1,
-                clef: Clef(sign: 'G', line: 2),
-                timeSignature: TimeSignature(beats: 4, beatType: 4),
-                symbols: [],
-              ),
-              Measure(number: 2, symbols: []),
-            ],
-          ),
-          Part(
-            id: 'P2',
-            name: 'Bottom',
-            measures: [
-              Measure(
-                number: 1,
-                clef: Clef(sign: 'F', line: 4),
-                keySignature: KeySignature(fifths: -1),
-                symbols: [],
-              ),
-              Measure(number: 2, symbols: []),
-            ],
-          ),
-        ],
-      );
+    test(
+      'sliceScoreForLayout normalizes inherited metadata for each part on the page',
+      () {
+        final score = Score(
+          id: 'multi-part-slice',
+          title: 'Slice',
+          composer: 'Tester',
+          parts: const [
+            Part(
+              id: 'P1',
+              name: 'Top',
+              measures: [
+                Measure(
+                  number: 1,
+                  clef: Clef(sign: 'G', line: 2),
+                  timeSignature: TimeSignature(beats: 4, beatType: 4),
+                  symbols: [],
+                ),
+                Measure(number: 2, symbols: []),
+              ],
+            ),
+            Part(
+              id: 'P2',
+              name: 'Bottom',
+              measures: [
+                Measure(
+                  number: 1,
+                  clef: Clef(sign: 'F', line: 4),
+                  keySignature: KeySignature(fifths: -1),
+                  symbols: [],
+                ),
+                Measure(number: 2, symbols: []),
+              ],
+            ),
+          ],
+        );
 
-      final slice = sliceScoreForLayout(
-        score: score,
-        firstMeasureIndex: 1,
-        pageMeasureCount: 1,
-      );
+        final slice = sliceScoreForLayout(
+          score: score,
+          firstMeasureIndex: 1,
+          pageMeasureCount: 1,
+        );
 
-      expect(slice.parts.length, 2);
-      expect(slice.parts[0].single.clef, const Clef(sign: 'G', line: 2));
-      expect(
-        slice.parts[0].single.timeSignature,
-        const TimeSignature(beats: 4, beatType: 4),
-      );
-      expect(slice.parts[1].single.clef, const Clef(sign: 'F', line: 4));
-      expect(
-        slice.parts[1].single.keySignature,
-        const KeySignature(fifths: -1),
-      );
-    });
+        expect(slice.parts.length, 2);
+        expect(slice.parts[0].single.clef, const Clef(sign: 'G', line: 2));
+        expect(
+          slice.parts[0].single.timeSignature,
+          const TimeSignature(beats: 4, beatType: 4),
+        );
+        expect(slice.parts[1].single.clef, const Clef(sign: 'F', line: 4));
+        expect(
+          slice.parts[1].single.keySignature,
+          const KeySignature(fifths: -1),
+        );
+      },
+    );
 
     test('time signatures show at the start and where they change', () {
       final measures = [
@@ -764,7 +809,10 @@ void main() {
       double secondNoteX(TimeSignature time) =>
           ScoreNotationPainter.buildSymbolTargets(
             parts: [
-              [bar(1, const TimeSignature(beats: 4, beatType: 4)), bar(2, time)],
+              [
+                bar(1, const TimeSignature(beats: 4, beatType: 4)),
+                bar(2, time),
+              ],
             ],
             measuresPerRow: 4,
             minMeasureWidth: 140,
@@ -773,11 +821,11 @@ void main() {
             rowPrefixWidth: 86,
           ).last.center.dx;
 
-      // One note sits mid-lane, so it moves half the time signature's room.
+      // The shared duration spring reserves space after an in-bar signature.
       expect(
         secondNoteX(const TimeSignature(beats: 3, beatType: 4)) -
             secondNoteX(const TimeSignature(beats: 4, beatType: 4)),
-        closeTo(ScoreNotationMetrics.timeSignatureWidth / 2, 1e-9),
+        greaterThan(0),
       );
     });
   });
@@ -802,16 +850,19 @@ Offset _symbolCenterOffset(
     padding: padding,
   );
 
-  final target = ScoreNotationPainter.buildSymbolTargets(
-    parts: [measures],
-    measuresPerRow: layout.measuresPerRow,
-    minMeasureWidth: minMeasureWidth,
-    rowHeight: rowHeight,
-    padding: padding,
-    rowPrefixWidth: layout.rowPrefixWidth,
-  ).firstWhere(
-    (entry) => entry.measureIndex == measureIndex && entry.symbolIndex == symbolIndex,
-  );
+  final target =
+      ScoreNotationPainter.buildSymbolTargets(
+        parts: [measures],
+        measuresPerRow: layout.measuresPerRow,
+        minMeasureWidth: minMeasureWidth,
+        rowHeight: rowHeight,
+        padding: padding,
+        rowPrefixWidth: layout.rowPrefixWidth,
+      ).firstWhere(
+        (entry) =>
+            entry.measureIndex == measureIndex &&
+            entry.symbolIndex == symbolIndex,
+      );
 
   return target.center;
 }

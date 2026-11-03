@@ -1,3 +1,5 @@
+import '../editor/presentation/editor_layout_policy.dart';
+import '../../core/widgets/score_notation/engraving_layout.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
@@ -25,7 +27,10 @@ import 'package:pdf/pdf.dart';
 /// Uses the same pitch-to-position math as [ScoreNotationPainter] so that
 /// the PDF output matches the editor canvas layout.
 class PdfScoreRenderer {
-  const PdfScoreRenderer({this.compress = true});
+  const PdfScoreRenderer({this.compress = true}) : _policy = null;
+  PdfScoreRenderer._configured(Score score, {required this.compress})
+    : _policy = EditorLayoutPolicy.forScore(score);
+  final EditorLayoutPolicy? _policy;
 
   /// PDF stream compression. Tests can disable this to inspect generated
   /// content streams without changing production output.
@@ -34,8 +39,8 @@ class PdfScoreRenderer {
   // ── Page & layout constants ──────────────────────────────────────────────
   // These mirror EditorLayoutPolicy.standard so exported pages use the same
   // measure grouping as the editor canvas.
-  static const double _editorPageW = 760.0;
-  static const double _editorPageH = 1120.0;
+  double get _editorPageW => _policy?.pageWidth ?? 760.0;
+  double get _editorPageH => _policy?.pageHeight ?? 1120.0;
   static const double _editorPadX = 16.0;
   static const double _editorPadY = 28.0;
   static const double _editorRowH = 140.0;
@@ -43,25 +48,25 @@ class PdfScoreRenderer {
   static const double _editorLineSpacing =
       ScoreNotationMetrics.staffLineSpacing;
   static const double _editorStaffTopOffset = 28.0;
-  static const int _measuresPerSystem = 4;
+  int get _measuresPerSystem => _policy?.measuresPerRow ?? 4;
   static const int _baseRowsPerPage = 5;
   static const double _editorFirstPageHeaderOffset = 88.0;
 
-  static final double _scale = PdfPageFormat.a4.height / _editorPageH;
-  static final double _pageX0 =
-      (PdfPageFormat.a4.width - _editorPageW * _scale) / 2;
-  static final double _pageY0 =
-      (PdfPageFormat.a4.height - _editorPageH * _scale) / 2;
-  static final double _padX = _editorPadX * _scale;
-  static final double _padY = _editorPadY * _scale;
-  static final double _prefixW = _editorPrefixW * _scale;
-  static final double _mw =
+  double get _scale => math.min(
+    PdfPageFormat.a4.height / _editorPageH,
+    PdfPageFormat.a4.width / _editorPageW,
+  );
+  double get _pageX0 => (PdfPageFormat.a4.width - _editorPageW * _scale) / 2;
+  double get _pageY0 => (PdfPageFormat.a4.height - _editorPageH * _scale) / 2;
+  double get _padX => _editorPadX * _scale;
+  double get _padY => _editorPadY * _scale;
+  double get _prefixW => _editorPrefixW * _scale;
+  double get _mw =>
       ((_editorPageW - _editorPadX * 2 - _editorPrefixW) / _measuresPerSystem) *
       _scale;
-  static final double _ls = _editorLineSpacing * _scale;
-  static final double _staffH = ScoreNotationMetrics.staffHeightFor(_ls);
-  static final double _firstPageHeaderOffset =
-      _editorFirstPageHeaderOffset * _scale;
+  double get _ls => _editorLineSpacing * _scale;
+  double get _staffH => ScoreNotationMetrics.staffHeightFor(_ls);
+  double get _firstPageHeaderOffset => _editorFirstPageHeaderOffset * _scale;
 
   static const double _titleFontSize = 20.0;
   static const double _composerFontSize = 10.5;
@@ -73,7 +78,10 @@ class PdfScoreRenderer {
   // ── Public API ────────────────────────────────────────────────────────────
 
   /// Returns raw PDF bytes for [score].
-  Future<Uint8List> render(Score score) async {
+  Future<Uint8List> render(Score score) =>
+      PdfScoreRenderer._configured(score, compress: compress)._render(score);
+
+  Future<Uint8List> _render(Score score) async {
     final doc = PdfDocument(compress: compress);
     final font = PdfTtfFont(
       doc,
@@ -125,7 +133,8 @@ class PdfScoreRenderer {
   }
 
   List<PdfPageLayoutInfo> debugPageLayoutForTesting(Score score) {
-    return _paginate(score)
+    return PdfScoreRenderer._configured(score, compress: compress)
+        ._paginate(score)
         .map(
           (page) => PdfPageLayoutInfo(
             firstMeasureIndex: page.firstMeasureIndex,
@@ -138,7 +147,10 @@ class PdfScoreRenderer {
   }
 
   List<List<Measure>> debugPageSliceForTesting(Score score, int pageIndex) {
-    final pages = _paginate(score);
+    final pages = PdfScoreRenderer._configured(
+      score,
+      compress: compress,
+    )._paginate(score);
     if (pageIndex < 0 || pageIndex >= pages.length) {
       return const <List<Measure>>[];
     }
@@ -173,17 +185,17 @@ class PdfScoreRenderer {
 
   List<_PageData> _paginate(Score score) {
     final partCount = score.parts.length;
-    final rowsPerPage = _rowsPerPageForPartCount(
-      partCount,
-      extraHeight:
-          (LyricLayout.extraHeight(score.parts.map((p) => p.measures)) +
-          AnnotationLayout.extraHeight(
-            score.parts.map((p) => p.measures).toList(),
-          )),
-    );
-    final referenceMeasures = score.parts.isEmpty
-        ? const <Measure>[]
-        : score.parts.first.measures;
+    final rowsPerPage =
+        _policy?.rowsPerPage ??
+        _rowsPerPageForPartCount(
+          partCount,
+          extraHeight:
+              (LyricLayout.extraHeight(score.parts.map((p) => p.measures)) +
+              AnnotationLayout.extraHeight(
+                score.parts.map((p) => p.measures).toList(),
+              )),
+        );
+    final referenceMeasures = layoutMeasuresForScore(score);
     final pageStarts = _pageStartIndices(
       referenceMeasures,
       rowsPerPage: rowsPerPage,
@@ -218,7 +230,7 @@ class PdfScoreRenderer {
     return result;
   }
 
-  static int _rowsPerPageForPartCount(int partCount, {double extraHeight = 0}) {
+  int _rowsPerPageForPartCount(int partCount, {double extraHeight = 0}) {
     final normalizedPartCount = math.max(1, partCount);
     final availableHeight =
         _editorPageH - (_editorPadY * 2) - _editorFirstPageHeaderOffset;
@@ -228,27 +240,19 @@ class PdfScoreRenderer {
     return math.max(1, math.min(_baseRowsPerPage, maxRowsThatFit));
   }
 
-  static List<int> _pageStartIndices(
+  List<int> _pageStartIndices(
     List<Measure> measures, {
     required int rowsPerPage,
   }) {
-    if (measures.isEmpty) return const [0];
-
-    final hasExplicitBreaks = measures.any((m) => m.startsNewPage);
-    if (!hasExplicitBreaks) {
-      final measuresPerPage = _measuresPerSystem * rowsPerPage;
-      final count = math.max(
-        1,
-        (measures.length + measuresPerPage - 1) ~/ measuresPerPage,
-      );
-      return List.generate(count, (i) => i * measuresPerPage);
-    }
-
-    final indices = <int>[0];
-    for (var i = 1; i < measures.length; i++) {
-      if (measures[i].startsNewPage) indices.add(i);
-    }
-    return indices;
+    return pageStartIndicesForMeasures(
+      measures,
+      layoutPolicy:
+          _policy ??
+          EditorLayoutPolicy(
+            measuresPerRow: _measuresPerSystem,
+            rowsPerPage: rowsPerPage,
+          ),
+    );
   }
 
   List<List<Measure>> _sliceScoreForPage(Score score, _PageData page) {
@@ -312,8 +316,14 @@ class PdfScoreRenderer {
     required bool isFirstPage,
   }) {
     final pageH = fmt.height;
+    final allParts = EngravingLayout.forScore(score).parts;
     final partCount = score.parts.length;
     final pageParts = _sliceScoreForPage(score, page);
+    final engraving = EngravingLayout(
+      pageParts,
+      score: score,
+      firstMeasure: page.firstMeasureIndex,
+    );
     final maxMeasures = pageParts.fold(0, (m, p) => math.max(m, p.length));
     final systemCount = maxMeasures == 0
         ? 0
@@ -324,17 +334,17 @@ class PdfScoreRenderer {
       _drawScoreHeader(g, score, font, fontBold, fmt);
     }
 
+    final clearance = EngravingLayout.forScore(score).clearance;
     final rowHeight =
+        clearance.$1 +
+        clearance.$2 +
         _editorRowH +
-        (LyricLayout.extraHeight(score.parts.map((p) => p.measures)) +
-            AnnotationLayout.extraHeight(
-              score.parts.map((p) => p.measures).toList(),
-            ));
+        (LyricLayout.extraHeight(allParts) +
+            AnnotationLayout.extraHeight(allParts));
     final above =
-        LyricLayout.aboveHeight(score.parts.map((p) => p.measures)) +
-        AnnotationLayout.aboveHeight(
-          score.parts.map((p) => p.measures).toList(),
-        );
+        clearance.$1 +
+        LyricLayout.aboveHeight(allParts) +
+        AnnotationLayout.aboveHeight(allParts);
     final notePoints = <String, _PdfNotePoint>{};
     for (var s = 0; s < systemCount; s++) {
       final startM = s * page.measuresPerSystem;
@@ -365,6 +375,16 @@ class PdfScoreRenderer {
           font,
           fontBold,
           musicFont,
+          placements: [
+            for (var i = startM; i < endM; i++)
+              engraving.place(
+                i,
+                _mw / _scale,
+                page.measuresPerSystem,
+                _editorPrefixW,
+              ),
+          ],
+          partIndex: pi,
           pageMeasures: partMeasures,
           rowStart: startM,
           rowMeasures: rowMeasures,
@@ -377,7 +397,7 @@ class PdfScoreRenderer {
         );
         for (final (i, m) in rowMeasures.indexed) {
           final annotationTexts = AnnotationLayout.build(
-            parts: score.parts.map((p) => p.measures).toList(),
+            parts: allParts,
             part: pi,
             measure: page.firstMeasureIndex + startM + i,
             visible: m,
@@ -393,9 +413,13 @@ class PdfScoreRenderer {
                 rowPrefixWidth: _editorPrefixW,
               ),
             ),
-            lyricAbove: LyricLayout.aboveHeight(
-              score.parts.map((p) => p.measures),
+            placement: engraving.place(
+              startM + i,
+              _mw / _scale,
+              page.measuresPerSystem,
+              _editorPrefixW,
             ),
+            lyricAbove: LyricLayout.aboveHeight(allParts),
           );
           for (final t in annotationTexts) {
             final x = _pageX0 + t.x * _scale, y = staffTop - t.y * _scale;
@@ -434,7 +458,11 @@ class PdfScoreRenderer {
             contentX: _editorPadX + _editorPrefixW,
             measureWidth: _mw / _scale,
             prefixWidth: _editorPrefixW,
+            engraving: engraving,
+            part: pi,
           ),
+          aboveClearance: clearance.$1,
+          belowClearance: clearance.$2,
           system: s,
           staffTop: 0,
           staffBottom: ScoreNotationMetrics.staffHeightFor(_editorLineSpacing),
@@ -821,6 +849,8 @@ class PdfScoreRenderer {
     PdfFont fontBold,
     PdfFont musicFont, {
     required List<Measure> pageMeasures,
+    required List<BarPlacement> placements,
+    required int partIndex,
     required int rowStart,
     required List<Measure> rowMeasures,
     required double staffTop,
@@ -989,6 +1019,8 @@ class PdfScoreRenderer {
         g,
         musicFont,
         measure,
+        placement: placements[mi],
+        partIndex: partIndex,
         laneInset:
             ScoreNotationMetrics.laneInset(timeInMeasure: timeInMeasure[mi]) *
             _scale,
@@ -1014,6 +1046,8 @@ class PdfScoreRenderer {
     PdfFont musicFont,
     Measure measure, {
     required double laneInset,
+    required BarPlacement placement,
+    required int partIndex,
     required double measureStartX,
     required double measureEndX,
     required double staffTop,
@@ -1027,24 +1061,16 @@ class PdfScoreRenderer {
   }) {
     if (measure.symbols.isEmpty) return;
 
-    final innerPad = ScoreNotationMetrics.measureInnerPadding * _scale;
-    final drawableW = math.max(
-      12.0,
-      (measureEndX - measureStartX) - laneInset - innerPad,
-    );
+    final geometry = placement.bar.staff[partIndex];
     final count = measure.symbols.length;
     final layout = VoiceLayout.of(measure.symbols);
-    final slotCount = layout.columnCount;
     final middleLineY =
         staffTop - _ls * ScoreNotationMetrics.middleStaffLineIndex;
 
     // Pre-compute x/y positions for all symbols.
     final xs = List<double>.generate(
       count,
-      (i) =>
-          measureStartX +
-          laneInset +
-          drawableW * (layout.columns[i] + 1) / (slotCount + 1),
+      (i) => measureStartX + placement.symbolX(partIndex, i) * _scale,
     );
     final ys = <double>[];
     for (var i = 0; i < count; i++) {
@@ -1104,6 +1130,22 @@ class PdfScoreRenderer {
             math.min(staffBottom - _dynamicsBelow, lowest - 12 * _scale),
           );
         }
+        for (final line in ScoreNotationMetrics.ledgerYs(
+          (staffTop - y) / _scale,
+        )) {
+          final half =
+              ScoreNotationMetrics.ledgerHalfWidth *
+              _scale *
+              (symbol.grace == null ? 1 : graceScale);
+          _line(
+            g,
+            x - half,
+            staffTop - line * _scale,
+            x + half,
+            staffTop - line * _scale,
+            ScoreNotationMetrics.staffLineStrokeWidth * _scale,
+          );
+        }
         _drawNote(
           g,
           musicFont,
@@ -1114,7 +1156,11 @@ class PdfScoreRenderer {
           suppressFlag: beamedIndices.contains(i),
           // A beamed note's stem is drawn with its beam, to reach it.
           drawStem: !beamedIndices.contains(i),
-          stemUp: layout.stemUp(i),
+          stemUp: geometry.stemUps[i],
+          stemAnchorX: measureStartX + placement.stemX(partIndex, i) * _scale,
+          stemStartY: y - geometry.stemStarts[i] * _scale,
+          stemEndY: y - geometry.stemEnds[i] * _scale,
+          accidentalOffset: placement.bar.staff[partIndex].accidentalOffsets[i],
         );
         if (symbol.marks.isNotEmpty && textFont != null) {
           final up = layout.stemUp(i) ?? y < middleLineY;
@@ -1196,14 +1242,12 @@ class PdfScoreRenderer {
       if (group.length < 2) continue;
       final headYs = [for (final i in group) ys[i]];
       final averageY = headYs.reduce((a, b) => a + b) / headYs.length;
-      final stemUp = layout.stemUp(group.first) ?? averageY < middleLineY;
+      final stemUp = geometry.stemUps[group.first] ?? averageY < middleLineY;
       final dir = stemUp ? 1.0 : -1.0; // from the heads towards the beam
-      final xOff =
-          (stemUp
-              ? ScoreNotationMetrics.stemXOffset
-              : -ScoreNotationMetrics.stemXOffset) *
-          _scale;
-      final stemXs = [for (final i in group) xs[i] + xOff];
+      final stemXs = [
+        for (final i in group)
+          measureStartX + placement.stemX(partIndex, i) * _scale,
+      ];
       final run = stemXs.last - stemXs.first;
       final slope = run <= 0
           ? 0.0
@@ -1215,7 +1259,8 @@ class PdfScoreRenderer {
       // 85 % of a normal one.
       var shift = 0.0;
       for (var k = 0; k < group.length; k++) {
-        final needed = headYs[k] + dir * stemLen * 0.85 - line(stemXs[k]);
+        final needed =
+            headYs[k] - geometry.stemEnds[group[k]] * _scale - line(stemXs[k]);
         shift = stemUp ? math.max(shift, needed) : math.min(shift, needed);
       }
       double beamY(double x) => line(x) + shift;
@@ -1224,7 +1269,7 @@ class PdfScoreRenderer {
         _line(
           g,
           stemXs[k],
-          headYs[k],
+          headYs[k] - geometry.stemStarts[group[k]] * _scale,
           stemXs[k],
           beamY(stemXs[k]),
           ScoreNotationMetrics.stemStrokeWidth * _scale,
@@ -1302,6 +1347,10 @@ class PdfScoreRenderer {
     bool suppressFlag = false,
     bool drawStem = true,
     bool? stemUp,
+    double? accidentalOffset,
+    double? stemAnchorX,
+    double? stemStartY,
+    double? stemEndY,
   }) {
     if (note.grace case final grace?) {
       // Small, stem up and flagged; an acciaccatura's stem is slashed.
@@ -1321,6 +1370,7 @@ class PdfScoreRenderer {
         y: y,
         middleLineY: middleLineY,
         stemUp: true,
+        accidentalOffset: accidentalOffset,
       );
       if (grace == Grace.acciaccatura) {
         final stemX = x + ScoreNotationMetrics.stemXOffset * _scale;
@@ -1353,7 +1403,9 @@ class PdfScoreRenderer {
         font,
         ScoreNotationMetrics.accidentalFontSize * _scale,
         accidental,
-        x - ScoreNotationMetrics.pdfAccidentalXOffset * _scale,
+        x +
+            (accidentalOffset ?? -ScoreNotationMetrics.pdfAccidentalXOffset) *
+                _scale,
         y - ScoreNotationMetrics.pdfAccidentalYOffset * _scale,
       );
     }
@@ -1415,6 +1467,9 @@ class PdfScoreRenderer {
       x: x,
       y: y,
       stemUp: stemUp ?? y < middleLineY,
+      stemAnchorX: stemAnchorX,
+      stemStartY: stemStartY,
+      stemEndY: stemEndY,
       flags: suppressFlag
           ? 0
           : isEighth
@@ -1454,18 +1509,23 @@ class PdfScoreRenderer {
     required double y,
     required bool stemUp,
     required int flags,
+    double? stemAnchorX,
+    double? stemStartY,
+    double? stemEndY,
   }) {
     final stemLen = ScoreNotationMetrics.stemLengthFor(_ls);
-    final stemX = stemUp
-        ? x + ScoreNotationMetrics.stemXOffset * _scale
-        : x - ScoreNotationMetrics.stemXOffset * _scale;
-    final endY = stemUp ? y + stemLen : y - stemLen;
+    final stemX =
+        stemAnchorX ??
+        (stemUp
+            ? x + ScoreNotationMetrics.stemXOffset * _scale
+            : x - ScoreNotationMetrics.stemXOffset * _scale);
+    final endY = stemEndY ?? (stemUp ? y + stemLen : y - stemLen);
 
     g.setColor(_ink);
     _line(
       g,
       stemX,
-      y,
+      stemStartY ?? y,
       stemX,
       endY,
       ScoreNotationMetrics.stemStrokeWidth * _scale,

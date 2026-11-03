@@ -1,3 +1,4 @@
+import 'package:note_vision/core/widgets/score_notation/engraving_layout.dart';
 import 'dart:math' as math;
 
 import 'package:note_vision/core/models/measure.dart';
@@ -15,23 +16,63 @@ class EditorLayoutPolicy {
     this.verticalPadding = 28.0,
     this.rowHeight = 140.0,
     this.rowPrefixWidth = 86.0,
+    this.notationTopPadding = 0,
   }) : assert(measuresPerRow > 0),
        assert(rowsPerPage > 0);
 
-  static const standard = EditorLayoutPolicy(
-    measuresPerRow: 4,
-    rowsPerPage: 5,
-  );
+  static const standard = EditorLayoutPolicy(measuresPerRow: 4, rowsPerPage: 5);
 
+  static final _policies = Expando<EditorLayoutPolicy>();
   factory EditorLayoutPolicy.forScore(Score score) =>
-      EditorLayoutPolicy.forPartCount(
-        score.parts.length,
-        extraHeight:
-            LyricLayout.extraHeight(score.parts.map((p) => p.measures)) +
-            AnnotationLayout.extraHeight(
+      _policies[score] ??= _forScore(score);
+  static EditorLayoutPolicy _forScore(Score score) {
+    final clearance = EngravingLayout.forScore(score).clearance;
+    final base = EditorLayoutPolicy.forPartCount(
+      score.parts.length,
+      extraHeight:
+          clearance.$1 +
+          clearance.$2 +
+          LyricLayout.extraHeight(score.parts.map((p) => p.measures)) +
+          AnnotationLayout.extraHeight(
+            score.parts.map((p) => p.measures).toList(),
+          ),
+    );
+    final extraTop =
+        clearance.$1 +
+        LyricLayout.aboveHeight(EngravingLayout.forScore(score).parts) +
+        AnnotationLayout.aboveHeight(EngravingLayout.forScore(score).parts);
+    final requiredWidth = EngravingLayout.forScore(score).minimumBarWidth;
+    final available =
+        base.pageWidth - base.horizontalPadding * 2 - base.rowPrefixWidth;
+    final perRow = (available / requiredWidth).floor().clamp(
+      1,
+      base.measuresPerRow,
+    );
+    return EditorLayoutPolicy(
+      measuresPerRow: perRow,
+      rowsPerPage: base.rowsPerPage,
+      notationTopPadding: extraTop,
+      pageWidth: math.max(
+        base.pageWidth,
+        requiredWidth + base.horizontalPadding * 2 + base.rowPrefixWidth,
+      ),
+      pageHeight: math.max(
+        base.pageHeight,
+        base.rowsPerPage * math.max(1, score.parts.length) * base.rowHeight +
+            base.verticalPadding * 2 +
+            88 +
+            LyricLayout.aboveHeight(score.parts.map((p) => p.measures)) +
+            AnnotationLayout.aboveHeight(
               score.parts.map((p) => p.measures).toList(),
-            ),
-      );
+            ) +
+            clearance.$1,
+      ),
+      horizontalPadding: base.horizontalPadding,
+      verticalPadding: base.verticalPadding,
+      rowHeight: base.rowHeight,
+      rowPrefixWidth: base.rowPrefixWidth,
+    );
+  }
 
   factory EditorLayoutPolicy.forPartCount(
     int partCount, {
@@ -66,6 +107,7 @@ class EditorLayoutPolicy {
   final double verticalPadding;
   final double rowHeight;
   final double rowPrefixWidth;
+  final double notationTopPadding;
 
   int get measuresPerPage => measuresPerRow * rowsPerPage;
 
@@ -103,19 +145,10 @@ List<int> pageStartIndicesForMeasures(
     return const [0];
   }
 
-  final hasExplicitBreaks = measures.any((m) => m.startsNewPage);
-  if (!hasExplicitBreaks) {
-    final count = math.max(
-      1,
-      (measures.length + layoutPolicy.measuresPerPage - 1) ~/
-          layoutPolicy.measuresPerPage,
-    );
-    return List.generate(count, (i) => i * layoutPolicy.measuresPerPage);
-  }
-
   final indices = <int>[0];
-  for (int i = 1; i < measures.length; i++) {
-    if (measures[i].startsNewPage) {
+  for (var i = 1; i < measures.length; i++) {
+    if (measures[i].startsNewPage ||
+        i - indices.last >= layoutPolicy.measuresPerPage) {
       indices.add(i);
     }
   }
@@ -151,3 +184,22 @@ class EditorPageMetrics {
   int pageIndexForMeasureIndex(int measureIndex) =>
       pageIndexForMeasure(pageStartIndices, measureIndex);
 }
+
+final _layoutReferences = Expando<List<Measure>>();
+List<Measure> layoutMeasuresForScore(Score score) =>
+    _layoutReferences[score] ??= () {
+      final parts = score.parts;
+      final count = parts.fold(0, (n, p) => math.max(n, p.measures.length));
+      return [
+        for (var m = 0; m < count; m++)
+          () {
+            final measures = [
+              for (final p in parts)
+                if (m < p.measures.length) p.measures[m],
+            ];
+            return measures.first.copyWith(
+              startsNewPage: measures.any((b) => b.startsNewPage),
+            );
+          }(),
+      ];
+    }();

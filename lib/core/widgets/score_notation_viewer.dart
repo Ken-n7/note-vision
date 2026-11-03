@@ -7,13 +7,12 @@ import '../models/clef.dart';
 import '../models/key_signature.dart';
 import '../models/measure.dart';
 import '../models/note.dart';
-import '../models/part.dart';
 import '../models/score.dart';
 import '../models/time_signature.dart';
 import 'score_notation/notation_layout.dart';
+import 'score_notation/engraving_layout.dart';
 import 'score_notation/lyric_layout.dart';
 import 'score_notation/annotation_layout.dart';
-import 'score_notation/score_notation_metrics.dart';
 import 'score_notation/score_notation_painter.dart';
 import 'score_notation/staff_pitch_mapper.dart';
 
@@ -209,12 +208,41 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   NotationInsertTarget? _externalInsertTarget;
   NotationPreviewGlyph? _externalPreviewGlyph;
 
-  List<List<Measure>> get _allParts =>
-      (widget.score?.parts ?? const <Part>[]).map((p) => p.measures).toList();
+  Score? _spacingScore;
+  int? _spacingFirst, _spacingCount;
+  EngravingLayout? _spacing;
+  EngravingLayout get _engraving {
+    if (_spacing == null ||
+        !identical(_spacingScore, widget.score) ||
+        _spacingFirst != widget.firstMeasureIndex ||
+        _spacingCount != widget.pageMeasureCount) {
+      _spacingScore = widget.score;
+      _spacingFirst = widget.firstMeasureIndex;
+      _spacingCount = widget.pageMeasureCount;
+      final page = sliceScoreForLayout(
+        score: widget.score,
+        firstMeasureIndex: widget.firstMeasureIndex,
+        pageMeasureCount: widget.pageMeasureCount,
+      );
+      _spacing = EngravingLayout(
+        page.parts,
+        score: widget.score,
+        firstMeasure: widget.firstMeasureIndex,
+      );
+    }
+    return _spacing!;
+  }
+
+  List<List<Measure>> get _allParts => widget.score == null
+      ? const []
+      : EngravingLayout.forScore(widget.score!).parts;
   double get _rowHeight {
     final parts = _allParts;
     final extra =
-        LyricLayout.extraHeight(parts) + AnnotationLayout.extraHeight(parts);
+        LyricLayout.extraHeight(parts) +
+        AnnotationLayout.extraHeight(parts) +
+        EngravingLayout.verticalClearance(parts).$1 +
+        EngravingLayout.verticalClearance(parts).$2;
     final hasLyrics = parts
         .expand((p) => p)
         .expand((m) => m.notes)
@@ -228,7 +256,8 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     top:
         widget.padding.top +
         LyricLayout.aboveHeight(_allParts) +
-        AnnotationLayout.aboveHeight(_allParts),
+        AnnotationLayout.aboveHeight(_allParts) +
+        EngravingLayout.verticalClearance(_allParts).$1,
   );
 
   @override
@@ -239,7 +268,9 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
       pageMeasureCount: widget.pageMeasureCount,
     );
     final allParts = pageSlice.parts;
-    final activeMeasures = pageSlice.measuresForPart(widget.selectedPartIndex);
+    final activeMeasures = allParts.isEmpty
+        ? const <Measure>[]
+        : allParts.reduce((a, b) => a.length >= b.length ? a : b);
 
     if (allParts.isEmpty) {
       return _EmptyNotationState(backgroundColor: widget.backgroundColor);
@@ -319,6 +350,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
               } else {
                 if (widget.onAnnotationTap != null) {
                   final hits = ScoreNotationPainter.buildAnnotationTargets(
+                    engraving: _engraving,
                     parts: allParts,
                     allParts: _allParts,
                     firstMeasureIndex: widget.firstMeasureIndex,
@@ -337,6 +369,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
                   }
                 }
                 final targets = ScoreNotationPainter.buildSymbolTargets(
+                  engraving: _engraving,
                   parts: allParts,
                   measuresPerRow: layout.measuresPerRow,
                   minMeasureWidth: widget.minMeasureWidth,
@@ -346,10 +379,9 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
                 );
                 targets.addAll(
                   ScoreNotationPainter.buildLyricTargets(
+                    engraving: _engraving,
                     parts: allParts,
-                    lyricParts: (widget.score?.parts ?? const <Part>[])
-                        .map((p) => p.measures)
-                        .toList(),
+                    lyricParts: _allParts,
                     firstMeasureIndex: widget.firstMeasureIndex,
                     measuresPerRow: layout.measuresPerRow,
                     minMeasureWidth: widget.minMeasureWidth,
@@ -394,9 +426,8 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
             ),
       onLongPressCancel: widget.onDragCompleted == null ? null : _cancelDrag,
       painter: ScoreNotationPainter(
-        lyricParts: (widget.score?.parts ?? const <Part>[])
-            .map((p) => p.measures)
-            .toList(),
+        engraving: _engraving,
+        lyricParts: _allParts,
         firstMeasureIndex: widget.firstMeasureIndex,
         parts: allParts,
         measuresPerRow: layout.measuresPerRow,
@@ -450,6 +481,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     required Offset position,
   }) {
     final targets = ScoreNotationPainter.buildSymbolTargets(
+      engraving: _engraving,
       parts: allParts,
       measuresPerRow: layout.measuresPerRow,
       minMeasureWidth: widget.minMeasureWidth,
@@ -623,6 +655,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
 
     final targets =
         ScoreNotationPainter.buildSymbolTargets(
+          engraving: _engraving,
           parts: [measures],
           measuresPerRow: layout.measuresPerRow,
           minMeasureWidth: widget.minMeasureWidth,
@@ -669,8 +702,6 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     if (allParts.isEmpty) return null;
     final partCount = allParts.length;
     final contentStartX = _padding.left + layout.rowPrefixWidth;
-    const innerPadding = 16.0;
-
     for (final system in layout.systems) {
       for (var partIdx = 0; partIdx < partCount; partIdx++) {
         final measures = allParts[partIdx];
@@ -708,47 +739,39 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
           }
 
           final measure = measures[absoluteMeasureIndex];
-          final inset = ScoreNotationMetrics.laneInset(
-            timeInMeasure: ScoreNotationMetrics.timeSignatureInMeasure(
-              measures,
-              absoluteMeasureIndex,
-              measureInRow: measureInRow,
-              rowPrefixWidth: layout.rowPrefixWidth,
-            ),
-          );
-          final drawableWidth =
-              ((measureEndX - measureStartX) - inset - innerPadding)
-                  .clamp(12.0, double.infinity)
-                  .toDouble();
-          final clampedX = position.dx
-              .clamp(measureStartX + inset, measureEndX - innerPadding)
-              .toDouble();
-          // Symbols sit where the painter draws them: chord tones share the
-          // slot of the note before them, and an insert never splits a chord.
           final symbols = measure.symbols;
-          final slotCount = symbols
-              .where((s) => !(s is Note && s.isChordTone))
-              .length;
+          final placed = _engraving.place(
+            absoluteMeasureIndex,
+            widget.minMeasureWidth,
+            layout.measuresPerRow,
+            layout.rowPrefixWidth,
+          );
+          final roots = [
+            for (final (i, s) in symbols.indexed)
+              if (!(s is Note && s.isChordTone)) i,
+          ];
           var insertIndex = 0;
-          var insertSlot = 0;
-          var slot = 0;
-          for (var i = 0; i < symbols.length; i++) {
-            final symbol = symbols[i];
-            if (symbol is Note && symbol.isChordTone) {
-              if (insertIndex == i) insertIndex = i + 1;
-              continue;
-            }
-            final progress = (slot + 1) / (slotCount + 1);
-            slot++;
-            if (clampedX > measureStartX + inset + drawableWidth * progress) {
+          double? before, after;
+          // Choose the nearest onset in the stored input lane; insertion never
+          // splits a chord and indicators use the same geometry as the heads.
+          for (final i in roots) {
+            final x = measureStartX + placed.symbolX(partIdx, i);
+            if (x < position.dx) {
               insertIndex = i + 1;
-              insertSlot = slot;
+              while (insertIndex < symbols.length &&
+                  symbols[insertIndex] is Note &&
+                  (symbols[insertIndex] as Note).isChordTone) {
+                insertIndex++;
+              }
+              before = x;
+            } else if (after == null || x < after) {
+              after = x;
             }
           }
-
-          final indicatorProgress = (insertSlot + 1) / (slotCount + 2);
-          final indicatorX =
-              measureStartX + inset + (drawableWidth * indicatorProgress);
+          final indicatorX = before == null && after == null
+              ? measureStartX + widget.minMeasureWidth / 2
+              : ((before ?? measureStartX + 16) + (after ?? measureEndX - 16)) /
+                    2;
           final clefSign = measure.clef?.sign ?? 'G';
           final pitch = StaffPitchMapper.pitchForY(
             y: position.dy,
