@@ -10,6 +10,7 @@ import 'accidentals.dart';
 import 'score_timeline.dart';
 import 'spanners.dart';
 import 'tempo_map.dart';
+import 'transposer.dart';
 import '../models/score_annotation.dart';
 
 // ---------------------------------------------------------------------------
@@ -291,9 +292,22 @@ class PlaybackConverter {
     List<PlaybackEvent> events,
   ) {
     final notes = List<PlaybackEvent>.of(events);
+    // A transposing part's chord symbols are written; they sound, and are
+    // voiced, as in concert pitch, so both views play alike.
+    final sounding =
+        score.concertPitch ||
+            !score.parts.any(
+              (p) =>
+                  p.transposition != null &&
+                  p.measures.any(
+                    (m) => m.annotations.any((a) => a.chord != null),
+                  ),
+            )
+        ? score
+        : const Transposer().concertPitch(score, true);
     for (final m in timeline.measures) {
       final chords =
-          score.parts[m.partIndex].measures[m.measureIndex].annotations
+          sounding.parts[m.partIndex].measures[m.measureIndex].annotations
               .where((a) => a.kind == AnnotationKind.chord && a.chord != null)
               .toList()
             ..sort((a, b) => a.offset.compareTo(b.offset));

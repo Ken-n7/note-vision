@@ -929,9 +929,12 @@ Device check (2026-11-01): release **2005**, built from `f801e50` with
   dropping a part's mixer settings.
 - Parity: `23_transposing` (flute, clarinet, alto sax, horn, tenor sax on one
   concert melody): notation 45/45, playback 41/41. All 15 templates match.
-- Not yet: chord symbols in transposing parts are not transposed for
-  concert pitch or playback; per-instrument concert-pitch clefs;
-  transposition changes mid-score.
+- Follow-up: chord symbols in transposing parts now sound at concert pitch
+  (they played as written) and are voiced from the concert-pitch chord, so
+  written and concert-pitch views sound alike; Concert pitch already
+  rewrote them.
+- Not yet: per-instrument concert-pitch clefs; transposition changes
+  mid-score.
 
 ## Stage 5D (part 2) — drum kit and percussion staves
 

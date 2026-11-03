@@ -6,6 +6,7 @@ import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/models/score_annotation.dart';
 import 'package:note_vision/core/services/playback_converter.dart';
 import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
@@ -111,5 +112,44 @@ void main() {
     final clarinet = state.score.parts.last;
     expect(clarinet.transposition?.chromatic, -2);
     expect(clarinet.measures.first.keySignature?.fifths, 0);
+  });
+
+  test('a chord symbol in a transposing part sounds at concert pitch', () {
+    // A C chord written for the B♭ clarinet sounds as B♭.
+    final score = imported();
+    Score withChordIn(int part) => score.copyWith(
+      parts: [
+        for (final (i, p) in score.parts.indexed)
+          i != part
+              ? p
+              : p.copyWith(
+                  measures: [
+                    p.measures.first.copyWith(
+                      annotations: [
+                        ScoreAnnotation(
+                          kind: AnnotationKind.chord,
+                          chord: ChordSymbol.parse('C'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+      ],
+    );
+    List<int> chordKeys(Score s) => [
+      for (final e in const PlaybackConverter().buildEvents(s))
+        if (e.isHarmony) e.midiNote,
+    ]..sort();
+    final written = chordKeys(withChordIn(1));
+    // B♭, D and F.
+    expect({for (final k in written) k % 12}, {10, 2, 5});
+    final concert = EditorState(
+      score: withChordIn(1),
+    ).toggleConcertPitch().score;
+    expect(
+      concert.parts[1].measures.first.annotations.single.chord?.label,
+      'Bb',
+    );
+    expect(chordKeys(concert), written);
   });
 }
