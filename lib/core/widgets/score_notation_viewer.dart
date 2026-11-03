@@ -201,6 +201,12 @@ class ScoreNotationViewer extends StatefulWidget {
 }
 
 class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
+  /// Each tablature staff's tuning, by part index.
+  Map<int, List<int>> get _tabTunings => {
+    for (final (i, part) in (widget.score?.parts ?? const []).indexed)
+      if (part.isTab && part.tabTuning != null) i: part.tabTuning!,
+  };
+
   final NotationLayoutCalculator _layoutCalculator =
       const NotationLayoutCalculator();
   _NotationDragSession? _dragSession;
@@ -369,6 +375,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
                   }
                 }
                 final targets = ScoreNotationPainter.buildSymbolTargets(
+                  tabTunings: _tabTunings,
                   engraving: _engraving,
                   parts: allParts,
                   measuresPerRow: layout.measuresPerRow,
@@ -445,10 +452,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
           for (final (i, part) in (widget.score?.parts ?? const []).indexed)
             if (part.joinsPrevious) i,
         },
-        tabTunings: {
-          for (final (i, part) in (widget.score?.parts ?? const []).indexed)
-            if (part.isTab && part.tabTuning != null) i: part.tabTuning!,
-        },
+        tabTunings: _tabTunings,
         playbackPartIndex: widget.playbackPartIndex,
         playbackMeasureIndex: widget.playbackMeasureIndex,
         playbackSymbolIndex: widget.playbackSymbolIndex,
@@ -485,6 +489,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     required Offset position,
   }) {
     final targets = ScoreNotationPainter.buildSymbolTargets(
+      tabTunings: _tabTunings,
       engraving: _engraving,
       parts: allParts,
       measuresPerRow: layout.measuresPerRow,
@@ -659,6 +664,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
 
     final targets =
         ScoreNotationPainter.buildSymbolTargets(
+          tabTunings: _tabTunings,
           engraving: _engraving,
           parts: [measures],
           measuresPerRow: layout.measuresPerRow,

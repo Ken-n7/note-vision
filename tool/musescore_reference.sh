@@ -53,7 +53,7 @@ for t in 01-General/01-Treble_Clef 01-General/02-Bass_Clef 01-General/03-Grand_S
   03-Chamber_Music/01-String_Quartet 03-Chamber_Music/02-Wind_Quartet \
   03-Chamber_Music/03-Wind_Quintet 03-Chamber_Music/04-Saxophone_Quartet \
   03-Chamber_Music/05-Brass_Quartet 03-Chamber_Music/06-Brass_Quintet \
-  04-Solo/01-Guitar 04-Solo/03-Guitar_Tablature 04-Solo/04-Piano \
+  04-Solo/01-Guitar 04-Solo/02-Guitar_+_Tablature 04-Solo/03-Guitar_Tablature 04-Solo/04-Piano \
   05-Jazz/01-Jazz_Lead_Sheet 06-Popular/01-Rock_Band; do
   "$mscore" -o "$PWD/$dir/reference/templates/${t#*/}.musicxml" "$templates/$t/${t#*/}.mscx"
 done

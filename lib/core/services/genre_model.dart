@@ -92,7 +92,7 @@ class GenreModel {
   static List<List<num>> melody(Score score) {
     const converter = PlaybackConverter();
     final out = <List<num>>[];
-    for (final part in score.parts) {
+    for (final part in score.parts.where((p) => !p.linked)) {
       final accidentals = Accidentals();
       TimeSignature? time;
       for (final measure in part.measures) {

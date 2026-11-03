@@ -10,8 +10,9 @@ import 'package:note_vision/core/models/tablature.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/services/transposer.dart';
 
-/// One staff of a new score; [grand] adds a bass staff joined below it, as
-/// a piano has.
+/// One staff of a new score; [grand] adds a staff joined below it: bass, as
+/// a piano has, or under a guitar's treble 8vb a linked TAB staff (MuseScore's
+/// Guitar + Tablature).
 typedef NewStaff = ({String name, Clef clef, bool grand});
 
 const _treble = Clef(sign: 'G', line: 2);
@@ -92,6 +93,9 @@ const scoreTemplates = <ScoreTemplate>[
   ]),
   ScoreTemplate('Solo', 'Guitar', [
     (name: 'Classical Guitar', clef: _treble8vb, grand: false),
+  ]),
+  ScoreTemplate('Solo', 'Guitar + tablature', [
+    (name: 'Guitar', clef: _treble8vb, grand: true),
   ]),
   ScoreTemplate('Solo', 'Guitar tablature', [
     (name: 'Guitar', clef: Clef.tab, grand: false),
@@ -212,13 +216,16 @@ Score buildNewScore(NewScoreOptions o, {String? id}) {
       ),
     );
     if (staff.grand) {
+      final tab = staff.clef == _treble8vb;
       parts.add(
         Part(
           id: '$id-staff2',
           name: staff.name,
           staff: 2,
           playback: playback,
-          measures: measures(_bass, top: false),
+          linked: tab,
+          tabTuning: tab ? standardGuitarTuning : null,
+          measures: measures(tab ? Clef.tab : _bass, top: false),
         ),
       );
     }

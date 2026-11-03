@@ -1,3 +1,4 @@
+import 'package:note_vision/core/services/linked_staves.dart';
 import 'dart:math' as math;
 import 'dart:convert';
 
@@ -56,58 +57,66 @@ class MusicXmlScoreConverter {
         title: title,
         composer: composer,
         // <alter> is the pitch heard; notes store the accidental written.
-        parts: parts.map((part) {
-          final sourceId = sourcePartIds[part.id] ?? part.id;
-          final declaration = root
-              .getElement('part-list')
-              ?.findElements('score-part')
-              .where((e) => e.getAttribute('id') == sourceId)
-              .firstOrNull;
-          // A transposing part's first <transpose>: notes stay as written.
-          final transpose = root
-              .findAllElements('part')
-              .where((e) => e.getAttribute('id') == sourceId)
-              .expand((e) => e.findAllElements('transpose'))
-              .firstOrNull;
-          int read(String name) =>
-              int.tryParse(_firstInnerText(transpose, name)?.trim() ?? '') ??
-              0;
-          // A tablature staff's strings, lowest first.
-          final details = root
-              .findAllElements('part')
-              .where((e) => e.getAttribute('id') == sourceId)
-              .expand((e) => e.findAllElements('staff-details'))
-              .where(
-                (d) =>
-                    (int.tryParse(d.getAttribute('number') ?? '') ?? 1) ==
-                    part.staff,
-              )
-              .firstOrNull;
-          final tuning = [
-            for (final t in details?.findElements('staff-tuning') ?? <XmlElement>[])
-              midiOf(
-                _firstInnerText(t, 'tuning-step')?.trim() ?? 'E',
-                int.tryParse(_firstInnerText(t, 'tuning-alter') ?? '') ?? 0,
-                int.tryParse(_firstInnerText(t, 'tuning-octave') ?? '') ?? 4,
-              ),
-          ];
-          return Accidentals.writtenFromSounding(
-            shown: (n) => _shownAccidentals[n] ?? false,
-            part.copyWith(
-              tabTuning: tuning.isEmpty
-                  ? (part.isTab ? standardGuitarTuning : null)
-                  : tuning,
-              playback: MusicXmlInstruments.read(declaration),
-              transposition: transpose == null
-                  ? null
-                  : Transposition(
-                      diatonic: read('diatonic'),
-                      chromatic: read('chromatic'),
-                      octave: read('octave-change'),
-                    ),
-            ),
-          );
-        }).toList(),
+        // A TAB staff repeating the staff above is MuseScore's linked staff.
+        parts: linkRepeatedTabStaves([
+          for (final part in parts)
+            () {
+              final sourceId = sourcePartIds[part.id] ?? part.id;
+              final declaration = root
+                  .getElement('part-list')
+                  ?.findElements('score-part')
+                  .where((e) => e.getAttribute('id') == sourceId)
+                  .firstOrNull;
+              // A transposing part's first <transpose>: notes stay as written.
+              final transpose = root
+                  .findAllElements('part')
+                  .where((e) => e.getAttribute('id') == sourceId)
+                  .expand((e) => e.findAllElements('transpose'))
+                  .firstOrNull;
+              int read(String name) =>
+                  int.tryParse(
+                    _firstInnerText(transpose, name)?.trim() ?? '',
+                  ) ??
+                  0;
+              // A tablature staff's strings, lowest first.
+              final details = root
+                  .findAllElements('part')
+                  .where((e) => e.getAttribute('id') == sourceId)
+                  .expand((e) => e.findAllElements('staff-details'))
+                  .where(
+                    (d) =>
+                        (int.tryParse(d.getAttribute('number') ?? '') ?? 1) ==
+                        part.staff,
+                  )
+                  .firstOrNull;
+              final tuning = [
+                for (final t
+                    in details?.findElements('staff-tuning') ?? <XmlElement>[])
+                  midiOf(
+                    _firstInnerText(t, 'tuning-step')?.trim() ?? 'E',
+                    int.tryParse(_firstInnerText(t, 'tuning-alter') ?? '') ?? 0,
+                    int.tryParse(_firstInnerText(t, 'tuning-octave') ?? '') ??
+                        4,
+                  ),
+              ];
+              return Accidentals.writtenFromSounding(
+                shown: (n) => _shownAccidentals[n] ?? false,
+                part.copyWith(
+                  tabTuning: tuning.isEmpty
+                      ? (part.isTab ? standardGuitarTuning : null)
+                      : tuning,
+                  playback: MusicXmlInstruments.read(declaration),
+                  transposition: transpose == null
+                      ? null
+                      : Transposition(
+                          diatonic: read('diatonic'),
+                          chromatic: read('chromatic'),
+                          octave: read('octave-change'),
+                        ),
+                ),
+              );
+            }(),
+        ]),
       ),
     );
     final bindings = <MusicXmlSymbolBinding>[];
@@ -367,8 +376,8 @@ class MusicXmlScoreConverter {
               symbols: [
                 for (final s in m.symbols)
                   switch (s) {
-                    Note(:final voice) when (home[voice ?? 1] ?? staffOf(s)) !=
-                        staffOf(s) =>
+                    Note(:final voice)
+                        when (home[voice ?? 1] ?? staffOf(s)) != staffOf(s) =>
                       s.copyWith(
                         staff: home[voice ?? 1],
                         staffMove: staffOf(s) - home[voice ?? 1]!,
@@ -419,7 +428,11 @@ class MusicXmlScoreConverter {
         final sign = _firstInnerText(clef, 'sign')?.trim();
         final line =
             int.tryParse(_firstInnerText(clef, 'line') ?? '') ??
-            (sign == 'percussion' ? 3 : sign == 'TAB' ? 5 : null);
+            (sign == 'percussion'
+                ? 3
+                : sign == 'TAB'
+                ? 5
+                : null);
         if (sign != null && sign.isNotEmpty && line != null) {
           return Clef(sign: sign, line: line, octave: _clefOctave(clef));
         }
@@ -788,8 +801,7 @@ class MusicXmlScoreConverter {
     // A drum note is written at a display position and sounds its kit
     // piece.
     final unpitched = _firstOrNull(noteElement.findElements('unpitched'));
-    final pitch =
-        unpitched ?? _firstOrNull(noteElement.findElements('pitch'));
+    final pitch = unpitched ?? _firstOrNull(noteElement.findElements('pitch'));
     if (pitch == null) {
       return null;
     }
@@ -931,7 +943,11 @@ class MusicXmlScoreConverter {
     final sign = _firstInnerText(clefElement, 'sign')?.trim();
     final line =
         int.tryParse(_firstInnerText(clefElement, 'line') ?? '') ??
-        (sign == 'percussion' ? 3 : sign == 'TAB' ? 5 : null);
+        (sign == 'percussion'
+            ? 3
+            : sign == 'TAB'
+            ? 5
+            : null);
     if (sign == null || sign.isEmpty || line == null) {
       return null;
     }

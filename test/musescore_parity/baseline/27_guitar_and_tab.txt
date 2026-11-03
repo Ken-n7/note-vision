@@ -1,0 +1,4 @@
+# 27_guitar_and_tab — MuseScore4 4.7.5 vs Note Vision
+## notation: 29/29 MuseScore facts match
+## playback: 17/18 MuseScore facts match
+- program 28

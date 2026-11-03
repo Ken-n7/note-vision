@@ -222,7 +222,20 @@ class MusicXmlPreservingExporter {
                 after: 'step',
               );
             }
-            if (oldNote.alter != newNote.alter) {
+            // A TAB note's string and fret; it shows no accidental.
+            final technical = element
+                .getElement('notations')
+                ?.getElement('technical');
+            final tab = technical?.getElement('fret') != null;
+            if (oldNote.string != newNote.string ||
+                oldNote.fret != newNote.fret) {
+              if (!tab || newNote.string == null || newNote.fret == null) {
+                throw const MusicXmlPreservationException();
+              }
+              _setText(technical!, 'string', '${newNote.string}');
+              _setText(technical, 'fret', '${newNote.fret}');
+            }
+            if (!tab && oldNote.alter != newNote.alter) {
               final accidental = switch (newNote.alter) {
                 -2 => 'flat-flat',
                 -1 => 'flat',
@@ -394,6 +407,8 @@ class MusicXmlPreservingExporter {
             'beams',
             'beamed',
             'lyrics',
+            'string',
+            'fret',
           ]) {
             oldJson.remove(key);
             json.remove(key);

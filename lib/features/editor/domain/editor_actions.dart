@@ -58,7 +58,8 @@ const DurationSpec sixteenthDuration = DurationSpec('sixteenth', 1);
 
 /// One staff in a new part order: an existing part ([from] is its index) or
 /// a new empty one with [clef]. [name] may rename it. [joinsPrevious] makes
-/// it a further staff of the entry above (a piano's left hand).
+/// it a further staff of the entry above (a piano's left hand); a new TAB
+/// staff joining a new staff is linked to it (Guitar + Tablature).
 typedef StaffPlanEntry = ({
   int? from,
   String name,
@@ -114,19 +115,22 @@ extension EditorActions on EditorState {
 
   bool get canRedo => redoStack.isNotEmpty;
 
-  int get musicSymbolCount => score.parts.fold(
-    0,
-    (count, part) =>
-        count +
-        part.measures.fold(
-          0,
-          (count, measure) =>
-              count +
-              measure.symbols
-                  .where((symbol) => symbol is Note || symbol is Rest)
-                  .length,
-        ),
-  );
+  // A linked staff's symbols repeat the staff above.
+  int get musicSymbolCount => score.parts
+      .where((p) => !p.linked)
+      .fold(
+        0,
+        (count, part) =>
+            count +
+            part.measures.fold(
+              0,
+              (count, measure) =>
+                  count +
+                  measure.symbols
+                      .where((symbol) => symbol is Note || symbol is Rest)
+                      .length,
+            ),
+      );
 
   bool get hasPlaybackContent =>
       musicSymbolCount > 0 ||
@@ -1880,6 +1884,7 @@ extension EditorActions on EditorState {
           score.parts[from].copyWith(
             name: entry.name,
             staff: staffOf(i),
+            linked: score.parts[from].linked && staffOf(i) > 1,
             measures: score.parts[from].measures,
           )
         else
@@ -1905,6 +1910,7 @@ extension EditorActions on EditorState {
             transpositionFor(entry.name),
           ).copyWith(
             tabTuning: entry.clef?.isTab == true ? standardGuitarTuning : null,
+            linked: entry.clef?.isTab == true && staffOf(i) > 1,
           ),
     ];
     final next = score.copyWith(

@@ -428,6 +428,7 @@ class ScoreNotationPainter extends CustomPainter {
     required EdgeInsets padding,
     required double rowPrefixWidth,
     EngravingLayout? engraving,
+    Map<int, List<int>> tabTunings = const {},
   }) {
     final rows = _buildRowMetricsStatic(
       parts: parts,
@@ -466,17 +467,23 @@ class ScoreNotationPainter extends CustomPainter {
           );
           final x =
               measureStartX + placement.symbolX(row.partIndex, symbolIndex);
-          final y =
-              _symbolCenterY(
-                symbol,
-                row.staffTop,
-                row.staffBottom,
-                row.clefSign,
-                clefLine: row.clefLine,
-              ) +
-              (symbol is Rest
-                  ? layout.restOffset(symbolIndex) * staffLineSpacing
-                  : 0);
+          // On a tablature staff a note is its fret number on its string.
+          final strings = tabTunings[row.partIndex]?.length;
+          final y = symbol is Note && strings != null
+              ? row.staffTop +
+                    ((symbol.string ?? 1).clamp(1, strings) - 1) *
+                        (row.staffBottom - row.staffTop) /
+                        (strings - 1)
+              : _symbolCenterY(
+                      symbol,
+                      row.staffTop,
+                      row.staffBottom,
+                      row.clefSign,
+                      clefLine: row.clefLine,
+                    ) +
+                    (symbol is Rest
+                        ? layout.restOffset(symbolIndex) * staffLineSpacing
+                        : 0);
           targets.add(
             NotationSymbolTarget(
               partIndex: row.partIndex,
@@ -2343,7 +2350,8 @@ class ScoreNotationPainter extends CustomPainter {
   }
 
   /// Braces each joined staff to the one above and runs barlines between
-  /// them.
+  /// them; a TAB staff (Guitar + Tablature) is only joined at the left, as
+  /// MuseScore draws it.
   void _drawGrandStaves(Canvas canvas, List<_RowMetrics> metrics) {
     final ink = Paint()
       ..color = const Color(0xFF111827)
@@ -2359,7 +2367,8 @@ class ScoreNotationPainter extends CustomPainter {
           )
           .firstOrNull;
       if (upper == null) continue;
-      for (var m = 1; m <= lower.measures.length; m++) {
+      final tab = tabTunings.containsKey(lower.partIndex);
+      for (var m = 1; m <= (tab ? 0 : lower.measures.length); m++) {
         final x = lower.contentStartX + m * minMeasureWidth;
         canvas.drawLine(
           Offset(x, upper.staffBottom),
@@ -2372,6 +2381,7 @@ class ScoreNotationPainter extends CustomPainter {
         Offset(upper.rowStartX, lower.staffBottom),
         ink,
       );
+      if (tab) continue;
       // A brace: two thin-ended curves meeting at a point in the middle.
       final top = upper.staffTop;
       final bottom = lower.staffBottom;

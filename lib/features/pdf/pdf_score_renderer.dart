@@ -528,6 +528,7 @@ class PdfScoreRenderer {
             upperTop: staffTop + rowHeight * _scale,
             lowerTop: staffTop,
             measures: rowMeasures.length,
+            tab: score.parts[pi].isTab,
           );
         }
       }
@@ -769,17 +770,20 @@ class PdfScoreRenderer {
     required double upperTop,
     required double lowerTop,
     required int measures,
+    bool tab = false,
   }) {
     final rowStartX = _pageX0 + _padX;
     final contentStartX = rowStartX + _prefixW;
     final upperBottom = upperTop - _staffH;
     final lowerBottom = lowerTop - _staffH;
     final width = ScoreNotationMetrics.barlineStrokeWidth * _scale;
+    _line(g, rowStartX, upperTop, rowStartX, lowerBottom, width);
+    // A TAB staff (Guitar + Tablature) is only joined at the left.
+    if (tab) return;
     for (var m = 0; m <= measures; m++) {
       final x = contentStartX + m * _mw;
       _line(g, x, upperBottom, x, lowerTop, width);
     }
-    _line(g, rowStartX, upperTop, rowStartX, lowerBottom, width);
     final mid = (upperTop + lowerBottom) / 2;
     final x = rowStartX - 4 * _scale;
     final w = 7 * _scale;

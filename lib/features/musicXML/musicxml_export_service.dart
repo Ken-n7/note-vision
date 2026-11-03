@@ -297,34 +297,54 @@ class MusicXmlExportService {
             nest: () {
               b.element('divisions', nest: '${marks.divisions}');
 
+              // With a TAB staff each staff gets its own key and time,
+              // hidden on the TAB staff, as MuseScore writes them.
+              final perStaff =
+                  staffMeasures.length > 1 && tabTunings.any((t) => t != null);
+              final numbers = perStaff
+                  ? [for (var k = 1; k <= staffMeasures.length; k++) k]
+                  : [null];
+              Map<String, String> attributes(int? k) => {
+                if (k != null) 'number': '$k',
+                if (k != null && tabTunings[k - 1] != null)
+                  'print-object': 'no',
+              };
               if (measure.keySignature != null) {
-                b.element(
-                  'key',
-                  nest: () {
-                    b.element(
-                      'fifths',
-                      nest: measure.keySignature!.fifths.toString(),
-                    );
-                  },
-                );
+                for (final k in numbers) {
+                  b.element(
+                    'key',
+                    attributes: attributes(k),
+                    nest: () {
+                      b.element(
+                        'fifths',
+                        nest: measure.keySignature!.fifths.toString(),
+                      );
+                    },
+                  );
+                }
               }
 
               if (measure.timeSignature != null) {
                 final symbol = measure.timeSignature!.symbol;
-                b.element(
-                  'time',
-                  attributes: {if (symbol != null) 'symbol': symbol.name},
-                  nest: () {
-                    b.element(
-                      'beats',
-                      nest: measure.timeSignature!.beats.toString(),
-                    );
-                    b.element(
-                      'beat-type',
-                      nest: measure.timeSignature!.beatType.toString(),
-                    );
-                  },
-                );
+                for (final k in numbers) {
+                  b.element(
+                    'time',
+                    attributes: {
+                      if (symbol != null) 'symbol': symbol.name,
+                      ...attributes(k),
+                    },
+                    nest: () {
+                      b.element(
+                        'beats',
+                        nest: measure.timeSignature!.beats.toString(),
+                      );
+                      b.element(
+                        'beat-type',
+                        nest: measure.timeSignature!.beatType.toString(),
+                      );
+                    },
+                  );
+                }
               }
 
               if (isFirst && staves > 1) {
@@ -460,7 +480,13 @@ class MusicXmlExportService {
                 marks: marks,
               );
             } else if (symbol is Rest) {
-              _buildRest(b, symbol, marks);
+              // TAB staves show no rests, as in MuseScore.
+              _buildRest(
+                b,
+                symbol,
+                marks,
+                hidden: k < tabTunings.length && tabTunings[k] != null,
+              );
             }
             if (length != null) {
               _buildDirections(b, symbol, marks, before: false);
@@ -728,9 +754,15 @@ class MusicXmlExportService {
     if (tuplet.stop) b.element('tuplet', attributes: {'type': 'stop'});
   }
 
-  void _buildRest(XmlBuilder b, Rest rest, _Marks marks) {
+  void _buildRest(
+    XmlBuilder b,
+    Rest rest,
+    _Marks marks, {
+    bool hidden = false,
+  }) {
     b.element(
       'note',
+      attributes: {if (hidden) 'print-object': 'no'},
       nest: () {
         b.element('rest', attributes: {if (rest.measureRest) 'measure': 'yes'});
         b.element('duration', nest: '${marks.duration(rest)}');

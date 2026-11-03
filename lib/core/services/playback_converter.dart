@@ -215,6 +215,8 @@ class PlaybackConverter {
     final events = <PlaybackEvent>[];
     final accidentalStates = <int, Accidentals>{};
     for (final measure in timeline.measures) {
+      // A linked staff shows the staff above; only that one plays.
+      if (score.parts[measure.partIndex].linked) continue;
       final accidentals = accidentalStates.putIfAbsent(
         measure.partIndex,
         Accidentals.new,
@@ -311,6 +313,7 @@ class PlaybackConverter {
         <({ScoreTimelineMeasure m, ScoreAnnotation a, MusicalTime at})>[];
     final partEnds = <int, MusicalTime>{};
     for (final m in timeline.measures) {
+      if (score.parts[m.partIndex].linked) continue;
       final end = m.onset + m.duration;
       final known = partEnds[m.partIndex];
       if (known == null || known.compareTo(end) < 0) {

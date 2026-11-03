@@ -1,3 +1,4 @@
+import 'package:note_vision/core/services/linked_staves.dart';
 import 'package:note_vision/core/models/part_playback.dart';
 import 'package:note_vision/core/services/playback_mix.dart';
 import 'package:note_vision/features/editor/presentation/widgets/mixer_sheet.dart';
@@ -1247,9 +1248,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     setState(() {
       final prev = _editorState;
       final nextState = updater(_editorState);
-      // Tab notes follow their pitch to a string and fret.
+      // Linked staves follow each other; tab notes follow their pitch to a
+      // string and fret.
       final identified = NotationReviewService.ensureIdentity(
-        placeTabNotes(nextState.score),
+        placeTabNotes(syncLinkedStaves(nextState.score, prevScore)),
       );
       // Assigning review IDs rebuilds every symbol in place, so the
       // selection is found again by its position.

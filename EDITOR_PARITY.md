@@ -1008,8 +1008,7 @@ Device check (2026-11-01): release **2005**, built from `f801e50` with
   tablature created in the wizard; taps on strings 6, 5, 3 and 1 entered
   open strings on those strings; the Up key moved the top note to frets 1
   and 3 on string 1.
-- Not yet: Guitar + Tablature (a standard staff and a linked TAB staff that
-  mirrors it), rhythm stems on tab, entering frets by number, bends, slides,
+- Not yet: rhythm stems on tab, entering frets by number, bends, slides,
   hammer-ons, other tunings and string counts from the editor (imported ones
   are kept), bass tab.
 
@@ -1039,6 +1038,43 @@ Device check (2026-11-01): release **2005**, built from `f801e50` with
   it with the arrows), beam slant and stem lengths tuned for cross-staff,
   voices whose notes sit mostly on the other staff after import keep that
   staff as home.
+
+## Follow-up — Guitar + Tablature (linked staves)
+
+- `Part.linked`: a TAB staff joined below a notation staff that shows the
+  same music, as MuseScore's linked staves. `syncLinkedStaves` (in
+  `_updateState`, before `placeTabNotes`) copies whichever staff an edit
+  changed to the other; each staff keeps its clefs and its symbols' review
+  IDs, staff and voice numbers, so retained-MusicXML patching still finds
+  every note. Undo restores both together.
+- Only the notation staff plays (playback and chord symbols skip linked
+  parts); the genre model, notation checker and symbol counts skip them too.
+- MusicXML: MuseScore writes a linked TAB staff's notes again on staff 2
+  (voice 5) and does not link them again when it imports the file. Note
+  Vision links an imported TAB staff whose rhythm and sounding pitches repeat
+  the staff above (`linkRepeatedTabStaves`). Export writes both staves, a
+  numbered key/time per staff hidden on the TAB staff, and TAB rests hidden,
+  as MuseScore does. A patched (retained) export now updates a TAB note's
+  string and fret and writes no accidental on it.
+- Editor: Guitar + tablature template (MuseScore's 02-Guitar_+_Tablature);
+  Staves and instruments adds "Guitar + TAB"; moving the TAB staff away
+  unlinks it. The two staves are joined at the left without a brace or
+  barlines through both (editor and PDF).
+- Fixed (affected all tablature): a fret's tap target was placed at its
+  note's pitch height instead of on its string, so frets on the canvas could
+  not be selected by tapping.
+- Parity: `27_guitar_and_tab.mscx` (single notes, a chord, a rest):
+  notation 29/29, playback 17/18 (MuseScore also declares the guitar's muted
+  channel, program 28). The template matches MuseScore's staves and sound.
+- Device check (release **2014**, Realme RMX1851 / Android 11): Guitar +
+  tablature from the wizard; four A3s entered on the notation staff showed
+  fret 2 on string 3; tapping the first fret selected it, Up twice made it C4
+  at fret 5 and the notation staff followed; undo gave B3 / fret 4 on both;
+  saved and played. Saved test project: **NV Guitar Tab QAZ**.
+- Not yet: the TAB staff still shows the time signature (MuseScore's simple
+  TAB style hides it) and its rests in the editor (hidden on export); ties
+  are drawn on the notation staff only; linking an existing staff from the
+  Staves sheet; other linked pairs (e.g. two notation staves).
 
 Stage 5D is complete: transposing instruments, drums, tablature and
 cross-staff notes. The agreed stage list is finished; remaining work is the

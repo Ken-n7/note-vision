@@ -225,7 +225,11 @@ class _NewScoreWizardState extends State<NewScoreWizard> {
                 style: const TextStyle(color: AppColors.textPrimary),
               ),
               subtitle: Text(
-                staff.grand ? 'Grand staff' : _clefLabel(staff.clef),
+                staff.grand
+                    ? staff.clef.octave == -1
+                          ? 'Notation + tablature'
+                          : 'Grand staff'
+                    : _clefLabel(staff.clef),
                 style: const TextStyle(color: AppColors.textSecondary),
               ),
               trailing: Row(

@@ -87,6 +87,8 @@ class NotationChecker {
 
     for (var p = 0; p < score.parts.length; p++) {
       final part = score.parts[p];
+      // A linked staff repeats the staff above, already checked.
+      if (part.linked) continue;
       final lastFilled = part.measures.lastIndexWhere(
         (m) => _musical(m).isNotEmpty,
       );

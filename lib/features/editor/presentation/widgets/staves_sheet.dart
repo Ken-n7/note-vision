@@ -26,6 +26,7 @@ const staffInstruments = <(String, Clef)>[
   ('Bassoon', Clef(sign: 'F', line: 4)),
   ('Drum Kit', Clef.percussion),
   ('Guitar TAB', Clef.tab),
+  ('Guitar + TAB', Clef(sign: 'G', line: 2, octave: -1)),
   ('Trombone', Clef(sign: 'F', line: 4)),
   ('Tuba', Clef(sign: 'F', line: 4)),
   ('Bass guitar', Clef(sign: 'F', line: 4)),
@@ -132,24 +133,34 @@ class _StavesSheetState extends State<StavesSheet> {
                 onPressed: () => Navigator.pop(context, (name, clef)),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Text(
-                    name == 'Piano'
-                        ? 'Piano · grand staff'
-                        : '$name · ${_clefName(clef)}',
-                  ),
+                  child: Text(switch (name) {
+                    'Piano' => 'Piano · grand staff',
+                    'Guitar + TAB' => 'Guitar · notation and linked TAB',
+                    _ => '$name · ${_clefName(clef)}',
+                  }),
                 ),
               ),
         ],
       ),
     );
     if (picked == null || !mounted) return;
+    // Guitar + TAB: a guitar staff and a TAB staff linked below it.
+    final guitarAndTab = picked.$1 == 'Guitar + TAB';
     setState(() {
       _plan.add((
         from: null,
-        name: picked.$1,
+        name: guitarAndTab ? 'Guitar' : picked.$1,
         clef: picked.$2,
         joinsPrevious: false,
       ));
+      if (guitarAndTab) {
+        _plan.add((
+          from: null,
+          name: 'Guitar',
+          clef: Clef.tab,
+          joinsPrevious: true,
+        ));
+      }
       // A piano has a grand staff: treble above, bass below, braced.
       if (picked.$1 == 'Piano') {
         _plan.add((

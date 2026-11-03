@@ -24,7 +24,13 @@ class Part {
     this.playback = const PartPlayback(),
     this.transposition,
     this.tabTuning,
+    this.linked = false,
   });
+
+  /// A linked staff (MuseScore's Guitar + Tablature): this staff shows the
+  /// same music as the staff before it, an edit to either is copied to the
+  /// other (`syncLinkedStaves`), and only the staff before it plays.
+  final bool linked;
 
   /// A tablature staff's open strings as MIDI notes, lowest first.
   final List<int>? tabTuning;
@@ -53,6 +59,7 @@ class Part {
     if (playback != const PartPlayback()) 'playback': playback.toJson(),
     if (transposition != null) 'transposition': transposition!.toJson(),
     if (tabTuning != null) 'tabTuning': tabTuning,
+    if (linked) 'linked': true,
   };
 
   factory Part.fromJson(Map<String, dynamic> json) => Part(
@@ -64,6 +71,7 @@ class Part {
     ),
     transposition: Transposition.fromJson(json['transposition']),
     tabTuning: (json['tabTuning'] as List?)?.cast<int>(),
+    linked: json['linked'] as bool? ?? false,
     measures: (json['measures'] as List<dynamic>)
         .map((m) => Measure.fromJson(m as Map<String, dynamic>))
         .toList(),
@@ -77,7 +85,9 @@ class Part {
     PartPlayback? playback,
     Object? transposition = _keep,
     Object? tabTuning = _keep,
+    bool? linked,
   }) => Part(
+    linked: linked ?? this.linked,
     tabTuning: identical(tabTuning, _keep)
         ? this.tabTuning
         : tabTuning as List<int>?,

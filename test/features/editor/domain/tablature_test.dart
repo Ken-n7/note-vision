@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/tablature.dart';
@@ -91,5 +93,36 @@ void main() {
     expect(reread.parts.single.isTab, isTrue);
     expect(places(reread, 0), places(score, 0));
     expect(places(score, 0).single.$2, isNotNull);
+  });
+
+  test('a fret is tapped where it is drawn, on its string', () {
+    final part = imported().parts.single;
+    final notes = part.measures.first.symbols.whereType<Note>().toList();
+    final targets = ScoreNotationPainter.buildSymbolTargets(
+      parts: [part.measures],
+      measuresPerRow: 4,
+      minMeasureWidth: 140,
+      rowHeight: 160,
+      padding: EdgeInsets.zero,
+      rowPrefixWidth: 60,
+      tabTunings: {0: part.tabTuning!},
+    );
+    final y = {
+      for (final t in targets.where((t) => t.measureIndex == 0))
+        (part.measures.first.symbols[t.symbolIndex] as Note).string:
+            t.center.dy,
+    };
+    // Higher strings (smaller numbers) are higher on the staff, evenly.
+    final strings = notes.map((n) => n.string!).toSet().toList()..sort();
+    expect(strings.length, greaterThan(1));
+    final gap =
+        (y[strings.last]! - y[strings.first]!) / (strings.last - strings.first);
+    expect(gap, greaterThan(0));
+    for (final s in strings) {
+      expect(
+        y[s]! - y[strings.first]!,
+        closeTo((s - strings.first) * gap, 0.01),
+      );
+    }
   });
 }
