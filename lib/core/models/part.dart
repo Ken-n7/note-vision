@@ -30,6 +30,10 @@ class Part {
   /// concert pitch ([Score.concertPitch]); playback sounds them.
   final Transposition? transposition;
 
+  /// A drum staff: its first clef is a percussion clef.
+  bool get isPercussion =>
+      measures.map((m) => m.clef).nonNulls.firstOrNull?.isPercussion ?? false;
+
   /// Whether this part continues the instrument of the part before it.
   bool get joinsPrevious => staff > 1;
 

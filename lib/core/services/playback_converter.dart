@@ -237,8 +237,11 @@ class PlaybackConverter {
               type: symbol.type,
             ),
           );
-          // A transposing part's written notes sound at their interval.
-          if (!score.concertPitch) {
+          // A drum note sounds its kit piece; a transposing part's written
+          // notes sound at their interval.
+          if (symbol.drum case final key?) {
+            midi = key;
+          } else if (!score.concertPitch) {
             midi +=
                 score.parts[measure.partIndex].transposition?.semitones ?? 0;
           }

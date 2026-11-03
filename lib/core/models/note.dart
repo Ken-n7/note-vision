@@ -52,7 +52,18 @@ class Note extends ScoreSymbol {
     this.dynamicMark,
     this.lyrics = const [],
     this.grace,
+    this.drum,
+    this.notehead,
   }) : _legacyBeamed = beamed;
+
+  /// On a percussion staff, the kit piece as its General MIDI key (38 is
+  /// the snare); [step] and [octave] then give only its staff position
+  /// (MusicXML's display-step and display-octave).
+  final int? drum;
+
+  /// A MusicXML notehead other than the normal one: `x`, `circle-x`,
+  /// `diamond`…
+  final String? notehead;
 
   /// A grace note written before the next note: it takes no time in the bar
   /// and borrows its sound from a neighbour in playback.
@@ -94,7 +105,11 @@ class Note extends ScoreSymbol {
     Object? dynamicMark = _keep,
     List<Lyric>? lyrics,
     Object? grace = _keep,
+    Object? drum = _keep,
+    Object? notehead = _keep,
   }) => Note(
+    drum: identical(drum, _keep) ? this.drum : drum as int?,
+    notehead: identical(notehead, _keep) ? this.notehead : notehead as String?,
     grace: identical(grace, _keep) ? this.grace : grace as Grace?,
     step: step ?? this.step,
     octave: octave ?? this.octave,
@@ -146,6 +161,8 @@ class Note extends ScoreSymbol {
     if (lyrics.isNotEmpty)
       'lyrics': [for (final lyric in lyrics) lyric.toJson()],
     if (grace != null) 'grace': grace!.name,
+    if (drum != null) 'drum': drum,
+    if (notehead != null) 'notehead': notehead,
   };
 
   factory Note.fromJson(Map<String, dynamic> json) => Note(
@@ -154,6 +171,8 @@ class Note extends ScoreSymbol {
     dynamicMark: json['dynamic'] as String?,
     lyrics: Lyric.listFromJson(json['lyrics']),
     grace: Grace.values.where((g) => g.name == json['grace']).firstOrNull,
+    drum: json['drum'] as int?,
+    notehead: json['notehead'] as String?,
     step: json['step'] as String,
     octave: json['octave'] as int,
     alter: json['alter'] as int?,

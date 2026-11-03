@@ -7,6 +7,7 @@ import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/navigation_mark.dart';
+import 'package:note_vision/core/models/drum_kit.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/note_value.dart';
 import 'package:note_vision/core/models/part.dart';
@@ -366,7 +367,9 @@ class MusicXmlScoreConverter {
           continue;
         }
         final sign = _firstInnerText(clef, 'sign')?.trim();
-        final line = int.tryParse(_firstInnerText(clef, 'line') ?? '');
+        final line =
+            int.tryParse(_firstInnerText(clef, 'line') ?? '') ??
+            (sign == 'percussion' ? 3 : null);
         if (sign != null && sign.isNotEmpty && line != null) {
           return Clef(sign: sign, line: line, octave: _clefOctave(clef));
         }
@@ -732,14 +735,25 @@ class MusicXmlScoreConverter {
       );
     }
 
-    final pitch = _firstOrNull(noteElement.findElements('pitch'));
+    // A drum note is written at a display position and sounds its kit
+    // piece.
+    final unpitched = _firstOrNull(noteElement.findElements('unpitched'));
+    final pitch =
+        unpitched ?? _firstOrNull(noteElement.findElements('pitch'));
     if (pitch == null) {
       return null;
     }
 
-    final step = _firstInnerText(pitch, 'step')?.trim();
-    final octave = int.tryParse(_firstInnerText(pitch, 'octave') ?? '');
-    final alter = int.tryParse(_firstInnerText(pitch, 'alter') ?? '');
+    final prefix = unpitched == null ? '' : 'display-';
+    final step = _firstInnerText(pitch, '${prefix}step')?.trim();
+    final octave = int.tryParse(
+      _firstInnerText(pitch, '${prefix}octave') ?? '',
+    );
+    final alter = unpitched == null
+        ? int.tryParse(_firstInnerText(pitch, 'alter') ?? '')
+        : null;
+    final head = _firstInnerText(noteElement, 'notehead')?.trim();
+    final notehead = head == null || head == 'normal' ? null : head;
 
     if (step == null || step.isEmpty || octave == null) {
       return null;
@@ -764,7 +778,28 @@ class MusicXmlScoreConverter {
       tuplet: tuplet,
       marks: marks,
       grace: grace,
+      notehead: notehead,
+      drum: unpitched == null
+          ? null
+          : _drumKey(noteElement, step, octave, notehead),
     );
+  }
+
+  /// A drum note's General MIDI key: its instrument's `<midi-unpitched>`
+  /// (1-based), else the kit piece written at its position.
+  int? _drumKey(XmlElement note, String step, int octave, String? head) {
+    final id = note.getElement('instrument')?.getAttribute('id');
+    final declared = note.root
+        .findAllElements('midi-instrument')
+        .where((m) => m.getAttribute('id') == id)
+        .map((m) => int.tryParse(_firstInnerText(m, 'midi-unpitched') ?? ''))
+        .nonNulls
+        .firstOrNull;
+    if (declared != null) return declared - 1;
+    final here = drumKit.where((d) => d.step == step && d.octave == octave);
+    return (here.where((d) => d.notehead == head).firstOrNull ??
+            here.firstOrNull)
+        ?.key;
   }
 
   /// Articulations, ornaments and fermatas the app knows, in the editor's
@@ -824,7 +859,9 @@ class MusicXmlScoreConverter {
     }
 
     final sign = _firstInnerText(clefElement, 'sign')?.trim();
-    final line = int.tryParse(_firstInnerText(clefElement, 'line') ?? '');
+    final line =
+        int.tryParse(_firstInnerText(clefElement, 'line') ?? '') ??
+        (sign == 'percussion' ? 3 : null);
     if (sign == null || sign.isEmpty || line == null) {
       return null;
     }

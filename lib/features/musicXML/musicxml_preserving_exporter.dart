@@ -179,63 +179,76 @@ class MusicXmlPreservingExporter {
               });
             }
           }
-          final pitch = element.getElement('pitch');
-          if (pitch == null) {
-            throw const FormatException('Missing retained MusicXML pitch');
-          }
-          final pitchChanged =
-              oldNote.step != newNote.step ||
-              oldNote.octave != newNote.octave ||
-              oldAlter != newAlter ||
-              oldNote.alter != newNote.alter;
-          if (pitchChanged &&
-              (element.getElement('tie') != null ||
-                  element.findAllElements('tied').isNotEmpty)) {
-            throw const MusicXmlPreservationException(
-              'This pitch edit affects a tied note. Tied-note editing is not supported yet. '
-              'Undo the pitch change to export; saving the project keeps the original notation.',
-            );
-          }
-          if (oldNote.step != newNote.step) {
-            _setText(pitch, 'step', newNote.step);
-          }
-          if (oldNote.octave != newNote.octave) {
-            _setText(pitch, 'octave', '${newNote.octave}');
-          }
-          if (oldAlter != newAlter || oldNote.alter != newNote.alter) {
-            _setOptionalText(
-              pitch,
-              'alter',
-              newAlter == 0 ? null : '$newAlter',
-              after: 'step',
-            );
-          }
-          if (oldNote.alter != newNote.alter) {
-            final accidental = switch (newNote.alter) {
-              -2 => 'flat-flat',
-              -1 => 'flat',
-              0 => 'natural',
-              1 => 'sharp',
-              2 => 'double-sharp',
-              _ => null,
-            };
-            _setOptionalText(
-              element,
-              'accidental',
-              accidental,
-              before: const {
-                'time-modification',
-                'stem',
-                'notehead',
-                'notehead-text',
-                'staff',
-                'beam',
-                'notations',
-                'lyric',
-                'play',
-                'listen',
-              },
-            );
+          // A drum note's kit piece is declared in the retained part list.
+          if (element.getElement('unpitched') != null) {
+            if (oldNote.drum != newNote.drum ||
+                oldNote.step != newNote.step ||
+                oldNote.octave != newNote.octave ||
+                oldNote.notehead != newNote.notehead) {
+              throw const MusicXmlPreservationException(
+                'Changing a drum note in an imported file cannot be exported yet. '
+                'Undo the change to export; saving the project keeps it.',
+              );
+            }
+          } else {
+            final pitch = element.getElement('pitch');
+            if (pitch == null) {
+              throw const FormatException('Missing retained MusicXML pitch');
+            }
+            final pitchChanged =
+                oldNote.step != newNote.step ||
+                oldNote.octave != newNote.octave ||
+                oldAlter != newAlter ||
+                oldNote.alter != newNote.alter;
+            if (pitchChanged &&
+                (element.getElement('tie') != null ||
+                    element.findAllElements('tied').isNotEmpty)) {
+              throw const MusicXmlPreservationException(
+                'This pitch edit affects a tied note. Tied-note editing is not supported yet. '
+                'Undo the pitch change to export; saving the project keeps the original notation.',
+              );
+            }
+            if (oldNote.step != newNote.step) {
+              _setText(pitch, 'step', newNote.step);
+            }
+            if (oldNote.octave != newNote.octave) {
+              _setText(pitch, 'octave', '${newNote.octave}');
+            }
+            if (oldAlter != newAlter || oldNote.alter != newNote.alter) {
+              _setOptionalText(
+                pitch,
+                'alter',
+                newAlter == 0 ? null : '$newAlter',
+                after: 'step',
+              );
+            }
+            if (oldNote.alter != newNote.alter) {
+              final accidental = switch (newNote.alter) {
+                -2 => 'flat-flat',
+                -1 => 'flat',
+                0 => 'natural',
+                1 => 'sharp',
+                2 => 'double-sharp',
+                _ => null,
+              };
+              _setOptionalText(
+                element,
+                'accidental',
+                accidental,
+                before: const {
+                  'time-modification',
+                  'stem',
+                  'notehead',
+                  'notehead-text',
+                  'staff',
+                  'beam',
+                  'notations',
+                  'lyric',
+                  'play',
+                  'listen',
+                },
+              );
+            }
           }
           if (jsonEncode(
                     oldNote.beams.map((k, v) => MapEntry('$k', v.xmlValue)),

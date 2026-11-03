@@ -16,9 +16,18 @@ class Clef extends ScoreSymbol {
     this.octave = 0,
   });
 
+  static const percussion = Clef(sign: 'percussion', line: 3);
+
+  bool get isPercussion => sign == 'percussion';
+
   /// The sign staff drawing passes around, carrying the octave (`G-1`), so
-  /// [StaffPitchMapper] places notes for octave clefs.
-  String get layoutSign => octave == 0 ? sign : '$sign$octave';
+  /// [StaffPitchMapper] places notes for octave clefs. A percussion clef is
+  /// `P`: its notes sit where a treble clef's would.
+  String get layoutSign => isPercussion
+      ? 'P'
+      : octave == 0
+      ? sign
+      : '$sign$octave';
 
   @override
   Map<String, dynamic> toJson() => {

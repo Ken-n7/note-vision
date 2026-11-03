@@ -39,7 +39,7 @@ void main() {
   });
 
   test(
-    'timeline coordinates voices, chords, grace notes and skipped percussion exactly',
+    'timeline coordinates voices, chords, grace notes and percussion exactly',
     () {
       final source = imported.musicXmlSource!;
       final events = source.events.where((e) => e.measureIndex == 0).toList();
@@ -60,17 +60,17 @@ void main() {
       expect(events[3].duration, MusicalTime(1, 3));
       expect(events[6].voice, '2');
       expect(events[6].staff, 2);
-      // The grace note is an editable symbol; percussion is retained with
-      // none yet. Each staff of the piano is its own linked part.
+      // The grace note and the drum note are editable symbols. Each staff
+      // of the piano is its own linked part.
       expect([for (final p in imported.parts) p.staff], [1, 2]);
       expect([
         for (final p in imported.parts) p.measures.first.symbols.length,
-      ], [6, 1]);
+      ], [6, 2]);
       expect(
         source.bindings
             .where((b) => b.measureIndex == 0)
             .map((b) => b.noteIndex),
-        [0, 1, 2, 3, 4, 5, 7],
+        [0, 1, 2, 3, 4, 5, 6, 7],
       );
       expect(source.requiresPreservation, isTrue);
     },

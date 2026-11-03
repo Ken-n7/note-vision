@@ -39,7 +39,8 @@ List<PlaybackStrip> playbackStrips(Score score) {
 }
 
 /// Isolated MIDI channels prevent equal pitches in different instruments
-/// from sharing note-off counts. Channel 10 is reserved for percussion.
+/// from sharing note-off counts. Channel 10 (index 9) is for percussion: drum
+/// staves share it, its program choosing the kit.
 class PlaybackMix {
   PlaybackMix(Score score, Set<int> soundingParts) {
     final strips = playbackStrips(score);
@@ -52,6 +53,13 @@ class PlaybackMix {
           (solo && !value.solo) ||
           value.volume == 0 ||
           !strip.parts.any(soundingParts.contains)) {
+        continue;
+      }
+      if (score.parts[strip.parts.first].isPercussion) {
+        settings[9] = value;
+        for (final part in strip.parts) {
+          channels[part] = 9;
+        }
         continue;
       }
       if (channel == 9) {

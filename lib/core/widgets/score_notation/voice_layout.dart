@@ -54,7 +54,8 @@ class VoiceLayout {
         if (!(symbol is Note && symbol.isChordTone) || column < 0) column++;
         columns.add(column);
       }
-      return VoiceLayout._(columns, column < 0 ? 1 : column + 1, voices, false);
+      return VoiceLayout._(columns, column < 0 ? 1 : column + 1, voices, false)
+        .._drums = _drumIndexes(symbols);
     }
     // Rounded so that tuplet arithmetic does not split a column.
     int key(double onset) => (onset * 960).round();
@@ -65,8 +66,13 @@ class VoiceLayout {
       distinct.length,
       voices,
       true,
-    );
+    ).._drums = _drumIndexes(symbols);
   }
+
+  static Set<int> _drumIndexes(List<ScoreSymbol> symbols) => {
+    for (final (i, s) in symbols.indexed)
+      if (s is Note && s.drum != null) i,
+  };
 
   /// The column of each symbol, by index.
   final List<int> columns;
@@ -78,7 +84,13 @@ class VoiceLayout {
 
   /// With several voices, odd voices (1, 3) stem up and even voices down, as
   /// in MuseScore Studio; null leaves the direction to the pitch.
-  bool? stemUp(int index) => multiVoice ? (_voices[index] - 1).isEven : null;
+  /// Odd voices stem up, even down, in a bar with several voices and always
+  /// on a drum note (hands up, feet down).
+  bool? stemUp(int index) => multiVoice || (_drums?.contains(index) ?? false)
+      ? (_voices[index] - 1).isEven
+      : null;
+
+  Set<int>? _drums;
 
   /// Staff spaces to move a rest (negative is up) so voices do not collide.
   double restOffset(int index) =>

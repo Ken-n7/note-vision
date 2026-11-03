@@ -116,13 +116,17 @@ class Transposer {
     return score.copyWith(
       parts: [
         for (final (index, part) in score.parts.indexed)
-          _part(
-            part,
-            options,
-            interval,
-            keyShift,
-            only == null ? null : (m, s) => only(index, m, s),
-          ),
+          // Drums keep their places; a percussion staff has no key.
+          if (part.isPercussion)
+            part
+          else
+            _part(
+              part,
+              options,
+              interval,
+              keyShift,
+              only == null ? null : (m, s) => only(index, m, s),
+            ),
       ],
     );
   }

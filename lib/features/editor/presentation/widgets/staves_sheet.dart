@@ -24,6 +24,7 @@ const staffInstruments = <(String, Clef)>[
   ('Cello', Clef(sign: 'F', line: 4)),
   ('Double bass', Clef(sign: 'F', line: 4)),
   ('Bassoon', Clef(sign: 'F', line: 4)),
+  ('Drum Kit', Clef.percussion),
   ('Trombone', Clef(sign: 'F', line: 4)),
   ('Tuba', Clef(sign: 'F', line: 4)),
   ('Bass guitar', Clef(sign: 'F', line: 4)),
@@ -35,6 +36,7 @@ String _clefName(Clef? clef) => switch (clef) {
   Clef(sign: 'C', line: 3) => 'Alto clef',
   Clef(sign: 'C') => 'Tenor clef',
   Clef(octave: -1) => 'Treble clef 8vb',
+  Clef(isPercussion: true) => 'Percussion clef',
   _ => 'Treble clef',
 };
 

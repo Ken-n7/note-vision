@@ -910,7 +910,20 @@ class PdfScoreRenderer {
     );
 
     // Clef
-    if (clefSign.toUpperCase() == 'F') {
+    if (clefSign == 'P') {
+      // A percussion clef: two thick bars over the middle of the staff.
+      for (final dx in [0.0, 6.0]) {
+        g
+          ..setColor(_ink)
+          ..drawRect(
+            rowStartX + (ScoreNotationMetrics.trebleClefXOffset + dx) * _scale,
+            staffTop - 3 * _ls,
+            3 * _scale,
+            2 * _ls,
+          )
+          ..fillPath();
+      }
+    } else if (clefSign.toUpperCase() == 'F') {
       _drawBassClef(g, rowStartX + 8 * _scale, staffTop, staffBottom);
     } else if (clefSign.toUpperCase() == 'C') {
       _drawCClef(
@@ -946,7 +959,8 @@ class PdfScoreRenderer {
     var sigX = rowStartX + ScoreNotationMetrics.rowSignatureStartX * _scale;
     if (rowMeasures.isNotEmpty) {
       final first = rowMeasures.first;
-      if (first.keySignature != null) {
+      // A percussion staff has no key.
+      if (first.keySignature != null && clefSign != 'P') {
         sigX = _drawKeySignature(
           g,
           musicFont,
@@ -1432,8 +1446,33 @@ class PdfScoreRenderer {
             ? ScoreNotationMetrics.noteheadWholeHeight
             : ScoreNotationMetrics.noteheadDefaultHeight) *
         _scale;
-    final hw = headW / 2;
-    if (isWhole || isHalf) {
+    final hw = headW / 2, hh = headH / 2;
+    final head = note.notehead;
+    if (head == 'x' || head == 'circle-x') {
+      // A cymbal's cross, and an open hi-hat's circled cross.
+      _line(g, x - hw, y - hh, x + hw, y + hh, 1.6 * _scale);
+      _line(g, x - hw, y + hh, x + hw, y - hh, 1.6 * _scale);
+      if (head == 'circle-x') {
+        g
+          ..setLineWidth(1.6 * _scale)
+          ..drawEllipse(x, y, hw * 1.3, hw * 1.3)
+          ..strokePath();
+      }
+    } else if (head == 'diamond') {
+      g
+        ..moveTo(x - hw, y)
+        ..lineTo(x, y + hh * 1.2)
+        ..lineTo(x + hw, y)
+        ..lineTo(x, y - hh * 1.2)
+        ..closePath();
+      if (isWhole || isHalf) {
+        g
+          ..setLineWidth(ScoreNotationMetrics.openNoteStrokeWidth * _scale)
+          ..strokePath();
+      } else {
+        g.fillPath();
+      }
+    } else if (isWhole || isHalf) {
       _drawRotatedOval(g, x: x, y: y, width: headW, height: headH, fill: false);
     } else {
       _drawRotatedOval(g, x: x, y: y, width: headW, height: headH, fill: true);

@@ -614,6 +614,20 @@ class ScoreNotationPainter extends CustomPainter {
       ..strokeWidth = ScoreNotationMetrics.barlineStrokeWidth;
 
     switch (row.clefSign.toUpperCase()) {
+      case 'P':
+        // A percussion clef: two thick bars over the middle of the staff.
+        final bar = Paint()..color = const Color(0xFF111827);
+        for (final dx in [0.0, 6.0]) {
+          canvas.drawRect(
+            Rect.fromLTWH(
+              row.rowStartX + ScoreNotationMetrics.trebleClefXOffset + dx,
+              row.staffTop + staffLineSpacing,
+              3,
+              staffLineSpacing * 2,
+            ),
+            bar,
+          );
+        }
       case 'F':
         _drawBassClef(canvas, x: row.rowStartX + 8, y: row.staffTop - 4);
       case 'C':
@@ -694,7 +708,8 @@ class ScoreNotationPainter extends CustomPainter {
     final keySig = firstMeasure.keySignature;
     var signatureX = row.rowStartX + ScoreNotationMetrics.rowSignatureStartX;
 
-    if (keySig != null) {
+    // A percussion staff has no key.
+    if (keySig != null && row.clefSign != 'P') {
       signatureX = _drawKeySignature(
         canvas,
         signatureX,
@@ -1590,20 +1605,43 @@ class ScoreNotationPainter extends CustomPainter {
       }
     }
 
-    canvas.save();
-    canvas.translate(x, y);
-    canvas.rotate(ScoreNotationMetrics.noteheadRotation);
-    final noteRect = Rect.fromCenter(
-      center: Offset.zero,
-      width: headWidth,
-      height: headHeight,
-    );
-    if (isWhole || isHalf) {
-      canvas.drawOval(noteRect, strokePaint);
+    final head = note.notehead;
+    final hw = headWidth / 2, hh = headHeight / 2;
+    if (head == 'x' || head == 'circle-x') {
+      // A cymbal's cross, and an open hi-hat's circled cross.
+      final pen = Paint()
+        ..color = const Color(0xFF111827)
+        ..strokeWidth = 1.6
+        ..strokeCap = StrokeCap.round
+        ..style = PaintingStyle.stroke;
+      canvas
+        ..drawLine(Offset(x - hw, y - hh), Offset(x + hw, y + hh), pen)
+        ..drawLine(Offset(x - hw, y + hh), Offset(x + hw, y - hh), pen);
+      if (head == 'circle-x') canvas.drawCircle(Offset(x, y), hw * 1.3, pen);
+    } else if (head == 'diamond') {
+      final diamond = Path()
+        ..moveTo(x - hw, y)
+        ..lineTo(x, y - hh * 1.2)
+        ..lineTo(x + hw, y)
+        ..lineTo(x, y + hh * 1.2)
+        ..close();
+      canvas.drawPath(diamond, isWhole || isHalf ? strokePaint : fillPaint);
     } else {
-      canvas.drawOval(noteRect, fillPaint);
+      canvas.save();
+      canvas.translate(x, y);
+      canvas.rotate(ScoreNotationMetrics.noteheadRotation);
+      final noteRect = Rect.fromCenter(
+        center: Offset.zero,
+        width: headWidth,
+        height: headHeight,
+      );
+      if (isWhole || isHalf) {
+        canvas.drawOval(noteRect, strokePaint);
+      } else {
+        canvas.drawOval(noteRect, fillPaint);
+      }
+      canvas.restore();
     }
-    canvas.restore();
 
     if (isBreve) {
       final sidePaint = Paint()

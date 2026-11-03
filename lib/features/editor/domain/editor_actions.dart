@@ -7,6 +7,7 @@ import 'dart:math' as math;
 import 'package:note_vision/core/models/beam_grouping.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/barline_type.dart';
+import 'package:note_vision/core/models/drum_kit.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/navigation_mark.dart';
 import 'package:note_vision/core/models/note.dart';
@@ -1972,6 +1973,22 @@ extension EditorActions on EditorState {
   }
 
   /// Writes a rest of [spec] at the input position, as [enterNote] does.
+  /// Writes a kit piece after the input position on a drum staff, in its
+  /// own voice (hands 1, feet 2), as MuseScore Studio's drum input does.
+  EditorState enterDrum(DrumPiece piece, DurationSpec spec) {
+    if (!hasMeasureContext) return this;
+    final (voice: inputVoice, :staff) = _inputLaneFor(piece.voice);
+    return _enterSymbol(
+      drumNote(
+        piece,
+        spec.type,
+        spec.divisions,
+        voice: inputVoice,
+        staff: staff,
+      ),
+    );
+  }
+
   EditorState enterRest(DurationSpec spec, {int? voice}) {
     if (!hasMeasureContext) return this;
     final (voice: inputVoice, :staff) = _inputLaneFor(voice);
@@ -1998,6 +2015,23 @@ extension EditorActions on EditorState {
 
   /// Re-pitches the selected note to [step] in the octave nearest its
   /// current pitch; the key signature decides the accidental.
+  /// On a drum staff, makes the selected note play [piece] instead.
+  EditorState setSelectedDrum(DrumPiece piece) {
+    final note = selectedSymbol;
+    if (!hasEditableSelection || note is! Note || note.drum == piece.key) {
+      return this;
+    }
+    return _replaceSelectedSymbol(
+      note.copyWith(
+        step: piece.step,
+        octave: piece.octave,
+        drum: piece.key,
+        notehead: piece.notehead,
+      ),
+      intent: EditorEditIntent.replaceSelection,
+    );
+  }
+
   EditorState setSelectedNoteStep(String step) {
     final note = selectedSymbol;
     if (!hasEditableSelection || note is! Note || !_stepNames.contains(step)) {

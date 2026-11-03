@@ -215,7 +215,11 @@ int defaultProgramFor(String name) => switch (name.toLowerCase().replaceFirst(
   'cello' || 'violoncello' => 42,
   'double bass' => 43,
   'guitar' || 'classical guitar' => 24,
-  'bass guitar' => 33,
+  // MuseScore Studio's bass guitar is picked; its band guitars are clean
+  // electric guitars.
+  'bass guitar' => 34,
+  'lead guitar' || 'rhythm guitar' || 'electric guitar' => 27,
+  'acoustic bass' => 32,
   'trumpet' || 'trumpet in bb' => 56,
   'bassoon' => 70,
   'clarinet in bb' || 'bass clarinet' => 71,
@@ -227,6 +231,13 @@ int defaultProgramFor(String name) => switch (name.toLowerCase().replaceFirst(
   'tuba' || 'euphonium' => 58,
   'trombone' => 57,
   // MuseScore Studio's voices sound as choir aahs.
-  'voice' || 'bass voice' || 'soprano' || 'alto' || 'tenor' || 'bass' => 52,
+  'voice' ||
+  'bass voice' ||
+  'soprano' ||
+  'alto' ||
+  'tenor' ||
+  'bass' ||
+  'lead vocals' ||
+  'backing vocals' => 52,
   _ => 0,
 };

@@ -1,4 +1,7 @@
 import 'package:xml/xml.dart';
+import '../../core/models/drum_kit.dart';
+import '../../core/models/note.dart';
+import '../../core/models/part.dart';
 import '../../core/models/part_playback.dart';
 
 /// Initial single pitched MIDI instrument. Multiple instruments, percussion
@@ -147,6 +150,43 @@ class MusicXmlInstruments {
       set('volume', '${after.volume}');
     }
     if (before.pan != after.pan || midis.isEmpty) set('pan', '${after.pan}');
+  }
+
+  /// A drum kit piece's instrument id, as MuseScore Studio writes it.
+  static String drumId(String partId, int key) => '$partId-I${key + 1}';
+
+  /// A drum part's kit: one instrument per piece, on MIDI channel 10, the
+  /// standard kit and any other pieces its notes play.
+  static void writeDrums(XmlBuilder b, Part part) {
+    final keys = {
+      for (final d in drumKit) d.key,
+      for (final m in part.measures)
+        for (final s in m.symbols)
+          if (s is Note && s.drum != null) s.drum!,
+    }.toList()..sort();
+    for (final key in keys) {
+      b.element(
+        'score-instrument',
+        attributes: {'id': drumId(part.id, key)},
+        nest: () => b.element(
+          'instrument-name',
+          nest: drumPiece(key)?.name ?? 'Drum $key',
+        ),
+      );
+    }
+    for (final key in keys) {
+      b.element(
+        'midi-instrument',
+        attributes: {'id': drumId(part.id, key)},
+        nest: () {
+          b.element('midi-channel', nest: '10');
+          b.element('midi-program', nest: '${part.playback.program + 1}');
+          b.element('midi-unpitched', nest: '${key + 1}');
+          b.element('volume', nest: '${part.playback.volume}');
+          b.element('pan', nest: '${part.playback.pan}');
+        },
+      );
+    }
   }
 
   static void write(XmlBuilder b, String partId, PartPlayback value) {

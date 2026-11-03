@@ -166,7 +166,11 @@ class MusicXmlExportService {
             attributes: {'id': part.id},
             nest: () {
               b.element('part-name', nest: part.name);
-              MusicXmlInstruments.write(b, part.id, part.playback);
+              if (part.isPercussion) {
+                MusicXmlInstruments.writeDrums(b, part);
+              } else {
+                MusicXmlInstruments.write(b, part.id, part.playback);
+              }
             },
           );
         }
@@ -216,6 +220,7 @@ class MusicXmlExportService {
             marks: marks,
             endingNumbers: endingNumbers,
             transposition: staffParts.first.transposition,
+            partId: staffParts.first.id,
           );
         }
       },
@@ -255,6 +260,7 @@ class MusicXmlExportService {
     required _Marks marks,
     String endingNumbers = '1',
     Transposition? transposition,
+    String partId = 'P1',
   }) {
     final measure = staffMeasures.first;
     b.element(
@@ -328,7 +334,9 @@ class MusicXmlExportService {
                   attributes: {if (staves > 1) 'number': '${k + 1}'},
                   nest: () {
                     b.element('sign', nest: clef.sign);
-                    b.element('line', nest: clef.line.toString());
+                    if (!clef.isPercussion) {
+                      b.element('line', nest: clef.line.toString());
+                    }
                     if (clef.octave != 0) {
                       b.element('clef-octave-change', nest: '${clef.octave}');
                     }
@@ -399,6 +407,7 @@ class MusicXmlExportService {
                 b,
                 symbol,
                 soundingAlter: accidentals[k].sounding(symbol),
+                partId: partId,
                 // Grace notes keep their own beams among themselves.
                 beamValues: symbol.grace != null
                     ? symbol.beams
@@ -453,6 +462,7 @@ class MusicXmlExportService {
     required int soundingAlter,
     Map<int, BeamValue> beamValues = const {},
     _Marks? marks,
+    String partId = 'P1',
   }) {
     final id = note.reviewId;
     final tieStop = id != null && (marks?.tieStops.contains(id) ?? false);
@@ -470,22 +480,39 @@ class MusicXmlExportService {
         if (note.isChordTone) {
           b.element('chord');
         }
-        b.element(
-          'pitch',
-          nest: () {
-            b.element('step', nest: note.step);
-            if (soundingAlter != 0) {
-              b.element('alter', nest: soundingAlter.toString());
-            }
-            b.element('octave', nest: note.octave.toString());
-          },
-        );
+        // A drum note is written at a display position for its kit piece.
+        if (note.drum == null) {
+          b.element(
+            'pitch',
+            nest: () {
+              b.element('step', nest: note.step);
+              if (soundingAlter != 0) {
+                b.element('alter', nest: soundingAlter.toString());
+              }
+              b.element('octave', nest: note.octave.toString());
+            },
+          );
+        } else {
+          b.element(
+            'unpitched',
+            nest: () {
+              b.element('display-step', nest: note.step);
+              b.element('display-octave', nest: note.octave.toString());
+            },
+          );
+        }
         // A grace note has no duration.
         if (note.grace == null) {
           b.element('duration', nest: '${marks?.duration(note) ?? 0}');
         }
         if (tieStop) b.element('tie', attributes: {'type': 'stop'});
         if (tieStart) b.element('tie', attributes: {'type': 'start'});
+        if (note.drum case final key?) {
+          b.element(
+            'instrument',
+            attributes: {'id': MusicXmlInstruments.drumId(partId, key)},
+          );
+        }
         if (note.voice != null) {
           b.element('voice', nest: note.voice.toString());
         }
@@ -506,6 +533,10 @@ class MusicXmlExportService {
         };
         if (accidental != null) b.element('accidental', nest: accidental);
         _buildTimeModification(b, note.tuplet);
+        if (note.drum != null) {
+          b.element('stem', nest: (note.voice ?? 1).isOdd ? 'up' : 'down');
+        }
+        if (note.notehead case final head?) b.element('notehead', nest: head);
         if (note.staff != null) {
           b.element('staff', nest: note.staff.toString());
         }

@@ -27,7 +27,7 @@ class ScoreTemplate {
 }
 
 /// The templates whose notation Note Vision can write: no tablature or
-/// percussion yet. Part names and clefs follow
+/// orchestral percussion yet. Part names and clefs follow
 /// MuseScore Studio 4.7.5's (`new_score_test.dart` compares them).
 const scoreTemplates = <ScoreTemplate>[
   ScoreTemplate('General', 'Treble clef', [
@@ -80,6 +80,14 @@ const scoreTemplates = <ScoreTemplate>[
     (name: 'Horn in F', clef: _treble, grand: false),
     (name: 'Trombone', clef: _bass, grand: false),
     (name: 'Tuba', clef: _bass, grand: false),
+  ]),
+  ScoreTemplate('Popular', 'Rock band', [
+    (name: 'Lead Vocals', clef: _treble, grand: false),
+    (name: 'Backing Vocals', clef: _treble, grand: false),
+    (name: 'Lead Guitar', clef: _treble8vb, grand: false),
+    (name: 'Rhythm Guitar', clef: _treble8vb, grand: false),
+    (name: 'Bass Guitar', clef: _bass, grand: false),
+    (name: 'Drum Kit', clef: Clef.percussion, grand: false),
   ]),
   ScoreTemplate('Solo', 'Guitar', [
     (name: 'Classical Guitar', clef: _treble8vb, grand: false),

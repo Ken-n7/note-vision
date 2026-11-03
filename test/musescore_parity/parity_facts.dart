@@ -160,6 +160,11 @@ String _note(XmlElement e, MusicalTime duration, XmlElement? grace) {
   out.add('${_text(e, 'type') ?? '-'}${'.' * e.findElements('dot').length}');
   final accidental = _text(e, 'accidental');
   if (accidental != null) out.add('acc=$accidental');
+  // A drum note's kit piece (instrument id) and its notehead shape.
+  final instrument = e.getElement('instrument')?.getAttribute('id');
+  if (unpitched != null && instrument != null) out.add('inst=$instrument');
+  final head = _text(e, 'notehead');
+  if (head != null && head != 'normal') out.add('head=$head');
   final mod = e.getElement('time-modification');
   if (mod != null) {
     out.add(
@@ -335,7 +340,11 @@ List<String> playbackFacts(PlaybackPlan plan, Score score) {
             'dur=${_quarters(e.baseDurationMs / 500)}',
         '@${_quarters(e.baseOnsetMs / 500)} key=${e.midiNote} vel=${e.velocity}',
       ],
-    for (final program in mix.settings.values.map((s) => s.program).toSet())
+    // As the MIDI reads: channel 10 plays drums whatever its program.
+    for (final program in {
+      for (final MapEntry(key: channel, value: s) in mix.settings.entries)
+        channel == 9 ? 'drums' : '${s.program}',
+    })
       'program $program',
   ];
 }

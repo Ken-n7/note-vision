@@ -7,6 +7,7 @@ import '../../../core/models/score_annotation.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:note_vision/core/models/drum_kit.dart';
 import 'package:flutter/services.dart';
 import 'package:note_vision/core/config/app_features.dart';
 import 'package:note_vision/core/models/clef.dart';
@@ -1393,9 +1394,27 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     });
   }
 
+  /// On a drum staff, a note placed at a height plays the kit piece written
+  /// there (a hi-hat on the hi-hat's line), in that piece's voice.
+  ScoreSymbol _asDrum(ScoreSymbol symbol, int partIndex) {
+    final parts = _editorState.score.parts;
+    if (symbol is! Note || !parts[partIndex].isPercussion) return symbol;
+    final piece = drumAt(symbol.step, symbol.octave);
+    return drumNote(
+      piece,
+      symbol.type,
+      symbol.duration,
+      voice: piece.voice == 2 ? 2 : symbol.voice,
+      staff: symbol.staff,
+    );
+  }
+
   void _onInsertTap(NotationInsertTarget? target) {
     if (target == null || _insertSymbolType == null) return;
-    final symbol = _inInputVoice(_buildSymbol(_insertSymbolType!, target));
+    final symbol = _asDrum(
+      _inInputVoice(_buildSymbol(_insertSymbolType!, target)),
+      target.partIndex,
+    );
     _updateState(
       (state) => state.insertSymbolAtMeasureIndex(
         partIndex: target.partIndex,
@@ -1408,7 +1427,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
   void _onPaletteDrop(NotationInsertTarget target, Object data) {
     if (data is! PaletteDragData) return;
-    final symbol = _inInputVoice(_buildSymbol(data.type, target));
+    final symbol = _asDrum(
+      _inInputVoice(_buildSymbol(data.type, target)),
+      target.partIndex,
+    );
     _updateState(
       (state) => state.insertSymbolAtMeasureIndex(
         partIndex: target.partIndex,
@@ -1747,7 +1769,16 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     LogicalKeyboardKey.keyE: 'E',
     LogicalKeyboardKey.keyF: 'F',
     LogicalKeyboardKey.keyG: 'G',
+    // A drum staff's floor tom.
+    LogicalKeyboardKey.keyH: 'H',
   };
+
+  /// Input goes to a drum staff: letters enter kit pieces.
+  bool get _drumInput {
+    final score = _editorState.score;
+    final part = _editorState.selectedPartIndex ?? 0;
+    return part < score.parts.length && score.parts[part].isPercussion;
+  }
 
   /// Alt + 2–9 adds that interval above the selected note.
   static final _intervalDigits = {
@@ -1777,9 +1808,31 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       final input = state.hasMeasureContext
           ? state
           : state.copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
+      final drum = step != null && _drumInput ? drumForShortcut(step) : null;
       final next = step == null
           ? input.enterRest(spec, voice: _inputVoice)
+          : drum != null
+          ? input.enterDrum(drum, spec)
           : input.enterNote(step, spec, voice: _inputVoice);
+      return identical(next, input) ? state : next;
+    });
+  }
+
+  /// Enters [piece] in the chosen value after the input position.
+  void _enterDrum(DrumPiece piece) {
+    final type = _insertSymbolType ?? PaletteSymbolType.quarterNote;
+    final spec = [
+      wholeDuration,
+      halfDuration,
+      quarterDuration,
+      eighthDuration,
+      sixteenthDuration,
+    ][type.index % 5];
+    _updateState((state) {
+      final input = state.hasMeasureContext
+          ? state
+          : state.copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
+      final next = input.enterDrum(piece, spec);
       return identical(next, input) ? state : next;
     });
   }
@@ -2414,7 +2467,17 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       _runEditorCommand(EditorCommand.slur);
       return KeyEventResult.handled;
     }
-    if (letter != null) {
+    if (letter != null && _drumInput) {
+      final piece = drumForShortcut(letter);
+      if (piece == null) return KeyEventResult.ignored;
+      if (_insertMode) {
+        _enterFromKeyboard(letter);
+      } else {
+        _updateState((s) => s.setSelectedDrum(piece));
+      }
+      return KeyEventResult.handled;
+    }
+    if (letter != null && letter != 'H') {
       if (_insertMode) {
         _enterFromKeyboard(letter);
       } else {
@@ -2749,6 +2812,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       inputVoice: _effectiveInputVoice,
                       onVoiceSelected: (voice) =>
                           setState(() => _inputVoice = voice),
+                      onDrum: _drumInput ? _enterDrum : null,
                       onToggleInsertMode: _toggleInsertMode,
                       onPaletteTypeTap: _onPaletteTypeTap,
                       onPreviousSymbol: _adjacentSymbol(-1) == null
@@ -3955,10 +4019,17 @@ class _EditorHeader extends StatelessWidget {
                             ),
                           ),
                           if (onConcertPitch != null)
-                            CheckedPopupMenuItem(
+                            PopupMenuItem(
                               value: _HeaderMenuAction.concertPitch,
-                              checked: concertPitch,
-                              child: const Text('Concert pitch'),
+                              child: Semantics(
+                                toggled: concertPitch,
+                                child: _HeaderMenuItem(
+                                  icon: concertPitch
+                                      ? Icons.check_box_rounded
+                                      : Icons.check_box_outline_blank_rounded,
+                                  label: 'Concert pitch',
+                                ),
+                              ),
                             ),
                           PopupMenuItem(
                             value: _HeaderMenuAction.staves,
@@ -5011,6 +5082,7 @@ class _InspectorPanel extends StatefulWidget {
     required this.insertSymbolType,
     required this.inputVoice,
     required this.onVoiceSelected,
+    this.onDrum,
     required this.onToggleInsertMode,
     required this.onPaletteTypeTap,
     required this.onPreviousSymbol,
@@ -5081,6 +5153,9 @@ class _InspectorPanel extends StatefulWidget {
   /// The voice new notes go into (1–4).
   final int inputVoice;
   final ValueChanged<int> onVoiceSelected;
+
+  /// On a drum staff: enters a kit piece at the input position.
+  final ValueChanged<DrumPiece>? onDrum;
   final VoidCallback onToggleInsertMode;
   final ValueChanged<PaletteSymbolType> onPaletteTypeTap;
   final VoidCallback? onPreviousSymbol, onNextSymbol;
@@ -5511,6 +5586,23 @@ class _InspectorPanelState extends State<_InspectorPanel> {
               ],
             ],
           ),
+          if (widget.onDrum case final onDrum?) ...[
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final piece in drumKit.where((d) => d.shortcut != null))
+                  ActionChip(
+                    label: Text('${piece.name} · ${piece.shortcut}'),
+                    tooltip: 'Enter ${piece.name} (${piece.shortcut})',
+                    onPressed: widget.isPlaybackActive
+                        ? null
+                        : () => onDrum(piece),
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 4),
           Wrap(
             spacing: 6,
@@ -5909,7 +6001,9 @@ class _InspectorPanelState extends State<_InspectorPanel> {
       title: title,
       subtitle: switch (mode) {
         EditorToolMode.insert =>
-          'Tap the staff or type A–G · hold a symbol to drag',
+          widget.onDrum != null
+              ? 'Tap the staff or a drum below, or type A–H'
+              : 'Tap the staff or type A–G · hold a symbol to drag',
         EditorToolMode.measure => 'Structure and staff settings',
         EditorToolMode.edit =>
           widget.rangeCount > 1

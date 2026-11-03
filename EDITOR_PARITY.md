@@ -933,7 +933,41 @@ Device check (2026-11-01): release **2005**, built from `f801e50` with
   concert pitch or playback; per-instrument concert-pitch clefs;
   transposition changes mid-score.
 
-Next: 5D part 2 — percussion (drum kit, unpitched staves), then tablature
-and cross-staff notation. Retained-source rhythm export for complex documents,
+## Stage 5D (part 2) — drum kit and percussion staves
+
+- `Clef.percussion` (MusicXML `<sign>percussion</sign>`, no line) makes a
+  drum staff (`Part.isPercussion`): no key signature, two-bar clef, notes
+  placed as on a treble staff (`layoutSign` `P`). `Note.drum` is the kit
+  piece's GM key; `step`/`octave` are its display position. `Note.notehead`
+  (`x`, `circle-x`, `diamond`, …) is drawn in editor and PDF.
+- `drumKit` (`drum_kit.dart`): MuseScore Studio's standard kit positions,
+  heads, voices and letters (A bass drum, B snare, C closed hi-hat, D open
+  hi-hat, E crash, F ride, G high tom, H floor tom). Hands stem up, feet
+  (voice 2) down, also in a single-voice bar.
+- MusicXML: `<unpitched>` notes import (previously dropped) with their kit
+  piece from `<midi-unpitched>` (1-based), else by position; export writes
+  them with `<instrument>` and the kit declared as MuseScore does (ids
+  `P1-I<key+1>`, channel 10). Editing a drum note's piece in an imported
+  file refuses retained-source export explicitly.
+- Playback: drum notes sound their kit key on MIDI channel 10, shared by all
+  drum staves. Transpose leaves drum staves alone.
+- Editor: on a drum staff, Add notes shows the kit (name · letter); A–H
+  enter pieces in their voices; outside note entry a letter changes the
+  selected note's piece; tapping the staff enters the piece written at that
+  height. Staves sheet adds Drum Kit; the Rock band template (vocals,
+  electric guitars, bass guitar, drum kit) matches MuseScore's. Band guitar
+  and bass sounds follow MuseScore.
+- Parity: `24_drums` (rock beat, crash, ride, floor tom, open hi-hat):
+  notation 22/22, playback 35/35 (facts now include kit piece and notehead).
+- Device check (release **2010**, Realme RMX1851 / Android 11): Rock band
+  created in the wizard; hi-hat, snare and bass drum entered with the kit
+  buttons and drawn correctly; More → Concert pitch toggled (then restyled
+  with a checkbox icon to match the menu).
+- Not yet: MuseScore's separate input cursor per drum voice (a new voice 2
+  starts at the selected note, as for pitched voices), orchestral
+  percussion kits and timpani templates, jazz combo and concert band
+  templates, custom kits, rolls and sticking.
+
+Next: 5D part 3 — tablature, then cross-staff notation. Retained-source rhythm export for complex documents,
 global timewise measure slots and richer editable notation still need work;
 continue using the Stage 2B timeline rather than adding flat-list timing rules.
