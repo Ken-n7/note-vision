@@ -991,6 +991,10 @@ Device check (2026-11-01): release **2005**, built from `f801e50` with
   MuseScore's.
 - Parity: `25_tablature` (single notes, chords, sharps): notation 20/20,
   playback 29/29 (facts now include string, fret and tuning).
+- Device check (release **2011**, Realme RMX1851 / Android 11): Guitar
+  tablature created in the wizard; taps on strings 6, 5, 3 and 1 entered
+  open strings on those strings; the Up key moved the top note to frets 1
+  and 3 on string 1.
 - Not yet: Guitar + Tablature (a standard staff and a linked TAB staff that
   mirrors it), rhythm stems on tab, entering frets by number, bends, slides,
   hammer-ons, other tunings and string counts from the editor (imported ones
