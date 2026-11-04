@@ -1,3 +1,4 @@
+import 'package:note_vision/features/new_score/new_score.dart';
 import '../../../support/playback_mix_fixture.dart';
 import 'dart:convert';
 import 'dart:io';
@@ -72,8 +73,29 @@ void main() {
     ]);
     expect(PlaybackMix(state.score, {0, 1, 2}).channels.keys, [0, 1]);
   });
-  test('channel 10 reserved; capacity refuses instead of sharing sounds', () {
-    final score = ensemble(count: 16);
+  test('instruments with the same settings share a channel', () {
+    final mix = PlaybackMix(ensemble(count: 20), {
+      for (var i = 0; i < 20; i++) i,
+    });
+    expect(mix.channels.values.toSet(), {0});
+  });
+  test('a concert band with every instrument playing fits the channels', () {
+    final band = buildNewScore(
+      NewScoreOptions(
+        staves: scoreTemplates
+            .firstWhere((t) => t.name == 'Concert band')
+            .staves,
+      ),
+      id: 'x',
+    );
+    final mix = PlaybackMix(band, {
+      for (var i = 0; i < band.parts.length; i++) i,
+    });
+    expect(mix.channels, hasLength(band.parts.length));
+    expect(mix.settings.keys.where((c) => c != 9), hasLength(15));
+  });
+  test('channel 10 reserved; capacity refuses different sounds', () {
+    final score = ensemble(count: 16, distinct: true);
     final mix = PlaybackMix(score, {for (var i = 0; i < 15; i++) i});
     expect(mix.settings.keys, isNot(contains(9)));
     expect(mix.settings.keys.last, 15);

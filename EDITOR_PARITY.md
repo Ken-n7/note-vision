@@ -721,7 +721,9 @@ release 2004 played the same project with no errors. No iOS device test.
 - `PlaybackMix` routes each audible instrument to its own MIDI channel;
   channel 10 remains reserved for percussion. Up to 15 sounding instruments
   are supported; larger ensembles explain the limit instead of sharing
-  sounds. Several solo strips can sound together; explicit mute wins.
+  sounds. (Follow-up: instruments whose sound, volume, pan, mute and solo
+  are identical, such as a band's Clarinet 1–3, share one channel, so the
+  Concert band template with every part playing uses exactly 15.) Several solo strips can sound together; explicit mute wins.
   Silence does not change timing, position highlights or score content.
 - The scheduler configures programs, channel volume (CC7) and pan (CC10)
   before attacks. Overlapping pitches are counted by **channel and key**,

@@ -193,7 +193,7 @@ void main() {
       final states = <PlaybackState>[];
       final sub = player.stateStream.listen(states.add);
       addTearDown(sub.cancel);
-      await player.play(ensemble(count: 16));
+      await player.play(ensemble(count: 16, distinct: true));
       await tester.pump();
       expect(player.status, PlaybackStatus.error);
       expect(states.last.error, contains('15 sounding instruments'));

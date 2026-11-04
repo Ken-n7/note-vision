@@ -38,14 +38,18 @@ List<PlaybackStrip> playbackStrips(Score score) {
   ];
 }
 
-/// Isolated MIDI channels prevent equal pitches in different instruments
-/// from sharing note-off counts. Channel 10 (index 9) is for percussion: drum
+/// Each instrument gets its own MIDI channel, so its sound, volume and pan
+/// apply to it alone; instruments with the same settings (a band's Clarinet
+/// 1-3) share one, which lets a concert band fit the 15 pitched channels.
+/// Note-offs are counted per channel and pitch, so a shared unison holds
+/// until its last note ends. Channel 10 (index 9) is for percussion: drum
 /// staves share it, its program choosing the kit.
 class PlaybackMix {
   PlaybackMix(Score score, Set<int> soundingParts) {
     final strips = playbackStrips(score);
     final solo = strips.any((s) => s.settings.solo);
     var channel = 0;
+    final shared = <PartPlayback, int>{};
     for (final strip in strips) {
       final value = strip.settings;
       if (!value.isValid) throw const FormatException('Invalid mixer settings');
@@ -62,6 +66,12 @@ class PlaybackMix {
         }
         continue;
       }
+      if (shared[value] case final same?) {
+        for (final part in strip.parts) {
+          channels[part] = same;
+        }
+        continue;
+      }
       if (channel == 9) {
         channel++;
       }
@@ -71,6 +81,7 @@ class PlaybackMix {
         );
       }
       settings[channel] = value;
+      shared[value] = channel;
       for (final part in strip.parts) {
         channels[part] = channel;
       }
