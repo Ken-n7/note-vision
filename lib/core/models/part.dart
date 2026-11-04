@@ -25,12 +25,17 @@ class Part {
     this.transposition,
     this.tabTuning,
     this.linked = false,
+    this.squareBracket = false,
   });
 
   /// A linked staff (MuseScore's Guitar + Tablature): this staff shows the
   /// same music as the staff before it, an edit to either is copied to the
   /// other (`syncLinkedStaves`), and only the staff before it plays.
   final bool linked;
+
+  /// A further staff of the instrument above, joined by a square bracket
+  /// instead of a piano brace (e.g. two orchestral horn staves).
+  final bool squareBracket;
 
   /// A tablature staff's open strings as MIDI notes, lowest first.
   final List<int>? tabTuning;
@@ -60,6 +65,7 @@ class Part {
     if (transposition != null) 'transposition': transposition!.toJson(),
     if (tabTuning != null) 'tabTuning': tabTuning,
     if (linked) 'linked': true,
+    if (squareBracket) 'squareBracket': true,
   };
 
   factory Part.fromJson(Map<String, dynamic> json) => Part(
@@ -72,6 +78,7 @@ class Part {
     transposition: Transposition.fromJson(json['transposition']),
     tabTuning: (json['tabTuning'] as List?)?.cast<int>(),
     linked: json['linked'] as bool? ?? false,
+    squareBracket: json['squareBracket'] as bool? ?? false,
     measures: (json['measures'] as List<dynamic>)
         .map((m) => Measure.fromJson(m as Map<String, dynamic>))
         .toList(),
@@ -86,7 +93,9 @@ class Part {
     Object? transposition = _keep,
     Object? tabTuning = _keep,
     bool? linked,
+    bool? squareBracket,
   }) => Part(
+    squareBracket: squareBracket ?? this.squareBracket,
     linked: linked ?? this.linked,
     tabTuning: identical(tabTuning, _keep)
         ? this.tabTuning

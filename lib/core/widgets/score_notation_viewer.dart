@@ -452,6 +452,10 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
           for (final (i, part) in (widget.score?.parts ?? const []).indexed)
             if (part.joinsPrevious) i,
         },
+        squareBracketParts: {
+          for (final (i, part) in (widget.score?.parts ?? const []).indexed)
+            if (part.squareBracket) i,
+        },
         tabTunings: _tabTunings,
         playbackPartIndex: widget.playbackPartIndex,
         playbackMeasureIndex: widget.playbackMeasureIndex,

@@ -208,8 +208,8 @@ const gmSounds = <String>[
 /// "Violin II" or "Flute 1" sounds as its instrument.
 int defaultProgramFor(String name) => switch (instrumentKey(name)) {
   'piccolo' => 72,
-  'flute' => 73,
-  'oboe' => 68,
+  'flute' || 'flutes' => 73,
+  'oboe' || 'oboes' => 68,
   'violin' => 40,
   'viola' => 41,
   'cello' || 'violoncello' => 42,
@@ -222,14 +222,17 @@ int defaultProgramFor(String name) => switch (instrumentKey(name)) {
   'bass guitar' => 34,
   'lead guitar' || 'rhythm guitar' || 'electric guitar' => 27,
   'acoustic bass' => 32,
-  'trumpet' || 'trumpet in bb' => 56,
-  'bassoon' => 70,
-  'clarinet in bb' || 'clarinet in eb' || 'bass clarinet' => 71,
+  'trumpet' || 'trumpet in bb' || 'trumpets in bb' => 56,
+  'bassoon' || 'bassoons' => 70,
+  'clarinet in bb' ||
+  'clarinets in bb' ||
+  'clarinet in eb' ||
+  'bass clarinet' => 71,
   'soprano saxophone' => 64,
   'alto saxophone' || 'alto sax' => 65,
   'tenor saxophone' || 'tenor sax' => 66,
   'baritone saxophone' || 'bari sax' => 67,
-  'horn in f' || 'horn' => 60,
+  'horn in f' || 'horns in f' || 'horn' => 60,
   'tuba' || 'euphonium' => 58,
   'trombone' => 57,
   'timpani' => 47,

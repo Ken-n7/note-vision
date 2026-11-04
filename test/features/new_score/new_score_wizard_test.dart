@@ -158,6 +158,47 @@ void main() {
   });
 
   for (final (name, size, scale) in [
+    ('phone', const Size(390, 844), 1.0),
+    ('small-phone-large-text', const Size(320, 568), 2.0),
+    ('landscape', const Size(844, 390), 1.0),
+  ]) {
+    testWidgets('Classical orchestra can be created on $name', (tester) async {
+      final result = await pumpWizard(tester, size: size, textScale: scale);
+      await tester.scrollUntilVisible(
+        find.widgetWithText(ChoiceChip, 'Classical orchestra'),
+        400,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tapVisible(
+        tester,
+        find.widgetWithText(ChoiceChip, 'Classical orchestra'),
+      );
+      // Find the first instrument before moving down to the horns; lazy
+      // list layout can correct its offset when the template adds staves.
+      await tester.scrollUntilVisible(
+        find.text('Flutes'),
+        -200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.scrollUntilVisible(
+        find.text('Two treble staves'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Horns in F'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await capture(tester, 'classical-$name');
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text('Create score'));
+      expect(result()!.parts, hasLength(13));
+      expect(result()!.parts[5].squareBracket, isTrue);
+      expect(result()!.parts[5].measures.first.clef?.sign, 'G');
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  for (final (name, size, scale) in [
     ('small-phone-large-text', const Size(320, 568), 2.0),
     ('landscape', const Size(844, 390), 1.0),
   ]) {

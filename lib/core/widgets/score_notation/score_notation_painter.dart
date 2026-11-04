@@ -39,6 +39,7 @@ class ScoreNotationPainter extends CustomPainter {
     this.selectedSymbolIndices = const {},
     this.rangeSymbols = const {},
     this.joinedParts = const {},
+    this.squareBracketParts = const {},
     this.tabTunings = const {},
     this.spanners = const [],
     this.lyricParts,
@@ -94,6 +95,7 @@ class ScoreNotationPainter extends CustomPainter {
   /// Parts that are a further staff of the part above (a grand staff): the
   /// two are braced and their barlines run through both.
   final Set<int> joinedParts;
+  final Set<int> squareBracketParts;
 
   /// Ties and slurs, drawn between the notes they join.
   final List<Spanner> spanners;
@@ -2386,6 +2388,21 @@ class ScoreNotationPainter extends CustomPainter {
         ink,
       );
       if (tab) continue;
+      if (squareBracketParts.contains(lower.partIndex)) {
+        final x = upper.rowStartX - 7;
+        canvas.drawPath(
+          Path()
+            ..moveTo(x + 5, upper.staffTop)
+            ..lineTo(x, upper.staffTop)
+            ..lineTo(x, lower.staffBottom)
+            ..lineTo(x + 5, lower.staffBottom),
+          Paint()
+            ..color = const Color(0xFF111827)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2,
+        );
+        continue;
+      }
       // A brace: two thin-ended curves meeting at a point in the middle.
       final top = upper.staffTop;
       final bottom = lower.staffBottom;
@@ -2732,6 +2749,7 @@ class ScoreNotationPainter extends CustomPainter {
         !setEquals(oldDelegate.selectedSymbolIndices, selectedSymbolIndices) ||
         !setEquals(oldDelegate.rangeSymbols, rangeSymbols) ||
         !setEquals(oldDelegate.joinedParts, joinedParts) ||
+        !setEquals(oldDelegate.squareBracketParts, squareBracketParts) ||
         !listEquals(oldDelegate.spanners, spanners) ||
         oldDelegate.playbackPartIndex != playbackPartIndex ||
         oldDelegate.playbackMeasureIndex != playbackMeasureIndex ||

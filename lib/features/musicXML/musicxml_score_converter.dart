@@ -28,6 +28,48 @@ import 'musicxml_instruments.dart';
 import 'musicxml_lyrics.dart';
 import 'musicxml_annotations.dart';
 
+/// Square brackets on one instrument's multiple staves. MuseScore writes
+/// these as a square part-group around a single score-part; generated files
+/// can state the same instrument-level style with `<part-symbol>`.
+Set<String> _readSquareBracketParts(XmlElement root) {
+  final result = <String>{};
+  final groups = <({String number, bool square, Set<String> parts})>[];
+  for (final e
+      in root.getElement('part-list')?.childElements ?? <XmlElement>[]) {
+    if (e.name.local == 'score-part') {
+      final id = e.getAttribute('id');
+      if (id != null) {
+        for (final g in groups) {
+          g.parts.add(id);
+        }
+      }
+    } else if (e.name.local == 'part-group') {
+      final number = e.getAttribute('number') ?? '1';
+      if (e.getAttribute('type') == 'start') {
+        groups.add((
+          number: number,
+          square: e.getElement('group-symbol')?.innerText.trim() == 'square',
+          parts: <String>{},
+        ));
+      } else if (e.getAttribute('type') == 'stop') {
+        final i = groups.lastIndexWhere((g) => g.number == number);
+        if (i < 0) continue;
+        final group = groups.removeAt(i);
+        if (group.square && group.parts.length == 1) {
+          result.add(group.parts.single);
+        }
+      }
+    }
+  }
+  for (final p in root.findAllElements('part')) {
+    final symbol = p.findAllElements('part-symbol').firstOrNull;
+    if (symbol?.innerText.trim() == 'square' && p.getAttribute('id') != null) {
+      result.add(p.getAttribute('id')!);
+    }
+  }
+  return result;
+}
+
 /// Converts a validated MusicXML document into internal score models.
 class MusicXmlScoreConverter {
   const MusicXmlScoreConverter();
@@ -38,6 +80,7 @@ class MusicXmlScoreConverter {
     final title = _readTitle(root);
     final composer = _readComposer(root);
     final partNamesById = _readPartNames(root);
+    final squareBracketParts = _readSquareBracketParts(root);
     final sourceIndexes = <String, List<List<int>>>{};
     const reader = MusicXmlSourceReader();
     final events = reader.readTimeline(document);
@@ -102,6 +145,8 @@ class MusicXmlScoreConverter {
               return Accidentals.writtenFromSounding(
                 shown: (n) => _shownAccidentals[n] ?? false,
                 part.copyWith(
+                  squareBracket:
+                      part.staff > 1 && squareBracketParts.contains(sourceId),
                   tabTuning: tuning.isEmpty
                       ? (part.isTab ? standardGuitarTuning : null)
                       : tuning,

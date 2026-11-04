@@ -3,11 +3,16 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_vision/core/models/clef.dart';
+import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_annotation.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/services/playback_converter.dart';
+import 'package:note_vision/core/services/playback_mix.dart';
+import 'package:note_vision/core/services/transposer.dart';
+import 'package:note_vision/features/editor/domain/editor_actions.dart';
+import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/core/widgets/score_notation/staff_pitch_mapper.dart';
 import 'package:note_vision/features/musicXML/musicxml_export_service.dart';
 import 'package:note_vision/features/musicXML/musicxml_score_converter.dart';
@@ -40,6 +45,7 @@ const museScoreTemplates = {
   'Concert band': '01-Concert_Band',
   'Small concert band': '02-Small_Concert_Band',
   'String orchestra': '03-String_Orchestra',
+  'Classical orchestra': '01-Classical_Orchestra',
 };
 
 /// Templates whose MuseScore export loses the written keys.
@@ -48,6 +54,7 @@ const legacyKeys = {
   'Jazz combo',
   'Concert band',
   'Small concert band',
+  'Classical orchestra',
 };
 
 /// Each part's name, MIDI program, staves' clefs, transposition and written
@@ -132,6 +139,174 @@ void main() {
       [2, 3, 2, 0, 0, 0, 0, 0, 0],
     );
   });
+
+  test('classical orchestra keeps two treble horn staves in one instrument', () {
+    final score = buildNewScore(
+      options('Classical orchestra', pickup: 1),
+      id: 'classical',
+    );
+    expect(score.parts, hasLength(13));
+    final horns = score.parts.where((p) => p.name == 'Horns in F').toList();
+    expect(horns.map((p) => p.staff), [1, 2]);
+    expect(horns.map((p) => p.measures.first.clef), [
+      const Clef(sign: 'G', line: 2),
+      const Clef(sign: 'G', line: 2),
+    ]);
+    expect(horns.map((p) => p.squareBracket), [false, true]);
+    expect(horns.every((p) => !p.linked), isTrue);
+    expect(horns.map((p) => p.transposition?.semitones), [-7, -7]);
+    expect(horns.map((p) => p.measures.first.keySignature?.fifths), [-1, -1]);
+    final concert = const Transposer().concertPitch(score, true);
+    expect(
+      concert.parts
+          .where((p) => p.name == 'Horns in F')
+          .map((p) => p.measures.first.keySignature?.fifths),
+      [-2, -2],
+    );
+    final saved = Score.fromJson(
+      jsonDecode(jsonEncode(score.toJson())) as Map<String, dynamic>,
+    );
+    expect(saved.notationProjection(), score.notationProjection());
+    expect(saved.parts[5].copyWith(name: 'Lower horns').squareBracket, isTrue);
+    final reference = const MusicXmlScoreConverter().convert(
+      XmlDocument.parse(
+        File(
+          'test/musescore_parity/reference/templates/01-Classical_Orchestra.musicxml',
+        ).readAsStringSync(),
+      ),
+    );
+    expect(reference.parts.where((p) => p.squareBracket).map((p) => p.name), [
+      'Horns in F',
+    ]);
+  });
+
+  test(
+    'classical orchestra writes the template keys and all sounds fit eight channels',
+    () {
+      final empty = buildNewScore(
+        NewScoreOptions(
+          staves: scoreTemplates
+              .firstWhere((t) => t.name == 'Classical orchestra')
+              .staves,
+          bars: 1,
+        ),
+        id: 'classical',
+      );
+      // Written keys in MuseScore's template file (its legacy export drops them).
+      expect(empty.parts.map((p) => p.measures.first.keySignature?.fifths), [
+        0,
+        0,
+        2,
+        0,
+        1,
+        1,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+      ]);
+      final score = empty.copyWith(
+        parts: [
+          for (final p in empty.parts)
+            p.copyWith(
+              measures: [
+                p.measures.first.copyWith(
+                  symbols: [
+                    const Note(
+                      step: 'C',
+                      octave: 4,
+                      alter: 0,
+                      duration: 2,
+                      type: 'quarter',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+        ],
+      );
+      final mix = PlaybackMix(score, {
+        for (var i = 0; i < score.parts.length; i++) i,
+      });
+      expect(playbackStrips(score), hasLength(12));
+      expect(mix.settings.values.map((s) => s.program).toSet(), {
+        73,
+        68,
+        71,
+        70,
+        60,
+        56,
+        47,
+        48,
+      });
+      expect(mix.settings, hasLength(8));
+      expect(mix.channels[4], mix.channels[5]);
+      expect(mix.channels.values, isNot(contains(9)));
+      final xml = const MusicXmlExportService().toMusicXml(score);
+      final document = XmlDocument.parse(xml);
+      final declarations = document.findAllElements('score-part');
+      expect(declarations, hasLength(12));
+      final hornId = declarations
+          .firstWhere(
+            (p) => p.getElement('part-name')!.innerText == 'Horns in F',
+          )
+          .getAttribute('id');
+      final hornPart = document.rootElement
+          .findElements('part')
+          .firstWhere((p) => p.getAttribute('id') == hornId);
+      expect(hornPart.findAllElements('staves').single.innerText, '2');
+      expect(
+        hornPart.findAllElements('part-symbol').single.innerText,
+        'square',
+      );
+      final imported = const MusicXmlScoreConverter().convert(document);
+      expect(imported.parts[5].squareBracket, isTrue);
+      for (final current in [score, imported]) {
+        final events = const PlaybackConverter()
+            .buildEvents(current)
+            .where((e) => !e.isRest)
+            .toList();
+        expect(events, hasLength(13));
+        expect(
+          events
+              .where((e) => e.partIndex == 4 || e.partIndex == 5)
+              .map((e) => e.midiNote),
+          [53, 53],
+        );
+        expect(events.firstWhere((e) => e.partIndex == 12).midiNote, 48);
+      }
+    },
+  );
+
+  test(
+    'moving a horn staff out of its pair removes its square bracket and undo restores it',
+    () {
+      final before = EditorState(
+        score: buildNewScore(options('Classical orchestra'), id: 'classical'),
+      );
+      final parts = before.score.parts;
+      final order = [
+        5,
+        for (var i = 0; i < parts.length; i++)
+          if (i != 5) i,
+      ];
+      final after = before.rearrangeParts([
+        for (final i in order)
+          (
+            from: i,
+            name: parts[i].name,
+            clef: null,
+            joinsPrevious: parts[i].joinsPrevious,
+          ),
+      ]);
+      expect(after.score.parts.first.staff, 1);
+      expect(after.score.parts.first.squareBracket, isFalse);
+      expect(after.applyUndo().score.parts[5].squareBracket, isTrue);
+    },
+  );
 
   test('a new score has the key, meter, bars, pickup and tempo asked for', () {
     final score = buildNewScore(

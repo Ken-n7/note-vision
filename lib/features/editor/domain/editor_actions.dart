@@ -1886,6 +1886,7 @@ extension EditorActions on EditorState {
             name: entry.name,
             staff: staffOf(i),
             linked: score.parts[from].linked && staffOf(i) > 1,
+            squareBracket: score.parts[from].squareBracket && staffOf(i) > 1,
             measures: score.parts[from].measures,
           )
         else

@@ -222,6 +222,7 @@ class MusicXmlExportService {
             endingNumbers: endingNumbers,
             transposition: staffParts.first.transposition,
             partId: staffParts.first.id,
+            squareBracket: staffParts.skip(1).any((p) => p.squareBracket),
             tabTunings: [
               for (final p in staffParts) p.isTab ? p.tabTuning : null,
             ],
@@ -265,6 +266,7 @@ class MusicXmlExportService {
     String endingNumbers = '1',
     Transposition? transposition,
     String partId = 'P1',
+    bool squareBracket = false,
     List<List<int>?> tabTunings = const [],
   }) {
     final measure = staffMeasures.first;
@@ -349,6 +351,7 @@ class MusicXmlExportService {
 
               if (isFirst && staves > 1) {
                 b.element('staves', nest: '$staves');
+                if (squareBracket) b.element('part-symbol', nest: 'square');
               }
 
               for (final (k, m) in staffMeasures.indexed) {

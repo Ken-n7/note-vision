@@ -12,12 +12,22 @@ import 'package:note_vision/core/services/transposer.dart';
 
 /// One staff of a new score; [grand] adds a staff joined below it: bass, as
 /// a piano has, or under a guitar's treble 8vb a linked TAB staff (MuseScore's
-/// Guitar + Tablature).
+/// Guitar + Tablature). [lowerClef] specifies a second staff's clef,
+/// including the two treble staves of an orchestral horn part.
 class NewStaff {
-  const NewStaff(this.name, this.clef, {this.grand = false, this.program});
+  const NewStaff(
+    this.name,
+    this.clef, {
+    this.grand = false,
+    this.program,
+    this.lowerClef,
+    this.squareBracket = false,
+  });
   final String name;
   final Clef clef;
   final bool grand;
+  final Clef? lowerClef;
+  final bool squareBracket;
 
   /// The GM sound when it is not the usual one for [name] (a jazz band's
   /// guitar is electric).
@@ -38,8 +48,8 @@ class ScoreTemplate {
 }
 
 /// The templates whose notation Note Vision can write: no one-line
-/// percussion or two-staff wind parts yet. Part names and clefs follow
-/// MuseScore Studio 4.7.5's (`new_score_test.dart` compares them).
+/// percussion yet. Part names and clefs follow MuseScore Studio 4.7.5's
+/// (`new_score_test.dart` compares them).
 const scoreTemplates = <ScoreTemplate>[
   ScoreTemplate('General', 'Treble clef', [NewStaff('Piano', _treble)]),
   ScoreTemplate('General', 'Bass clef', [NewStaff('Piano', _bass)]),
@@ -191,6 +201,20 @@ const scoreTemplates = <ScoreTemplate>[
     NewStaff('Percussion 1', Clef.percussion),
     NewStaff('Percussion 2', Clef.percussion),
   ]),
+  ScoreTemplate('Orchestral', 'Classical orchestra', [
+    NewStaff('Flutes', _treble),
+    NewStaff('Oboes', _treble),
+    NewStaff('Clarinets in Bb', _treble),
+    NewStaff('Bassoons', _bass),
+    NewStaff('Horns in F', _treble, lowerClef: _treble, squareBracket: true),
+    NewStaff('Trumpets in Bb', _treble),
+    NewStaff('Timpani', _bass),
+    NewStaff('Violins 1', _treble),
+    NewStaff('Violins 2', _treble),
+    NewStaff('Violas', _alto),
+    NewStaff('Violoncellos', _bass),
+    NewStaff('Contrabasses', _bass),
+  ]),
   ScoreTemplate('Orchestral', 'String orchestra', [
     NewStaff('Violins 1', _treble),
     NewStaff('Violins 2', _treble),
@@ -301,27 +325,33 @@ Score buildNewScore(NewScoreOptions o, {String? id}) {
     final playback = PartPlayback(
       program: staff.program ?? defaultProgramFor(staff.name),
     );
+    final transposition = transpositionFor(staff.name);
     parts.add(
       Part(
         id: id,
         name: staff.name,
         playback: playback,
-        transposition: transpositionFor(staff.name),
+        transposition: transposition,
         tabTuning: staff.clef.isTab ? standardGuitarTuning : null,
         measures: measures(staff.clef, top: parts.isEmpty),
       ),
     );
-    if (staff.grand) {
-      final tab = staff.clef == _treble8vb;
+    if (staff.grand || staff.lowerClef != null) {
+      final tab = staff.lowerClef == null && staff.clef == _treble8vb;
       parts.add(
         Part(
           id: '$id-staff2',
           name: staff.name,
           staff: 2,
           playback: playback,
+          transposition: transposition,
+          squareBracket: staff.squareBracket,
           linked: tab,
           tabTuning: tab ? standardGuitarTuning : null,
-          measures: measures(tab ? Clef.tab : _bass, top: false),
+          measures: measures(
+            staff.lowerClef ?? (tab ? Clef.tab : _bass),
+            top: false,
+          ),
         ),
       );
     }

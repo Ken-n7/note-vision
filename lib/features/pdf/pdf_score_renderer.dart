@@ -529,6 +529,7 @@ class PdfScoreRenderer {
             lowerTop: staffTop,
             measures: rowMeasures.length,
             tab: score.parts[pi].isTab,
+            squareBracket: score.parts[pi].squareBracket,
           );
         }
       }
@@ -771,6 +772,7 @@ class PdfScoreRenderer {
     required double lowerTop,
     required int measures,
     bool tab = false,
+    bool squareBracket = false,
   }) {
     final rowStartX = _pageX0 + _padX;
     final contentStartX = rowStartX + _prefixW;
@@ -783,6 +785,13 @@ class PdfScoreRenderer {
     for (var m = 0; m <= measures; m++) {
       final x = contentStartX + m * _mw;
       _line(g, x, upperBottom, x, lowerTop, width);
+    }
+    if (squareBracket) {
+      final x = rowStartX - 7 * _scale;
+      _line(g, x + 5 * _scale, upperTop, x, upperTop, 2 * _scale);
+      _line(g, x, upperTop, x, lowerBottom, 2 * _scale);
+      _line(g, x, lowerBottom, x + 5 * _scale, lowerBottom, 2 * _scale);
+      return;
     }
     final mid = (upperTop + lowerBottom) / 2;
     final x = rowStartX - 4 * _scale;

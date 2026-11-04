@@ -67,7 +67,11 @@ Transposition? transpositionFor(String name) {
   const eFlatLow = Transposition(diatonic: -5, chromatic: -9);
   const octaveDown = Transposition(diatonic: 0, chromatic: 0, octave: -1);
   return switch (instrumentKey(name)) {
-    'clarinet in bb' || 'trumpet in bb' || 'trumpet' => bFlat,
+    'clarinet in bb' ||
+    'clarinets in bb' ||
+    'trumpet in bb' ||
+    'trumpets in bb' ||
+    'trumpet' => bFlat,
     'soprano saxophone' => bFlat,
     'alto saxophone' || 'alto sax' => eFlatLow,
     'tenor saxophone' || 'tenor sax' || 'bass clarinet' => const Transposition(
@@ -76,12 +80,11 @@ Transposition? transpositionFor(String name) {
       octave: -1,
     ),
     'clarinet in eb' => const Transposition(diatonic: 2, chromatic: 3),
-    'baritone saxophone' || 'bari sax' => const Transposition(
-      diatonic: -5,
-      chromatic: -9,
-      octave: -1,
-    ),
-    'horn in f' || 'horn' => const Transposition(diatonic: -4, chromatic: -7),
+    'baritone saxophone' ||
+    'bari sax' => const Transposition(diatonic: -5, chromatic: -9, octave: -1),
+    'horn in f' ||
+    'horns in f' ||
+    'horn' => const Transposition(diatonic: -4, chromatic: -7),
     'double bass' ||
     'contrabass' ||
     'contrabasses' ||

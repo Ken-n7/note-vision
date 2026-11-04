@@ -40,6 +40,19 @@ String _clefLabel(Clef clef) => switch (clef) {
   _ => 'Treble clef',
 };
 
+String _staffLabel(NewStaff staff) {
+  final lower = staff.lowerClef;
+  if (lower != null) {
+    return lower == staff.clef
+        ? 'Two ${_clefLabel(staff.clef).toLowerCase().replaceFirst(' clef', '')} staves'
+        : '${_clefLabel(staff.clef)} + ${_clefLabel(lower)}';
+  }
+  if (staff.grand) {
+    return staff.clef.octave == -1 ? 'Notation + tablature' : 'Grand staff';
+  }
+  return _clefLabel(staff.clef);
+}
+
 String _keyLabel(int fifths) => fifths == 0
     ? 'C major · no sharps or flats'
     : '${KeySignature(fifths: fifths).name} · ${fifths.abs()} '
@@ -225,11 +238,7 @@ class _NewScoreWizardState extends State<NewScoreWizard> {
                 style: const TextStyle(color: AppColors.textPrimary),
               ),
               subtitle: Text(
-                staff.grand
-                    ? staff.clef.octave == -1
-                          ? 'Notation + tablature'
-                          : 'Grand staff'
-                    : _clefLabel(staff.clef),
+                _staffLabel(staff),
                 style: const TextStyle(color: AppColors.textSecondary),
               ),
               trailing: Row(

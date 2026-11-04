@@ -374,6 +374,7 @@ class MusicXmlPreservingExporter {
       final oldPart = before.parts[p], part = after.parts[p];
       if (oldPart.id != part.id ||
           oldPart.staff != part.staff ||
+          oldPart.squareBracket != part.squareBracket ||
           oldPart.measures.length != part.measures.length) {
         return false;
       }
