@@ -114,6 +114,10 @@ class EditorHelpSheet extends StatelessWidget {
           ('N / Esc', 'Toggle note entry / finish editing'),
           ('A–G', 'Write that note (note entry) or change the selected note'),
           ('0', 'Write a rest (note entry)'),
+          (
+            'Ctrl / ⌘ + Shift + A–G',
+            'Insert a note and shift later music in the bar',
+          ),
           ('Ctrl / ⌘ + Alt + 1–4', 'Write into voice 1–4 (note entry)'),
           ('+', 'Tie to the next note (note entry: add a tied note)'),
           ('S', 'Slur the selection, or this note to the next'),

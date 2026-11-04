@@ -274,11 +274,43 @@ instruments. Rhythm, pitch, beams, chords, meters and key handling match.
   Checked on the phone (release 2016): a 2-quarter pickup rest written over
   by C D; a half B with one beat left tied into the next bar; undo removed
   both pieces; a half F after E replaced G and A.
-- Not yet: touch chord entry by tapping a pitch; MuseScore's insert mode
-  (Ctrl+Shift+letter); an underfull bar is not padded with rests after
-  overwriting (bars may be shorter than the meter in Note Vision).
+- Follow-up fixes (2026-11-04): overwrite fills 32nd-note gaps and leftover
+  rests exactly; finer unrepresentable splits leave the score unchanged.
+  Split ties retain their sounding alteration through barlines/key changes,
+  and playback holds chains of three or more pieces as one note. The canvas
+  and PDF draw 32nd flags, three beam levels and the 32nd rest glyph.
+- Touch chord entry: select or enter a note, enable Add notes → Chord,
+  then tap a pitch in its bar (above or below); duration/voice/staff come
+  from its chord's base, duplicates are ignored. Each addition is undoable.
+  Keyboard letters in Chord add above the selected note, as Shift+A–G does.
+- Insert: Add notes → Insert or Ctrl/Cmd+Shift+A–G adds time at the input
+  position, shifting later music within that bar and retaining all notes.
+  A bar may grow beyond its meter; it is not automatically rebarred. Typed
+  rests, drum input and tapped/dragged notes support the Insert option too.
+  Complex retained-source insertions are refused when their live timeline
+  cannot preserve the result. Behavior reference: MuseScore's
+  [Insert input method](https://handbook.musescore.org/basics/alternative-note-input-methods#insert).
+- Not yet: automatic chord entry at the horizontal position tapped (Chord
+  currently targets the selected note); MuseScore's +/- marker for bars
+  whose actual duration differs from the meter; explicit measure-duration
+  properties; an underfull bar is not padded with rests after overwriting.
+  Existing exact-source rhythm/export restrictions still apply.
+- Verification: note-input regression tests cover timing, playback, undo/redo,
+  saving and MusicXML round trips; `editor_note_entry_test.dart` covers
+  input controls, shortcut modifiers, playback locks and phone/large-text/
+  landscape/tablet layouts. No new physical-device check.
 - Tests: `test/features/editor/domain/note_input_test.dart`, keyboard test in
-  `editor_commands_test.dart`; full suite 734 passed, analysis clean.
+  `editor_commands_test.dart`; full suite 990 passed, analysis clean.
+- **Pending device QA — do this before the next feature (user instruction,
+  2026-11-04):** test this checkpoint on the Realme RMX1851. Check 32nd gaps
+  and residual rests; split ties across barlines/key changes and playback
+  through a chain of three pieces; Chord taps above/below the selected note;
+  Insert shifting later music in a full bar; undo/redo, save/reopen and
+  playback; TAB meter/rest hiding in the editor and an exported PDF. Check
+  keyboard insertion with Ctrl/Cmd+Shift+A–G when a keyboard is available.
+  Record the tested commit/build and results here, fix any failures, then
+  continue with the next parity follow-up. Automated success is not a
+  physical-device sign-off.
 
 ## Stage 3B — transpose
 
@@ -1099,10 +1131,14 @@ Device check (2026-11-01): release **2005**, built from `f801e50` with
   fret 2 on string 3; tapping the first fret selected it, Up twice made it C4
   at fret 5 and the notation staff followed; undo gave B3 / fret 4 on both;
   saved and played. Saved test project: **NV Guitar Tab QAZ**.
-- Not yet: the TAB staff still shows the time signature (MuseScore's simple
-  TAB style hides it) and its rests in the editor (hidden on export); ties
-  are drawn on the notation staff only; linking an existing staff from the
-  Staves sheet; other linked pairs (e.g. two notation staves).
+- Follow-up (2026-11-04): simple TAB hides initial and changed time signatures
+  and rest glyphs on the editor canvas and in PDF output, matching the
+  hidden meter/rests in MuseScore's `27_guitar_and_tab` MusicXML reference.
+  Shared signature metrics reserve no room for hidden TAB meters. Raster
+  tests check that TAB is unchanged when rests/meters are removed while
+  ordinary notation still draws them. No new physical-device check.
+- Not yet: ties are drawn on the notation staff only; linking an existing
+  staff from the Staves sheet; other linked pairs (e.g. two notation staves).
 
 Stage 5D is complete: transposing instruments, drums, tablature and
 cross-staff notes. The agreed stage list is finished; remaining work is the

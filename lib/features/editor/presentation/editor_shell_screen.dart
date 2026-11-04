@@ -100,6 +100,8 @@ class EditorShellScreen extends StatefulWidget {
 class _EditorShellScreenState extends State<EditorShellScreen> {
   late EditorState _editorState;
   bool _insertMode = false;
+  bool _chordInput = false;
+  bool _timeInsertInput = false;
 
   /// Copied notes and rests; kept for this editing session.
   EditorClipboard? _clipboard;
@@ -1450,12 +1452,23 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       ),
       target.partIndex,
     );
+    if (_chordInput && symbol is Note) {
+      _updateState((state) {
+        if (state.selectedPartIndex != target.partIndex ||
+            state.selectedMeasureIndex != target.measureIndex) {
+          return state;
+        }
+        return state.addChordPitch(symbol.step, symbol.octave);
+      });
+      return;
+    }
     _updateState(
       (state) => state.insertSymbolAtMeasureIndex(
         partIndex: target.partIndex,
         measureIndex: target.measureIndex,
         insertIndex: target.insertIndex,
         symbol: symbol,
+        insertTime: _timeInsertInput,
       ),
     );
   }
@@ -1472,6 +1485,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         measureIndex: target.measureIndex,
         insertIndex: target.insertIndex,
         symbol: symbol,
+        insertTime: _timeInsertInput,
       ),
     );
   }
@@ -1793,6 +1807,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     setState(() {
       _insertMode = true;
       _insertSymbolType = type;
+      if (type.isRest) _chordInput = false;
     });
   }
 
@@ -1830,7 +1845,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   /// Writes the letter's note (or a rest when [step] is null) in the chosen
   /// value after the input position, starting in the first bar if nothing is
   /// selected.
-  void _enterFromKeyboard(String? step) {
+  void _enterFromKeyboard(String? step, {bool insert = false}) {
+    if (step == null && _chordInput) setState(() => _chordInput = false);
     final type = _insertSymbolType ?? PaletteSymbolType.quarterNote;
     final spec = [
       wholeDuration,
@@ -1844,11 +1860,22 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
           ? state
           : state.copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
       final drum = step != null && _drumInput ? drumForShortcut(step) : null;
-      final next = step == null
-          ? input.enterRest(spec, voice: _inputVoice)
+      final next = _chordInput && step != null && !insert && !_timeInsertInput
+          ? input.addChordStep(step)
+          : step == null
+          ? input.enterRest(
+              spec,
+              voice: _inputVoice,
+              insert: insert || _timeInsertInput,
+            )
           : drum != null
-          ? input.enterDrum(drum, spec)
-          : input.enterNote(step, spec, voice: _inputVoice);
+          ? input.enterDrum(drum, spec, insert: insert || _timeInsertInput)
+          : input.enterNote(
+              step,
+              spec,
+              voice: _inputVoice,
+              insert: insert || _timeInsertInput,
+            );
       return identical(next, input) ? state : next;
     });
   }
@@ -1867,7 +1894,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       final input = state.hasMeasureContext
           ? state
           : state.copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
-      final next = input.enterDrum(piece, spec);
+      final next = input.enterDrum(piece, spec, insert: _timeInsertInput);
       return identical(next, input) ? state : next;
     });
   }
@@ -1877,6 +1904,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     setState(() {
       _insertMode = !_insertMode;
       _inputVoice = null;
+      _chordInput = false;
       _insertSymbolType = _insertMode ? PaletteSymbolType.quarterNote : null;
     });
   }
@@ -2352,6 +2380,14 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     }
     if (_commandEditLock != null) return KeyEventResult.ignored;
     if (command) {
+      final insertLetter = _pitchLetters[key];
+      if (keyboard.isShiftPressed &&
+          !keyboard.isAltPressed &&
+          insertLetter != null &&
+          insertLetter != 'H') {
+        _enterFromKeyboard(insertLetter, insert: true);
+        return KeyEventResult.handled;
+      }
       if (key == LogicalKeyboardKey.keyL) {
         unawaited(_showLyrics());
         return KeyEventResult.handled;
@@ -2541,6 +2577,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     if (key == LogicalKeyboardKey.escape) {
       setState(() {
         _insertMode = false;
+        _chordInput = false;
         _insertSymbolType = null;
         _extendMode = false;
       });
@@ -2855,10 +2892,22 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   : _InspectorPanel(
                       isLandscape: isLandscape,
                       insertMode: _insertMode,
+                      chordInput: _chordInput,
+                      timeInsertInput: _timeInsertInput,
+                      onChordInputChanged: (value) => setState(() {
+                        _chordInput = value;
+                        if (value) _timeInsertInput = false;
+                      }),
+                      onTimeInsertInputChanged: (value) => setState(() {
+                        _timeInsertInput = value;
+                        if (value) _chordInput = false;
+                      }),
                       insertSymbolType: _insertSymbolType,
                       inputVoice: _effectiveInputVoice,
-                      onVoiceSelected: (voice) =>
-                          setState(() => _inputVoice = voice),
+                      onVoiceSelected: (voice) => setState(() {
+                        _inputVoice = voice;
+                        _chordInput = false;
+                      }),
                       onDrum: _drumInput ? _enterDrum : null,
                       onToggleInsertMode: _toggleInsertMode,
                       onPaletteTypeTap: _onPaletteTypeTap,
@@ -5137,6 +5186,10 @@ class _InspectorPanel extends StatefulWidget {
   const _InspectorPanel({
     required this.isLandscape,
     required this.insertMode,
+    required this.chordInput,
+    required this.timeInsertInput,
+    required this.onChordInputChanged,
+    required this.onTimeInsertInputChanged,
     required this.insertSymbolType,
     required this.inputVoice,
     required this.onVoiceSelected,
@@ -5208,6 +5261,8 @@ class _InspectorPanel extends StatefulWidget {
 
   final bool isLandscape;
   final bool insertMode;
+  final bool chordInput, timeInsertInput;
+  final ValueChanged<bool> onChordInputChanged, onTimeInsertInputChanged;
   final PaletteSymbolType? insertSymbolType;
 
   /// The voice new notes go into (1–4).
@@ -5648,6 +5703,28 @@ class _InspectorPanelState extends State<_InspectorPanel> {
                         ),
                 ),
               ],
+              FilterChip(
+                label: const Text('Chord'),
+                tooltip:
+                    'Select or enter a note, then tap pitches in its bar to add chord tones',
+                selected: widget.chordInput,
+                onSelected:
+                    widget.isPlaybackActive ||
+                        insertionType.isRest ||
+                        (selected is! Note && !widget.chordInput) ||
+                        widget.onDrum != null
+                    ? null
+                    : widget.onChordInputChanged,
+              ),
+              FilterChip(
+                label: const Text('Insert'),
+                tooltip:
+                    'Insert time at the input position; later notes in this bar move forward (Ctrl/Cmd+Shift+A–G)',
+                selected: widget.timeInsertInput,
+                onSelected: widget.isPlaybackActive
+                    ? null
+                    : widget.onTimeInsertInputChanged,
+              ),
             ],
           ),
           if (widget.onDrum case final onDrum?) ...[
@@ -6082,7 +6159,11 @@ class _InspectorPanelState extends State<_InspectorPanel> {
       title: title,
       subtitle: switch (mode) {
         EditorToolMode.insert =>
-          widget.onDrum != null
+          widget.chordInput
+              ? 'Tap a pitch in the selected note’s bar to add a chord tone'
+              : widget.timeInsertInput
+              ? 'Type A–G or 0 to insert time in this bar'
+              : widget.onDrum != null
               ? 'Tap the staff or a drum below, or type A–H'
               : 'Tap the staff or type A–G · hold a symbol to drag',
         EditorToolMode.measure => 'Structure and staff settings',

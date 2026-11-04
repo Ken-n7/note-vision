@@ -1295,13 +1295,15 @@ class PdfScoreRenderer {
         }
       } else if (symbol is Rest) {
         // PDF y points up, so the editor's upward offset is added.
-        _drawRest(
-          g,
-          musicFont,
-          symbol,
-          x: x,
-          staffTop: staffTop - layout.restOffset(i) * _ls,
-        );
+        if (clefSign != 'T') {
+          _drawRest(
+            g,
+            musicFont,
+            symbol,
+            x: x,
+            staffTop: staffTop - layout.restOffset(i) * _ls,
+          );
+        }
         if (symbol.reviewId case final id? when notePoints != null) {
           notePoints[id] = _PdfNotePoint(
             x: x,
@@ -1405,25 +1407,30 @@ class PdfScoreRenderer {
 
       bar(stemXs.first, stemXs.last, 0);
 
-      for (final secondary in BeamGrouping.groups(
-        measure.symbols,
-        level: 2,
-        within: group,
-      )) {
-        final first = group.indexOf(secondary.first);
-        final last = group.indexOf(secondary.last);
-        if (secondary.length > 1) {
-          bar(stemXs[first], stemXs[last], 1);
-        } else {
-          final backwards =
-              BeamGrouping.valuesFor(measure.symbols, secondary.first)[2] ==
-              BeamValue.backwardHook;
-          final stub = 9.0 * _scale;
-          bar(
-            stemXs[first] - (backwards ? stub : 0),
-            stemXs[first] + (backwards ? 0 : stub),
-            1,
-          );
+      for (var level = 2; level <= 3; level++) {
+        for (final secondary in BeamGrouping.groups(
+          measure.symbols,
+          level: level,
+          within: group,
+        )) {
+          final first = group.indexOf(secondary.first);
+          final last = group.indexOf(secondary.last);
+          if (secondary.length > 1) {
+            bar(stemXs[first], stemXs[last], level - 1);
+          } else {
+            final backwards =
+                BeamGrouping.valuesFor(
+                  measure.symbols,
+                  secondary.first,
+                )[level] ==
+                BeamValue.backwardHook;
+            final stub = 9.0 * _scale;
+            bar(
+              stemXs[first] - (backwards ? stub : 0),
+              stemXs[first] + (backwards ? 0 : stub),
+              level - 1,
+            );
+          }
         }
       }
     }
@@ -1613,9 +1620,7 @@ class PdfScoreRenderer {
           ? 0
           : isEighth
           ? 1
-          : _isSixteenth(type)
-          ? 2
-          : 0,
+          : BeamGrouping.levels(note),
     );
   }
 
@@ -1785,11 +1790,13 @@ class PdfScoreRenderer {
       return;
     }
 
-    if (_isEighth(type) || _isSixteenth(type)) {
+    if (_isEighth(type) || _isSixteenth(type) || type == '32nd') {
       // The music font's rest glyphs, placed as the editor places them: the
       // line box centred on the middle line (a sixteenth one space lower).
       final glyph = _isEighth(type)
           ? ScoreNotationMetrics.eighthRestGlyph
+          : type == '32nd'
+          ? ScoreNotationMetrics.thirtySecondRestGlyph
           : ScoreNotationMetrics.sixteenthRestGlyph;
       final size = ScoreNotationMetrics.restGlyphFontSize * _scale;
       final ascentShare =

@@ -20,6 +20,7 @@ import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/widgets/score_notation/staff_pitch_mapper.dart';
 import 'package:note_vision/core/services/notation_review_service.dart';
+import 'package:note_vision/core/services/accidentals.dart';
 import 'package:note_vision/core/services/score_timeline.dart';
 import 'package:note_vision/core/services/transposer.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
@@ -1964,12 +1965,17 @@ extension EditorActions on EditorState {
   ///
   /// [voice] (1–4) writes into that voice; otherwise input continues the
   /// selected symbol's voice. See [_enterSymbol] for changing voice.
-  EditorState enterNote(String step, DurationSpec spec, {int? voice}) {
+  EditorState enterNote(
+    String step,
+    DurationSpec spec, {
+    int? voice,
+    bool insert = false,
+  }) {
     if (!hasMeasureContext || !_stepNames.contains(step)) return this;
     final (voice: inputVoice, :staff) = _inputLaneFor(voice);
     final pitch = _nearestDiatonic(step, _inputReference);
     // A tuplet's rest is written over, keeping its rhythm.
-    if (voice == null) {
+    if (voice == null && !insert) {
       if (_tupletRestAtInput case final index?) {
         final rest =
             score
@@ -2011,13 +2017,18 @@ extension EditorActions on EditorState {
         voice: inputVoice,
         staff: staff,
       ),
+      insert: insert,
     );
   }
 
   /// Writes a rest of [spec] at the input position, as [enterNote] does.
   /// Writes a kit piece after the input position on a drum staff, in its
   /// own voice (hands 1, feet 2), as MuseScore Studio's drum input does.
-  EditorState enterDrum(DrumPiece piece, DurationSpec spec) {
+  EditorState enterDrum(
+    DrumPiece piece,
+    DurationSpec spec, {
+    bool insert = false,
+  }) {
     if (!hasMeasureContext) return this;
     final (voice: inputVoice, :staff) = _inputLaneFor(piece.voice);
     return _enterSymbol(
@@ -2028,10 +2039,11 @@ extension EditorActions on EditorState {
         voice: inputVoice,
         staff: staff,
       ),
+      insert: insert,
     );
   }
 
-  EditorState enterRest(DurationSpec spec, {int? voice}) {
+  EditorState enterRest(DurationSpec spec, {int? voice, bool insert = false}) {
     if (!hasMeasureContext) return this;
     final (voice: inputVoice, :staff) = _inputLaneFor(voice);
     return _enterSymbol(
@@ -2041,6 +2053,7 @@ extension EditorActions on EditorState {
         voice: inputVoice,
         staff: staff,
       ),
+      insert: insert,
     );
   }
 
@@ -2108,6 +2121,15 @@ extension EditorActions on EditorState {
     while (pitch <= _diatonic(note)) {
       pitch += 7;
     }
+    return _addChordTone(pitch);
+  }
+
+  /// Adds the exact staff pitch tapped, above or below the selected note.
+  /// Chord tones inherit the base's rhythm, voice and staff, taking no time.
+  EditorState addChordPitch(String step, int octave) {
+    if (!canAddChordTone || !_stepNames.contains(step)) return this;
+    final pitch = octave * 7 + _stepNames.indexOf(step);
+    if (pitch < _minDiatonic || pitch > _maxDiatonic) return this;
     return _addChordTone(pitch);
   }
 
@@ -2190,8 +2212,10 @@ extension EditorActions on EditorState {
   /// selection it starts where the selected symbol starts, as in MuseScore:
   /// rests fill that voice up to there, and the symbol goes at the end of
   /// the bar's list (each voice keeps its own time).
-  EditorState _enterSymbol(ScoreSymbol symbol) {
-    if (_overwrite(symbol) case final written?) return written;
+  EditorState _enterSymbol(ScoreSymbol symbol, {bool insert = false}) {
+    if (!insert) {
+      if (_overwrite(symbol) case final written?) return written;
+    }
     final partIndex = selectedPartIndex!;
     var measureIndex = selectedMeasureIndex!;
     final lane = ScoreTimelineBuilder.lane(symbol);
@@ -2221,7 +2245,15 @@ extension EditorActions on EditorState {
       index = score.parts[partIndex].measures[measureIndex].symbols.length;
     }
     var next = _insertAll(score, partIndex, measureIndex, index, items);
-    if (!_laneFits(next, partIndex, measureIndex, lane)) {
+    if (insert) {
+      // Insert increases this bar's actual length without replacing music.
+      // Retained source timings must still be representable after the edit.
+      try {
+        const ScoreTimelineBuilder().measure(next, partIndex, measureIndex);
+      } on ScoreTimelineException {
+        return this;
+      }
+    } else if (!_laneFits(next, partIndex, measureIndex, lane)) {
       // Continue at the start of the next bar.
       measureIndex++;
       index = 0;
@@ -2285,6 +2317,7 @@ extension EditorActions on EditorState {
     var next = score;
     final removed = <String>{};
     final written = <ScoreSymbol>[];
+    int? soundingAlter;
     var lastIndex = index;
     var remaining = symbolQuarters(symbol);
     if (remaining <= eps) return null;
@@ -2312,10 +2345,20 @@ extension EditorActions on EditorState {
         continue;
       }
       final take = math.min(remaining, space);
-      final pieces = (take - symbolQuarters(symbol)).abs() < eps
+      final splitValues = _restsFilling(take);
+      final split = (take - symbolQuarters(symbol)).abs() >= eps;
+      if (split &&
+          (splitValues.fold<double>(0, (t, r) => t + symbolQuarters(r)) - take)
+                  .abs() >
+              eps) {
+        // Imported rhythms can be finer than the values we can write.
+        // Refuse the edit rather than dropping time or selecting no piece.
+        return this;
+      }
+      final pieces = !split
           ? [symbol]
           : [
-              for (final r in _restsFilling(take))
+              for (final r in splitValues)
                 switch (symbol) {
                   Note() => symbol.copyWith(
                     duration: r.duration,
@@ -2332,7 +2375,7 @@ extension EditorActions on EditorState {
                   _ => symbol,
                 },
             ];
-      for (final piece in pieces) {
+      for (var piece in pieces) {
         // Take away what the piece covers in its voice.
         final length = symbolQuarters(piece);
         var covered = 0.0;
@@ -2359,10 +2402,36 @@ extension EditorActions on EditorState {
           Rest(:final voice, :final staff) => (voice, staff),
           _ => (null, null),
         };
+        final residual = _restsFilling(
+          covered - length,
+          voice: voice,
+          staff: staff,
+        );
+        if (covered > length + eps &&
+            (residual.fold<double>(0, (t, r) => t + symbolQuarters(r)) -
+                        (covered - length))
+                    .abs() >
+                eps) {
+          return this;
+        }
+        if (piece is Note && piece.drum == null) {
+          final accidentals = _accidentalsBefore(
+            next,
+            part,
+            measure,
+            symbols.take(index),
+          );
+          if (soundingAlter == null) {
+            soundingAlter = accidentals.sounding(piece);
+          } else {
+            piece = piece.copyWith(
+              alter: accidentals.written(piece, soundingAlter),
+            );
+          }
+        }
         symbols.insertAll(index, [
           piece,
-          if (covered > length + eps)
-            ..._restsFilling(covered - length, voice: voice, staff: staff),
+          if (covered > length + eps) ...residual,
         ]);
         written.add(piece);
         lastIndex = index;
@@ -2682,6 +2751,7 @@ extension EditorActions on EditorState {
     required int measureIndex,
     required int insertIndex,
     required ScoreSymbol symbol,
+    bool insertTime = false,
   }) {
     if (score.parts.isEmpty) return this;
     if (partIndex < 0 || partIndex >= score.parts.length) return this;
@@ -2691,11 +2761,12 @@ extension EditorActions on EditorState {
         insertIndex > measures[measureIndex].symbols.length) {
       return this;
     }
-    if (!_canMeasureAcceptSymbol(
-      partIndex: partIndex,
-      measureIndex: measureIndex,
-      symbol: symbol,
-    )) {
+    if (!insertTime &&
+        !_canMeasureAcceptSymbol(
+          partIndex: partIndex,
+          measureIndex: measureIndex,
+          symbol: symbol,
+        )) {
       return this;
     }
 
@@ -2705,6 +2776,18 @@ extension EditorActions on EditorState {
       insertIndex,
       symbol,
     );
+
+    if (insertTime) {
+      try {
+        const ScoreTimelineBuilder().measure(
+          nextScore,
+          partIndex,
+          measureIndex,
+        );
+      } on ScoreTimelineException {
+        return this;
+      }
+    }
 
     return _applySymbolSelectionEdit(
       intent: EditorEditIntent.insertAtTarget,
@@ -3018,6 +3101,7 @@ List<Rest> _restsFilling(double quarters, {int? voice, int? staff}) {
     (0.75, 'eighth', 1),
     (0.5, 'eighth', 0),
     (0.25, 'sixteenth', 0),
+    (0.125, '32nd', 0),
   ];
   final rests = <Rest>[];
   var left = quarters;
@@ -3036,6 +3120,24 @@ List<Rest> _restsFilling(double quarters, {int? voice, int? staff}) {
     }
   }
   return rests;
+}
+
+/// Key signature and written accidentals at an insertion position. Earlier
+/// measures contribute their key changes; only this bar carries accidentals.
+Accidentals _accidentalsBefore(
+  Score score,
+  int part,
+  int measure,
+  Iterable<ScoreSymbol> preceding,
+) {
+  final accidentals = Accidentals();
+  for (var m = 0; m <= measure; m++) {
+    accidentals.startMeasure(score.parts[part].measures[m]);
+  }
+  for (final s in preceding) {
+    if (s is Note) accidentals.sounding(s);
+  }
+  return accidentals;
 }
 
 /// Whether every voice in [measure] fits its time signature.

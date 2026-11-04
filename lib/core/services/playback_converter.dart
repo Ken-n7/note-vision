@@ -644,10 +644,9 @@ class PlaybackConverter {
     );
     for (final (_, from, to) in ties) {
       final (a, b) = (at[from], at[to]);
-      if (a == null || b == null || events[a].midiNote != events[b].midiNote) {
-        continue;
-      }
+      if (a == null || b == null) continue;
       final h = head[a] ?? a;
+      if (events[h].midiNote != events[b].midiNote) continue;
       events[h] = _with(
         events[h],
         durationMs: events[b].baseEndMs - events[h].baseOnsetMs,

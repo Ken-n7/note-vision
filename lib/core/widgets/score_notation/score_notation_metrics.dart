@@ -17,6 +17,7 @@ abstract final class ScoreNotationMetrics {
   static const doubleFlatGlyph = '\u{1D12B}';
   static const eighthRestGlyph = '\u{1D13E}';
   static const sixteenthRestGlyph = '\u{1D13F}';
+  static const thirtySecondRestGlyph = '\u{1D140}';
 
   static const staffLineSpacing = 12.0;
   static const staffLineCount = 5;
@@ -124,6 +125,13 @@ abstract final class ScoreNotationMetrics {
   /// a time signature: the page's first measure does, and so does every
   /// measure that changes it.
   static bool showsTimeSignature(List<Measure> measures, int index) {
+    // Simple tablature hides meter, including changes and inherited clefs.
+    for (var i = index; i >= 0; i--) {
+      if (measures[i].clef case final clef?) {
+        if (clef.layoutSign == 'T') return false;
+        break;
+      }
+    }
     final time = measures[index].timeSignature;
     return time != null &&
         (index == 0 || measures[index - 1].timeSignature != time);

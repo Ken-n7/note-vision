@@ -7,11 +7,17 @@ import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/models/musical_time.dart';
+import 'package:note_vision/core/models/key_signature.dart';
+import 'package:note_vision/core/models/note_value.dart';
 import 'package:note_vision/core/models/time_signature.dart';
+import 'package:note_vision/core/services/playback_converter.dart';
 import 'package:note_vision/core/services/score_timeline.dart';
 import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/domain/editor_command.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
+import 'package:note_vision/features/musicXML/musicxml_export_service.dart';
+import 'package:note_vision/features/musicXML/musicxml_score_converter.dart';
+import 'package:xml/xml.dart';
 
 EditorState bar(List<ScoreSymbol> symbols, {Clef? clef, int? select}) {
   final state = EditorState(
@@ -184,6 +190,87 @@ void main() {
     expect(identical(state.setSelectedNoteStep('X'), state), isTrue);
   });
 
+  test('touch chord pitches keep the base rhythm and accept lower notes', () {
+    final before = bar([
+      note('C', 5).copyWith(type: 'half', voice: 2, staff: 1),
+      note('D', 5).copyWith(type: 'half', voice: 2, staff: 1),
+    ], select: 0);
+    final after = before.addChordPitch('E', 5).addChordPitch('G', 4);
+    expect(pitches(after), ['C5', '+E5', '+G4', 'D5']);
+    final symbols = after.score.parts.single.measures.single.symbols;
+    for (final n in symbols.take(3).cast<Note>()) {
+      expect((n.type, n.voice, n.staff), ('half', 2, 1));
+    }
+    expect(
+      const ScoreTimelineBuilder().measure(after.score, 0, 0).duration,
+      MusicalTime(4),
+    );
+    expect(identical(after.addChordPitch('E', 5), after), isTrue);
+    expect(after.applyUndo().applyUndo().score, before.score);
+    final reread = const MusicXmlScoreConverter().convert(
+      XmlDocument.parse(const MusicXmlExportService().toMusicXml(after.score)),
+    );
+    expect(
+      reread.parts.first.measures.first.symbols.whereType<Note>().where(
+        (n) => n.isChordTone,
+      ),
+      hasLength(2),
+    );
+  });
+
+  test('insert input shifts notes in a full bar without overwriting', () {
+    final before = bar([
+      note('C', 5),
+      note('D', 5),
+      note('E', 5),
+      note('F', 5),
+    ], select: 0);
+    final after = before.enterNote('G', halfDuration, insert: true);
+    expect(pitches(after), ['C5', 'G4', 'D5', 'E5', 'F5']);
+    expect(after.score.parts.single.measures, hasLength(1));
+    final timing = const ScoreTimelineBuilder().measure(after.score, 0, 0);
+    expect(timing.duration, MusicalTime(6));
+    expect(timing.symbols[2].onset, MusicalTime(3));
+    final withRest = after.enterRest(quarterDuration, insert: true);
+    expect(pitches(withRest), ['C5', 'G4', 'rest:quarter', 'D5', 'E5', 'F5']);
+    for (final score in [
+      after.score,
+      Score.fromJson(after.score.toJson()),
+      const MusicXmlScoreConverter().convert(
+        XmlDocument.parse(
+          const MusicXmlExportService().toMusicXml(after.score),
+        ),
+      ),
+    ]) {
+      expect(
+        const ScoreTimelineBuilder().measure(score, 0, 0).duration,
+        MusicalTime(6),
+      );
+      expect(
+        const PlaybackConverter().buildEvents(score).where((e) => !e.isRest),
+        hasLength(5),
+      );
+    }
+    expect(after.applyUndo().score, before.score);
+    expect(after.applyUndo().applyRedo().score, after.score);
+  });
+
+  test('touch insertion can extend a full bar at the tapped position', () {
+    final before = bar([note('C', 5).copyWith(type: 'whole')]);
+    final after = before.insertSymbolAtMeasureIndex(
+      measureIndex: 0,
+      insertIndex: 0,
+      symbol: note('D', 5),
+      insertTime: true,
+    );
+    expect(pitches(after), ['D5', 'C5']);
+    expect(
+      const ScoreTimelineBuilder().measure(after.score, 0, 0).duration,
+      MusicalTime(5),
+    );
+    expect(after.applyUndo().score, before.score);
+  });
+
   group('note input writes over what follows, as in MuseScore', () {
     const quarterRest = Rest(duration: 2, type: 'quarter');
     const halfRest = Rest(duration: 4, type: 'half');
@@ -273,6 +360,112 @@ void main() {
         ),
       );
       expect(withTie.enterNote('E', quarterDuration).score.spanners, isEmpty);
+    });
+
+    test('a 32nd gap is filled exactly and tied into the next bar', () {
+      final before = bar([
+        note('C', 5).copyWith(type: 'half', dots: 2),
+        note('D', 5).copyWith(type: 'sixteenth', dots: 1),
+      ], select: 1);
+      final after = before.enterNote('E', quarterDuration);
+      final timeline = const ScoreTimelineBuilder().build(after.score);
+      expect(timeline.measures.first.timeline.duration, MusicalTime(4));
+      final entered = [
+        for (final m in after.score.parts.single.measures)
+          for (final n in m.symbols.whereType<Note>())
+            if (n.step == 'E') n,
+      ];
+      expect(entered.first.type, '32nd');
+      expect(entered.fold<double>(0, (t, n) => t + symbolQuarters(n)), 1);
+      expect(after.score.spanners, hasLength(entered.length - 1));
+      expect(after.selectedMeasureIndex, 1);
+      final events = const PlaybackConverter().buildEvents(after.score);
+      expect(events.where((e) => e.midiNote == 76).single.baseDurationMs, 500);
+      expect(after.applyUndo().score, before.score);
+      expect(after.applyUndo().applyRedo().score, after.score);
+    });
+
+    test('a partial overwrite preserves a 32nd rest and following onset', () {
+      final before = bar([
+        note('C', 5),
+        note('D', 5).copyWith(type: 'sixteenth', dots: 1),
+        note('F', 5),
+      ], select: 0);
+      final after = before.enterNote('E', sixteenthDuration);
+      expect(pitches(after), ['C5', 'E5', 'rest:32nd', 'F5']);
+      final timeline = const ScoreTimelineBuilder().measure(after.score, 0, 0);
+      expect(timeline.symbols.last.onset, MusicalTime(11, 8));
+      expect(timeline.duration, MusicalTime(19, 8));
+    });
+
+    test('unrepresentable split or leftover time leaves the score intact', () {
+      final split = bar([
+        note('C', 5).copyWith(type: 'half', dots: 2),
+        note('D', 5).copyWith(type: 'sixteenth', dots: 2),
+      ], select: 1);
+      expect(identical(split.enterNote('E', quarterDuration), split), isTrue);
+      final leftover = bar([
+        note('C', 5),
+        note('D', 5).copyWith(type: 'sixteenth', dots: 2),
+        note('F', 5),
+      ], select: 0);
+      expect(
+        identical(leftover.enterNote('E', sixteenthDuration), leftover),
+        isTrue,
+      );
+    });
+
+    test('split ties keep their sounding pitch across bar and key changes', () {
+      for (final alteration in [-1, 0, 1]) {
+        final before = bar([
+          note('F', 5, alter: alteration),
+          note('C', 5),
+          note('D', 5),
+        ], select: 2);
+        final part = before.score.parts.single;
+        final input = before.copyWith(
+          score: before.score.copyWith(
+            parts: [
+              part.copyWith(
+                measures: [
+                  ...part.measures,
+                  Measure(
+                    number: 2,
+                    keySignature: const KeySignature(fifths: 1),
+                    symbols: [note('F', 5, alter: -1), note('G', 5)],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+        final after = input.enterNote('F', halfDuration);
+        for (final score in [
+          after.score,
+          Score.fromJson(after.score.toJson()),
+          const MusicXmlScoreConverter().convert(
+            XmlDocument.parse(
+              const MusicXmlExportService().toMusicXml(after.score),
+            ),
+          ),
+        ]) {
+          final events = const PlaybackConverter().buildEvents(score);
+          final tied = events
+              .where((e) => e.measureIndex == 0 && e.symbolIndex == 3)
+              .single;
+          expect(tied.midiNote, 77 + alteration);
+          expect(tied.baseDurationMs, 1000);
+          expect(
+            events
+                .where((e) => e.measureIndex == 1 && e.symbolIndex == 0)
+                .single
+                .isRest,
+            isTrue,
+          );
+        }
+        expect(after.undoStack, hasLength(1));
+        expect(after.applyUndo().score, input.score);
+      }
     });
   });
 }

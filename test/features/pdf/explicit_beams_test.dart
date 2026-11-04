@@ -40,6 +40,13 @@ Future<int> beamPolygons(List<ScoreSymbol> symbols) async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test('32nd notes draw three beam levels', () async {
+    final notes = <ScoreSymbol>[
+      const Note(step: 'C', octave: 4, duration: 1, type: '32nd'),
+      const Note(step: 'D', octave: 4, duration: 1, type: '32nd'),
+    ];
+    expect(await beamPolygons(BeamGrouping.join(notes, 0, 1)), 3);
+  });
   test(
     'PDF draws two separate adjacent groups instead of a single long beam',
     () async {

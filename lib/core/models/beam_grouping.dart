@@ -10,6 +10,7 @@ abstract final class BeamGrouping {
   static int levels(Note note) => switch (note.type.trim().toLowerCase()) {
     'eighth' => 1,
     'sixteenth' || '16th' => 2,
+    '32nd' => 3,
     _ => 0,
   };
 

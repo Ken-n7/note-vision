@@ -1152,7 +1152,9 @@ class ScoreNotationPainter extends CustomPainter {
           i,
           Offset(x, y),
         );
-        _drawRest(canvas, symbol, x: x, staffTop: staffTop + restShift);
+        if (clefSign != 'T') {
+          _drawRest(canvas, symbol, x: x, staffTop: staffTop + restShift);
+        }
         tupletPoints[i] = (Offset(x, y), 10.0);
         if ((symbol.reviewId, row) case (final id?, final row?)) {
           _notePoints[id] = _NotePoint(
@@ -1317,25 +1319,27 @@ class ScoreNotationPainter extends CustomPainter {
 
       bar(xs.first, xs.last, 0);
 
-      for (final secondary in BeamGrouping.groups(
-        symbols,
-        level: 2,
-        within: group,
-      )) {
-        final first = group.indexOf(secondary.first);
-        final last = group.indexOf(secondary.last);
-        if (secondary.length > 1) {
-          bar(xs[first], xs[last], 1);
-        } else {
-          final backwards =
-              BeamGrouping.valuesFor(symbols, secondary.first)[2] ==
-              BeamValue.backwardHook;
-          const stub = 9.0;
-          bar(
-            xs[first] - (backwards ? stub : 0),
-            xs[first] + (backwards ? 0 : stub),
-            1,
-          );
+      for (var level = 2; level <= 3; level++) {
+        for (final secondary in BeamGrouping.groups(
+          symbols,
+          level: level,
+          within: group,
+        )) {
+          final first = group.indexOf(secondary.first);
+          final last = group.indexOf(secondary.last);
+          if (secondary.length > 1) {
+            bar(xs[first], xs[last], level - 1);
+          } else {
+            final backwards =
+                BeamGrouping.valuesFor(symbols, secondary.first)[level] ==
+                BeamValue.backwardHook;
+            const stub = 9.0;
+            bar(
+              xs[first] - (backwards ? stub : 0),
+              xs[first] + (backwards ? 0 : stub),
+              level - 1,
+            );
+          }
         }
       }
     }
@@ -1798,9 +1802,7 @@ class ScoreNotationPainter extends CustomPainter {
           ? 0
           : isEighth
           ? 1
-          : isSixteenthType(normalizedType)
-          ? 2
-          : 0;
+          : BeamGrouping.levels(note);
       _drawStemAndFlag(
         canvas,
         x: x,
@@ -1932,11 +1934,13 @@ class ScoreNotationPainter extends CustomPainter {
       return;
     }
 
-    if (type == 'eighth' || isSixteenthType(type)) {
+    if (type == 'eighth' || isSixteenthType(type) || type == '32nd') {
       final glyph = TextPainter(
         text: TextSpan(
           text: type == 'eighth'
               ? ScoreNotationMetrics.eighthRestGlyph
+              : type == '32nd'
+              ? ScoreNotationMetrics.thirtySecondRestGlyph
               : ScoreNotationMetrics.sixteenthRestGlyph,
           style: const TextStyle(
             fontSize: ScoreNotationMetrics.restGlyphFontSize,
