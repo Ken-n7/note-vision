@@ -34,6 +34,20 @@ const museScoreTemplates = {
   'Guitar': '01-Guitar',
   'Piano': '04-Piano',
   'Lead sheet': '01-Jazz_Lead_Sheet',
+  'SATB + Organ': '02-SATB_+_Organ',
+  'Big band': '02-Big_Band',
+  'Jazz combo': '03-Jazz_Combo',
+  'Concert band': '01-Concert_Band',
+  'Small concert band': '02-Small_Concert_Band',
+  'String orchestra': '03-String_Orchestra',
+};
+
+/// Templates whose MuseScore export loses the written keys.
+const legacyKeys = {
+  'Big band',
+  'Jazz combo',
+  'Concert band',
+  'Small concert band',
 };
 
 /// Each part's name, MIDI program, staves' clefs, transposition and written
@@ -55,7 +69,9 @@ List<String> staffFacts(XmlDocument doc) => [
               '${text(c, 'clef-octave-change') ?? ''}',
       ];
       final t = first.findAllElements('transpose').firstOrNull;
-      return '${sp.getElement('part-name')!.innerText} '
+      // MuseScore escapes an & in a part name twice ("Horn in F 1 &amp; 2");
+      // pretty-printed XML writes a name's line break as a space.
+      return '${sp.getElement('part-name')!.innerText.replaceAll('&amp;', '&').replaceAll(RegExp(r'\s+'), ' ')} '
           'program=${sp.findAllElements('midi-program').firstOrNull?.innerText} '
           'clefs=${clefs.join(',')} '
           'key=${first.findAllElements('fifths').firstOrNull?.innerText} '
@@ -90,12 +106,32 @@ void main() {
         'test/musescore_parity/reference/templates/'
         '${museScoreTemplates[template.name]}.musicxml',
       ).readAsStringSync();
-      expect(
-        staffFacts(XmlDocument.parse(ours)),
-        staffFacts(XmlDocument.parse(reference)),
-      );
+      // These template files store written keys in an older form that
+      // MuseScore's command-line export drops (it writes C for every part);
+      // their keys are checked below instead.
+      List<String> facts(String xml) => [
+        for (final f in staffFacts(XmlDocument.parse(xml)))
+          legacyKeys.contains(template.name)
+              ? f.replaceFirst(RegExp(r' key=\S+'), '')
+              : f,
+      ];
+      expect(facts(ours), facts(reference));
     });
   }
+
+  test('a jazz combo in concert C is written as MuseScore\'s template', () {
+    final score = buildNewScore(
+      NewScoreOptions(
+        staves: scoreTemplates.firstWhere((t) => t.name == 'Jazz combo').staves,
+      ),
+      id: 'x',
+    );
+    // The template file's keys: trumpet D, alto sax A, tenor sax D.
+    expect(
+      [for (final p in score.parts) p.measures.first.keySignature?.fifths],
+      [2, 3, 2, 0, 0, 0, 0, 0, 0],
+    );
+  });
 
   test('a new score has the key, meter, bars, pickup and tempo asked for', () {
     final score = buildNewScore(

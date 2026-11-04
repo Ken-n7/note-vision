@@ -1,3 +1,5 @@
+import 'transposition.dart';
+
 /// Saved instrument sound and mixer state. MIDI programs are zero-based;
 /// volume is a percentage and pan is -90 (left) through +90 (right).
 class PartPlayback {
@@ -204,15 +206,15 @@ const gmSounds = <String>[
 
 /// The usual sound for an instrument named [name]; a numbered part such as
 /// "Violin II" or "Flute 1" sounds as its instrument.
-int defaultProgramFor(String name) => switch (name.toLowerCase().replaceFirst(
-  RegExp(r'\s+(i{1,3}|iv|v|\d+)$'),
-  '',
-)) {
+int defaultProgramFor(String name) => switch (instrumentKey(name)) {
+  'piccolo' => 72,
   'flute' => 73,
   'oboe' => 68,
   'violin' => 40,
   'viola' => 41,
   'cello' || 'violoncello' => 42,
+  // MuseScore Studio's string sections sound as a string ensemble.
+  'violins' || 'violas' || 'violoncellos' || 'contrabasses' => 48,
   'double bass' => 43,
   'guitar' || 'classical guitar' || 'guitar tab' => 24,
   // MuseScore Studio's bass guitar is picked; its band guitars are clean
@@ -222,14 +224,19 @@ int defaultProgramFor(String name) => switch (name.toLowerCase().replaceFirst(
   'acoustic bass' => 32,
   'trumpet' || 'trumpet in bb' => 56,
   'bassoon' => 70,
-  'clarinet in bb' || 'bass clarinet' => 71,
+  'clarinet in bb' || 'clarinet in eb' || 'bass clarinet' => 71,
   'soprano saxophone' => 64,
   'alto saxophone' || 'alto sax' => 65,
   'tenor saxophone' || 'tenor sax' => 66,
-  'baritone saxophone' => 67,
+  'baritone saxophone' || 'bari sax' => 67,
   'horn in f' || 'horn' => 60,
   'tuba' || 'euphonium' => 58,
   'trombone' => 57,
+  'timpani' => 47,
+  'glockenspiel' => 9,
+  'organ' => 19,
+  // MuseScore Studio declares its generic percussion staves this way.
+  'percussion' => 48,
   // MuseScore Studio's voices sound as choir aahs.
   'voice' ||
   'bass voice' ||

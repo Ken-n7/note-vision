@@ -1,3 +1,12 @@
+/// [name] in lower case without a part number: "Horn in F 1 & 2" and
+/// "Trombone 3 &\nBass Trombone" (MuseScore's shared staves) name a horn in F
+/// and a trombone.
+String instrumentKey(String name) => name
+    .split('\n')
+    .first
+    .toLowerCase()
+    .replaceFirst(RegExp(r'\s+(i{1,3}|iv|v|\d+)(\s*&(\s*\d+)?)?\s*$'), '');
+
 /// How a transposing instrument's written notes sound, as MusicXML's
 /// `<transpose>` says it: what is added to the written pitch. A B♭ clarinet
 /// sounds a major second lower: diatonic −1, chromatic −2.
@@ -57,10 +66,7 @@ Transposition? transpositionFor(String name) {
   const bFlat = Transposition(diatonic: -1, chromatic: -2);
   const eFlatLow = Transposition(diatonic: -5, chromatic: -9);
   const octaveDown = Transposition(diatonic: 0, chromatic: 0, octave: -1);
-  return switch (name.toLowerCase().replaceFirst(
-    RegExp(r'\s+(i{1,3}|iv|v|\d+)$'),
-    '',
-  )) {
+  return switch (instrumentKey(name)) {
     'clarinet in bb' || 'trumpet in bb' || 'trumpet' => bFlat,
     'soprano saxophone' => bFlat,
     'alto saxophone' || 'alto sax' => eFlatLow,
@@ -69,7 +75,8 @@ Transposition? transpositionFor(String name) {
       chromatic: -2,
       octave: -1,
     ),
-    'baritone saxophone' => const Transposition(
+    'clarinet in eb' => const Transposition(diatonic: 2, chromatic: 3),
+    'baritone saxophone' || 'bari sax' => const Transposition(
       diatonic: -5,
       chromatic: -9,
       octave: -1,
@@ -77,6 +84,7 @@ Transposition? transpositionFor(String name) {
     'horn in f' || 'horn' => const Transposition(diatonic: -4, chromatic: -7),
     'double bass' ||
     'contrabass' ||
+    'contrabasses' ||
     'acoustic bass' ||
     'bass guitar' => octaveDown,
     'piccolo' => const Transposition(diatonic: 0, chromatic: 0, octave: 1),

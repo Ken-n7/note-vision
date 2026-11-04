@@ -28,8 +28,8 @@ EditorState band() => EditorState(
   score: buildNewScore(
     const NewScoreOptions(
       staves: [
-        (name: 'Drum Kit', clef: Clef.percussion, grand: false),
-        (name: 'Piano', clef: Clef(sign: 'G', line: 2), grand: false),
+        NewStaff('Drum Kit', Clef.percussion),
+        NewStaff('Piano', Clef(sign: 'G', line: 2)),
       ],
       bars: 4,
     ),

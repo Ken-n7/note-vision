@@ -112,7 +112,7 @@ class _NewScoreWizardState extends State<NewScoreWizard> {
       _template = null;
       _staves = [
         ..._staves,
-        (name: picked.$1, clef: picked.$2, grand: picked.$1 == 'Piano'),
+        NewStaff(picked.$1, picked.$2, grand: picked.$1 == 'Piano'),
       ];
     });
   }

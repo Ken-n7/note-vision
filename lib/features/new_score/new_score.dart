@@ -13,13 +13,22 @@ import 'package:note_vision/core/services/transposer.dart';
 /// One staff of a new score; [grand] adds a staff joined below it: bass, as
 /// a piano has, or under a guitar's treble 8vb a linked TAB staff (MuseScore's
 /// Guitar + Tablature).
-typedef NewStaff = ({String name, Clef clef, bool grand});
+class NewStaff {
+  const NewStaff(this.name, this.clef, {this.grand = false, this.program});
+  final String name;
+  final Clef clef;
+  final bool grand;
+
+  /// The GM sound when it is not the usual one for [name] (a jazz band's
+  /// guitar is electric).
+  final int? program;
+}
 
 const _treble = Clef(sign: 'G', line: 2);
 const _treble8vb = Clef(sign: 'G', line: 2, octave: -1);
 const _bass = Clef(sign: 'F', line: 4);
 const _alto = Clef(sign: 'C', line: 3);
-const NewStaff _piano = (name: 'Piano', clef: _treble, grand: true);
+const _piano = NewStaff('Piano', _treble, grand: true);
 
 /// A ready-made set of staves, as MuseScore Studio's templates group them.
 class ScoreTemplate {
@@ -28,89 +37,174 @@ class ScoreTemplate {
   final List<NewStaff> staves;
 }
 
-/// The templates whose notation Note Vision can write: no tablature or
-/// orchestral percussion yet. Part names and clefs follow
+/// The templates whose notation Note Vision can write: no one-line
+/// percussion or two-staff wind parts yet. Part names and clefs follow
 /// MuseScore Studio 4.7.5's (`new_score_test.dart` compares them).
 const scoreTemplates = <ScoreTemplate>[
-  ScoreTemplate('General', 'Treble clef', [
-    (name: 'Piano', clef: _treble, grand: false),
-  ]),
-  ScoreTemplate('General', 'Bass clef', [
-    (name: 'Piano', clef: _bass, grand: false),
-  ]),
+  ScoreTemplate('General', 'Treble clef', [NewStaff('Piano', _treble)]),
+  ScoreTemplate('General', 'Bass clef', [NewStaff('Piano', _bass)]),
   ScoreTemplate('General', 'Grand staff', [_piano]),
   ScoreTemplate('Choral', 'SATB', _satb),
+  ScoreTemplate('Choral', 'SATB + Organ', [
+    ..._satb,
+    NewStaff('Organ', _treble, grand: true),
+  ]),
   ScoreTemplate('Choral', 'SATB + Piano', [..._satb, _piano]),
   ScoreTemplate('Choral', 'Voice + Piano', [
-    (name: 'Voice', clef: _treble, grand: false),
+    NewStaff('Voice', _treble),
     _piano,
   ]),
   ScoreTemplate('Chamber music', 'String quartet', [
-    (name: 'Violin I', clef: _treble, grand: false),
-    (name: 'Violin II', clef: _treble, grand: false),
-    (name: 'Viola', clef: _alto, grand: false),
-    (name: 'Violoncello', clef: _bass, grand: false),
+    NewStaff('Violin I', _treble),
+    NewStaff('Violin II', _treble),
+    NewStaff('Viola', _alto),
+    NewStaff('Violoncello', _bass),
   ]),
   ScoreTemplate('Chamber music', 'Wind quartet', [
-    (name: 'Flute', clef: _treble, grand: false),
-    (name: 'Oboe', clef: _treble, grand: false),
-    (name: 'Clarinet in Bb', clef: _treble, grand: false),
-    (name: 'Bassoon', clef: _bass, grand: false),
+    NewStaff('Flute', _treble),
+    NewStaff('Oboe', _treble),
+    NewStaff('Clarinet in Bb', _treble),
+    NewStaff('Bassoon', _bass),
   ]),
   ScoreTemplate('Chamber music', 'Wind quintet', [
-    (name: 'Flute', clef: _treble, grand: false),
-    (name: 'Oboe', clef: _treble, grand: false),
-    (name: 'Clarinet in Bb', clef: _treble, grand: false),
-    (name: 'Horn in F', clef: _treble, grand: false),
-    (name: 'Bassoon', clef: _bass, grand: false),
+    NewStaff('Flute', _treble),
+    NewStaff('Oboe', _treble),
+    NewStaff('Clarinet in Bb', _treble),
+    NewStaff('Horn in F', _treble),
+    NewStaff('Bassoon', _bass),
   ]),
   ScoreTemplate('Chamber music', 'Saxophone quartet', [
-    (name: 'Soprano Saxophone', clef: _treble, grand: false),
-    (name: 'Alto Saxophone', clef: _treble, grand: false),
-    (name: 'Tenor Saxophone', clef: _treble, grand: false),
-    (name: 'Baritone Saxophone', clef: _treble, grand: false),
+    NewStaff('Soprano Saxophone', _treble),
+    NewStaff('Alto Saxophone', _treble),
+    NewStaff('Tenor Saxophone', _treble),
+    NewStaff('Baritone Saxophone', _treble),
   ]),
   ScoreTemplate('Chamber music', 'Brass quartet', [
-    (name: 'Trumpet in Bb 1', clef: _treble, grand: false),
-    (name: 'Trumpet in Bb 2', clef: _treble, grand: false),
-    (name: 'Trombone', clef: _bass, grand: false),
-    (name: 'Tuba', clef: _bass, grand: false),
+    NewStaff('Trumpet in Bb 1', _treble),
+    NewStaff('Trumpet in Bb 2', _treble),
+    NewStaff('Trombone', _bass),
+    NewStaff('Tuba', _bass),
   ]),
   ScoreTemplate('Chamber music', 'Brass quintet', [
-    (name: 'Trumpet in Bb 1', clef: _treble, grand: false),
-    (name: 'Trumpet in Bb 2', clef: _treble, grand: false),
-    (name: 'Horn in F', clef: _treble, grand: false),
-    (name: 'Trombone', clef: _bass, grand: false),
-    (name: 'Tuba', clef: _bass, grand: false),
+    NewStaff('Trumpet in Bb 1', _treble),
+    NewStaff('Trumpet in Bb 2', _treble),
+    NewStaff('Horn in F', _treble),
+    NewStaff('Trombone', _bass),
+    NewStaff('Tuba', _bass),
   ]),
   ScoreTemplate('Popular', 'Rock band', [
-    (name: 'Lead Vocals', clef: _treble, grand: false),
-    (name: 'Backing Vocals', clef: _treble, grand: false),
-    (name: 'Lead Guitar', clef: _treble8vb, grand: false),
-    (name: 'Rhythm Guitar', clef: _treble8vb, grand: false),
-    (name: 'Bass Guitar', clef: _bass, grand: false),
-    (name: 'Drum Kit', clef: Clef.percussion, grand: false),
+    NewStaff('Lead Vocals', _treble),
+    NewStaff('Backing Vocals', _treble),
+    NewStaff('Lead Guitar', _treble8vb),
+    NewStaff('Rhythm Guitar', _treble8vb),
+    NewStaff('Bass Guitar', _bass),
+    NewStaff('Drum Kit', Clef.percussion),
   ]),
-  ScoreTemplate('Solo', 'Guitar', [
-    (name: 'Classical Guitar', clef: _treble8vb, grand: false),
-  ]),
+  ScoreTemplate('Solo', 'Guitar', [NewStaff('Classical Guitar', _treble8vb)]),
   ScoreTemplate('Solo', 'Guitar + tablature', [
-    (name: 'Guitar', clef: _treble8vb, grand: true),
+    NewStaff('Guitar', _treble8vb, grand: true),
   ]),
-  ScoreTemplate('Solo', 'Guitar tablature', [
-    (name: 'Guitar', clef: Clef.tab, grand: false),
-  ]),
+  ScoreTemplate('Solo', 'Guitar tablature', [NewStaff('Guitar', Clef.tab)]),
   ScoreTemplate('Solo', 'Piano', [_piano]),
-  ScoreTemplate('Jazz', 'Lead sheet', [
-    (name: 'Piano', clef: _treble, grand: false),
+  ScoreTemplate('Jazz', 'Lead sheet', [NewStaff('Piano', _treble)]),
+  ScoreTemplate('Jazz', 'Big band', [
+    NewStaff('Alto Sax 1', _treble),
+    NewStaff('Alto Sax 2', _treble),
+    NewStaff('Tenor Sax 1', _treble),
+    NewStaff('Tenor Sax 2', _treble),
+    NewStaff('Bari Sax', _treble),
+    NewStaff('Trumpet in Bb 1', _treble),
+    NewStaff('Trumpet in Bb 2', _treble),
+    NewStaff('Trumpet in Bb 3', _treble),
+    NewStaff('Trumpet in Bb 4', _treble),
+    NewStaff('Trombone 1', _bass),
+    NewStaff('Trombone 2', _bass),
+    NewStaff('Trombone 3', _bass),
+    NewStaff('Trombone 4', _bass),
+    NewStaff('Guitar', _treble8vb, program: 27),
+    _piano,
+    NewStaff('Acoustic Bass', _bass),
+    NewStaff('Drum Kit', Clef.percussion),
+  ]),
+  ScoreTemplate('Jazz', 'Jazz combo', [
+    NewStaff('Trumpet in Bb', _treble),
+    NewStaff('Alto Sax', _treble),
+    NewStaff('Tenor Sax', _treble),
+    NewStaff('Trombone', _bass),
+    NewStaff('Guitar', _treble8vb, program: 27),
+    _piano,
+    NewStaff('Acoustic Bass', _bass),
+    NewStaff('Drum Kit', Clef.percussion),
+  ]),
+  ScoreTemplate('Band and percussion', 'Concert band', [
+    NewStaff('Piccolo', _treble),
+    NewStaff('Flute 1', _treble),
+    NewStaff('Flute 2', _treble),
+    NewStaff('Oboe 1', _treble),
+    NewStaff('Oboe 2', _treble),
+    NewStaff('Bassoon 1', _bass),
+    NewStaff('Bassoon 2', _bass),
+    NewStaff('Clarinet in Eb', _treble),
+    NewStaff('Clarinet in Bb 1', _treble),
+    NewStaff('Clarinet in Bb 2', _treble),
+    NewStaff('Clarinet in Bb 3', _treble),
+    NewStaff('Bass Clarinet', _treble),
+    NewStaff('Alto Saxophone 1', _treble),
+    NewStaff('Alto Saxophone 2', _treble),
+    NewStaff('Tenor Saxophone', _treble),
+    NewStaff('Baritone Saxophone', _treble),
+    NewStaff('Trumpet in Bb 1', _treble),
+    NewStaff('Trumpet in Bb 2', _treble),
+    NewStaff('Trumpet in Bb 3', _treble),
+    NewStaff('Horn in F 1 & 2', _treble),
+    NewStaff('Horn in F 3 & 4', _treble),
+    NewStaff('Trombone 1', _bass),
+    NewStaff('Trombone 2', _bass),
+    NewStaff('Trombone 3 &\nBass Trombone', _bass),
+    NewStaff('Euphonium', _bass),
+    NewStaff('Tuba', _bass),
+    NewStaff('Double Bass', _bass),
+    NewStaff('Timpani', _bass),
+    NewStaff('Glockenspiel', _treble),
+    NewStaff('Percussion 1', Clef.percussion),
+    NewStaff('Percussion 2', Clef.percussion),
+  ]),
+  ScoreTemplate('Band and percussion', 'Small concert band', [
+    NewStaff('Flute', _treble),
+    NewStaff('Oboe', _treble),
+    NewStaff('Bassoon', _bass),
+    NewStaff('Clarinet in Bb 1', _treble),
+    NewStaff('Clarinet in Bb 2', _treble),
+    NewStaff('Bass Clarinet', _treble),
+    NewStaff('Alto Saxophone', _treble),
+    NewStaff('Tenor Saxophone', _treble),
+    NewStaff('Baritone Saxophone', _treble),
+    NewStaff('Horn in F', _treble),
+    NewStaff('Trumpet in Bb 1', _treble),
+    NewStaff('Trumpet in Bb 2', _treble),
+    NewStaff('Trombone 1', _bass),
+    NewStaff('Trombone 2\nBass Trombone', _bass),
+    NewStaff('Euphonium', _bass),
+    NewStaff('Tuba', _bass),
+    NewStaff('Timpani', _bass),
+    NewStaff('Glockenspiel', _treble),
+    NewStaff('Percussion 1', Clef.percussion),
+    NewStaff('Percussion 2', Clef.percussion),
+  ]),
+  ScoreTemplate('Orchestral', 'String orchestra', [
+    NewStaff('Violins 1', _treble),
+    NewStaff('Violins 2', _treble),
+    NewStaff('Violas', _alto),
+    NewStaff('Violoncellos', _bass),
+    NewStaff('Contrabasses', _bass),
   ]),
 ];
 
 const List<NewStaff> _satb = [
-  (name: 'Soprano', clef: _treble, grand: false),
-  (name: 'Alto', clef: _treble, grand: false),
-  (name: 'Tenor', clef: _treble8vb, grand: false),
-  (name: 'Bass', clef: _bass, grand: false),
+  NewStaff('Soprano', _treble),
+  NewStaff('Alto', _treble),
+  NewStaff('Tenor', _treble8vb),
+  NewStaff('Bass', _bass),
 ];
 
 /// What MuseScore Studio's New Score dialog asks for.
@@ -204,7 +298,9 @@ Score buildNewScore(NewScoreOptions o, {String? id}) {
   final parts = <Part>[];
   for (final staff in o.staves) {
     final id = 'P${parts.length + 1}';
-    final playback = PartPlayback(program: defaultProgramFor(staff.name));
+    final playback = PartPlayback(
+      program: staff.program ?? defaultProgramFor(staff.name),
+    );
     parts.add(
       Part(
         id: id,

@@ -49,12 +49,14 @@ done
 templates="$("$mscore" --version >/dev/null 2>&1; find "$TMPDIR" -path '*/share/mscore4portable-4.7/templates' -type d | head -1)"
 mkdir -p "$dir/reference/templates"
 for t in 01-General/01-Treble_Clef 01-General/02-Bass_Clef 01-General/03-Grand_Staff \
-  02-Choral/01-SATB 02-Choral/03-SATB_+_Piano 02-Choral/07-Voice_+_Piano \
+  02-Choral/01-SATB 02-Choral/02-SATB_+_Organ 02-Choral/03-SATB_+_Piano 02-Choral/07-Voice_+_Piano \
   03-Chamber_Music/01-String_Quartet 03-Chamber_Music/02-Wind_Quartet \
   03-Chamber_Music/03-Wind_Quintet 03-Chamber_Music/04-Saxophone_Quartet \
   03-Chamber_Music/05-Brass_Quartet 03-Chamber_Music/06-Brass_Quintet \
   04-Solo/01-Guitar 04-Solo/02-Guitar_+_Tablature 04-Solo/03-Guitar_Tablature 04-Solo/04-Piano \
-  05-Jazz/01-Jazz_Lead_Sheet 06-Popular/01-Rock_Band; do
+  05-Jazz/01-Jazz_Lead_Sheet 05-Jazz/02-Big_Band 05-Jazz/03-Jazz_Combo 06-Popular/01-Rock_Band \
+  07-Band_and_Percussion/01-Concert_Band 07-Band_and_Percussion/02-Small_Concert_Band \
+  08-Orchestral/03-String_Orchestra; do
   "$mscore" -o "$PWD/$dir/reference/templates/${t#*/}.musicxml" "$templates/$t/${t#*/}.mscx"
 done
 "$mscore" --version 2>/dev/null | tail -1 > "$dir/reference/VERSION"

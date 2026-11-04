@@ -907,10 +907,23 @@ Device check (2026-11-01): release **2005**, built from `f801e50` with
   in B♭, 3/4, quarter pickup, tempo 120 created through the wizard; the
   first phone run showed the tenor's key signature an octave high, fixed and
   rechecked.
-- Not yet: transposing instruments (clarinet, horn, saxophones) and their
-  templates, percussion and tablature templates, subtitle/lyricist/
-  copyright fields, saving user templates, minor-key names, irregular
-  pickups needing two rests.
+- Not yet: subtitle/lyricist/copyright fields, saving user templates,
+  minor-key names, irregular pickups needing two rests.
+- Follow-up templates: Jazz combo, Big band, Concert band, Small concert
+  band, String orchestra and SATB + Organ (24 templates in all, each
+  matching MuseScore's part names, sounds, clefs and transpositions).
+  `NewStaff` is a class with an optional `program` (a jazz band's guitar is
+  electric). `instrumentKey` reads "Horn in F 1 & 2" and "Trombone 3 &
+  Bass Trombone" as one instrument; piccolo, E♭ clarinet, bari sax,
+  timpani, glockenspiel, organ, string sections and generic percussion
+  gained their MuseScore sounds/transpositions. The jazz and band template
+  files store written keys in an older form that MuseScore's command-line
+  export drops, so their keys are checked against the template files
+  (B♭ parts 2 sharps, E♭ parts 3, horns 1 in concert C, as Note Vision
+  writes them). Not yet: the orchestra, marching, brass band, bluegrass,
+  barbershop, closed-score, liturgical and pit/battery percussion
+  templates (they need one-line percussion staves, two-staff wind parts,
+  shared-staff voices or instruments not yet in the tables).
 
 ## Stage 5D (part 1) — transposing instruments and concert pitch
 
