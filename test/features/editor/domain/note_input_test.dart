@@ -121,9 +121,9 @@ void main() {
     );
     expect(identical(selectBase.addChordInterval(3), selectBase), isTrue);
 
-    // New input goes after the whole chord.
+    // New input goes after the whole chord, writing over D4.
     final next = selectBase.enterNote('E', quarterDuration);
-    expect(pitches(next), ['C4', '+E4', '+G4', '+C5', 'E4', 'D4']);
+    expect(pitches(next), ['C4', '+E4', '+G4', '+C5', 'E4']);
     expect(
       EditorCommand.addThird.unavailableReason(
         bar([const Rest(duration: 2, type: 'quarter')], select: 0),
@@ -182,5 +182,97 @@ void main() {
     expect(pitches(changed), ['A4']);
     expect((changed.selectedSymbol as Note).alter, isNull);
     expect(identical(state.setSelectedNoteStep('X'), state), isTrue);
+  });
+
+  group('note input writes over what follows, as in MuseScore', () {
+    const quarterRest = Rest(duration: 2, type: 'quarter');
+    const halfRest = Rest(duration: 4, type: 'half');
+
+    test('a selected rest is written over; a bar of rests fills up', () {
+      var state = bar([halfRest, halfRest], select: 0);
+      state = state.enterNote('C', quarterDuration);
+      expect(pitches(state), ['C5', 'rest:quarter', 'rest:half']);
+      state = state.enterNote('D', quarterDuration);
+      expect(pitches(state), ['C5', 'D5', 'rest:half']);
+      // With nothing selected, input starts after the bar's last note.
+      final fresh = bar([
+        quarterRest,
+        quarterRest,
+      ]).enterNote('E', quarterDuration);
+      expect(pitches(fresh), ['E5', 'rest:quarter']);
+    });
+
+    test('a note partly written over leaves rests for its time', () {
+      final state = bar([
+        Note(step: 'C', octave: 5, duration: 4, type: 'half'),
+        Note(step: 'D', octave: 5, duration: 4, type: 'half'),
+      ], select: 0).enterNote('E', quarterDuration);
+      expect(pitches(state), ['C5', 'E5', 'rest:quarter']);
+      expect(state.selectedSymbolIndex, 1);
+    });
+
+    test('a value longer than the bar is tied into the next bar', () {
+      var state = bar([note('C', 5), note('D', 5), note('E', 5)], select: 2);
+      final depth = state.undoStack.length;
+      state = state.enterNote('F', halfDuration);
+      // A quarter in this bar, tied to a quarter at the start of a new one.
+      expect(pitches(state), ['C5', 'D5', 'E5', 'F5']);
+      expect(pitches(state, 1), ['F5']);
+      final first = state.score.parts.first.measures[0].symbols.last as Note;
+      final second = state.score.parts.first.measures[1].symbols.first as Note;
+      expect((first.type, second.type), ('quarter', 'quarter'));
+      expect(
+        state.score.spanners,
+        contains(Spanner(SpannerKind.tie, first.reviewId!, second.reviewId!)),
+      );
+      expect((state.selectedMeasureIndex, state.selectedSymbolIndex), (1, 0));
+      expect(state.undoStack, hasLength(depth + 1));
+      expect(state.applyUndo().score.parts.first.measures, hasLength(1));
+    });
+
+    test('a pickup rest is written over and keeps the pickup short', () {
+      final state = EditorState(
+        score: Score(
+          id: 'p',
+          title: 'P',
+          composer: '',
+          parts: [
+            Part(
+              id: 'P1',
+              name: 'Voice',
+              measures: [
+                const Measure(
+                  number: 0,
+                  implicit: true,
+                  clef: Clef(sign: 'G', line: 2),
+                  timeSignature: TimeSignature(beats: 4, beatType: 4),
+                  symbols: [quarterRest],
+                ),
+                const Measure(number: 1, symbols: []),
+              ],
+            ),
+          ],
+        ),
+      ).copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
+      final next = state.enterNote('G', halfDuration);
+      // A quarter fills the pickup and is tied into bar 1.
+      expect(pitches(next), ['G4']);
+      expect(pitches(next, 1), ['G4']);
+      expect(next.score.spanners, hasLength(1));
+    });
+
+    test('ties and slurs of notes written over are removed', () {
+      final tied = [
+        note('C', 5).copyWith(reviewId: 'a'),
+        note('C', 5).copyWith(reviewId: 'b'),
+      ];
+      final state = bar(tied, select: 0);
+      final withTie = state.copyWith(
+        score: state.score.copyWith(
+          spanners: const [Spanner(SpannerKind.tie, 'a', 'b')],
+        ),
+      );
+      expect(withTie.enterNote('E', quarterDuration).score.spanners, isEmpty);
+    });
   });
 }

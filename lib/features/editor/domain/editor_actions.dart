@@ -2191,6 +2191,7 @@ extension EditorActions on EditorState {
   /// rests fill that voice up to there, and the symbol goes at the end of
   /// the bar's list (each voice keeps its own time).
   EditorState _enterSymbol(ScoreSymbol symbol) {
+    if (_overwrite(symbol) case final written?) return written;
     final partIndex = selectedPartIndex!;
     var measureIndex = selectedMeasureIndex!;
     final lane = ScoreTimelineBuilder.lane(symbol);
@@ -2241,6 +2242,199 @@ extension EditorActions on EditorState {
       symbolIndex: symbolIndex,
       symbol: symbol,
     );
+  }
+
+  /// MuseScore's note input: [symbol] is written over what follows the
+  /// input position in its voice (a selected rest is written over itself;
+  /// with nothing selected, input starts after the bar's last note). A note
+  /// partly written over leaves rests for its remaining time, and a value
+  /// longer than the bar has left is split at the barline and tied into the
+  /// next bar(s), adding bars at the end as needed. Null when this does not
+  /// apply (another voice than the selection's, tuplets, bars without a
+  /// meter): input is then inserted.
+  EditorState? _overwrite(ScoreSymbol symbol) {
+    final part = selectedPartIndex!;
+    final lane = ScoreTimelineBuilder.lane(symbol);
+    final selected = selectedEditableSymbol;
+    if (selected != null && ScoreTimelineBuilder.lane(selected) != lane) {
+      return null;
+    }
+    if (symbol is Note && (symbol.grace != null || symbol.tuplet != null)) {
+      return null;
+    }
+    const eps = 1e-6;
+    bool inLane(ScoreSymbol s) => ScoreTimelineBuilder.lane(s) == lane;
+    var measure = selectedMeasureIndex!;
+    var symbols = score.parts[part].measures[measure].symbols;
+    var index = switch (selected) {
+      Rest() => selectedSymbolIndex!,
+      null => () {
+        final last = symbols.lastIndexWhere(
+          (s) => s is Note && s.grace == null && inLane(s),
+        );
+        var i = last + 1;
+        while (i < symbols.length &&
+            symbols[i] is Note &&
+            (symbols[i] as Note).isChordTone) {
+          i++;
+        }
+        return last < 0 ? 0 : i;
+      }(),
+      _ => _inputIndex,
+    };
+    var next = score;
+    final removed = <String>{};
+    final written = <ScoreSymbol>[];
+    var lastIndex = index;
+    var remaining = symbolQuarters(symbol);
+    if (remaining <= eps) return null;
+    while (remaining > eps) {
+      final measures = next.parts[part].measures;
+      if (measure == measures.length) {
+        next = next.insertMeasureAfterInAllParts(measure - 1);
+      }
+      symbols = [...next.parts[part].measures[measure].symbols];
+      final capacity = _capacity(next, part, measure);
+      if (capacity == null) return null;
+      var time = 0.0;
+      for (final s in symbols.take(index)) {
+        if (!inLane(s) || (s is Note && s.isChordTone)) continue;
+        if (s is Note && s.tuplet != null || s is Rest && s.tuplet != null) {
+          return null;
+        }
+        time += symbolQuarters(s);
+      }
+      final space = capacity - time;
+      if (space <= eps) {
+        // This bar is full here: continue at the start of the next.
+        measure++;
+        index = 0;
+        continue;
+      }
+      final take = math.min(remaining, space);
+      final pieces = (take - symbolQuarters(symbol)).abs() < eps
+          ? [symbol]
+          : [
+              for (final r in _restsFilling(take))
+                switch (symbol) {
+                  Note() => symbol.copyWith(
+                    duration: r.duration,
+                    type: r.type,
+                    dots: r.dots,
+                    reviewId: null,
+                  ),
+                  Rest() => symbol.copyWith(
+                    duration: r.duration,
+                    type: r.type,
+                    dots: r.dots,
+                    reviewId: null,
+                  ),
+                  _ => symbol,
+                },
+            ];
+      for (final piece in pieces) {
+        // Take away what the piece covers in its voice.
+        final length = symbolQuarters(piece);
+        var covered = 0.0;
+        var k = index;
+        while (k < symbols.length) {
+          final s = symbols[k];
+          final chordTone = s is Note && s.isChordTone;
+          if (!inLane(s) || (covered >= length - eps && !chordTone)) {
+            if (covered >= length - eps) break;
+            k++;
+            continue;
+          }
+          if (s is Note && s.tuplet != null || s is Rest && s.tuplet != null) {
+            return null;
+          }
+          if (!chordTone) covered += symbolQuarters(s);
+          if (s case Note(:final reviewId?) || Rest(:final reviewId?)) {
+            removed.add(reviewId);
+          }
+          symbols.removeAt(k);
+        }
+        final (voice, staff) = switch (piece) {
+          Note(:final voice, :final staff) ||
+          Rest(:final voice, :final staff) => (voice, staff),
+          _ => (null, null),
+        };
+        symbols.insertAll(index, [
+          piece,
+          if (covered > length + eps)
+            ..._restsFilling(covered - length, voice: voice, staff: staff),
+        ]);
+        written.add(piece);
+        lastIndex = index;
+        index++;
+      }
+      next = _withSymbols(next, part, measure, symbols);
+      remaining -= take;
+    }
+    // A note split across bars is tied from piece to piece.
+    var ties = <Spanner>[];
+    if (symbol is Note && written.length > 1) {
+      final ids = [
+        for (final (i, _) in written.indexed)
+          i == 0
+              ? symbol.reviewId ?? NotationReviewService.newId()
+              : NotationReviewService.newId(),
+      ];
+      ties = [
+        for (var i = 1; i < ids.length; i++)
+          Spanner(SpannerKind.tie, ids[i - 1], ids[i]),
+      ];
+      // Give the pieces their IDs where they now stand.
+      var w = 0;
+      final parts = [...next.parts];
+      final measures = [...parts[part].measures];
+      for (var m = selectedMeasureIndex!; m < measures.length; m++) {
+        measures[m] = measures[m].copyWith(
+          symbols: [
+            for (final s in measures[m].symbols)
+              w < written.length && identical(s, written[w])
+                  ? (s as Note).copyWith(reviewId: ids[w++])
+                  : s,
+          ],
+        );
+      }
+      parts[part] = parts[part].copyWith(measures: measures);
+      next = next.copyWith(parts: parts);
+    }
+    next = next.copyWith(
+      spanners: [
+        for (final sp in next.spanners)
+          if (!removed.contains(sp.from) && !removed.contains(sp.to)) sp,
+        ...ties,
+      ],
+    );
+    return _applySymbolSelectionEdit(
+      intent: EditorEditIntent.insertAfterSelection,
+      score: next,
+      partIndex: part,
+      measureIndex: measure,
+      symbolIndex: lastIndex,
+      symbol: next.parts[part].measures[measure].symbols[lastIndex],
+    );
+  }
+
+  /// How long bar [measure] may be: its meter, or for a pickup what it
+  /// already holds; null without a meter.
+  static double? _capacity(Score score, int part, int measure) {
+    final meter = ScoreTimelineBuilder.meterLength(
+      ScoreTimelineBuilder.activeMeter(score, part, measure),
+    );
+    if (meter.isZero) return null;
+    if (!score.parts[part].measures[measure].implicit) return meter.asDouble;
+    try {
+      final held = const ScoreTimelineBuilder()
+          .measure(score, part, measure)
+          .duration
+          .asDouble;
+      return held > 0 ? held : meter.asDouble;
+    } on ScoreTimelineException {
+      return null;
+    }
   }
 
   EditorState applyUndo() => undo();
@@ -2771,6 +2965,20 @@ ScoreSymbol _pasteCopy(ScoreSymbol symbol, {bool startsChord = false}) =>
       Rest() => symbol.copyWith(confidence: null, reviewId: null, source: null),
       _ => symbol,
     };
+
+/// [score] with bar [measure] of [part] holding [symbols].
+Score _withSymbols(
+  Score score,
+  int part,
+  int measure,
+  List<ScoreSymbol> symbols,
+) {
+  final parts = [...score.parts];
+  final measures = [...parts[part].measures];
+  measures[measure] = measures[measure].copyWith(symbols: symbols);
+  parts[part] = parts[part].copyWith(measures: measures);
+  return score.copyWith(parts: parts);
+}
 
 Score _insertAll(
   Score score,

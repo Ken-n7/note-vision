@@ -314,7 +314,9 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.keyD);
     await tester.sendKeyEvent(LogicalKeyboardKey.keyE);
     await tester.pumpAndSettle();
-    expect(bar(tester), ['C4', 'D4', 'E4', 'F4']);
+    // From the selected C4, D writes over F4 (MuseScore's note input) and E
+    // follows it, rather than either jumping to the end of the bar.
+    expect(bar(tester), ['C4', 'D4', 'E4']);
   });
 
   testWidgets('the voice chips write the next note into that voice', (

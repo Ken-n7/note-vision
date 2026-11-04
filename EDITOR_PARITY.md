@@ -261,9 +261,22 @@ instruments. Rhythm, pitch, beams, chords, meters and key handling match.
 - Fixed: deleting a chord's main note now promotes its next tone (it used to
   attach the remaining tones to the preceding note); insertion after a chord
   base goes after its tones.
-- Not yet: MuseScore's overwrite-in-place input (we insert; a full next bar
-  refuses input), ties across bar lines for values that do not fit,
-  voice selection (Ctrl+Alt+1–4), and touch chord entry by tapping a pitch.
+- Follow-up (2026-11-04): letters, 0 (rest), + and drum keys write over
+  what follows the input position in their voice, as MuseScore's note input
+  does. A selected rest is written over; with nothing selected input starts
+  after the bar's last note (a new score's pickup rest is written over and
+  the pickup keeps its length); a note partly written over leaves rests for
+  its remaining time; a value longer than the bar has left is split at the
+  barline and tied into the next bar(s), adding bars at the end; ties and
+  slurs of notes written over are removed. One undo step. Tapping or
+  dragging onto the staff still inserts at that place; another voice than
+  the selection's, tuplets and bars without a meter keep inserting.
+  Checked on the phone (release 2016): a 2-quarter pickup rest written over
+  by C D; a half B with one beat left tied into the next bar; undo removed
+  both pieces; a half F after E replaced G and A.
+- Not yet: touch chord entry by tapping a pitch; MuseScore's insert mode
+  (Ctrl+Shift+letter); an underfull bar is not padded with rests after
+  overwriting (bars may be shorter than the meter in Note Vision).
 - Tests: `test/features/editor/domain/note_input_test.dart`, keyboard test in
   `editor_commands_test.dart`; full suite 734 passed, analysis clean.
 
