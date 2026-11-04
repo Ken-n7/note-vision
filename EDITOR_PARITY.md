@@ -298,19 +298,51 @@ instruments. Rhythm, pitch, beams, chords, meters and key handling match.
 - Verification: note-input regression tests cover timing, playback, undo/redo,
   saving and MusicXML round trips; `editor_note_entry_test.dart` covers
   input controls, shortcut modifiers, playback locks and phone/large-text/
-  landscape/tablet layouts. No new physical-device check.
+  landscape/tablet layouts. Physical-device results follow below.
 - Tests: `test/features/editor/domain/note_input_test.dart`, keyboard test in
   `editor_commands_test.dart`; full suite 990 passed, analysis clean.
-- **Pending device QA — do this before the next feature (user instruction,
-  2026-11-04):** test this checkpoint on the Realme RMX1851. Check 32nd gaps
-  and residual rests; split ties across barlines/key changes and playback
-  through a chain of three pieces; Chord taps above/below the selected note;
-  Insert shifting later music in a full bar; undo/redo, save/reopen and
-  playback; TAB meter/rest hiding in the editor and an exported PDF. Check
-  keyboard insertion with Ctrl/Cmd+Shift+A–G when a keyboard is available.
-  Record the tested commit/build and results here, fix any failures, then
-  continue with the next parity follow-up. Automated success is not a
-  physical-device sign-off.
+
+Device QA (2026-11-04): **passed**, local release **2017**, built from
+`c738255` with `flutter build apk --release --build-number 2017`, installed
+as an update on Realme RMX1851 / Android 11 (API 30). No code fixes were
+needed during this check. The user's test-before-next-feature requirement
+is satisfied; the next parity follow-up can proceed.
+
+- A bar with 1/32 left accepted a quarter E5 without crashing: 32nd + dotted
+  eighth + 32nd across the barline, tied as a chain. Phone-generated MusicXML
+  confirmed exact durations (1/8 + 3/4 + 1/8 quarters) and both ties.
+  Undo removed the complete edit; Redo restored it.
+- Overwriting part of a dotted 16th left a 32nd rest. Export confirmed C5
+  (1 quarter), E5 (1/4), rest (1/8), F5 (1): the following onset stayed put.
+- Entering a half F5 after an earlier F-sharp split it across a barline into
+  B-flat major; both tied pieces exported as F-sharp. Native playback ran;
+  the user confirmed clear audio.
+- Chord taps added G4 above and A3 below a selected half C4, retaining half
+  values and chord flags; repeating G4 added no duplicate. Undo/Redo worked.
+- Insert added D4 after C4 in a full C4 D4 E4 F4 bar. With Insert disabled,
+  ADB-injected Ctrl+Shift+G also inserted: export held C4 D4 G4 D4 E4 F4,
+  six quarters in one bar, with the original music retained.
+- Imported MuseScore's `27_guitar_and_tab` reference; the phone canvas and
+  exported one-page A4 PDF hid TAB meter/rests while retaining them on the
+  notation staff. The exported PDF was rasterized and visually inspected.
+- Portrait, 1.8x system text with inspector scrolling, and settled landscape
+  (2340x1080) inspected. Restored font scale 0.9, automatic rotation 1 and
+  user rotation 0, exactly as found.
+- Saved the pre-existing unsaved **NV Overwrite QA** before updating; all
+  six original projects survived. Saved **NV32Gap2017** and **NVChord2017**
+  separately (eight projects after restart). Force-stopped/relaunched,
+  reopened NV32Gap2017, played its three-piece tie, and re-exported it:
+  pitches, durations, chord flags and ties matched its pre-restart export.
+  Left NV32Gap2017 open with playback stopped.
+- The app's active 44.1 kHz stereo speaker track had zero underruns at both
+  diagnostic captures (before and after cold restart). No crash, unhandled
+  exception, overflow, RangeError or playback failure in inspected app
+  process logs. This was an Android check; no iOS or physical keyboard test.
+- Local evidence: `/tmp/note-vision-phone-2017/` (captures, five checked
+  MusicXML exports, reopened export, PDF/raster, audio/process logs and
+  `device.json`). QA source/export files remain in the phone's
+  `Download/NoteVisionQA2017/`. Tested APK SHA-256:
+  `0bded7519544deb4aab9ee90d4d421b0c1d55338f22f4a344dfd83b69f2ad72b`.
 
 ## Stage 3B — transpose
 
@@ -1136,7 +1168,8 @@ Device check (2026-11-01): release **2005**, built from `f801e50` with
   hidden meter/rests in MuseScore's `27_guitar_and_tab` MusicXML reference.
   Shared signature metrics reserve no room for hidden TAB meters. Raster
   tests check that TAB is unchanged when rests/meters are removed while
-  ordinary notation still draws them. No new physical-device check.
+  ordinary notation still draws them. Release **2017** (`c738255`) passed
+  the phone canvas and exported-PDF check; see the Stage 3A device checkpoint.
 - Not yet: ties are drawn on the notation staff only; linking an existing
   staff from the Staves sheet; other linked pairs (e.g. two notation staves).
 

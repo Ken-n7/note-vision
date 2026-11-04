@@ -270,12 +270,12 @@ These are final unless explicitly changed:
 
 ## EditorState — How It Works
 
-**Immediate next work (user instruction, 2026-11-04):** device-test the
-note-input fixes, Chord/Insert controls and TAB display changes in this
-checkpoint before starting another feature. Automated checks passed (990
-tests, analysis clean); these changes have not been checked on the phone.
-Use the pending-device-QA checklist in Stage 3A of `EDITOR_PARITY.md`.
-After testing and addressing any failures, resume the next parity follow-up.
+**Device QA completed (2026-11-04):** the note-input fixes, Chord/Insert
+controls and TAB display changes passed on the Realme in release **2017**
+from `c738255`. The user's test-before-next-feature requirement is satisfied.
+Automated checks also passed (990 tests, analysis clean). Results and local
+evidence are recorded in Stage 3A of `EDITOR_PARITY.md`; resume the next
+parity follow-up when continuing development.
 
 Editor expansion toward MuseScore Studio capabilities and UI/UX is tracked in
 [`EDITOR_PARITY.md`](EDITOR_PARITY.md). Branch: `feat/musescore-editor`. Stage 1
@@ -297,13 +297,17 @@ reimplemented. Every feature is checked against MuseScore Studio 4.7.5 by
 `test/musescore_parity/` (see `EDITOR_PARITY.md`, "MuseScore comparison
 tests").
 
-Latest physical check: release **2005** (`f801e50`), Realme RMX1851 / Android
-11, 2026-11-01. Mixer sounds/volume/pan/mute/solo, undo/redo, pause/edit/resume,
-Cancel, saved mix after cold restart, landscape and large text checked. User
-confirmed clear audio; the app's native speaker track had zero underruns at
-capture. Existing projects retained. Saved test project: **NV Mixer Phone QA**.
-Original display preferences restored; no iOS test. Stage 5A device checkpoint
-in `EDITOR_PARITY.md` records the evidence and limits.
+Latest physical check: release **2017** (`c738255`), Realme RMX1851 / Android
+11, 2026-11-04. Exact 32nd gaps/residual rests, split tied accidentals across
+key changes, three-piece tie playback, touch chord pitches above/below,
+duplicate suppression, Insert and injected Ctrl+Shift+G, undo/redo, MusicXML
+exports, TAB editor/PDF hiding, landscape and 1.8x text checked. Saved
+**NV32Gap2017** reopened after a cold restart with identical exported notes
+and ties; **NVChord2017** also saved. Six original projects retained (eight
+total); playback stopped with NV32Gap2017 open. User confirmed clear audio;
+the app's active 44.1 kHz stereo speaker track had zero underruns at both
+captures. Original display preferences restored; no iOS test. Stage 3A of
+`EDITOR_PARITY.md` records evidence; the earlier mixer check remains in 5A.
 
 `EditorState` is immutable. Every edit returns a new instance via `copyWith`.
 
