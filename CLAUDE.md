@@ -25,7 +25,9 @@ The first slice hardens scan cancellation/retry against stale results and
 native model cleanup races (release 2020 verified below). The next slice keeps
 the original scan visible during manual correction (release 2021), guided by
 real-photo error triage. The current fix lays out sequential scanned rows in
-reading order instead of as ensemble columns. Each app change still needs
+reading order instead of as ensemble columns (release 2022). Guided bar review
+now combines automatic photo comparison, direct corrections and saved review
+progress (release 2023). Each app change still needs
 automated checks and phone QA before
 the next feature. Full MuseScore parity remains an explicit
 long-term objective in `EDITOR_PARITY.md`; marching templates, family brackets
@@ -285,6 +287,24 @@ These are final unless explicitly changed:
 
 ## EditorState — How It Works
 
+**Guided bar review (2026-11-05):** Review groups questions by original row/bar,
+opens the source photo automatically (crop/full-page and linked symbol outline),
+and embeds a tappable bar with pitch/illustrated length controls and row-scoped
+clef/key/meter choices. Scanned bars get explicit setup questions even when the
+model is confident; suggestions wait for setup confirmation in every affected
+bar. No meter/clef is borrowed from another scanned exercise or inferred from
+beat totals. Direct scan length corrections may temporarily exceed a suspect
+meter, while timeline validation and the regular editor's default guards remain.
+“Not sure · Review later” preserves unresolved questions separately from “Keep
+original”; Save & close saves decisions with the score. Reopening starts with
+pending bars; saved-for-later bars can be resumed. Music edits invalidate stale
+decisions. Batch/History live under More; single-bar listening, previews, Undo
+and conflict-checked History restore remain available. Closing checks never
+claims the transcription is correct. **1,064 tests passed**, analysis clean;
+release **2023** passed Realme QA below. Detector/model thresholds and
+automatic reconstruction are
+unchanged. Full parity (including scan chords/grand staves) remains queued.
+
 **Fresh-sheet scanning QA (2026-11-05, release 2022):** three other existing
 handwritten photos were freshly scanned on the Realme through Upload and the
 full on-device pipeline; no suggested fixes accepted. All six/seven/nine
@@ -382,7 +402,23 @@ reimplemented. Every feature is checked against MuseScore Studio 4.7.5 by
 `test/musescore_parity/` (see `EDITOR_PARITY.md`, "MuseScore comparison
 tests").
 
-Latest physical check: release **2022**, Realme RMX1851 / Android 11,
+Latest physical check: release **2023**, Realme RMX1851 / Android 11,
+2026-11-05. Guided Review automatically shows the original photo beside the
+current bar. Checked crop/full page, C5 → D5 → Undo, eighth → half → Undo,
+key-signature choices/Undo, and 2/4 → 3/4 → History restore. Deferred the first
+bar of NVFreshMixed2022; Save & close and cold restart retained 18 pending bars
+and one saved for later, starting at Row 1 / Bar 2. All 15 projects retained.
+The mixed score's restored/cold MusicXML matches its baseline byte-for-byte.
+User edits in NVFreshDense2022 were saved/exported before installation and its
+post-update export is also byte-identical. Single-bar listening, 1.8x text
+and landscape checked; Android's active 44.1 kHz stereo track had zero track
+underruns. No app Flutter/crash/save errors in inspected logs. Original font
+and rotation preferences restored; helper removed. Mixed guided review left
+open at Row 1 / Bar 2 with playback stopped. Evidence:
+`/tmp/note-vision-phone-2023/` (`qa-facts.json`); phone exports:
+`Download/NoteVisionQA2023/`. No iOS or new subjective listening test.
+
+Previous physical check: release **2022**, Realme RMX1851 / Android 11,
 2026-11-05. NVScan2020 now shows eight rows of three adjacent bars on one
 editor page; its PDF also has one page. Touching row two selected its original
 E3; Focus selected bar, Up to F3 and Undo worked. Original scan tracked that

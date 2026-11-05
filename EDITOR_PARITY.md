@@ -214,6 +214,61 @@ This changes work order, not the full-parity objective or acceptance criteria.
   photos are not an unseen-photo benchmark. Chord/grand-staff reconstruction
   remains part of full parity.
 
+### Guided bar review — 2026-11-05
+
+- Review follows original row/bar reading order and groups related questions.
+  Source comparison opens automatically with crop/full-page view and a linked
+  symbol outline. The current bar is tappable; pitch and illustrated note-length
+  controls, clef, key-signature symbol counts and common meters are available
+  directly. Metadata changes are scoped to this staff from the selected bar to
+  its next explicit change. Missing notes, barlines and chord repairs still use
+  Edit manually with the retained source reference.
+- Every nonempty scanned bar receives a setup/photo question, including
+  confident detections the rule checker cannot verify. Setup confirmation
+  precedes suggested changes, including neighboring bars affected by a move.
+  Scanned rows do not borrow clefs/meters from another exercise; no meter is
+  inferred from beat totals. Imported/created-score checks retain their
+  existing behavior. User-chosen scan lengths may leave an overfull bar while
+  corrections continue; timeline validation still runs, and ordinary editor
+  length changes retain their existing capacity checks.
+- “Review later” defers the whole bar without resolving its questions or
+  changing its music. Decisions survive score serialization and Save & close;
+  pending bars precede deferred ones, and deferred bars can be resumed. Stable
+  target/context fingerprints reopen decisions when relevant music changes.
+  Direct corrections use review history, Undo and conflict-checked restore;
+  proposed changes remain non-mutating until Apply.
+- Batch, overview and History are under More. Phone review has more room and a
+  draggable divider; short/enlarged-text layouts scroll the entire panel.
+  “Listen to this bar” is bounded to that original bar; proposed listening
+  covers the affected bars without unrelated neighbors. End-of-review text
+  explicitly notes that the checker can miss wrong notes, bars and chords.
+- Automated verification: **1,064 tests passed**, analysis clean. Twelve
+  guided-flow widget cases cover photo comparison on phone, small phone,
+  enlarged text, landscape and tablet; direct pitch/length/key/meter edits,
+  Undo/restore, deferral, save/reopen and bounded listening. Service regressions
+  cover setup gating, neighbor changes, serialized deferral and independent
+  scan context. Captures checked; release **2023** passed Realme QA below.
+  Logs/captures:
+  `/tmp/note-vision-guided-review-{analyze,full,targeted,captures}.log`,
+  `/tmp/note-vision-guided-review-qa/` and `/tmp/note-vision-phone-2023/`.
+  Detector weights/thresholds are unchanged. No claim of complete error
+  detection or improved automatic transcription; full parity remains queued.
+- Physical **2023** QA: automatic photo/current-bar comparison, crop/full page,
+  C5 → D5 → Undo, eighth → half → Undo, key choices/Undo and 2/4 → 3/4 → History
+  restore passed on the Realme. Saving the first bar for later and cold restart
+  retained **18 pending bars + one deferred**, resuming at Row 1 / Bar 2.
+  All **15 projects** retained. The mixed score's restored/cold MusicXML matches
+  its baseline byte-for-byte. The user's latest dense-score edits were saved
+  and exported before installation; their post-update export is also identical.
+  Single-bar listening, 1.8x text and landscape checked; active Android audio
+  was 44.1 kHz stereo with zero track underruns. Inspected app logs had no
+  Flutter/crash/save errors. Original font/rotation preferences restored,
+  temporary helper removed; mixed guided review left open, playback stopped.
+  No iOS or new subjective listening test. Evidence:
+  `/tmp/note-vision-phone-2023/qa-facts.json`; phone exports:
+  `Download/NoteVisionQA2023/`. Tested APK SHA-256:
+  `2da9cad49019d7bc30bc43b9b25600581869b94213de4d01ab73e992806c4340`.
+
 ## Reference and implementation policy
 
 Use the [MuseScore Studio handbook](https://handbook.musescore.org/llms.txt) as the

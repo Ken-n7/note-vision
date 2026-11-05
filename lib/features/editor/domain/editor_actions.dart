@@ -294,20 +294,22 @@ extension EditorActions on EditorState {
   }
 
   /// A tuplet member keeps its tuplet when its value changes.
-  bool canSetSelectedDuration(DurationSpec spec) =>
-      _canReplaceSelectedSymbolWith(switch (selectedEditableSymbol) {
-        final Note n => n.copyWith(
-          type: spec.type,
-          duration: spec.divisions,
-          dots: 0,
-        ),
-        final Rest r => r.copyWith(
-          type: spec.type,
-          duration: spec.divisions,
-          dots: 0,
-        ),
-        _ => null,
-      });
+  bool canSetSelectedDuration(
+    DurationSpec spec, {
+    bool allowOverfull = false,
+  }) => _canReplaceSelectedSymbolWith(switch (selectedEditableSymbol) {
+    final Note n => n.copyWith(
+      type: spec.type,
+      duration: spec.divisions,
+      dots: 0,
+    ),
+    final Rest r => r.copyWith(
+      type: spec.type,
+      duration: spec.divisions,
+      dots: 0,
+    ),
+    _ => null,
+  }, allowOverfull: allowOverfull);
 
   bool get canToggleSelectedDot {
     final symbol = selectedEditableSymbol;
@@ -326,11 +328,14 @@ extension EditorActions on EditorState {
         });
   }
 
-  EditorState setSelectedDuration(DurationSpec durationSpec) {
+  EditorState setSelectedDuration(
+    DurationSpec durationSpec, {
+    bool allowOverfull = false,
+  }) {
     if (!hasSelection) return this;
 
     final symbol = selectedSymbol;
-    if (!canSetSelectedDuration(durationSpec)) {
+    if (!canSetSelectedDuration(durationSpec, allowOverfull: allowOverfull)) {
       return this;
     }
     if (symbol is Note) {
@@ -2985,7 +2990,10 @@ extension EditorActions on EditorState {
 
   /// Whether the selected bar still fits with [candidate] in place of the
   /// selection (timed exactly, tuplets included).
-  bool _canReplaceSelectedSymbolWith(ScoreSymbol? candidate) {
+  bool _canReplaceSelectedSymbolWith(
+    ScoreSymbol? candidate, {
+    bool allowOverfull = false,
+  }) {
     if (!hasEditableSelection || candidate == null) return false;
     try {
       final timeline = const ScoreTimelineBuilder().measure(
@@ -3006,7 +3014,8 @@ extension EditorActions on EditorState {
           measureIndex: selectedMeasureIndex!,
         ),
       );
-      return capacity.isZero ||
+      return allowOverfull ||
+          capacity.isZero ||
           timeline.laneDuration(selected.lane).compareTo(capacity) <= 0;
     } on ScoreTimelineException {
       return false;

@@ -44,7 +44,11 @@ class NotationReviewPlan {
       : null;
 
   /// Match the same surrounding music even when a bar split changes indices.
-  (int, int) passageBounds(int partIndex, {required bool proposed}) {
+  (int, int) passageBounds(
+    int partIndex, {
+    required bool proposed,
+    bool surrounding = true,
+  }) {
     final score = proposed ? preview : base;
     final measures = score.parts[partIndex].measures;
     final indices = <int>[];
@@ -58,8 +62,8 @@ class NotationReviewPlan {
     final first = indices.reduce((a, b) => a < b ? a : b);
     final last = indices.reduce((a, b) => a > b ? a : b);
     return (
-      (first - 1).clamp(0, first),
-      (last + 1).clamp(last, measures.length - 1),
+      surrounding ? (first - 1).clamp(0, first) : first,
+      surrounding ? (last + 1).clamp(last, measures.length - 1) : last,
     );
   }
 
@@ -210,20 +214,132 @@ class NotationReviewService {
     ]);
   }
 
-  static List<NotationIssue> issues(Score score) => NotationChecker.check(score)
-      .where(
-        (issue) => !score.reviewHistory.any(
-          (entry) =>
-              entry.disposition == ReviewDisposition.kept &&
-              entry.issueKey == key(score, issue) &&
-              entry.fingerprint == fingerprint(score, issue),
-        ),
-      )
-      .toList();
+  static NotationIssue setupIssue(int part, int measure) => NotationIssue(
+    kind: NotationIssueKind.scanContext,
+    partIndex: part,
+    measureIndex: measure,
+    message:
+        'Compare the clef, sharps/flats, time signature and barlines with the photo. '
+        'Also check for missing notes and stacked notes that should sound together.',
+  );
+
+  static bool _matches(Score score, NotationIssue issue, ScoreReviewEntry e) =>
+      e.issueKey == key(score, issue) &&
+      e.fingerprint == fingerprint(score, issue);
+
+  static bool isDeferred(Score score, NotationIssue issue) =>
+      score.reviewHistory.any(
+        (e) =>
+            e.disposition == ReviewDisposition.deferred &&
+            _matches(score, issue, e),
+      );
+
+  static bool setupChecked(Score score, int part, int measure) =>
+      !score.isScannedMusic ||
+      score.reviewHistory.any(
+        (e) =>
+            e.disposition == ReviewDisposition.kept &&
+            _matches(score, setupIssue(part, measure), e),
+      );
+
+  static List<NotationIssue> issues(Score score) {
+    final result =
+        [
+              if (score.isScannedMusic)
+                for (final (p, part) in score.parts.indexed)
+                  if (!part.linked)
+                    for (final (m, measure) in part.measures.indexed)
+                      if (measure.symbols.any((s) => s is Note || s is Rest))
+                        setupIssue(p, m),
+              ...NotationChecker.check(score),
+            ]
+            .where(
+              (issue) => !score.reviewHistory.any(
+                (e) =>
+                    e.disposition == ReviewDisposition.kept &&
+                    _matches(score, issue, e),
+              ),
+            )
+            .toList();
+    result.sort((a, b) {
+      final later = (isDeferred(score, a) ? 1 : 0).compareTo(
+        isDeferred(score, b) ? 1 : 0,
+      );
+      if (later != 0) return later;
+      final part = a.partIndex.compareTo(b.partIndex);
+      if (part != 0) return part;
+      final bar = a.measureIndex.compareTo(b.measureIndex);
+      if (bar != 0) return bar;
+      final priority = a.kind.index.compareTo(b.kind.index);
+      return priority != 0
+          ? priority
+          : (a.symbolIndex ?? -1).compareTo(b.symbolIndex ?? -1);
+    });
+    return result;
+  }
+
+  /// Deferral leaves every question unresolved, and travels with save/export.
+  static Score deferBar(Score score, NotationIssue issue) {
+    var next = score;
+    for (final i in issues(score).where(
+      (i) =>
+          i.partIndex == issue.partIndex &&
+          i.measureIndex == issue.measureIndex,
+    )) {
+      if (isDeferred(next, i)) continue;
+      next = _decision(next, i, ReviewDisposition.deferred);
+    }
+    return next;
+  }
+
+  static Score resumeBar(Score score, NotationIssue issue) {
+    final keys = issues(score)
+        .where(
+          (i) =>
+              i.partIndex == issue.partIndex &&
+              i.measureIndex == issue.measureIndex,
+        )
+        .map((i) => key(score, i))
+        .toSet();
+    return score.copyWith(
+      reviewHistory: score.reviewHistory
+          .where(
+            (e) =>
+                e.disposition != ReviewDisposition.deferred ||
+                !keys.contains(e.issueKey),
+          )
+          .toList(),
+    );
+  }
+
+  static Score _decision(
+    Score score,
+    NotationIssue issue,
+    ReviewDisposition disposition,
+  ) => score.copyWith(
+    reviewHistory: [
+      ...score.reviewHistory.where(
+        (e) =>
+            e.disposition != ReviewDisposition.deferred ||
+            e.issueKey != key(score, issue),
+      ),
+      ScoreReviewEntry(
+        id: newId(),
+        issueKey: key(score, issue),
+        fingerprint: fingerprint(score, issue),
+        message: issue.message,
+        location: location(score, issue),
+        disposition: disposition,
+        createdAt: DateTime.now(),
+      ),
+    ],
+  );
 
   static String location(Score score, NotationIssue issue) =>
-      'Measure ${score.parts[issue.partIndex].measures[issue.measureIndex].number}'
-      ' · ${score.parts[issue.partIndex].name}';
+      score.isScannedMusic
+      ? 'Row ${issue.partIndex + 1} · Bar ${score.parts[issue.partIndex].measures[issue.measureIndex].number}'
+      : 'Measure ${score.parts[issue.partIndex].measures[issue.measureIndex].number}'
+            ' · ${score.parts[issue.partIndex].name}';
 
   static Score keep(Score score, NotationIssue issue) {
     final issueKey = key(score, issue), context = fingerprint(score, issue);
@@ -235,20 +351,7 @@ class NotationReviewService {
     )) {
       return score;
     }
-    return score.copyWith(
-      reviewHistory: [
-        ...score.reviewHistory,
-        ScoreReviewEntry(
-          id: newId(),
-          issueKey: issueKey,
-          fingerprint: context,
-          message: issue.message,
-          location: location(score, issue),
-          disposition: ReviewDisposition.kept,
-          createdAt: DateTime.now(),
-        ),
-      ],
-    );
+    return _decision(score, issue, ReviewDisposition.kept);
   }
 
   static NotationReviewPlan prepare(Score score, Set<String> selectedKeys) {
@@ -270,6 +373,10 @@ class NotationReviewService {
         skipped++;
         continue;
       }
+      if (!setupChecked(preview, current.partIndex, current.measureIndex)) {
+        skipped++;
+        continue;
+      }
       final fixed = current.fix!(preview);
       if (identical(fixed, preview)) {
         skipped++;
@@ -281,52 +388,20 @@ class NotationReviewService {
         skipped++;
         continue;
       }
-      entries.add(
-        ScoreReviewEntry(
-          id: newId(),
-          issueKey: targetKey,
-          fingerprint: fingerprint(preview, current),
-          message: current.message,
-          location: location(preview, current),
-          disposition: ReviewDisposition.applied,
-          createdAt: DateTime.now(),
-          change: current.fixLabel,
-          beforeMeasures: {
-            for (final c in changes)
-              if (c.before?.reviewId != null)
-                c.before!.reviewId!: c.before!.toJson(),
-          },
-          beforePartOrder: {
-            for (var p = 0; p < preview.parts.length; p++)
-              if (jsonEncode(
-                    preview.parts[p].measures.map((m) => m.reviewId).toList(),
-                  ) !=
-                  jsonEncode(
-                    next.parts[p].measures.map((m) => m.reviewId).toList(),
-                  ))
-                preview.parts[p].id: preview.parts[p].measures
-                    .map((m) => m.reviewId!)
-                    .toList(),
-          },
-          afterPartOrder: {
-            for (var p = 0; p < next.parts.length; p++)
-              if (jsonEncode(
-                    preview.parts[p].measures.map((m) => m.reviewId).toList(),
-                  ) !=
-                  jsonEncode(
-                    next.parts[p].measures.map((m) => m.reviewId).toList(),
-                  ))
-                next.parts[p].id: next.parts[p].measures
-                    .map((m) => m.reviewId!)
-                    .toList(),
-          },
-          afterMeasures: {
-            for (final c in changes)
-              if (c.after?.reviewId != null)
-                c.after!.reviewId!: c.after!.toJson(),
-          },
-        ),
-      );
+      if (score.isScannedMusic &&
+          changes.any(
+            (c) =>
+                c.before != null &&
+                !setupChecked(
+                  preview,
+                  c.partIndex,
+                  preview.parts[c.partIndex].measures.indexOf(c.before!),
+                ),
+          )) {
+        skipped++;
+        continue;
+      }
+      entries.add(_changeEntry(preview, next, current, current.fixLabel));
       preview = next;
     }
     return NotationReviewPlan(
@@ -335,6 +410,76 @@ class NotationReviewService {
       entries: entries,
       changes: diff(score, preview),
       skipped: skipped,
+    );
+  }
+
+  static ScoreReviewEntry _changeEntry(
+    Score preview,
+    Score next,
+    NotationIssue current,
+    String? label,
+  ) {
+    final changes = diff(preview, next);
+    return ScoreReviewEntry(
+      id: newId(),
+      issueKey: key(preview, current),
+      fingerprint: fingerprint(preview, current),
+      message: current.message,
+      location: location(preview, current),
+      disposition: ReviewDisposition.applied,
+      createdAt: DateTime.now(),
+      change: label,
+      beforeMeasures: {
+        for (final c in changes)
+          if (c.before?.reviewId != null)
+            c.before!.reviewId!: c.before!.toJson(),
+      },
+      beforePartOrder: {
+        for (var p = 0; p < preview.parts.length; p++)
+          if (jsonEncode(
+                preview.parts[p].measures.map((m) => m.reviewId).toList(),
+              ) !=
+              jsonEncode(
+                next.parts[p].measures.map((m) => m.reviewId).toList(),
+              ))
+            preview.parts[p].id: preview.parts[p].measures
+                .map((m) => m.reviewId!)
+                .toList(),
+      },
+      afterPartOrder: {
+        for (var p = 0; p < next.parts.length; p++)
+          if (jsonEncode(
+                preview.parts[p].measures.map((m) => m.reviewId).toList(),
+              ) !=
+              jsonEncode(
+                next.parts[p].measures.map((m) => m.reviewId).toList(),
+              ))
+            next.parts[p].id: next.parts[p].measures
+                .map((m) => m.reviewId!)
+                .toList(),
+      },
+      afterMeasures: {
+        for (final c in changes)
+          if (c.after?.reviewId != null) c.after!.reviewId!: c.after!.toJson(),
+      },
+    );
+  }
+
+  /// A direct user correction uses the same preview, history and restore path.
+  static NotationReviewPlan correction(
+    Score score,
+    Score changed,
+    NotationIssue issue,
+    String label,
+  ) {
+    final next = ensureIdentity(changed);
+    final changes = diff(score, next);
+    return NotationReviewPlan(
+      base: score,
+      preview: next,
+      entries: changes.isEmpty ? [] : [_changeEntry(score, next, issue, label)],
+      changes: changes,
+      skipped: 0,
     );
   }
 
@@ -381,7 +526,7 @@ class NotationReviewService {
   /// Restore only an unchanged patch. Structural restores also check measure
   /// ordering, so subsequent insertions or edits are never overwritten.
   static bool canRestore(Score score, ScoreReviewEntry entry) {
-    if (entry.disposition == ReviewDisposition.kept) return true;
+    if (entry.disposition != ReviewDisposition.applied) return true;
     if (entry.beforeMeasures.isEmpty) return false;
     final structural =
         entry.beforeMeasures.keys
@@ -417,7 +562,7 @@ class NotationReviewService {
   static Score? restore(Score score, ScoreReviewEntry entry) {
     if (!canRestore(score, entry)) return null;
     final history = score.reviewHistory.where((e) => e.id != entry.id).toList();
-    if (entry.disposition == ReviewDisposition.kept) {
+    if (entry.disposition != ReviewDisposition.applied) {
       return score.copyWith(reviewHistory: history);
     }
     return score.copyWith(
@@ -492,6 +637,7 @@ class NotationReviewService {
   }
 
   static String title(NotationIssueKind kind) => switch (kind) {
+    NotationIssueKind.scanContext => 'Check this bar against the photo',
     NotationIssueKind.lowConfidence => 'Check this symbol',
     NotationIssueKind.missingComponent => 'Check the notation',
     NotationIssueKind.misplacedAccidental => 'Check this accidental',

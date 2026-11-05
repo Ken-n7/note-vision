@@ -178,7 +178,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   bool _reviewListening = false;
   bool _reviewStarting = false;
   int _reviewListenRequest = 0;
-  double _reviewPanelFraction = .62;
+  double _reviewPanelFraction = .88;
   String? _focusedIssueKey;
   NotationReviewPlan? _reviewPlan;
   final GlobalKey<_NotationAreaState> _notationAreaKey = GlobalKey();
@@ -807,6 +807,85 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       ),
     );
     _advanceReview(preferredIndex: index);
+  }
+
+  void _deferReviewBar(NotationIssue issue) {
+    if (!_canApplyIssueFix) return;
+    _updateState(
+      (s) => s.applyEdit(
+        score: NotationReviewService.deferBar(s.score, issue),
+        clearSelection: true,
+      ),
+    );
+    final next = _notationIssues
+        .where((i) => !NotationReviewService.isDeferred(_editorState.score, i))
+        .firstOrNull;
+    if (next != null) _showIssue(next);
+  }
+
+  void _resumeReviewBar(NotationIssue issue) {
+    if (!_canApplyIssueFix) return;
+    _updateState(
+      (s) => s.applyEdit(
+        score: NotationReviewService.resumeBar(s.score, issue),
+        clearSelection: true,
+      ),
+    );
+    final next = _notationIssues
+        .where(
+          (i) =>
+              i.partIndex == issue.partIndex &&
+              i.measureIndex == issue.measureIndex,
+        )
+        .firstOrNull;
+    if (next != null) _showIssue(next);
+  }
+
+  void _correctReviewBar(Score base, Score corrected, String label) {
+    if (!_canApplyIssueFix || !identical(base, _editorState.score)) return;
+    final issue = _focusedIssue;
+    if (issue == null) return;
+    final plan = NotationReviewService.correction(
+      base,
+      corrected,
+      issue,
+      label,
+    );
+    final next = plan.applyTo(base);
+    if (next == null) return;
+    _updateState((s) => s.applyEdit(score: next));
+    final current = _notationIssues
+        .where(
+          (i) =>
+              i.partIndex == issue.partIndex &&
+              i.measureIndex == issue.measureIndex,
+        )
+        .firstOrNull;
+    if (current != null) {
+      _showIssue(current);
+    } else {
+      _advanceReview();
+    }
+    final edited = _editorState.score;
+    _showEditorBanner(
+      _EditorBannerData(
+        message: label,
+        duration: const Duration(seconds: 5),
+        backgroundColor: AppColors.surfaceAlt,
+        actionLabel: 'Undo',
+        onAction: () {
+          if (identical(_editorState.score, edited) && _canApplyIssueFix) {
+            _updateState((s) => s.applyUndo());
+            _advanceReview();
+          }
+        },
+      ),
+    );
+  }
+
+  Future<void> _saveAndCloseReview() async {
+    _stopNotationCheck();
+    if (!_isReviewMode && _editorState.hasUnsavedChanges) await _onSave();
   }
 
   void _restoreReview(ScoreReviewEntry entry) {
@@ -3195,11 +3274,14 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                         onFocus: _showIssue,
                         onApply: _applyReviewPlan,
                         onKeep: _keepIssue,
+                        onDefer: _deferReviewBar,
+                        onResume: _resumeReviewBar,
+                        onCorrect: _correctReviewBar,
                         onPlanChanged: (plan) =>
                             setState(() => _reviewPlan = plan),
                         onPreviewChanged: (preview) =>
                             setState(() => _reviewPreview = preview),
-                        onClose: _stopNotationCheck,
+                        onClose: () => unawaited(_saveAndCloseReview()),
                         onEditManually: _editReviewManually,
                         onListen: (score, part, first, last) =>
                             unawaited(_listenReview(score, part, first, last)),
@@ -3215,7 +3297,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 checkBar:
                     _notationCheckOn && !_reviewOpen && !_showScanReference
                     ? NotationCheckBar(
-                        issueCount: _notationIssues.length,
+                        issueCount: _notationIssues
+                            .map((i) => (i.partIndex, i.measureIndex))
+                            .toSet()
+                            .length,
                         appliedCount: _editorState.score.reviewHistory
                             .where(
                               (e) => e.disposition == ReviewDisposition.applied,
@@ -3227,7 +3312,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                             )
                             .length,
                         onReview: _startNotationCheck,
-                        onClose: _stopNotationCheck,
+                        onClose: () => unawaited(_saveAndCloseReview()),
                       )
                     : null,
                 navigation: _WorkspaceNavigation(
@@ -3462,7 +3547,7 @@ class _EditorWorkspace extends StatelessWidget {
     required this.banner,
     this.checkBar,
     this.reviewPanel,
-    this.reviewPanelFraction = .62,
+    this.reviewPanelFraction = .88,
     this.onReviewResize,
     this.hasScanReference = false,
     required this.header,
@@ -3538,10 +3623,10 @@ class _EditorWorkspace extends StatelessWidget {
                                 Semantics(
                                   label: 'Resize review panel',
                                   onIncrease: () => onReviewResize?.call(
-                                    (reviewPanelFraction + .1).clamp(.35, .8),
+                                    (reviewPanelFraction + .1).clamp(.35, .9),
                                   ),
                                   onDecrease: () => onReviewResize?.call(
-                                    (reviewPanelFraction - .1).clamp(.35, .8),
+                                    (reviewPanelFraction - .1).clamp(.35, .9),
                                   ),
                                   child: GestureDetector(
                                     behavior: HitTestBehavior.opaque,
@@ -3550,7 +3635,7 @@ class _EditorWorkspace extends StatelessWidget {
                                           (reviewPanelFraction -
                                                   details.delta.dy /
                                                       area.maxHeight)
-                                              .clamp(.35, .8),
+                                              .clamp(.35, .9),
                                         ),
                                     child: SizedBox(
                                       height: 20,

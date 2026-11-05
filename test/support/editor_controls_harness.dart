@@ -30,7 +30,7 @@ class ControlsPlayback implements PlaybackService {
   PlaybackStatus _status = PlaybackStatus.stopped;
   int _tempo = 120;
   PlaybackPosition _position = PlaybackPosition.none;
-  int? soughtMeasure, soughtPart;
+  int? soughtMeasure, soughtPart, soughtThroughMeasure;
   @override
   Stream<PlaybackState> get stateStream => _states.stream;
   @override
@@ -62,6 +62,7 @@ class ControlsPlayback implements PlaybackService {
   }) async {
     soughtMeasure = fromMeasureIndex;
     soughtPart = fromPartIndex;
+    soughtThroughMeasure = throughMeasureIndex;
     emit(PlaybackStatus.playing);
   }
 

@@ -14,6 +14,8 @@ import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/models/project.dart';
+import '../../../support/editor_controls_harness.dart' show ControlsStorage;
 import 'package:note_vision/core/models/score_review.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/services/playback_service.dart';
@@ -192,14 +194,20 @@ Future<_ReviewPlayback> _pump(
           args: EditorShellArgs(
             score: score,
             initialState: EditorState(score: score),
+            existingProject: Project.create(name: 'Review demo', score: score),
           ),
           playbackService: playback,
+          projectStorageService: ControlsStorage(),
         ),
       ),
     ),
   );
   await tester.pumpAndSettle();
   await tester.tap(find.byTooltip('Review & Correct'));
+  await tester.pump();
+  await tester.runAsync(
+    () async => Future<void>.delayed(const Duration(milliseconds: 80)),
+  );
   await tester.pumpAndSettle();
   return playback;
 }
@@ -264,15 +272,9 @@ void main() {
       expect(preview.score!.parts.first.measures[1].symbols, hasLength(4));
       await _capture(tester, '$name-preview');
       await _tap(tester, find.text('Apply change'));
-      expect(
-        find.text('1 remaining · 1 applied · 0 kept original'),
-        findsOneWidget,
-      );
+      expect(find.text('1 bar to check · 0 for later'), findsOneWidget);
       await _tap(tester, find.byTooltip('Undo'));
-      expect(
-        find.text('2 remaining · 0 applied · 0 kept original'),
-        findsOneWidget,
-      );
+      expect(find.text('2 bars to check · 0 for later'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }
@@ -282,19 +284,14 @@ void main() {
     (tester) async {
       await _pump(tester);
       await _tap(tester, find.text('Keep original'));
-      expect(
-        find.text('1 remaining · 0 applied · 1 kept original'),
-        findsOneWidget,
-      );
-      await _tap(tester, find.text('Done'));
+      expect(find.text('1 bar to check · 0 for later'), findsOneWidget);
+      await _tap(tester, find.text('Save & close'));
       expect(find.byType(NotationReviewPanel), findsNothing);
       await _tap(tester, find.byTooltip('Review & Correct'));
+      await _tap(tester, find.byTooltip('More review options'));
       await _tap(tester, find.text('History'));
       await _tap(tester, find.text('Review again'));
-      expect(
-        find.text('2 remaining · 0 applied · 0 kept original'),
-        findsOneWidget,
-      );
+      expect(find.text('2 bars to check · 0 for later'), findsOneWidget);
     },
   );
 
@@ -302,6 +299,7 @@ void main() {
     'batch previews selected changes and applies them in one undo step',
     (tester) async {
       await _pump(tester, size: const Size(1024, 768));
+      await _tap(tester, find.byTooltip('More review options'));
       await _tap(tester, find.text('Batch'));
       final checkboxes = find.byType(CheckboxListTile);
       await _tap(tester, checkboxes.at(0));
@@ -310,15 +308,9 @@ void main() {
       expect(find.text('Changes 2 measures across 1 staff.'), findsOneWidget);
       await _capture(tester, 'batch-preview');
       await _tap(tester, find.text('Apply selected (2)'));
-      expect(
-        find.text('0 remaining · 2 applied · 0 kept original'),
-        findsOneWidget,
-      );
+      expect(find.text('0 bars to check · 0 for later'), findsOneWidget);
       await _tap(tester, find.byTooltip('Undo'));
-      expect(
-        find.text('2 remaining · 0 applied · 0 kept original'),
-        findsOneWidget,
-      );
+      expect(find.text('2 bars to check · 0 for later'), findsOneWidget);
     },
   );
 
@@ -326,8 +318,8 @@ void main() {
     'original scan is available during review and playback uses the proposed passage',
     (tester) async {
       final playback = await _pump(tester, withScan: true);
-      await tester.ensureVisible(find.text('Compare original scan'));
-      await tester.tap(find.text('Compare original scan'));
+      await _tap(tester, find.byTooltip('Next bar to review'));
+      await _tap(tester, find.text('Setup matches photo'));
       await tester.pump();
       await tester.runAsync(() async {
         await Future<void>.delayed(const Duration(milliseconds: 80));
@@ -342,8 +334,8 @@ void main() {
         playback.playedScore!.parts.first.measures[1].symbols,
         hasLength(4),
       );
-      expect(playback.first, 0);
-      expect(playback.last, 2);
+      expect(playback.first, 1);
+      expect(playback.last, 1);
       expect(playback.part, 0);
       final apply = tester.widget<FilledButton>(
         find.widgetWithText(FilledButton, 'Apply change'),

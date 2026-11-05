@@ -41,14 +41,13 @@ void main() {
     bool Function(String label) test,
   ) => offered.where((o) => test(o.issue.fixLabel!));
 
-  test('the fixtures cover every kind of fix the scans needed', () {
+  test('real scans offer symbol fixes without inventing meter', () {
     expect(scans, hasLength(6));
-    for (final prefix in [
-      'Split into',
-      'Remove accidental',
-      'Set ',
-      'Draw with a flag',
-    ]) {
+    expect(
+      offered.where((o) => o.issue.kind == NotationIssueKind.timeSignature),
+      isEmpty,
+    );
+    for (final prefix in ['Remove accidental', 'Draw with a flag']) {
       expect(labelled((l) => l.startsWith(prefix)), isNotEmpty, reason: prefix);
     }
   });

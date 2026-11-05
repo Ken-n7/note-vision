@@ -10,6 +10,7 @@ import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/score_review.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/services/notation_review_service.dart';
+import 'package:note_vision/core/services/notation_checker.dart';
 import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
 import 'package:note_vision/features/editor/model/editor_state_history.dart';
@@ -53,6 +54,127 @@ Score reviewScore([List<int> beats = const [4, 5, 4, 4, 5, 4, 4]]) =>
     );
 
 void main() {
+  Score scan([List<int> beats = const [4, 5, 4]]) =>
+      reviewScore(beats).copyWith(
+        sourcePages: const [ScoreSourcePage(id: 'photo', imageBase64: '')],
+      );
+  NotationIssue rhythm(Score score, int bar) =>
+      NotationReviewService.issues(score).firstWhere(
+        (i) => i.kind == NotationIssueKind.beatTotal && i.measureIndex == bar,
+      );
+  Score confirm(Score s, int bar) =>
+      NotationReviewService.keep(s, NotationReviewService.setupIssue(0, bar));
+
+  test(
+    'scans ask for photo comparison even without low-confidence findings',
+    () {
+      final s = scan([4, 4]);
+      final questions = NotationReviewService.issues(s);
+      expect(
+        questions.map((i) => i.kind),
+        everyElement(NotationIssueKind.scanContext),
+      );
+      expect(questions, hasLength(2));
+      expect(s.parts.first.measures.first.symbols, hasLength(4));
+    },
+  );
+
+  test(
+    'scan rhythm fix waits for context confirmation and reopens after editing',
+    () {
+      var s = scan();
+      var issue = rhythm(s, 1);
+      expect(
+        NotationReviewService.prepare(s, {
+          NotationReviewService.key(s, issue),
+        }).hasChanges,
+        isFalse,
+      );
+      s = confirm(s, 1);
+      issue = rhythm(s, 1);
+      final plan = NotationReviewService.prepare(s, {
+        NotationReviewService.key(s, issue),
+      });
+      expect(plan.hasChanges, isTrue);
+      final applied = plan.applyTo(s)!;
+      expect(NotationReviewService.setupChecked(applied, 0, 1), isFalse);
+      expect(
+        NotationReviewService.restore(
+          applied,
+          applied.reviewHistory.last,
+        )!.parts.first.toJson(),
+        s.parts.first.toJson(),
+      );
+    },
+  );
+
+  test('moving notes also requires checking the neighboring bar', () {
+    var s = confirm(scan([4, 2, 6, 4]), 1);
+    var issue = rhythm(s, 1);
+    expect(
+      NotationReviewService.prepare(s, {
+        NotationReviewService.key(s, issue),
+      }).hasChanges,
+      isFalse,
+    );
+    s = confirm(s, 2);
+    issue = rhythm(s, 1);
+    expect(
+      NotationReviewService.prepare(s, {
+        NotationReviewService.key(s, issue),
+      }).hasChanges,
+      isTrue,
+    );
+  });
+
+  test(
+    'review later survives serialization without resolving or changing music',
+    () {
+      final original = scan();
+      final questions = NotationReviewService.issues(original);
+      final next = NotationReviewService.deferBar(original, questions.first);
+      expect(next.parts.first.toJson(), original.parts.first.toJson());
+      final loaded = Score.fromJson(
+        jsonDecode(jsonEncode(next.toJson())) as Map<String, dynamic>,
+      );
+      final unresolved = NotationReviewService.issues(loaded);
+      expect(unresolved, hasLength(questions.length));
+      expect(unresolved.first.measureIndex, 1);
+      final later = unresolved
+          .where((i) => NotationReviewService.isDeferred(loaded, i))
+          .toList();
+      expect(later, isNotEmpty);
+      expect(
+        loaded.reviewHistory.every(
+          (e) => e.disposition == ReviewDisposition.deferred,
+        ),
+        isTrue,
+      );
+      final resumed = NotationReviewService.resumeBar(loaded, later.first);
+      expect(NotationReviewService.issues(resumed).first.measureIndex, 0);
+      expect(resumed.reviewHistory, isEmpty);
+    },
+  );
+
+  test('a musical edit invalidates a saved-for-later decision', () {
+    final s = scan();
+    final later = NotationReviewService.deferBar(
+      s,
+      NotationReviewService.issues(s).first,
+    );
+    final changed = EditorState(score: later)
+        .selectSymbolAt(partIndex: 0, measureIndex: 0, symbolIndex: 0)
+        .moveSelectedPitch(1)
+        .score;
+    expect(
+      NotationReviewService.isDeferred(
+        changed,
+        NotationReviewService.setupIssue(0, 0),
+      ),
+      isFalse,
+    );
+  });
+
   test('preview is non-mutating and cannot apply to a different revision', () {
     final score = reviewScore();
     final before = jsonEncode(score.toJson());

@@ -13,11 +13,13 @@ class ScanComparisonView extends StatefulWidget {
     required this.region,
     this.highlight,
     this.semanticsLabel,
+    this.height = 170,
   });
   final ScoreSourcePage page;
   final SourceRegion region;
   final SourceRegion? highlight;
   final String? semanticsLabel;
+  final double height;
 
   @override
   State<ScanComparisonView> createState() => _ScanComparisonViewState();
@@ -88,7 +90,7 @@ class _ScanComparisonViewState extends State<ScanComparisonView> {
         borderRadius: BorderRadius.circular(12),
         child: Container(
           color: Colors.white,
-          height: 170,
+          height: widget.height,
           child: _failed
               ? const Center(
                   child: Text(

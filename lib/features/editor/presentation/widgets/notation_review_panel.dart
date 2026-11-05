@@ -11,6 +11,7 @@ import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 import 'notation_check_sheet.dart' show notationIssueColor;
 import 'scan_comparison_view.dart';
+import 'review_bar_editor.dart';
 
 enum _ReviewTab { focused, overview, batch, history }
 
@@ -23,6 +24,9 @@ class NotationReviewPanel extends StatefulWidget {
     required this.onFocus,
     required this.onApply,
     required this.onKeep,
+    required this.onDefer,
+    required this.onResume,
+    required this.onCorrect,
     required this.onPlanChanged,
     required this.onPreviewChanged,
     required this.onClose,
@@ -38,7 +42,8 @@ class NotationReviewPanel extends StatefulWidget {
   final Score score;
   final List<NotationIssue> issues;
   final String? focusedKey;
-  final ValueChanged<NotationIssue> onFocus, onKeep;
+  final ValueChanged<NotationIssue> onFocus, onKeep, onDefer, onResume;
+  final void Function(Score base, Score corrected, String label) onCorrect;
   final ValueChanged<NotationReviewPlan?> onPlanChanged;
   final ValueChanged<bool> onPreviewChanged;
   final ValueChanged<NotationReviewPlan> onApply;
@@ -55,7 +60,9 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
   _ReviewTab _tab = _ReviewTab.focused;
   final Set<String> _selected = {};
   NotationReviewPlan? _plan;
-  bool _compareScan = false;
+  bool _compareScan = true;
+  bool _fullScan = false, _showLater = false;
+  int? _selectedSymbol;
   int _comparisonIndex = 0;
   final ScrollController _scroll = ScrollController();
   final GlobalKey _scanKey = GlobalKey();
@@ -67,8 +74,25 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
       _plan = null;
       _selected.clear();
     }
-    if (oldWidget.focusedKey != widget.focusedKey && _scroll.hasClients) {
-      _scroll.jumpTo(0);
+    final oldBar = oldWidget.issues
+        .where(
+          (i) =>
+              NotationReviewService.key(oldWidget.score, i) ==
+              oldWidget.focusedKey,
+        )
+        .firstOrNull;
+    final newBar = widget.issues
+        .where(
+          (i) =>
+              NotationReviewService.key(widget.score, i) == widget.focusedKey,
+        )
+        .firstOrNull;
+    if (oldBar?.partIndex != newBar?.partIndex ||
+        oldBar?.measureIndex != newBar?.measureIndex) {
+      _selectedSymbol = newBar?.symbolIndex;
+      _compareScan = true;
+      _fullScan = false;
+      if (_scroll.hasClients) _scroll.jumpTo(0);
     }
   }
 
@@ -78,14 +102,34 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
     super.dispose();
   }
 
+  List<NotationIssue> get _visibleIssues => widget.issues
+      .where(
+        (i) => _showLater || !NotationReviewService.isDeferred(widget.score, i),
+      )
+      .toList();
+  List<List<NotationIssue>> get _bars {
+    final groups = <(int, int), List<NotationIssue>>{};
+    for (final issue in _visibleIssues) {
+      groups
+          .putIfAbsent((issue.partIndex, issue.measureIndex), () => [])
+          .add(issue);
+    }
+    return groups.values.toList();
+  }
+
+  int get _laterCount => widget.issues
+      .where((i) => NotationReviewService.isDeferred(widget.score, i))
+      .map((i) => (i.partIndex, i.measureIndex))
+      .toSet()
+      .length;
   NotationIssue? get _focused =>
-      widget.issues
+      _visibleIssues
           .where(
             (i) =>
                 NotationReviewService.key(widget.score, i) == widget.focusedKey,
           )
           .firstOrNull ??
-      widget.issues.firstOrNull;
+      _visibleIssues.firstOrNull;
 
   void _prepare(Set<String> keys) {
     final plan = NotationReviewService.prepare(widget.score, keys);
@@ -117,7 +161,7 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact =
-            constraints.maxHeight < 340 ||
+            constraints.maxHeight < 520 ||
             MediaQuery.textScalerOf(context).scale(1) > 1.5;
         final chrome = <Widget>[
           Padding(
@@ -140,9 +184,35 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
                     ),
                   ),
                 ),
-                TextButton(
-                  onPressed: widget.onClose,
-                  child: const Text('Done'),
+                Flexible(
+                  child: TextButton(
+                    onPressed: widget.onClose,
+                    child: const Text('Save & close'),
+                  ),
+                ),
+
+                PopupMenuButton<_ReviewTab>(
+                  tooltip: 'More review options',
+                  onSelected: _switchTab,
+                  icon: const Icon(Icons.more_horiz),
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
+                      value: _ReviewTab.focused,
+                      child: Text('Review bars'),
+                    ),
+                    PopupMenuItem(
+                      value: _ReviewTab.overview,
+                      child: Text('All bars'),
+                    ),
+                    PopupMenuItem(
+                      value: _ReviewTab.batch,
+                      child: Text('Batch'),
+                    ),
+                    PopupMenuItem(
+                      value: _ReviewTab.history,
+                      child: Text('History'),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -152,37 +222,11 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
             child: Semantics(
               liveRegion: true,
               child: Text(
-                '${widget.issues.length} remaining · $applied applied · $kept kept original',
+                '${_bars.length} ${_bars.length == 1 ? 'bar' : 'bars'} to check · $_laterCount for later',
                 style: const TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 12,
                 ),
-              ),
-            ),
-          ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Row(
-                children: [
-                  _tabButton('Review', _ReviewTab.focused, Icons.tune_rounded),
-                  _tabButton(
-                    'All (${widget.issues.length})',
-                    _ReviewTab.overview,
-                    Icons.list_rounded,
-                  ),
-                  _tabButton(
-                    'Batch',
-                    _ReviewTab.batch,
-                    Icons.checklist_rounded,
-                  ),
-                  _tabButton(
-                    'History',
-                    _ReviewTab.history,
-                    Icons.history_rounded,
-                  ),
-                ],
               ),
             ),
           ),
@@ -241,24 +285,16 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
     );
   }
 
-  Widget _tabButton(String label, _ReviewTab tab, IconData icon) =>
-      TextButton.icon(
-        onPressed: () => _switchTab(tab),
-        style: TextButton.styleFrom(
-          foregroundColor: _tab == tab
-              ? AppColors.accent
-              : AppColors.textSecondary,
-        ),
-        icon: Icon(icon, size: 16),
-        label: Text(label),
-      );
-
   Widget _complete(int applied, int kept) => Column(
     children: [
-      const Icon(Icons.task_alt_rounded, color: AppColors.accent, size: 36),
+      Icon(
+        _laterCount > 0 ? Icons.schedule : Icons.task_alt_rounded,
+        color: AppColors.accent,
+        size: 36,
+      ),
       const SizedBox(height: 12),
       Text(
-        applied + kept == 0 ? 'No issues detected' : 'Review complete',
+        _laterCount > 0 ? 'Saved for later' : 'No more checks in this review',
         style: const TextStyle(
           color: AppColors.textPrimary,
           fontSize: 18,
@@ -267,13 +303,24 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
       ),
       const SizedBox(height: 8),
       Text(
-        '$applied changes applied · $kept kept original',
+        '$applied corrections · $kept confirmed',
         textAlign: TextAlign.center,
         style: const TextStyle(color: AppColors.textSecondary),
       ),
+      if (_laterCount > 0)
+        FilledButton.tonal(
+          onPressed: () {
+            setState(() => _showLater = true);
+            final next = widget.issues
+                .where((i) => NotationReviewService.isDeferred(widget.score, i))
+                .firstOrNull;
+            if (next != null) _focus(next);
+          },
+          child: const Text('Review saved bars'),
+        ),
       const SizedBox(height: 8),
       const Text(
-        'You can revisit decisions in History or keep editing your score.',
+        'The checker can miss wrong notes, bars and chords. Compare the music with the photo before using it.',
         textAlign: TextAlign.center,
         style: TextStyle(color: AppColors.textSecondary),
       ),
@@ -281,12 +328,19 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
   );
 
   Widget _issue(NotationIssue issue) {
-    final index = widget.issues.indexOf(issue);
+    final bars = _bars;
+    final index = bars.indexWhere(
+      (b) =>
+          b.first.partIndex == issue.partIndex &&
+          b.first.measureIndex == issue.measureIndex,
+    );
+    final currentBar = bars[index];
     final measures = widget.score.parts[issue.partIndex].measures;
     final measure = measures[issue.measureIndex];
-    final symbol = issue.symbolIndex == null
+    final selected = _selectedSymbol ?? issue.symbolIndex;
+    final symbol = selected == null
         ? null
-        : measure.symbols[issue.symbolIndex!];
+        : measure.symbols.elementAtOrNull(selected);
     final source =
         NotationReviewService.sourceOf(symbol) ??
         NotationReviewService.measureSource(measure);
@@ -299,28 +353,128 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
         Row(
           children: [
             IconButton(
-              tooltip: 'Previous suggestion',
-              onPressed: index > 0
-                  ? () => _focus(widget.issues[index - 1])
-                  : null,
+              tooltip: 'Previous bar to review',
+              onPressed: index > 0 ? () => _focus(bars[index - 1].first) : null,
               icon: const Icon(Icons.chevron_left_rounded),
             ),
             Expanded(
               child: Text(
-                '${NotationReviewService.location(widget.score, issue)}\n${index + 1} of ${widget.issues.length}',
+                '${NotationReviewService.location(widget.score, issue)}\nBar ${index + 1} of ${bars.length}',
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: AppColors.textSecondary),
               ),
             ),
             IconButton(
-              tooltip: 'Next suggestion',
-              onPressed: index + 1 < widget.issues.length
-                  ? () => _focus(widget.issues[index + 1])
+              tooltip: 'Next bar to review',
+              onPressed: index + 1 < bars.length
+                  ? () => _focus(bars[index + 1].first)
                   : null,
               icon: const Icon(Icons.chevron_right_rounded),
             ),
           ],
         ),
+        if (NotationReviewService.isDeferred(widget.score, issue))
+          TextButton.icon(
+            onPressed: widget.canEdit
+                ? () {
+                    _showLater = false;
+                    widget.onResume(issue);
+                  }
+                : null,
+            icon: const Icon(Icons.playlist_add_check),
+            label: const Text('Resume this bar'),
+          ),
+        if (page != null && source != null) ...[
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Original photo',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+              TextButton(
+                onPressed: () => setState(() => _fullScan = !_fullScan),
+                child: Text(_fullScan ? 'Bar crop' : 'Full page'),
+              ),
+              IconButton(
+                tooltip: _compareScan ? 'Hide photo' : 'Show photo',
+                onPressed: _toggleScan,
+                icon: Icon(
+                  _compareScan ? Icons.expand_less : Icons.expand_more,
+                ),
+              ),
+            ],
+          ),
+          if (_compareScan)
+            ScanComparisonView(
+              height: _fullScan ? 170 : 124,
+              key: _scanKey,
+              page: page,
+              region: _fullScan
+                  ? SourceRegion(
+                      pageId: page.id,
+                      x: 0,
+                      y: 0,
+                      width: 1,
+                      height: 1,
+                    )
+                  : () {
+                      final crop =
+                          NotationReviewService.measureSource(
+                            measure,
+                            pageId: source.pageId,
+                          ) ??
+                          source;
+                      // The first bar's clef/signatures lie left of its notes.
+                      return issue.measureIndex == 0 ||
+                              issue.kind == NotationIssueKind.scanContext
+                          ? SourceRegion(
+                              pageId: crop.pageId,
+                              x: 0,
+                              y: crop.y,
+                              width: crop.x + crop.width,
+                              height: crop.height,
+                            )
+                          : crop;
+                    }(),
+              highlight:
+                  NotationReviewService.sourceOf(symbol) ??
+                  NotationReviewService.measureSource(measure),
+            ),
+        ] else
+          const Text('No photo is attached. Compare with your original sheet.'),
+        const SizedBox(height: 10),
+        if (_plan == null)
+          ReviewBarEditor(
+            score: widget.score,
+            part: issue.partIndex,
+            measure: issue.measureIndex,
+            selectedSymbol: selected,
+            onSelect: (i) => setState(() => _selectedSymbol = i),
+            canEdit: widget.canEdit,
+            onCorrect: widget.onCorrect,
+            setupOpen: issue.kind == NotationIssueKind.scanContext,
+          ),
+        if (currentBar.length > 1) ...[
+          const SizedBox(height: 12),
+          Text('${currentBar.length} checks in this bar'),
+          Wrap(
+            spacing: 6,
+            children: [
+              for (final (n, check) in currentBar.indexed)
+                ChoiceChip(
+                  label: Text(
+                    check.kind == NotationIssueKind.scanContext
+                        ? 'Bar setup'
+                        : '${n + 1}. ${NotationReviewService.title(check.kind)}',
+                  ),
+                  selected: identical(issue, check),
+                  onSelected: (_) => _focus(check),
+                ),
+            ],
+          ),
+        ],
         const SizedBox(height: 8),
         Row(
           children: [
@@ -395,43 +549,6 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
           const SizedBox(height: 12),
           _beatBreakdown(issue),
         ],
-        const SizedBox(height: 10),
-        if (page != null && source != null) ...[
-          TextButton.icon(
-            onPressed: _toggleScan,
-            icon: Icon(
-              _compareScan
-                  ? Icons.expand_less
-                  : Icons.document_scanner_outlined,
-            ),
-            label: Text(
-              _compareScan ? 'Hide original scan' : 'Compare original scan',
-            ),
-          ),
-          if (_compareScan)
-            ScanComparisonView(
-              key: _scanKey,
-              page: page,
-              region:
-                  NotationReviewService.measureSource(
-                    measure,
-                    pageId: source.pageId,
-                  ) ??
-                  source,
-              highlight: NotationReviewService.sourceOf(symbol),
-            ),
-        ] else
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              'No source scan is attached. You can still compare the current and proposed notation.',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 12,
-                height: 1.4,
-              ),
-            ),
-          ),
         if (_plan == null)
           OutlinedButton.icon(
             onPressed: widget.listening
@@ -439,14 +556,14 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
                 : () => widget.onListen(
                     widget.score,
                     issue.partIndex,
-                    (issue.measureIndex - 1).clamp(0, issue.measureIndex),
-                    issue.measureIndex + 1,
+                    issue.measureIndex,
+                    issue.measureIndex,
                   ),
             icon: Icon(
               widget.listening ? Icons.stop_rounded : Icons.play_arrow_rounded,
             ),
             label: Text(
-              widget.listening ? 'Stop listening' : 'Listen to passage',
+              widget.listening ? 'Stop listening' : 'Listen to this bar',
             ),
           ),
         if (_plan != null) ...[_previewControls(), _changeDetails(_plan!)],
@@ -510,6 +627,7 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
     });
     widget.onPlanChanged(null);
     widget.onPreviewChanged(false);
+    _selectedSymbol = issue.symbolIndex;
     widget.onFocus(issue);
   }
 
@@ -523,7 +641,11 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
             Expanded(
               child: OutlinedButton(
                 onPressed: widget.canEdit ? () => widget.onKeep(issue) : null,
-                child: const Text('Keep original'),
+                child: Text(
+                  issue.kind == NotationIssueKind.scanContext
+                      ? 'Setup matches photo'
+                      : 'Keep original',
+                ),
               ),
             ),
             const SizedBox(width: 8),
@@ -531,7 +653,13 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
               Expanded(
                 child: FilledButton(
                   onPressed:
-                      !widget.canEdit || (_plan != null && !_plan!.hasChanges)
+                      !widget.canEdit ||
+                          (_plan != null && !_plan!.hasChanges) ||
+                          (!NotationReviewService.setupChecked(
+                            widget.score,
+                            issue.partIndex,
+                            issue.measureIndex,
+                          ))
                       ? null
                       : () {
                           if (_plan == null) {
@@ -549,9 +677,33 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
               ),
           ],
         ),
-        TextButton(
-          onPressed: widget.canEdit ? widget.onEditManually : null,
-          child: const Text('Edit manually'),
+        if (issue.hasFix &&
+            !NotationReviewService.setupChecked(
+              widget.score,
+              issue.partIndex,
+              issue.measureIndex,
+            ))
+          const Text(
+            'Check this bar’s setup against the photo before trying a suggested change.',
+          ),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 8,
+          children: [
+            TextButton(
+              onPressed: widget.canEdit
+                  ? () {
+                      _showLater = false;
+                      widget.onDefer(issue);
+                    }
+                  : null,
+              child: const Text('Not sure · Review later'),
+            ),
+            TextButton(
+              onPressed: widget.canEdit ? widget.onEditManually : null,
+              child: const Text('Edit manually'),
+            ),
+          ],
         ),
         if (!widget.canEdit)
           const Text(
@@ -600,6 +752,7 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
                 final bounds = _plan!.passageBounds(
                   part,
                   proposed: widget.previewing,
+                  surrounding: false,
                 );
                 widget.onListen(
                   widget.previewing ? _plan!.preview : widget.score,
@@ -632,7 +785,7 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
         Padding(
           padding: const EdgeInsets.only(top: 6),
           child: Text(
-            '${plan.skipped} dependent suggestions were left out. Review them again after applying.',
+            '${plan.skipped} suggestions need another check. For rhythm changes, check the setup of each affected bar first.',
             style: const TextStyle(color: AppColors.accent, fontSize: 12),
           ),
         ),
@@ -758,8 +911,7 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: ScoreNotationViewer(
-                  score: Score(
-                    id: score.id,
+                  score: score.copyWith(
                     title: '',
                     composer: '',
                     parts: [score.parts[part]],
@@ -781,40 +933,33 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
     );
   }
 
-  Widget _overview() => widget.issues.isEmpty
-      ? _complete(
-          widget.score.reviewHistory
-              .where((e) => e.disposition == ReviewDisposition.applied)
-              .length,
-          widget.score.reviewHistory
-              .where((e) => e.disposition == ReviewDisposition.kept)
-              .length,
-        )
-      : Column(
-          children: [
-            for (final issue in widget.issues)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(
-                  Icons.info_outline_rounded,
-                  color: notationIssueColor(issue.kind),
-                ),
-                title: Text(
-                  NotationReviewService.title(issue.kind),
-                  style: const TextStyle(color: AppColors.textPrimary),
-                ),
-                subtitle: Text(
-                  NotationReviewService.location(widget.score, issue),
-                  style: const TextStyle(color: AppColors.textSecondary),
-                ),
-                trailing: const Icon(
-                  Icons.chevron_right_rounded,
-                  color: AppColors.textSecondary,
-                ),
-                onTap: () => _focus(issue),
-              ),
-          ],
-        );
+  Widget _overview() {
+    final groups = <(int, int), List<NotationIssue>>{};
+    for (final i in widget.issues) {
+      groups.putIfAbsent((i.partIndex, i.measureIndex), () => []).add(i);
+    }
+    if (groups.isEmpty) return _complete(0, 0);
+    return Column(
+      children: [
+        for (final bar in groups.values)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.music_note),
+            title: Text(
+              NotationReviewService.location(widget.score, bar.first),
+            ),
+            subtitle: Text(
+              '${bar.length} checks${bar.every((i) => NotationReviewService.isDeferred(widget.score, i)) ? ' · Saved for later' : ''}',
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              _showLater = true;
+              _focus(bar.first);
+            },
+          ),
+      ],
+    );
+  }
 
   Widget _batch() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -917,6 +1062,10 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
                     child: Text(
                       entry.disposition == ReviewDisposition.applied
                           ? 'Applied · ${entry.change}'
+                          : entry.disposition == ReviewDisposition.deferred
+                          ? 'Saved for later'
+                          : entry.issueKey.startsWith('scanContext:')
+                          ? 'Bar setup checked'
                           : 'Kept original',
                       style: const TextStyle(
                         color: AppColors.textPrimary,
@@ -951,7 +1100,7 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
                         }
                       : null,
                   child: Text(
-                    entry.disposition == ReviewDisposition.kept
+                    entry.disposition != ReviewDisposition.applied
                         ? 'Review again'
                         : 'Restore original',
                   ),

@@ -42,7 +42,7 @@ class ScoreSourcePage {
       );
 }
 
-enum ReviewDisposition { applied, kept }
+enum ReviewDisposition { applied, kept, deferred }
 
 /// Lives with the score, so decisions participate in save/load and undo/redo.
 class ScoreReviewEntry {

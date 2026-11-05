@@ -271,10 +271,7 @@ void main() {
       await tester.tap(find.text('Check Notation'));
       await tester.pumpAndSettle();
 
-      expect(
-        find.text('1 remaining · 0 applied · 0 kept original'),
-        findsOneWidget,
-      );
+      expect(find.text('1 bar to check · 0 for later'), findsOneWidget);
       expect(
         find.text('Bar 2 has 5 beats; a bar of 4/4 holds only 4 beats.'),
         findsOneWidget,
@@ -286,11 +283,8 @@ void main() {
       await tester.tap(find.text('Apply change'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Review complete'), findsOneWidget);
-      expect(
-        find.text('0 remaining · 1 applied · 0 kept original'),
-        findsOneWidget,
-      );
+      expect(find.text('No more checks in this review'), findsOneWidget);
+      expect(find.text('0 bars to check · 0 for later'), findsOneWidget);
       // Accepting a fix is an ordinary edit, so it can be undone.
       final undo = tester.widget<IconButton>(
         find.ancestor(

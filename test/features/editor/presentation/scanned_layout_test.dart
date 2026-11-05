@@ -419,6 +419,9 @@ void main() {
       await pumpControls(tester, score: score, existingProject: true);
       await tester.tap(find.byTooltip('Review & Correct'));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Setup matches photo'));
+      await tester.tap(find.text('Setup matches photo'));
+      await tester.pumpAndSettle();
       expect(find.text('Split into 3 bars'), findsOneWidget);
       await tester.ensureVisible(find.text('Preview change'));
       await tester.tap(find.text('Preview change'));

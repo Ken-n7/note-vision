@@ -15,6 +15,7 @@ import 'accidentals.dart';
 /// detections, missing parts of the notation, misplaced accidentals, wrong
 /// beat totals and a time signature the bars do not follow.
 enum NotationIssueKind {
+  scanContext,
   lowConfidence,
   missingComponent,
   misplacedAccidental,
@@ -116,6 +117,18 @@ class NotationChecker {
         continue;
       }
       if (part.measures.every((m) => m.symbols.isEmpty)) continue;
+      if (score.isScannedMusic) {
+        issues.add(
+          NotationIssue(
+            kind: NotationIssueKind.missingComponent,
+            partIndex: p,
+            measureIndex: 0,
+            message:
+                'No clef was read on this row. Choose the clef shown in the photo.',
+          ),
+        );
+        continue;
+      }
       final borrowed =
           [
                 for (var k = p - 1; k >= 0; k--) k,
@@ -149,6 +162,9 @@ class NotationChecker {
     Score score,
     List<NotationIssue> issues,
   ) {
+    // Scanned rows may be independent exercises. A guessed meter or a
+    // different row's meter is not evidence of what was written here.
+    if (score.isScannedMusic) return <int>{};
     final explained = <int>{};
     final first = score.parts.first;
     final measureCount = first.measures.length;
@@ -329,7 +345,9 @@ class NotationChecker {
     final measure = part.measures[m];
     final musical = _musical(measure);
     if (musical.isEmpty) return;
-    final meter = _meterAt(part, m) ?? _meterAt(score.parts.first, m);
+    final meter =
+        _meterAt(part, m) ??
+        (score.isScannedMusic ? null : _meterAt(score.parts.first, m));
     if (meter == null) return;
     final capacity = _capacity(meter);
     final total = _total(measure);

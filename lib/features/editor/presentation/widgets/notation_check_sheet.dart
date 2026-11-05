@@ -3,7 +3,9 @@ import 'package:note_vision/core/services/notation_checker.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 
 Color notationIssueColor(NotationIssueKind kind) =>
-    kind == NotationIssueKind.lowConfidence
+    kind == NotationIssueKind.scanContext
+    ? AppColors.accent
+    : kind == NotationIssueKind.lowConfidence
     ? const Color(0xFFF59E0B)
     : AppColors.error;
 
@@ -41,10 +43,10 @@ class NotationCheckBar extends StatelessWidget {
         Expanded(
           child: Text(
             issueCount > 0
-                ? '$issueCount ${issueCount == 1 ? 'place' : 'places'} to review'
+                ? '$issueCount ${issueCount == 1 ? 'bar' : 'bars'} to review'
                 : appliedCount + keptCount > 0
-                ? 'Review complete · $appliedCount applied · $keptCount kept'
-                : 'No issues detected',
+                ? 'Checks finished · $appliedCount applied · $keptCount confirmed'
+                : 'No automatic checks pending',
             style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
           ),
         ),

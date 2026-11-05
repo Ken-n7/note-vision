@@ -6,6 +6,7 @@ import 'package:note_vision/core/models/note.dart';
 import 'package:note_vision/core/models/part.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/models/score_review.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/services/notation_checker.dart';
@@ -58,6 +59,60 @@ Score score(
 List<ScoreSymbol> full() => [q('C'), q('D'), q('E'), q('F')];
 
 void main() {
+  test('scanned rows do not borrow clefs or meters from another exercise', () {
+    final first = score([full(), full()]);
+    final other = score(
+      [
+        [q('C')],
+        [q('D')],
+      ],
+      meter: null,
+      clef: false,
+    );
+    final scan = first.copyWith(
+      sourcePages: const [ScoreSourcePage(id: 'p', imageBase64: '')],
+      parts: [
+        first.parts.first,
+        other.parts.first.copyWith(id: 'p2'),
+      ],
+    );
+    final issues = NotationChecker.check(scan);
+    expect(
+      issues.where((i) => i.kind == NotationIssueKind.timeSignature),
+      isEmpty,
+    );
+    expect(
+      issues.where(
+        (i) => i.kind == NotationIssueKind.beatTotal && i.partIndex == 1,
+      ),
+      isEmpty,
+    );
+    final missing = issues.singleWhere(
+      (i) => i.kind == NotationIssueKind.missingComponent,
+    );
+    expect(missing.partIndex, 1);
+    expect(missing.hasFix, isFalse);
+  });
+
+  test('a scan keeps different written meters independent', () {
+    final first = score([
+      [q('C'), q('D')],
+      [q('E'), q('F')],
+    ], meter: const TimeSignature(beats: 2, beatType: 4));
+    final second = score([
+      [q('C'), q('D'), q('E')],
+      [q('F'), q('G'), q('A')],
+    ], meter: const TimeSignature(beats: 3, beatType: 4));
+    final scan = first.copyWith(
+      sourcePages: const [ScoreSourcePage(id: 'p', imageBase64: '')],
+      parts: [
+        first.parts.first,
+        second.parts.first.copyWith(id: 'p2'),
+      ],
+    );
+    expect(NotationChecker.check(scan), isEmpty);
+  });
+
   test('a correct score has no issues', () {
     final s = score([
       full(),

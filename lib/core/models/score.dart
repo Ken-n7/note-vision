@@ -32,6 +32,26 @@ class Score {
           ? ScorePlaybackLayout.sequentialStaves
           : ScorePlaybackLayout.simultaneousParts);
 
+  /// Evidence-backed sequential handwriting, including legacy mapped scans.
+  bool get isScannedMusic =>
+      playbackLayout == ScorePlaybackLayout.sequentialStaves &&
+      musicXmlSource == null &&
+      (id == 'mapped-score' ||
+          sourcePages.isNotEmpty ||
+          parts.any(
+            (p) => p.measures.any(
+              (m) =>
+                  m.source != null ||
+                  m.symbols.any(
+                    (s) => switch (s) {
+                      Note(:final source) ||
+                      Rest(:final source) => source != null,
+                      _ => false,
+                    },
+                  ),
+            ),
+          ));
+
   const Score({
     required this.id,
     required this.title,
