@@ -285,6 +285,22 @@ These are final unless explicitly changed:
 
 ## EditorState — How It Works
 
+**Fresh-sheet scanning QA (2026-11-05, release 2022):** three other existing
+handwritten photos were freshly scanned on the Realme through Upload and the
+full on-device pipeline; no suggested fixes accepted. All six/seven/nine
+visible staves were found, and each editor/PDF result has one page. Saved
+`NVFreshMixed2022`, `NVFreshPaired2022`, `NVFreshDense2022`; cold collection
+retains all 12 prior projects (15 total). Recognition remains inaccurate:
+initial 3/4 became 2/4 on the mixed sheet; the paired sheet's first bass bar
+has one exported note instead of five; the dense sheet's three-sharp key varies
+between rows and stacked notes lack chord grouping. Next accuracy work should
+reproduce bar assignment and meter/key errors before tuning the detector;
+scan chord/grand-staff reconstruction remains on the parity roadmap. Evidence:
+`/tmp/note-vision-fresh-scans-2022/report.json` plus original photos, scan
+screenshots and raw MusicXML/PDF exports. Phone exports:
+`Download/NoteVisionFreshScans2022/`. These are fresh runs of existing test
+photos, not an unseen-photo accuracy benchmark. No app/model changes.
+
 **Scanned row layout (2026-11-05):** sequential scan rows now have a display
 projection in reading order. NVScan2020's eight rows × three bars fit on one
 page in the editor, thumbnails and PDF instead of three ensemble columns.

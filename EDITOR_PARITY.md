@@ -181,6 +181,39 @@ This changes work order, not the full-parity objective or acceptance criteria.
   unchanged. Automatic instrument/exercise grouping and full parity remain
   on the roadmap.
 
+### Fresh scans of other sheets — 2026-11-05
+
+- Release **2022**, Realme RMX1851 / Android 11: ran three different existing
+  handwritten sheet photos through Upload, preprocessing, staff detection,
+  on-device inference and reconstruction. This is fresh phone QA, not replay
+  of the archived JSON fixtures. No checker fixes were applied.
+- `IMG_20261015_211418_667.jpg` → **NVFreshMixed2022**: six visible/detected
+  staves, 112 detected symbols, 84 exported notes / six rests, 35 checker
+  findings. One editor/PDF page. The source starts in **3/4**, but export
+  reads **2/4**; note transcription also differs visibly.
+- `IMG_20261015_211453_957.jpg` → **NVFreshPaired2022**: seven visible/detected
+  staves, 153 detected symbols, 139 exported notes, 15 checker findings.
+  One editor/PDF page. The first bass staff's first source bar has five
+  noteheads, but exported P2 bar 1 has one; later bars receive misplaced
+  notes. Source braces do not become grand-staff grouping.
+- `IMG_20261015_211721_162.jpg` → **NVFreshDense2022**: nine visible/detected
+  staves, 225 detected symbols, 172 exported notes / eight rests, 27 checker
+  findings. One editor/PDF page. The repeated three-sharp source key becomes
+  one/two/three sharps across rows. Stacked source noteheads are not preserved
+  as chords (zero MusicXML chord elements); source ties/slurs are also absent.
+- All three saved projects survived an app restart (15 total, retaining the
+  previous 12). The dense scan cold-opened on page 1/1. Original rotation/font
+  preferences restored, temporary helper removed, playback stopped. No app,
+  detector or threshold changes. No new listening confirmation or iOS test.
+  Evidence: `/tmp/note-vision-fresh-scans-2022/` (`report.json`, source photos,
+  scan/editor captures and raw MusicXML/PDF). Phone exports:
+  `Download/NoteVisionFreshScans2022/`.
+- Next: reproduce incorrect bar assignment and meter/key recognition against
+  these photos before changing heuristics or thresholds. Layout and successful
+  completion do not establish transcription accuracy; these existing test
+  photos are not an unseen-photo benchmark. Chord/grand-staff reconstruction
+  remains part of full parity.
+
 ## Reference and implementation policy
 
 Use the [MuseScore Studio handbook](https://handbook.musescore.org/llms.txt) as the
