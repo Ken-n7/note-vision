@@ -52,12 +52,30 @@ class PdfScoreRenderer {
   static const int _baseRowsPerPage = 5;
   static const double _editorFirstPageHeaderOffset = 88.0;
 
-  double get _scale => math.min(
-    PdfPageFormat.a4.height / _editorPageH,
-    PdfPageFormat.a4.width / _editorPageW,
-  );
+  double get _scale {
+    final natural = math.min(
+      PdfPageFormat.a4.height / _editorPageH,
+      PdfPageFormat.a4.width / _editorPageW,
+    );
+    // Header fonts stay at their printed size when a large ensemble shrinks.
+    // Reserve their physical height, including the top notation padding.
+    if ((_editorFirstPageHeaderOffset + _editorPadY) * natural >=
+        _minimumNotationTop) {
+      return natural;
+    }
+    return math.min(
+      natural,
+      (PdfPageFormat.a4.height - _minimumNotationTop) /
+          (_editorPageH - _editorFirstPageHeaderOffset - _editorPadY),
+    );
+  }
+
   double get _pageX0 => (PdfPageFormat.a4.width - _editorPageW * _scale) / 2;
-  double get _pageY0 => (PdfPageFormat.a4.height - _editorPageH * _scale) / 2;
+  double get _pageY0 =>
+      (PdfPageFormat.a4.height -
+          _editorPageH * _scale -
+          (_firstPageHeaderOffset - _editorFirstPageHeaderOffset * _scale)) /
+      2;
   double get _padX => _editorPadX * _scale;
   double get _padY => _editorPadY * _scale;
   double get _prefixW => _editorPrefixW * _scale;
@@ -66,12 +84,17 @@ class PdfScoreRenderer {
       _scale;
   double get _ls => _editorLineSpacing * _scale;
   double get _staffH => ScoreNotationMetrics.staffHeightFor(_ls);
-  double get _firstPageHeaderOffset => _editorFirstPageHeaderOffset * _scale;
+  double get _firstPageHeaderOffset => math.max(
+    _editorFirstPageHeaderOffset * _scale,
+    _minimumNotationTop - _editorPadY * _scale,
+  );
 
   static const double _titleFontSize = 20.0;
   static const double _composerFontSize = 10.5;
   static const double _headerTopInset = 24.0;
   static const double _headerComposerGap = 8.0;
+  static const double _minimumNotationTop =
+      _headerTopInset + 2 * _titleFontSize + _headerComposerGap + 8;
 
   static const PdfColor _ink = PdfColor.fromInt(0xFF111827);
 
@@ -158,10 +181,23 @@ class PdfScoreRenderer {
   }
 
   PdfHeaderLayoutInfo debugHeaderLayoutForTesting(Score score) {
+    final configured = PdfScoreRenderer._configured(score, compress: compress);
     return PdfHeaderLayoutInfo(
       title: _headerTitle(score),
       composer: _headerComposer(score),
-      firstPageStaffOffset: _firstPageHeaderOffset,
+      firstPageStaffOffset: configured._firstPageHeaderOffset,
+      headerTextBottom:
+          configured._pageY0 +
+          _headerTopInset +
+          _titleFontSize +
+          (_headerComposer(score).isEmpty
+              ? 0
+              : _titleFontSize + _headerComposerGap) +
+          3,
+      firstNotationTop:
+          configured._pageY0 +
+          configured._firstPageHeaderOffset +
+          _editorPadY * configured._scale,
     );
   }
 
@@ -394,6 +430,7 @@ class PdfScoreRenderer {
           numberBars: !joined,
           topStaff: pi == 0,
           tabTuning: score.parts[pi].isTab ? score.parts[pi].tabTuning : null,
+          singleLine: score.parts[pi].singleLine,
           // The staves of the same instrument above and below, for notes
           // drawn across staves.
           crossStaves: {
@@ -898,6 +935,7 @@ class PdfScoreRenderer {
     required int clefLine,
     bool numberBars = true,
     bool topStaff = true,
+    bool singleLine = false,
     Map<String, _PdfNotePoint>? notePoints,
     List<int>? tabTuning,
     Map<int, ({double top, String sign, int line})> crossStaves = const {},
@@ -920,9 +958,13 @@ class PdfScoreRenderer {
     ];
 
     // 5 staff lines, or a tablature staff's line per string in that height.
-    final lineCount = tabTuning?.length ?? ScoreNotationMetrics.staffLineCount;
+    final lineCount = singleLine
+        ? 1
+        : tabTuning?.length ?? ScoreNotationMetrics.staffLineCount;
     for (var i = 0; i < lineCount; i++) {
-      final lineY = staffTop - i * _staffH / (lineCount - 1);
+      final lineY = singleLine
+          ? staffTop - _staffH / 2
+          : staffTop - i * _staffH / (lineCount - 1);
       _line(
         g,
         rowStartX,
@@ -937,18 +979,18 @@ class PdfScoreRenderer {
     _line(
       g,
       contentStartX,
-      staffTop,
+      staffTop - (singleLine ? _ls : 0),
       contentStartX,
-      staffBottom,
+      staffBottom + (singleLine ? _ls : 0),
       ScoreNotationMetrics.barlineStrokeWidth * _scale,
     );
     // Closing barline
     _line(
       g,
       staffEndX,
-      staffTop,
+      staffTop - (singleLine ? _ls : 0),
       staffEndX,
-      staffBottom,
+      staffBottom + (singleLine ? _ls : 0),
       ScoreNotationMetrics.barlineStrokeWidth * _scale,
     );
 
@@ -1049,9 +1091,9 @@ class PdfScoreRenderer {
         _line(
           g,
           measureStartX,
-          staffTop,
+          staffTop - (singleLine ? _ls : 0),
           measureStartX,
-          staffBottom,
+          staffBottom + (singleLine ? _ls : 0),
           ScoreNotationMetrics.barlineStrokeWidth * _scale,
         );
       }
@@ -1079,6 +1121,7 @@ class PdfScoreRenderer {
           ending: endingAt(pageMeasures, rowStart + mi),
           navigation: measure.navigation,
           first: topStaff,
+          singleLine: singleLine,
         ),
         measureStartX,
         staffTop,
@@ -1114,6 +1157,7 @@ class PdfScoreRenderer {
         notePoints: notePoints,
         rowStartX: contentStartX,
         tabTuning: tabTuning,
+        singleLine: singleLine,
         crossStaves: crossStaves,
         rowEndX: staffEndX,
         textFont: font,
@@ -1140,6 +1184,7 @@ class PdfScoreRenderer {
     Map<String, _PdfNotePoint>? notePoints,
     double rowStartX = 0,
     List<int>? tabTuning,
+    bool singleLine = false,
     Map<int, ({double top, String sign, int line})> crossStaves = const {},
     double rowEndX = 0,
     PdfFont? textFont,
@@ -1253,9 +1298,10 @@ class PdfScoreRenderer {
           );
         }
         final noteTop = crossStaves[symbol.staffMove]?.top ?? staffTop;
-        for (final line in ScoreNotationMetrics.ledgerYs(
-          (noteTop - y) / _scale,
-        )) {
+        for (final line
+            in singleLine
+                ? <double>[]
+                : ScoreNotationMetrics.ledgerYs((noteTop - y) / _scale)) {
           final half =
               ScoreNotationMetrics.ledgerHalfWidth *
               _scale *
@@ -1311,6 +1357,7 @@ class PdfScoreRenderer {
             symbol,
             x: x,
             staffTop: staffTop - layout.restOffset(i) * _ls,
+            singleLine: singleLine,
           );
         }
         if (symbol.reviewId case final id? when notePoints != null) {
@@ -1749,6 +1796,7 @@ class PdfScoreRenderer {
     Rest rest, {
     required double x,
     required double staffTop,
+    bool singleLine = false,
   }) {
     // A bar rest is drawn as a whole rest in any meter.
     if (rest.measureRest) rest = rest.copyWith(type: 'whole', dots: 0);
@@ -1757,7 +1805,9 @@ class PdfScoreRenderer {
 
     if (type == 'whole') {
       // Rectangle hanging below line 4 (from top)
-      final lineY = staffTop - _ls * ScoreNotationMetrics.wholeRestLineIndex;
+      final lineY =
+          staffTop -
+          _ls * (singleLine ? 2 : ScoreNotationMetrics.wholeRestLineIndex);
       final height = ScoreNotationMetrics.restRectHeight * _scale;
       final centerY =
           lineY - ScoreNotationMetrics.wholeRestCenterYOffset * _scale;
@@ -2397,11 +2447,14 @@ class PdfHeaderLayoutInfo {
     required this.title,
     required this.composer,
     required this.firstPageStaffOffset,
+    required this.headerTextBottom,
+    required this.firstNotationTop,
   });
 
   final String title;
   final String composer;
   final double firstPageStaffOffset;
+  final double headerTextBottom, firstNotationTop;
 }
 
 class PdfPageLayoutInfo {

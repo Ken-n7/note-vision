@@ -145,6 +145,24 @@ class MusicXmlScoreConverter {
               return Accidentals.writtenFromSounding(
                 shown: (n) => _shownAccidentals[n] ?? false,
                 part.copyWith(
+                  staffLines:
+                      part.isPercussion &&
+                          details
+                                  ?.getElement('staff-lines')
+                                  ?.innerText
+                                  .trim() ==
+                              '1'
+                      ? 1
+                      : 5,
+                  drumMap:
+                      part.isPercussion &&
+                          details
+                                  ?.getElement('staff-lines')
+                                  ?.innerText
+                                  .trim() ==
+                              '1'
+                      ? MusicXmlInstruments.readDrumMap(declaration)
+                      : null,
                   squareBracket:
                       part.staff > 1 && squareBracketParts.contains(sourceId),
                   tabTuning: tuning.isEmpty

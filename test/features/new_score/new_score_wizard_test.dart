@@ -88,8 +88,7 @@ Future<void> pickInstrument(WidgetTester tester, String name) async {
       matching: find.byType(Scrollable),
     ),
   );
-  await tester.tap(find.text(name));
-  await tester.pumpAndSettle();
+  await tapVisible(tester, find.text(name));
 }
 
 void main() {
@@ -155,6 +154,59 @@ void main() {
         .widgetList<ListTile>(find.byType(ListTile))
         .map((t) => (t.title as Text).data);
     expect(names, ['Flute', 'Cello']);
+  });
+
+  testWidgets(
+    'Symphony orchestra creates percussion maps and a harp grand staff',
+    (tester) async {
+      final result = await pumpWizard(tester);
+      await tester.scrollUntilVisible(
+        find.widgetWithText(ChoiceChip, 'Symphony orchestra'),
+        400,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tapVisible(
+        tester,
+        find.widgetWithText(ChoiceChip, 'Symphony orchestra'),
+      );
+      await tester.scrollUntilVisible(
+        find.text('Flute 1'),
+        -200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.scrollUntilVisible(
+        find.text('Snare Drum'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('One-line percussion'), findsWidgets);
+      await capture(tester, 'symphony-phone');
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+      await tapVisible(tester, find.text('Create score'));
+      expect(result()!.parts, hasLength(26));
+      expect(result()!.parts.where((p) => p.singleLine), hasLength(3));
+      expect(
+        result()!.parts.where((p) => p.name == 'Harp').map((p) => p.staff),
+        [1, 2],
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('add a one-line snare from the instrument chooser', (
+    tester,
+  ) async {
+    final result = await pumpWizard(tester);
+    await tester.tap(find.text('Add instrument'));
+    await tester.pumpAndSettle();
+    await pickInstrument(tester, 'Snare Drum');
+    expect(find.text('One-line percussion'), findsOneWidget);
+    await tester.tap(find.text('Next'));
+    await tester.pumpAndSettle();
+    await tapVisible(tester, find.text('Create score'));
+    expect(result()!.parts.last.singleLine, isTrue);
+    expect(result()!.parts.last.drums.map((d) => d.key), [38, 37]);
   });
 
   for (final (name, size, scale) in [

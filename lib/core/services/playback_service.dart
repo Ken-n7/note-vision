@@ -420,7 +420,7 @@ class PlaybackService {
         await _midi.selectInstrument(
           sfId: _sfId!,
           channel: entry.key,
-          bank: 0,
+          bank: entry.key == 9 ? 128 : 0,
           program: entry.value.program,
         );
         if (request != _playRequest) return false;

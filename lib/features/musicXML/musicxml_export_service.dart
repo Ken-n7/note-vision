@@ -223,6 +223,7 @@ class MusicXmlExportService {
             transposition: staffParts.first.transposition,
             partId: staffParts.first.id,
             squareBracket: staffParts.skip(1).any((p) => p.squareBracket),
+            staffLines: [for (final p in staffParts) p.singleLine ? 1 : 5],
             tabTunings: [
               for (final p in staffParts) p.isTab ? p.tabTuning : null,
             ],
@@ -267,6 +268,7 @@ class MusicXmlExportService {
     Transposition? transposition,
     String partId = 'P1',
     bool squareBracket = false,
+    List<int> staffLines = const [],
     List<List<int>?> tabTunings = const [],
   }) {
     final measure = staffMeasures.first;
@@ -372,6 +374,16 @@ class MusicXmlExportService {
                 );
               }
               // A tablature staff's lines and the strings' tuning.
+              for (final (k, lines) in staffLines.indexed) {
+                if (!isFirst || lines == 5) continue;
+                b.element(
+                  'staff-details',
+                  attributes: {if (staves > 1) 'number': '${k + 1}'},
+                  nest: () {
+                    b.element('staff-lines', nest: '$lines');
+                  },
+                );
+              }
               for (final (k, tuning) in tabTunings.indexed) {
                 if (!isFirst || tuning == null) continue;
                 b.element(

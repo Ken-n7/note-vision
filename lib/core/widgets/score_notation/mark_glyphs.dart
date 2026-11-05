@@ -154,6 +154,7 @@ List<MarkShape> barShapes({
   ({String? label, bool closes})? ending,
   List<NavigationMark> navigation = const [],
   bool first = true,
+  bool singleLine = false,
 }) {
   final height = spacing * 4;
   final shapes = <MarkShape>[];
@@ -162,8 +163,10 @@ List<MarkShape> barShapes({
     MarkDot(x, spacing * 1.5, 1.8),
     MarkDot(x, spacing * 2.5, 1.8),
   ];
-  MarkShape line(double x, double w) =>
-      MarkLines([(x, 0), (x, height)], width: w);
+  MarkShape line(double x, double w) => MarkLines([
+    (x, singleLine ? spacing : 0),
+    (x, singleLine ? spacing * 3 : height),
+  ], width: w);
   switch (left) {
     case BarlineType.repeatStart:
       shapes

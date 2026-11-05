@@ -46,6 +46,7 @@ const museScoreTemplates = {
   'Small concert band': '02-Small_Concert_Band',
   'String orchestra': '03-String_Orchestra',
   'Classical orchestra': '01-Classical_Orchestra',
+  'Symphony orchestra': '02-Symphony_Orchestra',
 };
 
 /// Templates whose MuseScore export loses the written keys.
@@ -55,6 +56,7 @@ const legacyKeys = {
   'Concert band',
   'Small concert band',
   'Classical orchestra',
+  'Symphony orchestra',
 };
 
 /// Each part's name, MIDI program, staves' clefs, transposition and written

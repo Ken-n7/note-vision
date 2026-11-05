@@ -40,6 +40,7 @@ class ScoreNotationPainter extends CustomPainter {
     this.rangeSymbols = const {},
     this.joinedParts = const {},
     this.squareBracketParts = const {},
+    this.singleLineParts = const {},
     this.tabTunings = const {},
     this.spanners = const [],
     this.lyricParts,
@@ -96,6 +97,7 @@ class ScoreNotationPainter extends CustomPainter {
   /// two are braced and their barlines run through both.
   final Set<int> joinedParts;
   final Set<int> squareBracketParts;
+  final Set<int> singleLineParts;
 
   /// Ties and slurs, drawn between the notes they join.
   final List<Spanner> spanners;
@@ -431,6 +433,7 @@ class ScoreNotationPainter extends CustomPainter {
     required double rowPrefixWidth,
     EngravingLayout? engraving,
     Map<int, List<int>> tabTunings = const {},
+    Set<int> singleLineParts = const {},
   }) {
     final rows = _buildRowMetricsStatic(
       parts: parts,
@@ -482,6 +485,7 @@ class ScoreNotationPainter extends CustomPainter {
                       row.staffBottom,
                       row.clefSign,
                       clefLine: row.clefLine,
+                      singleLine: singleLineParts.contains(row.partIndex),
                     ) +
                     (symbol is Rest
                         ? layout.restOffset(symbolIndex) * staffLineSpacing
@@ -594,6 +598,7 @@ class ScoreNotationPainter extends CustomPainter {
     double staffBottom,
     String clefSign, {
     int clefLine = 2,
+    bool singleLine = false,
   }) {
     if (symbol is Note) {
       return StaffPitchMapper.yForPitch(
@@ -606,10 +611,13 @@ class ScoreNotationPainter extends CustomPainter {
       );
     }
 
-    final restType = symbol is Rest ? symbol.type.trim().toLowerCase() : '';
+    final restType = symbol is Rest
+        ? (symbol.measureRest ? 'whole' : symbol.type.trim().toLowerCase())
+        : '';
     if (restType == 'whole') {
       return staffTop +
-          (staffLineSpacing * ScoreNotationMetrics.wholeRestLineIndex) +
+          (staffLineSpacing *
+              (singleLine ? 2 : ScoreNotationMetrics.wholeRestLineIndex)) +
           ScoreNotationMetrics.wholeRestCenterYOffset;
     }
     if (restType == 'half') {
@@ -720,10 +728,15 @@ class ScoreNotationPainter extends CustomPainter {
 
     // A tablature staff has a line per string, inside the staff's height.
     final strings = tabTunings[row.partIndex]?.length;
-    final lineCount = strings ?? ScoreNotationMetrics.staffLineCount;
+    final singleLine = singleLineParts.contains(row.partIndex);
+    final lineCount = singleLine
+        ? 1
+        : strings ?? ScoreNotationMetrics.staffLineCount;
     for (var i = 0; i < lineCount; i++) {
-      final y =
-          row.staffTop + i * (row.staffBottom - row.staffTop) / (lineCount - 1);
+      final y = singleLine
+          ? (row.staffTop + row.staffBottom) / 2
+          : row.staffTop +
+                i * (row.staffBottom - row.staffTop) / (lineCount - 1);
       canvas.drawLine(
         Offset(row.rowStartX, y),
         Offset(row.rowEndX, y),
@@ -732,13 +745,22 @@ class ScoreNotationPainter extends CustomPainter {
     }
 
     canvas.drawLine(
-      Offset(row.contentStartX, row.staffTop),
-      Offset(row.contentStartX, row.staffBottom),
+      Offset(
+        row.contentStartX,
+        row.staffTop + (singleLine ? staffLineSpacing : 0),
+      ),
+      Offset(
+        row.contentStartX,
+        row.staffBottom - (singleLine ? staffLineSpacing : 0),
+      ),
       thinBarPaint,
     );
     canvas.drawLine(
-      Offset(row.rowEndX, row.staffTop),
-      Offset(row.rowEndX, row.staffBottom),
+      Offset(row.rowEndX, row.staffTop + (singleLine ? staffLineSpacing : 0)),
+      Offset(
+        row.rowEndX,
+        row.staffBottom - (singleLine ? staffLineSpacing : 0),
+      ),
       thinBarPaint,
     );
 
@@ -808,8 +830,20 @@ class ScoreNotationPainter extends CustomPainter {
 
       if (measureInRow > 0) {
         canvas.drawLine(
-          Offset(measureX, row.staffTop),
-          Offset(measureX, row.staffBottom),
+          Offset(
+            measureX,
+            row.staffTop +
+                (singleLineParts.contains(row.partIndex)
+                    ? staffLineSpacing
+                    : 0),
+          ),
+          Offset(
+            measureX,
+            row.staffBottom -
+                (singleLineParts.contains(row.partIndex)
+                    ? staffLineSpacing
+                    : 0),
+          ),
           barPaint,
         );
       }
@@ -824,6 +858,7 @@ class ScoreNotationPainter extends CustomPainter {
           ending: endingAt(parts[row.partIndex], barIndex),
           navigation: measure.navigation,
           first: row.partIndex == 0,
+          singleLine: singleLineParts.contains(row.partIndex),
         ),
         Offset(measureX, row.staffTop),
       );
@@ -1095,7 +1130,10 @@ class ScoreNotationPainter extends CustomPainter {
           i,
           Offset(x, y),
         );
-        for (final line in ScoreNotationMetrics.ledgerYs(y - noteTop)) {
+        for (final line
+            in singleLineParts.contains(partIndex)
+                ? <double>[]
+                : ScoreNotationMetrics.ledgerYs(y - noteTop)) {
           final half =
               ScoreNotationMetrics.ledgerHalfWidth *
               (symbol.grace == null ? 1 : graceScale);
@@ -1130,6 +1168,7 @@ class ScoreNotationPainter extends CustomPainter {
               staffBottom,
               clefSign,
               clefLine: clefLine,
+              singleLine: singleLineParts.contains(partIndex),
             ) +
             restShift;
         final isSelected =
@@ -1155,7 +1194,13 @@ class ScoreNotationPainter extends CustomPainter {
           Offset(x, y),
         );
         if (clefSign != 'T') {
-          _drawRest(canvas, symbol, x: x, staffTop: staffTop + restShift);
+          _drawRest(
+            canvas,
+            symbol,
+            x: x,
+            staffTop: staffTop + restShift,
+            singleLine: singleLineParts.contains(partIndex),
+          );
         }
         tupletPoints[i] = (Offset(x, y), 10.0);
         if ((symbol.reviewId, row) case (final id?, final row?)) {
@@ -1890,6 +1935,7 @@ class ScoreNotationPainter extends CustomPainter {
     Rest rest, {
     required double x,
     required double staffTop,
+    bool singleLine = false,
   }) {
     // A bar rest is drawn as a whole rest in any meter.
     if (rest.measureRest) rest = rest.copyWith(type: 'whole', dots: 0);
@@ -1901,7 +1947,8 @@ class ScoreNotationPainter extends CustomPainter {
     if (type == 'whole') {
       final line4Y =
           staffTop +
-          (staffLineSpacing * ScoreNotationMetrics.wholeRestLineIndex);
+          (staffLineSpacing *
+              (singleLine ? 2 : ScoreNotationMetrics.wholeRestLineIndex));
       final rect = Rect.fromCenter(
         center: Offset(x, line4Y + ScoreNotationMetrics.wholeRestCenterYOffset),
         width: ScoreNotationMetrics.restRectWidth,
@@ -2444,8 +2491,16 @@ class ScoreNotationPainter extends CustomPainter {
     for (final rows in systems.values) {
       if (rows.length < 2) continue;
       rows.sort((a, b) => a.partIndex.compareTo(b.partIndex));
-      final top = rows.first.staffTop;
-      final bottom = rows.last.staffBottom;
+      final top =
+          rows.first.staffTop +
+          (singleLineParts.contains(rows.first.partIndex)
+              ? staffLineSpacing
+              : 0);
+      final bottom =
+          rows.last.staffBottom -
+          (singleLineParts.contains(rows.last.partIndex)
+              ? staffLineSpacing
+              : 0);
       final x = rows.first.rowStartX;
       canvas.drawLine(Offset(x, top), Offset(x, bottom), paint);
     }
@@ -2750,6 +2805,7 @@ class ScoreNotationPainter extends CustomPainter {
         !setEquals(oldDelegate.rangeSymbols, rangeSymbols) ||
         !setEquals(oldDelegate.joinedParts, joinedParts) ||
         !setEquals(oldDelegate.squareBracketParts, squareBracketParts) ||
+        !setEquals(oldDelegate.singleLineParts, singleLineParts) ||
         !listEquals(oldDelegate.spanners, spanners) ||
         oldDelegate.playbackPartIndex != playbackPartIndex ||
         oldDelegate.playbackMeasureIndex != playbackMeasureIndex ||

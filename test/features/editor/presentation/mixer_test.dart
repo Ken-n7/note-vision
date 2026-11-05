@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:note_vision/core/models/part_playback.dart';
 import 'package:note_vision/core/services/playback_service.dart';
 import 'package:note_vision/features/editor/presentation/widgets/mixer_sheet.dart';
+import 'package:note_vision/features/new_score/new_score.dart';
 import '../../../support/editor_controls_harness.dart';
 import '../../../support/playback_mix_fixture.dart';
 
@@ -17,6 +18,49 @@ Future<void> open(WidgetTester tester) async {
 
 void main() {
   setUpAll(loadControlsFonts);
+  testWidgets(
+    'orchestral kit and mix are shared while mute stays per percussion part',
+    (tester) async {
+      final full = buildNewScore(
+        NewScoreOptions(
+          staves: scoreTemplates
+              .firstWhere((t) => t.name == 'Symphony orchestra')
+              .staves,
+          bars: 1,
+        ),
+      );
+      final score = full.copyWith(
+        parts: full.parts.where((p) => p.singleLine).toList(),
+      );
+      await pumpControls(tester, score: score, selectedSymbol: null);
+      await open(tester);
+      expect(find.text('Orchestral kit'), findsOneWidget);
+      tester
+          .widget<Slider>(find.byKey(const ValueKey('mixer-volume')))
+          .onChanged!(50);
+      await tester.pump();
+      await tester.ensureVisible(find.byKey(const ValueKey('mixer-mute')));
+      await tester.tap(find.byKey(const ValueKey('mixer-mute')));
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('mixer-apply')));
+      await tester.pumpAndSettle();
+      final after = shownControlsScore(tester);
+      expect(after.parts.map((p) => p.playback.volume), [50, 50, 50]);
+      expect(after.parts.map((p) => p.playback.mute), [true, false, false]);
+      await tester.tap(find.byTooltip('Undo'));
+      await tester.pumpAndSettle();
+      expect(shownControlsScore(tester).parts.map((p) => p.playback.volume), [
+        100,
+        100,
+        100,
+      ]);
+      expect(shownControlsScore(tester).parts.map((p) => p.playback.mute), [
+        false,
+        false,
+        false,
+      ]);
+    },
+  );
   testWidgets('F10 opens the mixer and sound selection keeps notation', (
     tester,
   ) async {

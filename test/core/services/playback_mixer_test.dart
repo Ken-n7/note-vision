@@ -3,6 +3,9 @@ import 'package:flutter_midi_pro/flutter_midi_pro.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:note_vision/core/models/part_playback.dart';
+import 'package:note_vision/core/models/clef.dart';
+import 'package:note_vision/core/models/drum_kit.dart';
+import 'package:note_vision/features/new_score/new_score.dart';
 import 'package:note_vision/core/services/playback_service.dart';
 import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
@@ -14,6 +17,7 @@ class Midi extends MidiPro {
       starts = <(int, int, int)>[],
       stops = <(int, int)>[];
   Completer<void>? selecting;
+  final banks = <(int, int)>[];
   bool fail = false;
   @override
   Future<int> loadSoundfontAsset({
@@ -29,6 +33,7 @@ class Midi extends MidiPro {
     int program = 0,
   }) async {
     programs.add((channel, program));
+    banks.add((channel, bank));
     if (fail) throw StateError('unavailable');
     if (selecting != null) await selecting!.future;
   }
@@ -68,6 +73,43 @@ class Midi extends MidiPro {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+  testWidgets(
+    'orchestral drums select the percussion bank while harp stays melodic',
+    (tester) async {
+      final midi = Midi();
+      final player = PlaybackService.forTesting(midi);
+      addTearDown(player.dispose);
+      var state = EditorState(
+        score: buildNewScore(
+          const NewScoreOptions(
+            staves: [
+              NewStaff(
+                'Snare Drum',
+                Clef.percussion,
+                staffLines: 1,
+                drumMap: orchestralSnare,
+              ),
+              NewStaff('Harp', Clef(sign: 'G', line: 2)),
+            ],
+            bars: 1,
+          ),
+        ),
+      ).copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
+      state = state.enterDrum(orchestralSnare.first, quarterDuration);
+      state = state
+          .copyWith(
+            selectedPartIndex: 1,
+            selectedSymbolIndex: null,
+            selectedSymbol: null,
+          )
+          .enterNote('C', quarterDuration);
+      await player.play(state.score);
+      expect(midi.banks, containsAll([(9, 128), (0, 0)]));
+      expect(midi.programs, containsAll([(9, 48), (0, 46)]));
+      expect(midi.starts.map((n) => (n.$1, n.$2)), contains((9, 38)));
+      player.stop();
+    },
+  );
   testWidgets(
     'equal pitches on separate instruments start and stop independently',
     (tester) async {

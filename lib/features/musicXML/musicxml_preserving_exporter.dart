@@ -375,6 +375,9 @@ class MusicXmlPreservingExporter {
       if (oldPart.id != part.id ||
           oldPart.staff != part.staff ||
           oldPart.squareBracket != part.squareBracket ||
+          oldPart.staffLines != part.staffLines ||
+          jsonEncode(oldPart.drumMap?.map((d) => d.toJson()).toList()) !=
+              jsonEncode(part.drumMap?.map((d) => d.toJson()).toList()) ||
           oldPart.measures.length != part.measures.length) {
         return false;
       }

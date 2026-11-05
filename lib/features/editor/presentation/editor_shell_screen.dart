@@ -1408,7 +1408,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   ScoreSymbol _asDrum(ScoreSymbol symbol, int partIndex) {
     final parts = _editorState.score.parts;
     if (symbol is! Note || !parts[partIndex].isPercussion) return symbol;
-    final piece = drumAt(symbol.step, symbol.octave);
+    final piece = drumAt(
+      symbol.step,
+      symbol.octave,
+      pieces: parts[partIndex].drums,
+    );
     return drumNote(
       piece,
       symbol.type,
@@ -1675,7 +1679,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   Future<void> _showStaves() async {
     if (!_canEditStaves || _commandEditLock != null) return;
     final original = _editorState.score;
-    final plan = await showModalBottomSheet<List<StaffPlanEntry>>(
+    final plan = await showModalBottomSheet<StavesPlan>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -1697,7 +1701,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         _commandEditLock != null) {
       return;
     }
-    _updateState((state) => state.rearrangeParts(plan));
+    _updateState(
+      (state) => state.rearrangeParts(
+        plan.entries,
+        newInstrumentNames: plan.newInstrumentNames,
+      ),
+    );
   }
 
   /// Moves every note by the interval chosen in [TransposeSheet].
@@ -1830,6 +1839,12 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     return part < score.parts.length && score.parts[part].isPercussion;
   }
 
+  List<DrumPiece> get _inputDrums {
+    final parts = _editorState.score.parts;
+    final index = _editorState.selectedPartIndex ?? 0;
+    return index < parts.length ? parts[index].drums : drumKit;
+  }
+
   /// Alt + 2–9 adds that interval above the selected note.
   static final _intervalDigits = {
     LogicalKeyboardKey.digit2: 2,
@@ -1859,8 +1874,16 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       final input = state.hasMeasureContext
           ? state
           : state.copyWith(selectedPartIndex: 0, selectedMeasureIndex: 0);
-      final drum = step != null && _drumInput ? drumForShortcut(step) : null;
-      final next = _chordInput && step != null && !insert && !_timeInsertInput
+      final drum = step != null && _drumInput
+          ? drumForShortcut(step, pieces: _inputDrums)
+          : null;
+      if (step != null && _drumInput && drum == null) return state;
+      final next =
+          _chordInput &&
+              !_drumInput &&
+              step != null &&
+              !insert &&
+              !_timeInsertInput
           ? input.addChordStep(step)
           : step == null
           ? input.enterRest(
@@ -2539,7 +2562,10 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       _runEditorCommand(hairpinCommand);
       return KeyEventResult.handled;
     }
-    if (keyboard.isShiftPressed && !keyboard.isAltPressed && letter != null) {
+    if (keyboard.isShiftPressed &&
+        !keyboard.isAltPressed &&
+        letter != null &&
+        !_drumInput) {
       _updateState((s) => s.addChordStep(letter));
       return KeyEventResult.handled;
     }
@@ -2551,7 +2577,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       return KeyEventResult.handled;
     }
     if (letter != null && _drumInput) {
-      final piece = drumForShortcut(letter);
+      final piece = drumForShortcut(letter, pieces: _inputDrums);
       if (piece == null) return KeyEventResult.ignored;
       if (_insertMode) {
         _enterFromKeyboard(letter);
@@ -2909,6 +2935,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                         _chordInput = false;
                       }),
                       onDrum: _drumInput ? _enterDrum : null,
+                      drumPieces: _inputDrums,
                       onToggleInsertMode: _toggleInsertMode,
                       onPaletteTypeTap: _onPaletteTypeTap,
                       onPreviousSymbol: _adjacentSymbol(-1) == null
@@ -5194,6 +5221,7 @@ class _InspectorPanel extends StatefulWidget {
     required this.inputVoice,
     required this.onVoiceSelected,
     this.onDrum,
+    this.drumPieces = drumKit,
     required this.onToggleInsertMode,
     required this.onPaletteTypeTap,
     required this.onPreviousSymbol,
@@ -5271,6 +5299,7 @@ class _InspectorPanel extends StatefulWidget {
 
   /// On a drum staff: enters a kit piece at the input position.
   final ValueChanged<DrumPiece>? onDrum;
+  final List<DrumPiece> drumPieces;
   final VoidCallback onToggleInsertMode;
   final ValueChanged<PaletteSymbolType> onPaletteTypeTap;
   final VoidCallback? onPreviousSymbol, onNextSymbol;
@@ -5733,7 +5762,9 @@ class _InspectorPanelState extends State<_InspectorPanel> {
               spacing: 6,
               runSpacing: 4,
               children: [
-                for (final piece in drumKit.where((d) => d.shortcut != null))
+                for (final piece in widget.drumPieces.where(
+                  (d) => d.shortcut != null,
+                ))
                   ActionChip(
                     label: Text('${piece.name} · ${piece.shortcut}'),
                     tooltip: 'Enter ${piece.name} (${piece.shortcut})',

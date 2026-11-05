@@ -1851,7 +1851,10 @@ extension EditorActions on EditorState {
   /// renames and removes parts, and adds empty ones whose bars copy the
   /// meter, key, breaks and barlines of the existing music. Adding a staff
   /// makes the parts play together.
-  EditorState rearrangeParts(List<StaffPlanEntry> plan) {
+  EditorState rearrangeParts(
+    List<StaffPlanEntry> plan, {
+    Map<int, String> newInstrumentNames = const {},
+  }) {
     if (plan.isEmpty || score.parts.isEmpty) return this;
     final adds = plan.any((e) => e.from == null);
     if (adds && addStaffBlockedReason != null) return this;
@@ -1894,7 +1897,18 @@ extension EditorActions on EditorState {
             Part(
               id: newId(),
               name: entry.name,
-              playback: PartPlayback(program: defaultProgramFor(entry.name)),
+              playback: PartPlayback(
+                program: defaultProgramFor(newInstrumentNames[i] ?? entry.name),
+              ),
+              staffLines:
+                  entry.clef?.isPercussion == true &&
+                      orchestralDrumsFor(newInstrumentNames[i] ?? entry.name) !=
+                          null
+                  ? 1
+                  : 5,
+              drumMap: entry.clef?.isPercussion == true
+                  ? orchestralDrumsFor(newInstrumentNames[i] ?? entry.name)
+                  : null,
               staff: staffOf(i),
               transposition: template.transposition,
               measures: [
@@ -1909,7 +1923,7 @@ extension EditorActions on EditorState {
                   ),
               ],
             ),
-            transpositionFor(entry.name),
+            transpositionFor(newInstrumentNames[i] ?? entry.name),
           ).copyWith(
             tabTuning: entry.clef?.isTab == true ? standardGuitarTuning : null,
             linked: entry.clef?.isTab == true && staffOf(i) > 1,
@@ -2031,6 +2045,12 @@ extension EditorActions on EditorState {
     bool insert = false,
   }) {
     if (!hasMeasureContext) return this;
+    if (!score.parts[selectedPartIndex!].isPercussion) return this;
+    final allowed = score.parts[selectedPartIndex!].drums
+        .where((d) => d.key == piece.key)
+        .firstOrNull;
+    if (allowed == null) return this;
+    piece = allowed;
     final (voice: inputVoice, :staff) = _inputLaneFor(piece.voice);
     return _enterSymbol(
       drumNote(
@@ -2073,6 +2093,12 @@ extension EditorActions on EditorState {
   /// current pitch; the key signature decides the accidental.
   /// On a drum staff, makes the selected note play [piece] instead.
   EditorState setSelectedDrum(DrumPiece piece) {
+    if (!hasMeasureContext) return this;
+    final allowed = score.parts[selectedPartIndex!].drums
+        .where((d) => d.key == piece.key)
+        .firstOrNull;
+    if (allowed == null) return this;
+    piece = allowed;
     final note = selectedSymbol;
     if (!hasEditableSelection || note is! Note || note.drum == piece.key) {
       return this;

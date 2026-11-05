@@ -207,6 +207,11 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
       if (part.isTab && part.tabTuning != null) i: part.tabTuning!,
   };
 
+  Set<int> get _singleLineParts => {
+    for (final (i, part) in (widget.score?.parts ?? const []).indexed)
+      if (part.singleLine) i,
+  };
+
   final NotationLayoutCalculator _layoutCalculator =
       const NotationLayoutCalculator();
   _NotationDragSession? _dragSession;
@@ -376,6 +381,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
                 }
                 final targets = ScoreNotationPainter.buildSymbolTargets(
                   tabTunings: _tabTunings,
+                  singleLineParts: _singleLineParts,
                   engraving: _engraving,
                   parts: allParts,
                   measuresPerRow: layout.measuresPerRow,
@@ -457,6 +463,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
             if (part.squareBracket) i,
         },
         tabTunings: _tabTunings,
+        singleLineParts: _singleLineParts,
         playbackPartIndex: widget.playbackPartIndex,
         playbackMeasureIndex: widget.playbackMeasureIndex,
         playbackSymbolIndex: widget.playbackSymbolIndex,
@@ -494,6 +501,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   }) {
     final targets = ScoreNotationPainter.buildSymbolTargets(
       tabTunings: _tabTunings,
+      singleLineParts: _singleLineParts,
       engraving: _engraving,
       parts: allParts,
       measuresPerRow: layout.measuresPerRow,
@@ -555,6 +563,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
           insertTarget.measureIndex == drag.fromMeasureIndex;
       if (sameMeasure) {
         final idx = _targetIndexForDrag(
+          partIndex: drag.fromPartIndex,
           measures: allParts[drag.fromPartIndex],
           layout: layout,
           measureIndex: drag.fromMeasureIndex,
@@ -606,6 +615,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
           insertTarget.measureIndex == drag.fromMeasureIndex;
       if (sameMeasure) {
         final idx = _targetIndexForDrag(
+          partIndex: drag.fromPartIndex,
           measures: allParts[drag.fromPartIndex],
           layout: layout,
           measureIndex: drag.fromMeasureIndex,
@@ -652,6 +662,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   }
 
   int? _targetIndexForDrag({
+    required int partIndex,
     required List<Measure> measures,
     required NotationLayout layout,
     required int measureIndex,
@@ -669,6 +680,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
     final targets =
         ScoreNotationPainter.buildSymbolTargets(
           tabTunings: _tabTunings,
+          singleLineParts: _singleLineParts.contains(partIndex) ? {0} : {},
           engraving: _engraving,
           parts: [measures],
           measuresPerRow: layout.measuresPerRow,

@@ -838,10 +838,12 @@ release 2004 played the same project with no errors. No iOS device test.
   the other sounds.
 - Not yet: live mixer adjustments, master/effects/aux channels, reverb UI,
   metronome/loop controls, MIDI/audio export, mid-score instrument changes,
-  non-GM banks, percussion mapping, separate voice or harmony strips and
-  transposing-instrument notation. Unsupported imported instrument metadata
-  stays in source; changing sounds in multiple-instrument, percussion or
-  non-GM source declarations refuses preserving export explicitly.
+  non-GM banks and separate voice or harmony strips. Basic percussion maps,
+  kit selection and transposing notation were added in 5C/5D. Unsupported
+  imported instrument metadata stays in source; sound changes in multiple
+  pitched-instrument or non-GM source declarations still refuse preserving
+  export explicitly. GM percussion kit/volume/pan edits patch all declared
+  pieces without replacing their IDs or unpitched mappings (5C follow-up).
 - References: [MuseScore mixer](https://handbook.musescore.org/sound-and-playback/mixer),
   [MusicXML MIDI instrument](https://www.w3.org/2021/06/musicxml40/musicxml-reference/elements/midi-instrument/).
 
@@ -989,7 +991,7 @@ Device check (2026-11-01): release **2005**, built from `f801e50` with
 - Not yet: subtitle/lyricist/copyright fields, saving user templates,
   minor-key names, irregular pickups needing two rests.
 - Follow-up templates: Jazz combo, Big band, Concert band, Small concert
-  band, Classical orchestra, String orchestra and SATB + Organ (25 templates
+  band, Classical orchestra, Symphony orchestra, String orchestra and SATB + Organ (26 templates
   in all, each matching MuseScore's part names, sounds, clefs and transpositions).
   `NewStaff` is a class with an optional `program` (a jazz band's guitar is
   electric). `instrumentKey` reads "Horn in F 1 & 2" and "Trombone 3 &
@@ -999,9 +1001,9 @@ Device check (2026-11-01): release **2005**, built from `f801e50` with
   orchestra template files store written keys in an older form that
   MuseScore's command-line export drops, so their keys are checked against the template files
   (B♭ parts 2 sharps, E♭ parts 3, horns 1 in concert C, as Note Vision
-  writes them). Not yet: Symphony orchestra, marching, brass band, bluegrass,
+  writes them). Not yet: marching, brass band, bluegrass,
   barbershop, closed-score, liturgical and pit/battery percussion
-  templates (they need one-line percussion staves, dedicated percussion kits,
+  templates (they need further percussion maps/kits,
   shared-staff voices or instruments not yet in the tables).
 - Classical orchestra (2026-11-04): matches MuseScore Studio **4.7.5**'s
   template instrument names, order, sounds, clefs and transpositions:
@@ -1033,7 +1035,7 @@ Device check (2026-11-01): release **2005**, built from `f801e50` with
   C4/E4 on both horn staves with no sharps, and undo restored written pitch.
   Mixer showed 12 strips, one for the horn pair with French horn sound.
   Playback ran; the active 44.1 kHz stereo speaker track had zero underruns
-  at capture. No new subjective listening confirmation received.
+  at capture. Subjective listening check deferred; user could not listen.
   Phone MusicXML verified 12 instruments / 13 staves, names, sounds, written
   keys, two treble horn clefs, F transposition, distinct staff-tagged notes
   and the square bracket. PDF exported and visually checked. Re-import
@@ -1046,6 +1048,75 @@ Device check (2026-11-01): release **2005**, built from `f801e50` with
   Evidence: `/tmp/note-vision-phone-2018/`; phone exports in
   `Download/NoteVisionQA2018/`. Tested APK SHA-256:
   `ec8449980f9b3e830aed8b68a91a201fa6cbbb575617c570a8d7ecbfcc7a00f0`.
+- Symphony orchestra (2026-11-05): **25 instruments / 26 staves**, matching
+  MuseScore Studio **4.7.5**'s template names, order, programs, clefs and
+  transpositions (`reference/templates/02-Symphony_Orchestra.musicxml`).
+  The harp has independent treble/bass staves with one sound and brace;
+  the two horn parts each use one treble staff. Legacy written keys are
+  checked separately, as for Classical orchestra. **26 templates total**.
+  `Part.staffLines` and `Part.drumMap` (serializable `DrumPiece` data) support
+  one-line Snare Drum (38 snare / 37 side-stick), Bass Drum (36) and Cymbals
+  (57). All sit on the line with stems up; old five-line drum kits retain
+  their positions, heads and voices. The wizard and Staves sheet can add
+  each of these instruments. Their own touch buttons and keyboard shortcuts
+  enter mapped pieces; invalid kit shortcuts do not insert pitched notes.
+  Newly added staves retain their chosen instrument when renamed/reordered
+  before Apply; the rename dialog disposes its controller after the closing
+  route is removed. A regression covers that complete flow and undo.
+  Canvas/PDF draw one line, short barlines/repeats, beams and rests; whole
+  rests hang from that line and selection/drag hit targets follow it.
+  JSON and MusicXML preserve maps, noteheads and `<staff-lines>1`.
+  Playback uses **11 pitched channels plus channel 10** for the three
+  percussion parts. Fixed the existing melodic-bank selection for drums:
+  channel 10 now selects SoundFont **bank 128**, including orchestral kit 48.
+  The bundled font's eight percussion presets have kit labels in the mixer.
+  Percussion parts share kit/volume/pan settings; mute/solo remain per part,
+  and Apply/undo update the whole change atomically. Imported GM percussion
+  mix edits patch all corresponding MIDI declarations, keeping piece IDs,
+  mappings, device metadata and note XML intact.
+  Large-ensemble PDF layout reserves physical title/composer space when
+  shrinking notation to A4; the full 26-staff score no longer overlaps its
+  header. Targeted checks cover template parity, channels/bank selection,
+  maps, touch/keyboard input, undo, persistence, import/export, the wizard,
+  shared kit mixing and PDF header clearance. Canvas/PDF and phone-size,
+  landscape and enlarged-text control captures were visually checked in
+  `/tmp/note-vision-symphony-qa/`.
+  Final verification: `flutter analyze --no-pub` **no issues**;
+  `flutter test --no-pub --reporter expanded` **1,014 passed**;
+  `git diff --check` clean. Full log:
+  `/tmp/note-vision-symphony-full-tests.log`.
+  **Device QA passed (2026-11-05):** local release **2019**, Realme RMX1851
+  / Android 11. Created **NVSymphony2019** through the wizard (two bars).
+  Snare button, A shortcut and touch entered keys 38/37/38 with the side-stick
+  x head; invalid shortcut C inserted nothing. Bass drum and cymbal touch
+  entry exported keys 36/57. Harp G4/C3 notes were independent across its
+  treble/bass staves; undo/redo retained the other staff's note.
+  MusicXML verified all 25 instruments / 26 staves, programs, clefs,
+  one-line percussion maps and seven entered notes. Exported A4 PDF was
+  visually checked: title/composer clear above all 26 staves.
+  Mixer showed one harp strip; changing snare to Brush kit, volume 50%, pan
+  47 degrees left updated all three percussion parts. Bass drum stayed
+  unmuted when snare was muted. Export verified each shared setting, and
+  one undo restored the whole mix. Added a snare to a separate piano score,
+  renamed it **SideDrum2019** and moved it first before Apply; its one-line
+  map, palette, sound and entered snare note survived undo/redo and export.
+  Saved as **NVRename2019**. Both saved projects cold-reopened with
+  byte-identical MusicXML exports. All nine previous projects retained
+  (11 total). Enlarged text (1.8x), scrolling to percussion buttons and
+  landscape checked; font scale 0.9 and original rotation settings restored.
+  A staggered 26-note fixture exercised every instrument and both harp
+  staves through import/playback/export. All 26 note elements were retained
+  unchanged. The existing source-preservation import warning still appears.
+  Native and imported playback ran; Android's active 44.1 kHz stereo track
+  had zero underruns at capture. Subjective listening remains deferred
+  because the user could not listen. Temporary keyboard helper removed;
+  saved Symphony left open with playback stopped. No iOS test.
+  Evidence: `/tmp/note-vision-phone-2019/`; phone exports in
+  `Download/NoteVisionQA2019/`. Tested APK SHA-256:
+  `8a1b82d4435f926da9419552aa6968af6cb33f939297a2f6c911cc85aa486849`.
+  Family brackets, custom kit editing, rolls/sticking and marching templates
+  remain incomplete. Retained-source rhythm/structure editing restrictions
+  still apply; iOS percussion playback remains unverified.
 
 ## Stage 5D (part 1) — transposing instruments and concert pitch
 
@@ -1111,10 +1182,12 @@ Device check (2026-11-01): release **2005**, built from `f801e50` with
   created in the wizard; hi-hat, snare and bass drum entered with the kit
   buttons and drawn correctly; More → Concert pitch toggled (then restyled
   with a checkbox icon to match the menu).
+- Follow-up: one-line orchestral percussion, kit selection and the correct
+  playback bank are recorded in Stage 5C (Symphony orchestra). Timpani,
+  jazz combo and concert band templates are also available.
 - Not yet: MuseScore's separate input cursor per drum voice (a new voice 2
-  starts at the selected note, as for pitched voices), orchestral
-  percussion kits and timpani templates, jazz combo and concert band
-  templates, custom kits, rolls and sticking.
+  starts at the selected note, as for pitched voices), custom kit editing,
+  rolls and sticking.
 
 ## Stage 5D (part 3) — guitar tablature
 

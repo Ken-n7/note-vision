@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/models/part_playback.dart';
+import 'package:note_vision/core/models/drum_kit.dart';
 import 'package:note_vision/core/services/playback_mix.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 
@@ -19,14 +20,37 @@ class MixerSheet extends StatefulWidget {
 class _MixerSheetState extends State<MixerSheet> {
   late final _settings = [for (final s in widget.strips) s.settings];
   int _selected = 0;
-  void _change(PartPlayback value) =>
-      setState(() => _settings[_selected] = value);
+  void _change(PartPlayback value) => setState(() {
+    final before = _settings[_selected];
+    _settings[_selected] = value;
+    if (widget.strips[_selected].percussion &&
+        (before.program != value.program ||
+            before.volume != value.volume ||
+            before.pan != value.pan)) {
+      for (final (i, strip) in widget.strips.indexed) {
+        if (strip.percussion) {
+          _settings[i] = _settings[i].copyWith(
+            program: value.program,
+            volume: value.volume,
+            pan: value.pan,
+          );
+        }
+      }
+    }
+  });
 
   @override
   Widget build(BuildContext context) {
     final setting = _settings[_selected];
     final solo = _settings.any((s) => s.solo);
     final strip = widget.strips[_selected];
+    final sounds = strip.percussion
+        ? {
+            ...drumKitSounds,
+            if (!drumKitSounds.containsKey(setting.program))
+              setting.program: 'Percussion kit ${setting.program + 1}',
+          }
+        : {for (final (i, name) in gmSounds.indexed) i: name};
     final pan = setting.pan == 0
         ? 'Center'
         : '${setting.pan.abs().round()}° ${setting.pan < 0 ? 'left' : 'right'}';
@@ -84,14 +108,15 @@ class _MixerSheetState extends State<MixerSheet> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      const Text('Sound'),
+                      Text(strip.percussion ? 'Drum kit' : 'Sound'),
                       DropdownButton<int>(
                         key: const ValueKey('mixer-sound'),
                         value: setting.program,
                         isExpanded: true,
                         menuMaxHeight: 360,
                         items: [
-                          for (final (i, name) in gmSounds.indexed)
+                          for (final MapEntry(key: i, value: name)
+                              in sounds.entries)
                             DropdownMenuItem(
                               value: i,
                               child: Text(
@@ -105,8 +130,10 @@ class _MixerSheetState extends State<MixerSheet> {
                           if (v != null) _change(setting.copyWith(program: v));
                         },
                       ),
-                      const Text(
-                        'Sound changes keep the written notes and clef.',
+                      Text(
+                        strip.percussion
+                            ? 'Percussion parts share the drum kit, volume and pan. Mute and solo apply to each part.'
+                            : 'Sound changes keep the written notes and clef.',
                         style: TextStyle(color: AppColors.textSecondary),
                       ),
                       const SizedBox(height: 16),

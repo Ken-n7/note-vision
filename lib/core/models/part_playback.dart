@@ -236,6 +236,8 @@ int defaultProgramFor(String name) => switch (instrumentKey(name)) {
   'tuba' || 'euphonium' => 58,
   'trombone' => 57,
   'timpani' => 47,
+  'harp' => 46,
+  'snare drum' || 'bass drum' || 'cymbals' => 48,
   'glockenspiel' => 9,
   'organ' => 19,
   // MuseScore Studio declares its generic percussion staves this way.

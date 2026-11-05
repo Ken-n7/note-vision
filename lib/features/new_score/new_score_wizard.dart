@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/models/clef.dart';
+import 'package:note_vision/core/models/drum_kit.dart';
 import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/time_signature.dart';
@@ -41,6 +42,7 @@ String _clefLabel(Clef clef) => switch (clef) {
 };
 
 String _staffLabel(NewStaff staff) {
+  if (staff.staffLines == 1) return 'One-line percussion';
   final lower = staff.lowerClef;
   if (lower != null) {
     return lower == staff.clef
@@ -125,7 +127,13 @@ class _NewScoreWizardState extends State<NewScoreWizard> {
       _template = null;
       _staves = [
         ..._staves,
-        NewStaff(picked.$1, picked.$2, grand: picked.$1 == 'Piano'),
+        NewStaff(
+          picked.$1,
+          picked.$2,
+          grand: picked.$1 == 'Piano',
+          staffLines: orchestralDrumsFor(picked.$1) != null ? 1 : 5,
+          drumMap: orchestralDrumsFor(picked.$1),
+        ),
       ];
     });
   }

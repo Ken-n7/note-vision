@@ -25,6 +25,9 @@ const staffInstruments = <(String, Clef)>[
   ('Double bass', Clef(sign: 'F', line: 4)),
   ('Bassoon', Clef(sign: 'F', line: 4)),
   ('Drum Kit', Clef.percussion),
+  ('Snare Drum', Clef.percussion),
+  ('Bass Drum', Clef.percussion),
+  ('Cymbals', Clef.percussion),
   ('Guitar TAB', Clef.tab),
   ('Guitar + TAB', Clef(sign: 'G', line: 2, octave: -1)),
   ('Trombone', Clef(sign: 'F', line: 4)),
@@ -43,9 +46,15 @@ String _clefName(Clef? clef) => switch (clef) {
   _ => 'Treble clef',
 };
 
-/// MuseScore's Instruments panel, for one staff per part: add, rename,
-/// reorder and remove staves. Pops the new order as a [StaffPlanEntry] list,
-/// applied as one undo step.
+/// Staff order and the original instrument chosen for each new staff.
+class StavesPlan {
+  const StavesPlan(this.entries, this.newInstrumentNames);
+  final List<StaffPlanEntry> entries;
+  final Map<int, String> newInstrumentNames;
+}
+
+/// MuseScore's Instruments panel: add, rename, reorder and remove staves.
+/// Pops a [StavesPlan], applied as one undo step.
 class StavesSheet extends StatefulWidget {
   const StavesSheet({super.key, required this.staves, this.addBlockedReason});
 
@@ -61,6 +70,12 @@ class StavesSheet extends StatefulWidget {
 }
 
 class _StavesSheetState extends State<StavesSheet> {
+  // A new staff's instrument survives changes to its display name/order.
+  late final _instrumentNames = List<String?>.filled(
+    widget.staves.length,
+    null,
+    growable: true,
+  );
   late final _plan = <StaffPlanEntry>[
     for (final (i, (name, clef, joins)) in widget.staves.indexed)
       (from: i, name: name, clef: clef, joinsPrevious: joins),
@@ -76,11 +91,13 @@ class _StavesSheetState extends State<StavesSheet> {
   void _move(int index, int delta) => setState(() {
     final entry = _plan.removeAt(index);
     _plan.insert(index + delta, entry);
+    final instrument = _instrumentNames.removeAt(index);
+    _instrumentNames.insert(index + delta, instrument);
   });
 
   Future<void> _rename(int index) async {
     final controller = TextEditingController(text: _plan[index].name);
-    final name = await showDialog<String>(
+    final route = DialogRoute<String>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.surface,
@@ -104,6 +121,9 @@ class _StavesSheetState extends State<StavesSheet> {
         ],
       ),
     );
+    final name = await Navigator.of(context, rootNavigator: true).push(route);
+    // The popped route can still rebuild while its closing animation runs.
+    await route.completed;
     controller.dispose();
     final trimmed = name?.trim();
     if (trimmed == null || trimmed.isEmpty || !mounted) return;
@@ -153,6 +173,7 @@ class _StavesSheetState extends State<StavesSheet> {
         clef: picked.$2,
         joinsPrevious: false,
       ));
+      _instrumentNames.add(guitarAndTab ? 'Guitar' : picked.$1);
       if (guitarAndTab) {
         _plan.add((
           from: null,
@@ -160,6 +181,7 @@ class _StavesSheetState extends State<StavesSheet> {
           clef: Clef.tab,
           joinsPrevious: true,
         ));
+        _instrumentNames.add('Guitar');
       }
       // A piano has a grand staff: treble above, bass below, braced.
       if (picked.$1 == 'Piano') {
@@ -169,6 +191,7 @@ class _StavesSheetState extends State<StavesSheet> {
           clef: const Clef(sign: 'F', line: 4),
           joinsPrevious: true,
         ));
+        _instrumentNames.add('Piano');
       }
     });
   }
@@ -232,7 +255,10 @@ class _StavesSheetState extends State<StavesSheet> {
                           tooltip: 'Remove staff',
                           onPressed: _plan.length == 1
                               ? null
-                              : () => setState(() => _plan.removeAt(i)),
+                              : () => setState(() {
+                                  _plan.removeAt(i);
+                                  _instrumentNames.removeAt(i);
+                                }),
                           icon: const Icon(Icons.delete_outline_rounded),
                           color: AppColors.error,
                         ),
@@ -273,9 +299,12 @@ class _StavesSheetState extends State<StavesSheet> {
                   flex: 2,
                   child: FilledButton(
                     onPressed: _changed
-                        ? () => Navigator.pop<List<StaffPlanEntry>>(
+                        ? () => Navigator.pop<StavesPlan>(
                             context,
-                            List.of(_plan),
+                            StavesPlan(List.of(_plan), {
+                              for (final (i, name) in _instrumentNames.indexed)
+                                i: ?name,
+                            }),
                           )
                         : null,
                     style: FilledButton.styleFrom(

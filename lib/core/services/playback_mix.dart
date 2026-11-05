@@ -3,10 +3,16 @@ import '../models/part_playback.dart';
 
 /// One strip per linked instrument; scanned lines share a single strip.
 class PlaybackStrip {
-  const PlaybackStrip(this.parts, this.name, this.settings);
+  const PlaybackStrip(
+    this.parts,
+    this.name,
+    this.settings, {
+    this.percussion = false,
+  });
   final List<int> parts;
   final String name;
   final PartPlayback settings;
+  final bool percussion;
 }
 
 List<PlaybackStrip> playbackStrips(Score score) {
@@ -17,6 +23,7 @@ List<PlaybackStrip> playbackStrips(Score score) {
         [for (var p = 0; p < score.parts.length; p++) p],
         score.parts.first.name,
         score.parts.first.playback,
+        percussion: score.parts.first.isPercussion,
       ),
     ];
   }
@@ -34,6 +41,7 @@ List<PlaybackStrip> playbackStrips(Score score) {
         parts,
         score.parts[parts.first].name,
         score.parts[parts.first].playback,
+        percussion: score.parts[parts.first].isPercussion,
       ),
   ];
 }

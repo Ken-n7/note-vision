@@ -1,5 +1,17 @@
 import 'note.dart';
 
+/// Presets available in the bundled SoundFont's percussion bank (128).
+const drumKitSounds = <int, String>{
+  0: 'Standard kit',
+  8: 'Room kit',
+  16: 'Power kit',
+  24: 'Electronic kit',
+  25: 'TR-808 kit',
+  32: 'Jazz kit',
+  40: 'Brush kit',
+  48: 'Orchestral kit',
+};
+
 /// One piece of a drum kit: its General MIDI key, where it is written on a
 /// percussion staff, its notehead, voice (1 hands, stem up; 2 feet, stem
 /// down) and the letter that enters it, as MuseScore Studio's drum kit has
@@ -19,7 +31,48 @@ class DrumPiece {
   final String name, step;
   final int octave, voice;
   final String? notehead, shortcut;
+
+  Map<String, dynamic> toJson() => {
+    'key': key,
+    'name': name,
+    'step': step,
+    'octave': octave,
+    if (notehead != null) 'notehead': notehead,
+    'voice': voice,
+    if (shortcut != null) 'shortcut': shortcut,
+  };
+
+  factory DrumPiece.fromJson(Map<String, dynamic> json) => DrumPiece(
+    json['key'] as int,
+    json['name'] as String,
+    json['step'] as String,
+    json['octave'] as int,
+    notehead: json['notehead'] as String?,
+    voice: json['voice'] as int? ?? 1,
+    shortcut: json['shortcut'] as String?,
+  );
 }
+
+/// MuseScore's orchestral percussion maps: every piece sits on the one
+/// staff line (the middle of a treble staff), with stems up in voice 1.
+const orchestralSnare = [
+  DrumPiece(38, 'Snare', 'B', 4, shortcut: 'B'),
+  DrumPiece(37, 'Side Stick', 'B', 4, notehead: 'x', shortcut: 'A'),
+];
+const orchestralBassDrum = [
+  DrumPiece(36, 'Concert Bass Drum', 'B', 4, shortcut: 'A'),
+];
+const orchestralCymbals = [
+  DrumPiece(57, 'Hand Cymbals', 'B', 4, shortcut: 'A'),
+];
+
+List<DrumPiece>? orchestralDrumsFor(String name) =>
+    switch (name.toLowerCase()) {
+      'snare drum' => orchestralSnare,
+      'bass drum' => orchestralBassDrum,
+      'cymbals' => orchestralCymbals,
+      _ => null,
+    };
 
 const drumKit = <DrumPiece>[
   DrumPiece(36, 'Bass Drum', 'F', 4, voice: 2, shortcut: 'A'),
@@ -40,19 +93,26 @@ const drumKit = <DrumPiece>[
   DrumPiece(52, 'China Cymbal', 'B', 5),
 ];
 
-DrumPiece? drumPiece(int key) =>
-    drumKit.where((d) => d.key == key).firstOrNull;
+DrumPiece? drumPiece(int key) => drumKit.where((d) => d.key == key).firstOrNull;
 
 /// The kit piece entered with [letter] (A bass drum … H floor tom).
-DrumPiece? drumForShortcut(String letter) =>
-    drumKit.where((d) => d.shortcut == letter).firstOrNull;
+DrumPiece? drumForShortcut(
+  String letter, {
+  Iterable<DrumPiece> pieces = drumKit,
+}) => pieces.where((d) => d.shortcut == letter).firstOrNull;
 
 /// The piece written at [step][octave], preferring the main kit pieces
 /// (those with a letter); the nearest one when none sits there.
-DrumPiece drumAt(String step, int octave) {
+DrumPiece drumAt(String step, int octave, {List<DrumPiece> pieces = drumKit}) {
+  if (pieces.isEmpty) pieces = drumKit;
+  if (pieces.every(
+    (p) => p.step == pieces.first.step && p.octave == pieces.first.octave,
+  )) {
+    return pieces.first;
+  }
   int place(String s, int o) => o * 7 + 'CDEFGAB'.indexOf(s);
   final target = place(step, octave);
-  final ranked = [...drumKit]
+  final ranked = [...pieces]
     ..sort((a, b) {
       final distance = (place(a.step, a.octave) - target).abs().compareTo(
         (place(b.step, b.octave) - target).abs(),

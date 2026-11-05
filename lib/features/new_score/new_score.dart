@@ -3,6 +3,7 @@ import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/models/measure.dart';
 import 'package:note_vision/core/models/note_value.dart';
 import 'package:note_vision/core/models/part.dart';
+import 'package:note_vision/core/models/drum_kit.dart';
 import 'package:note_vision/core/models/part_playback.dart';
 import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
@@ -22,12 +23,16 @@ class NewStaff {
     this.program,
     this.lowerClef,
     this.squareBracket = false,
+    this.staffLines = 5,
+    this.drumMap,
   });
   final String name;
   final Clef clef;
   final bool grand;
   final Clef? lowerClef;
   final bool squareBracket;
+  final int staffLines;
+  final List<DrumPiece>? drumMap;
 
   /// The GM sound when it is not the usual one for [name] (a jazz band's
   /// guitar is electric).
@@ -47,8 +52,8 @@ class ScoreTemplate {
   final List<NewStaff> staves;
 }
 
-/// The templates whose notation Note Vision can write: no one-line
-/// percussion yet. Part names and clefs follow MuseScore Studio 4.7.5's
+/// The templates whose notation Note Vision can write.
+/// Part names and clefs follow MuseScore Studio 4.7.5's
 /// (`new_score_test.dart` compares them).
 const scoreTemplates = <ScoreTemplate>[
   ScoreTemplate('General', 'Treble clef', [NewStaff('Piano', _treble)]),
@@ -215,6 +220,48 @@ const scoreTemplates = <ScoreTemplate>[
     NewStaff('Violoncellos', _bass),
     NewStaff('Contrabasses', _bass),
   ]),
+  ScoreTemplate('Orchestral', 'Symphony orchestra', [
+    NewStaff('Flute 1', _treble),
+    NewStaff('Flute 2', _treble),
+    NewStaff('Oboe 1', _treble),
+    NewStaff('Oboe 2', _treble),
+    NewStaff('Clarinet in Bb 1', _treble),
+    NewStaff('Clarinet in Bb 2', _treble),
+    NewStaff('Bassoon 1', _bass),
+    NewStaff('Bassoon 2', _bass),
+    NewStaff('Horn in F 1 & 3', _treble),
+    NewStaff('Horn in F 2 & 4', _treble),
+    NewStaff('Trumpet in Bb 1', _treble),
+    NewStaff('Trumpet in Bb 2', _treble),
+    NewStaff('Trombone 1', _bass),
+    NewStaff('Trombone 2', _bass),
+    NewStaff('Tuba', _bass),
+    NewStaff('Timpani', _bass),
+    NewStaff(
+      'Snare Drum',
+      Clef.percussion,
+      staffLines: 1,
+      drumMap: orchestralSnare,
+    ),
+    NewStaff(
+      'Bass Drum',
+      Clef.percussion,
+      staffLines: 1,
+      drumMap: orchestralBassDrum,
+    ),
+    NewStaff(
+      'Cymbals',
+      Clef.percussion,
+      staffLines: 1,
+      drumMap: orchestralCymbals,
+    ),
+    NewStaff('Harp', _treble, grand: true),
+    NewStaff('Violins 1', _treble),
+    NewStaff('Violins 2', _treble),
+    NewStaff('Violas', _alto),
+    NewStaff('Violoncellos', _bass),
+    NewStaff('Contrabasses', _bass),
+  ]),
   ScoreTemplate('Orchestral', 'String orchestra', [
     NewStaff('Violins 1', _treble),
     NewStaff('Violins 2', _treble),
@@ -331,6 +378,8 @@ Score buildNewScore(NewScoreOptions o, {String? id}) {
         id: id,
         name: staff.name,
         playback: playback,
+        staffLines: staff.staffLines,
+        drumMap: staff.drumMap,
         transposition: transposition,
         tabTuning: staff.clef.isTab ? standardGuitarTuning : null,
         measures: measures(staff.clef, top: parts.isEmpty),

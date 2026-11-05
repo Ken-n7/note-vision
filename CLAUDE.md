@@ -229,9 +229,9 @@ These are final unless explicitly changed:
 - **Repeats, endings and jumps:** `Measure.endingStart`/`endingEnd`, `Measure.navigation` (`NavigationMark`: segno, coda, Fine, To Coda, D.C./D.S. and al Fine/al Coda) and `BarlineType` double/final. `ScoreTimelineBuilder.playOrder` unrolls them for playback as MuseScore does (repeat count = highest ending number; no repeats after a jump). MusicXML import/export both ways; Bar tools → Repeats and command search toggle them on the selected bars in every staff (one undo step); editor and PDF draw them via `barShapes`. MuseScore imports D.C./D.S. from MusicXML as text, so their parity cases are `.mscx`.
 - **Bar rests, pickups, common/cut time:** `Rest.measureRest` (`<rest measure="yes"/>`, drawn as a centred whole rest; a new length makes it ordinary), `Measure.implicit` (pickup: left out of the bar count, numbered 0 at the start and unlabelled; renumbering keeps the count), `TimeSignature.symbol` (`TimeSymbol.common`/`cut`, drawn C/¢; scans keep it). Bar tools → Measures → Pickup / Bar rest, Time → C / ¢, and command search. MuseScore `01` and `03` match fully.
 - **Grace notes:** `Note.grace` (`Grace.appoggiatura`/`acciaccatura`) takes no bar time; MusicXML `<grace>` both ways (no `<duration>`, grace beams kept); playback borrows one grace value (≤ half the lender) from the main note's start (appoggiatura) or the previous note's end (acciaccatura), as measured from MuseScore in `19_grace_timing`. Edit → Acciacc./Appogg. and search add one before the selected note. Drawn at `graceScale` (65%), slashed for acciaccatura. Stage 4H checkpoints in `EDITOR_PARITY.md`; Stage 5A mixer is complete, next is 4I engraving.
-- **New-score wizard:** Collection → + → New Score opens `NewScoreWizard` (instruments: your staves or MuseScore-style templates; then title, composer, key, time incl. C/¢, pickup, bars (32), optional tempo). `buildNewScore(NewScoreOptions)` in `lib/features/new_score/new_score.dart` is the testable core; templates (25, incl. jazz combo, big band, concert bands, Classical orchestra and String orchestra) match MuseScore's part names, programs and clefs (`new_score_test.dart`, references in `test/musescore_parity/reference/templates/`); `NewStaff.program` overrides a staff's sound; `instrumentKey(name)` strips part numbers ("Horn in F 1 & 2") for `transpositionFor`/`defaultProgramFor`. `NewStaff.lowerClef` adds an independent second staff: Classical orchestra has 12 instruments / 13 staves, including two treble horn staves with shared sound/transposition and a square bracket (`Part.squareBracket`, JSON, canvas/PDF and MusicXML). It uses eight pitched MIDI channels. `Clef.octave` (clef-octave-change) supports treble 8vb for tenor/guitar: pitch stays sounding, `Clef.layoutSign` (`G-1`) shifts staff position. Stage 5C in `EDITOR_PARITY.md`.
+- **New-score wizard:** Collection → + → New Score opens `NewScoreWizard` (instruments: your staves or MuseScore-style templates; then title, composer, key, time incl. C/¢, pickup, bars (32), optional tempo). `buildNewScore(NewScoreOptions)` in `lib/features/new_score/new_score.dart` is the testable core; templates (26, incl. jazz combo, big band, concert bands, Classical/Symphony/String orchestra) match MuseScore's part names, programs and clefs (`new_score_test.dart`, references in `test/musescore_parity/reference/templates/`); `NewStaff.program` overrides a staff's sound; `instrumentKey(name)` strips part numbers ("Horn in F 1 & 2") for `transpositionFor`/`defaultProgramFor`. `NewStaff.lowerClef` adds an independent second staff: Classical orchestra has 12 instruments / 13 staves, including two treble horn staves with shared sound/transposition and a square bracket (`Part.squareBracket`, JSON, canvas/PDF and MusicXML). It uses eight pitched MIDI channels. `Clef.octave` (clef-octave-change) supports treble 8vb for tenor/guitar: pitch stays sounding, `Clef.layoutSign` (`G-1`) shifts staff position. Stage 5C in `EDITOR_PARITY.md`.
 - **Transposing instruments:** `Part.transposition` (MusicXML `<transpose>`; notes/keys stored as written, playback adds the interval). `Score.concertPitch` + `Transposer.concertPitch` (More → Concert pitch, one undo step; export always writes players' parts). `transpositionFor(name)` gives MuseScore's transpositions (B♭ clarinet/trumpet, E♭/B♭ saxes, horn in F, octave basses). Copy parts with `Part.copyWith`, never field by field. Stage 5D part 1 in `EDITOR_PARITY.md`.
-- **Drums:** `Clef.percussion` staff (`Part.isPercussion`, no key, notes placed as treble); `Note.drum` (GM key) + `Note.notehead`; `drumKit` gives MuseScore's positions/voices/letters (A–H). MusicXML `<unpitched>` + `<instrument>`/`<midi-unpitched>` both ways; channel 10 playback; transpose skips drums. Add notes shows kit buttons on a drum staff. Stage 5D part 2 in `EDITOR_PARITY.md`.
+- **Drums:** `Clef.percussion` staff (`Part.isPercussion`, no key, notes placed as treble); `Note.drum` (GM key) + `Note.notehead`; `drumKit` gives MuseScore's positions/voices/letters (A–H). MusicXML `<unpitched>` + `<instrument>`/`<midi-unpitched>` both ways; channel 10 playback; transpose skips drums. Add notes shows kit buttons on a drum staff. `Part.staffLines`/`Part.drumMap` retain one-line snare, bass-drum and cymbal maps (JSON, input, canvas/PDF and MusicXML). Playback selects SoundFont bank 128 for channel 10; the mixer offers the bundled kit names and shares kit/volume/pan across percussion parts, keeping mute/solo per part. Stage 5D part 2 in `EDITOR_PARITY.md`.
 - **Tablature:** `Clef.tab` staff (`Part.isTab`, `Part.tabTuning` lowest string first) with `Note.string` (1 = highest) / `Note.fret`; pitch stays sounding. MusicXML `<staff-details>` tuning and `<technical>` string/fret both ways, no accidentals on TAB. `placeTabNotes` (in `_updateState`) keeps strings/frets in step with pitch. Fret numbers drawn on string lines in editor and PDF; simple TAB hides rests and time signatures in both, including meter changes. Stage 5D part 3 in `EDITOR_PARITY.md`. Guitar + tablature: `Part.linked` TAB staff mirrors the staff above (`syncLinkedStaves` in `_updateState`, copies whichever side was edited, keeping each staff's IDs/voices/clefs); only the upper staff plays; import links a TAB staff that repeats the staff above (MuseScore writes linked notes twice); template, Staves sheet "Guitar + TAB"; `27_guitar_and_tab` parity.
 - **Cross-staff notes:** `Note.staffMove` (±1) draws a note on the neighbouring staff of its instrument while it keeps its own staff's voice and time; MusicXML `<staff>` = home + move. Import picks each voice's home staff by majority (`homeStaves` in `musicxml_source.dart`, also used by the source timeline). Ctrl/Cmd+Shift+Down/Up and Edit-dock Staff down/up. Stage 5D part 4 in `EDITOR_PARITY.md`; the agreed MuseScore stage list is complete.
 - **Selection after edits:** `_updateState` re-resolves the selected symbol by position after `NotationReviewService.ensureIdentity` (which rebuilds symbols).
@@ -282,9 +282,16 @@ horn support implemented; analysis clean, **998 tests passed**. Release
 **2018** passed physical QA on the Realme (creation, independent horn notes,
 undo/redo, written/concert pitch, mixer, playback, MusicXML/PDF export,
 re-import, cold restart and save/reopen). Stage 5C records the evidence.
-The test-before-next-feature checkpoint is satisfied. Symphony orchestra and marching
-templates remain incomplete (one-line percussion and instrument/kit support);
-family brackets remain separate engraving work.
+The test-before-next-feature checkpoint for that revision is satisfied.
+
+**Symphony orchestra completed (2026-11-05):** 25 instruments / 26 staves,
+with harp grand staff and one-line orchestral percussion maps; **1,014 tests
+passed**, analysis clean. All sounds fit 11 pitched channels plus percussion
+channel 10. Large-ensemble PDF headers reserve physical title/composer space.
+Release **2019** passed physical editing, shared percussion mixing, PDF export
+and cold save/reopen checks on the Realme. Stage 5C records the evidence;
+subjective listening remains deferred. Marching templates and family-bracket
+engraving remain.
 
 Editor expansion toward MuseScore Studio capabilities and UI/UX is tracked in
 [`EDITOR_PARITY.md`](EDITOR_PARITY.md). Branch: `feat/musescore-editor`. Stage 1
@@ -306,14 +313,27 @@ reimplemented. Every feature is checked against MuseScore Studio 4.7.5 by
 `test/musescore_parity/` (see `EDITOR_PARITY.md`, "MuseScore comparison
 tests").
 
-Latest physical check: release **2018**, Realme RMX1851 / Android 11,
+Latest physical check: release **2019**, Realme RMX1851 / Android 11,
+2026-11-05. Saved **NVSymphony2019** and **NVRename2019**; all nine previous
+projects retained (11 total). Checked mapped snare/side-stick, bass drum and
+cymbal entry, independent harp staves, shared percussion kit/volume/pan,
+per-part mute, undo/redo and rename/reorder before Apply. Both saved projects
+cold-reopened with byte-identical MusicXML exports. The 26-staff PDF has a
+clear title/composer header. A full-ensemble fixture played and retained all
+26 notes unchanged through import/export. Enlarged text (1.8x) and landscape
+checked; original display settings restored and keyboard helper removed.
+Android's active 44.1 kHz stereo track had zero underruns; subjective listening
+remains deferred. Evidence: `/tmp/note-vision-phone-2019/`; phone exports:
+`Download/NoteVisionQA2019/`. No iOS test.
+
+Previous physical check: release **2018**, Realme RMX1851 / Android 11,
 2026-11-05. Saved **NVClassical2018**; all eight earlier projects retained
 (nine total). Horns have different whole notes (written G4/B4, sounding C4/E4),
 one mixer strip and the French horn sound. Cold-reopen export is byte-identical;
 import/export is XML-equivalent. PDF bracket and notes visually checked;
 1.8x text and landscape checked, original display settings restored.
-Android's active 44.1 kHz stereo track had zero underruns; no new subjective
-listening confirmation received. Evidence: `/tmp/note-vision-phone-2018/`,
+Android's active 44.1 kHz stereo track had zero underruns; subjective listening
+check deferred because the user could not listen. Evidence: `/tmp/note-vision-phone-2018/`,
 phone exports: `Download/NoteVisionQA2018/`. Source-preservation import warning
 and complex-source editing limits still apply. No iOS test.
 

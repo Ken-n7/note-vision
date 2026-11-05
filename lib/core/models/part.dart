@@ -1,6 +1,7 @@
 import 'measure.dart';
 import 'part_playback.dart';
 import 'transposition.dart';
+import 'drum_kit.dart';
 
 export 'transposition.dart';
 
@@ -26,6 +27,8 @@ class Part {
     this.tabTuning,
     this.linked = false,
     this.squareBracket = false,
+    this.staffLines = 5,
+    this.drumMap,
   });
 
   /// A linked staff (MuseScore's Guitar + Tablature): this staff shows the
@@ -36,6 +39,12 @@ class Part {
   /// A further staff of the instrument above, joined by a square bracket
   /// instead of a piano brace (e.g. two orchestral horn staves).
   final bool squareBracket;
+
+  /// Five lines normally; orchestral percussion uses one middle line.
+  final int staffLines;
+  final List<DrumPiece>? drumMap;
+  List<DrumPiece> get drums => drumMap?.isNotEmpty == true ? drumMap! : drumKit;
+  bool get singleLine => isPercussion && staffLines == 1;
 
   /// A tablature staff's open strings as MIDI notes, lowest first.
   final List<int>? tabTuning;
@@ -66,6 +75,8 @@ class Part {
     if (tabTuning != null) 'tabTuning': tabTuning,
     if (linked) 'linked': true,
     if (squareBracket) 'squareBracket': true,
+    if (staffLines != 5) 'staffLines': staffLines,
+    if (drumMap != null) 'drumMap': [for (final d in drumMap!) d.toJson()],
   };
 
   factory Part.fromJson(Map<String, dynamic> json) => Part(
@@ -79,6 +90,10 @@ class Part {
     tabTuning: (json['tabTuning'] as List?)?.cast<int>(),
     linked: json['linked'] as bool? ?? false,
     squareBracket: json['squareBracket'] as bool? ?? false,
+    staffLines: json['staffLines'] as int? ?? 5,
+    drumMap: (json['drumMap'] as List?)
+        ?.map((d) => DrumPiece.fromJson(d as Map<String, dynamic>))
+        .toList(),
     measures: (json['measures'] as List<dynamic>)
         .map((m) => Measure.fromJson(m as Map<String, dynamic>))
         .toList(),
@@ -94,7 +109,13 @@ class Part {
     Object? tabTuning = _keep,
     bool? linked,
     bool? squareBracket,
+    int? staffLines,
+    Object? drumMap = _keep,
   }) => Part(
+    staffLines: staffLines ?? this.staffLines,
+    drumMap: identical(drumMap, _keep)
+        ? this.drumMap
+        : drumMap as List<DrumPiece>?,
     squareBracket: squareBracket ?? this.squareBracket,
     linked: linked ?? this.linked,
     tabTuning: identical(tabTuning, _keep)
