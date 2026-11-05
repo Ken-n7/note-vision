@@ -38,6 +38,7 @@ class ScoreNotationPainter extends CustomPainter {
     this.selectedSymbolIndex,
     this.selectedSymbolIndices = const {},
     this.rangeSymbols = const {},
+    this.hiddenMeasures = const {},
     this.joinedParts = const {},
     this.squareBracketParts = const {},
     this.singleLineParts = const {},
@@ -92,6 +93,7 @@ class ScoreNotationPainter extends CustomPainter {
 
   /// A range selection in [selectedPartIndex]: (absolute measure, symbol).
   final Set<(int, int)> rangeSymbols;
+  final Set<int> hiddenMeasures;
 
   /// Parts that are a further staff of the part above (a grand staff): the
   /// two are braced and their barlines run through both.
@@ -326,6 +328,7 @@ class ScoreNotationPainter extends CustomPainter {
 
   List<_RowMetrics> _buildRowMetrics() {
     return _buildRowMetricsStatic(
+      hiddenMeasures: hiddenMeasures,
       parts: parts,
       measuresPerRow: measuresPerRow,
       rowHeight: rowHeight,
@@ -346,6 +349,7 @@ class ScoreNotationPainter extends CustomPainter {
   /// Each system row stacks [parts.length] staves vertically, aligned by
   /// measure index — matching standard grand-staff notation layout.
   static List<_RowMetrics> _buildRowMetricsStatic({
+    Set<int> hiddenMeasures = const {},
     required List<List<Measure>> parts,
     required int measuresPerRow,
     required double rowHeight,
@@ -372,10 +376,15 @@ class ScoreNotationPainter extends CustomPainter {
         final partMeasures = parts[partIdx];
         if (systemStartMeasure >= partMeasures.length) continue;
 
-        final rowEndExclusive = math.min(
+        var rowEndExclusive = math.min(
           systemStartMeasure + measuresPerRow,
           partMeasures.length,
         );
+        while (rowEndExclusive > systemStartMeasure &&
+            hiddenMeasures.contains(rowEndExclusive - 1)) {
+          rowEndExclusive--;
+        }
+        if (rowEndExclusive == systemStartMeasure) continue;
         final rowMeasures = partMeasures.sublist(
           systemStartMeasure,
           rowEndExclusive,
@@ -2791,6 +2800,7 @@ class ScoreNotationPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant ScoreNotationPainter oldDelegate) {
     return oldDelegate.parts != parts ||
+        oldDelegate.hiddenMeasures != hiddenMeasures ||
         oldDelegate.lyricParts != lyricParts ||
         oldDelegate.firstMeasureIndex != firstMeasureIndex ||
         oldDelegate.measuresPerRow != measuresPerRow ||

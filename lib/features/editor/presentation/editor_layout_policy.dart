@@ -1,4 +1,5 @@
 import 'package:note_vision/core/widgets/score_notation/engraving_layout.dart';
+import 'package:note_vision/core/widgets/score_notation/score_display_projection.dart';
 import 'dart:math' as math;
 
 import 'package:note_vision/core/models/measure.dart';
@@ -26,6 +27,8 @@ class EditorLayoutPolicy {
   factory EditorLayoutPolicy.forScore(Score score) =>
       _policies[score] ??= _forScore(score);
   static EditorLayoutPolicy _forScore(Score score) {
+    final display = ScoreDisplayProjection.forScore(score);
+    score = display.score;
     final clearance = EngravingLayout.forScore(score).clearance;
     final base = EditorLayoutPolicy.forPartCount(
       score.parts.length,
@@ -44,21 +47,25 @@ class EditorLayoutPolicy {
     final requiredWidth = EngravingLayout.forScore(score).minimumBarWidth;
     final available =
         base.pageWidth - base.horizontalPadding * 2 - base.rowPrefixWidth;
-    final perRow = (available / requiredWidth).floor().clamp(
-      1,
-      base.measuresPerRow,
-    );
+    final perRow = display.sequential
+        ? display.columns
+        : (available / requiredWidth).floor().clamp(1, base.measuresPerRow);
+    final rowsPerPage = display.sequential
+        ? display.rowsPerPage
+        : base.rowsPerPage;
     return EditorLayoutPolicy(
       measuresPerRow: perRow,
-      rowsPerPage: base.rowsPerPage,
+      rowsPerPage: rowsPerPage,
       notationTopPadding: extraTop,
       pageWidth: math.max(
         base.pageWidth,
-        requiredWidth + base.horizontalPadding * 2 + base.rowPrefixWidth,
+        requiredWidth * (display.sequential ? perRow : 1) +
+            base.horizontalPadding * 2 +
+            base.rowPrefixWidth,
       ),
       pageHeight: math.max(
         base.pageHeight,
-        base.rowsPerPage * math.max(1, score.parts.length) * base.rowHeight +
+        rowsPerPage * math.max(1, score.parts.length) * base.rowHeight +
             base.verticalPadding * 2 +
             88 +
             LyricLayout.aboveHeight(score.parts.map((p) => p.measures)) +
@@ -188,6 +195,8 @@ class EditorPageMetrics {
 final _layoutReferences = Expando<List<Measure>>();
 List<Measure> layoutMeasuresForScore(Score score) =>
     _layoutReferences[score] ??= () {
+      final display = ScoreDisplayProjection.forScore(score);
+      if (display.sequential) return display.score.parts.first.measures;
       final parts = score.parts;
       final count = parts.fold(0, (n, p) => math.max(n, p.measures.length));
       return [

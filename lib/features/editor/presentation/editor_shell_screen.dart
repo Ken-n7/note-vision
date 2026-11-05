@@ -35,6 +35,7 @@ import 'package:note_vision/core/services/score_classifier.dart';
 import 'package:note_vision/core/services/user_profile_service.dart';
 import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
 import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart';
+import 'package:note_vision/core/widgets/score_notation/score_display_projection.dart';
 import 'package:note_vision/core/theme/app_theme.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 import 'package:note_vision/core/widgets/score_page_thumbnail.dart';
@@ -192,8 +193,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
 
   int _currentPageIndex = 0;
 
+  Score get _visibleScore => _reviewPreview && _reviewPlan != null
+      ? _reviewPlan!.preview
+      : _editorState.score;
   EditorLayoutPolicy get _layoutPolicy =>
-      EditorLayoutPolicy.forScore(_editorState.score);
+      EditorLayoutPolicy.forScore(_visibleScore);
 
   bool get _isReviewMode =>
       AppFeatures.classroomWorkflow && widget.args.reviewMode;
@@ -202,7 +206,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
       AppFeatures.classroomWorkflow && widget.args.canEditTeacherComments;
 
   EditorPageMetrics get _pageMetrics {
-    final score = _editorState.score;
+    final score = _visibleScore;
     if (score.parts.isEmpty) {
       return EditorPageMetrics(
         layoutPolicy: _layoutPolicy,
@@ -1081,16 +1085,15 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         ? const [0]
         : pageStartIndicesForMeasures(
             layoutMeasuresForScore(state.score),
-            layoutPolicy: _layoutPolicy,
+            layoutPolicy: EditorLayoutPolicy.forScore(state.score),
           );
 
     if (state.selectedMeasureIndex != null &&
         state.score.parts.isNotEmpty &&
-        state.score.parts.first.measures.isNotEmpty) {
-      final measureIndex = state.selectedMeasureIndex!.clamp(
-        0,
-        layoutMeasuresForScore(state.score).length - 1,
-      );
+        layoutMeasuresForScore(state.score).isNotEmpty) {
+      final measureIndex = ScoreDisplayProjection.forScore(state.score)
+          .index(state.selectedPartIndex ?? 0, state.selectedMeasureIndex!)
+          .clamp(0, layoutMeasuresForScore(state.score).length - 1);
       return _clampPageIndexForStarts(
         pageStarts,
         pageIndexForMeasure(pageStarts, measureIndex),
@@ -1111,7 +1114,11 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     }
 
     _setCurrentPageIndex(
-      _pageMetrics.pageIndexForMeasureIndex(position.measureIndex),
+      _pageMetrics.pageIndexForMeasureIndex(
+        ScoreDisplayProjection.forScore(
+          _visibleScore,
+        ).index(position.partIndex, position.measureIndex),
+      ),
     );
   }
 
@@ -1937,16 +1944,29 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   }
 
   ({int part, int measure, int symbol})? _adjacentSymbol(int direction) {
-    final part = _editorState.selectedPartIndex;
-    if (part == null) return null;
-    final measures = _editorState.score.parts[part].measures;
+    final selectedPart = _editorState.selectedPartIndex;
+    if (selectedPart == null) return null;
+    var part = selectedPart;
+    var measures = _editorState.score.parts[part].measures;
+    final scan = ScoreDisplayProjection.forScore(_editorState.score).sequential;
     var measure = _editorState.selectedMeasureIndex ?? 0;
     var symbol = _editorState.selectedSymbolIndex != null
         ? _editorState.selectedSymbolIndex! + direction
         : direction > 0
         ? 0
         : measures[measure].symbols.length - 1;
-    while (measure >= 0 && measure < measures.length) {
+    while (true) {
+      if (measure < 0 || measure >= measures.length) {
+        if (!scan) return null;
+        part += direction;
+        if (part < 0 || part >= _editorState.score.parts.length) return null;
+        measures = _editorState.score.parts[part].measures;
+        measure = direction > 0 ? 0 : measures.length - 1;
+        symbol = direction > 0 || measures.isEmpty
+            ? 0
+            : measures.last.symbols.length - 1;
+        continue;
+      }
       final symbols = measures[measure].symbols;
       while (symbol >= 0 && symbol < symbols.length) {
         if (symbols[symbol] is Note || symbols[symbol] is Rest) {
@@ -1959,7 +1979,6 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
         symbol = direction > 0 ? 0 : measures[measure].symbols.length - 1;
       }
     }
-    return null;
   }
 
   void _selectAdjacentSymbol(int direction) {
@@ -4331,6 +4350,54 @@ class _NotationArea extends StatefulWidget {
 
 class _NotationAreaState extends State<_NotationArea>
     with SingleTickerProviderStateMixin {
+  ScoreDisplayProjection get _display =>
+      ScoreDisplayProjection.forScore(widget.editorState.score);
+
+  ScoreCell? _sourceCell(int part, int measure) =>
+      _display.origin(part, measure + widget.pageFirstMeasure);
+
+  NotationSymbolTarget? _sourceSymbol(NotationSymbolTarget? target) {
+    if (target == null) return null;
+    final cell = _sourceCell(target.partIndex, target.measureIndex);
+    if (cell == null) return null;
+    return NotationSymbolTarget(
+      partIndex: cell.part,
+      measureIndex: cell.measure,
+      symbolIndex: target.symbolIndex,
+      center: target.center,
+      hitRect: target.hitRect,
+    );
+  }
+
+  NotationInsertTarget? _sourceInsert(NotationInsertTarget? target) {
+    if (target == null) return null;
+    final cell = _sourceCell(target.partIndex, target.measureIndex);
+    if (cell == null) return null;
+    return NotationInsertTarget(
+      partIndex: cell.part,
+      measureIndex: cell.measure,
+      insertIndex: target.insertIndex,
+      indicatorX: target.indicatorX,
+      step: target.step,
+      octave: target.octave,
+    );
+  }
+
+  NotationSymbolReorder? _sourceReorder(NotationSymbolReorder? target) {
+    if (target == null) return null;
+    final from = _sourceCell(target.fromPartIndex, target.fromMeasureIndex);
+    final to = _sourceCell(target.toPartIndex, target.toMeasureIndex);
+    if (from == null || to == null) return null;
+    return NotationSymbolReorder(
+      fromPartIndex: from.part,
+      fromMeasureIndex: from.measure,
+      fromSymbolIndex: target.fromSymbolIndex,
+      toPartIndex: to.part,
+      toMeasureIndex: to.measure,
+      toSymbolIndex: target.toSymbolIndex,
+    );
+  }
+
   final _transformController = TransformationController();
   late final AnimationController _playheadController;
   Size? _viewportSize;
@@ -4385,14 +4452,17 @@ class _NotationAreaState extends State<_NotationArea>
   /// when the measure is not on this page.
   String? _relMark(String key) {
     final parts = key.split(':');
-    final rel = _rel(int.parse(parts[1]));
+    final p = int.parse(parts[0]);
+    final rel = _rel(int.parse(parts[1]), p);
     if (rel == null) return null;
-    return [parts[0], rel, ...parts.skip(2)].join(':');
+    return [_display.part(p), rel, ...parts.skip(2)].join(':');
   }
 
-  int? _rel(int? abs) {
+  int? _rel(int? abs, [int? part]) {
     if (abs == null) return null;
-    final rel = abs - widget.pageFirstMeasure;
+    final rel =
+        _display.index(part ?? widget.editorState.selectedPartIndex ?? 0, abs) -
+        widget.pageFirstMeasure;
     if (rel < 0 || rel >= widget.pageMeasureCount) return null;
     return rel;
   }
@@ -4426,7 +4496,8 @@ class _NotationAreaState extends State<_NotationArea>
   void focusMeasure(int partIndex, int absoluteMeasure) {
     final viewport = _viewportSize;
     if (viewport == null || viewport.isEmpty) return;
-    final relative = absoluteMeasure - widget.pageFirstMeasure;
+    final relative =
+        _display.index(partIndex, absoluteMeasure) - widget.pageFirstMeasure;
     if (relative < 0 || relative >= widget.pageMeasureCount) return;
     final policy = widget.layoutPolicy;
     final row = relative ~/ policy.measuresPerRow;
@@ -4438,7 +4509,7 @@ class _NotationAreaState extends State<_NotationArea>
     final y =
         policy.verticalPadding +
         policy.notationTopPadding +
-        (row * widget.editorState.score.parts.length + partIndex) *
+        (row * _display.score.parts.length + _display.part(partIndex)) *
             policy.rowHeight;
     final freeHeight = math.max(
       20.0,
@@ -4526,15 +4597,17 @@ class _NotationAreaState extends State<_NotationArea>
       ),
 
       rowPrefixWidth: widget.layoutPolicy.rowPrefixWidth,
-      partCount: score.parts.length,
+      partCount: _display.score.parts.length,
     );
     return Size(widget.layoutPolicy.pageWidth, layout.size.height);
   }
 
   ScoreNotationViewer _buildScoreNotationViewer() {
     final pos = widget.playbackPosition;
-    final playheadPartIndex = pos.isNone ? null : pos.partIndex;
-    final playheadMeasureIndex = pos.isNone ? null : _rel(pos.measureIndex);
+    final playheadPartIndex = pos.isNone ? null : _display.part(pos.partIndex);
+    final playheadMeasureIndex = pos.isNone
+        ? null
+        : _rel(pos.measureIndex, pos.partIndex);
     final canEdit = !widget.isPlaybackActive && !widget.isReadOnly;
 
     // AnimationController runs 0→1 over the current note's scaled duration.
@@ -4543,8 +4616,16 @@ class _NotationAreaState extends State<_NotationArea>
     final playbackT = widget.isPlaybackActive ? _playheadController.value : 0.0;
 
     return ScoreNotationViewer(
-      score: widget.editorState.score,
-      selectedPartIndex: widget.editorState.selectedPartIndex ?? 0,
+      score: _display.score,
+      hiddenMeasures: {
+        for (final m in _display.hiddenMeasures)
+          if (m >= widget.pageFirstMeasure &&
+              m < widget.pageFirstMeasure + widget.pageMeasureCount)
+            m - widget.pageFirstMeasure,
+      },
+      selectedPartIndex: _display.part(
+        widget.editorState.selectedPartIndex ?? 0,
+      ),
       measuresPerRow: widget.layoutPolicy.measuresPerRow,
       minMeasureWidth: widget.layoutPolicy.minMeasureWidth,
       rowHeight: widget.layoutPolicy.rowHeight,
@@ -4564,18 +4645,24 @@ class _NotationAreaState extends State<_NotationArea>
       },
       playbackPartIndex: widget.playbackPosition.isNone
           ? null
-          : widget.playbackPosition.partIndex,
+          : _display.part(widget.playbackPosition.partIndex),
       playbackMeasureIndex: widget.playbackPosition.isNone
           ? null
-          : _rel(widget.playbackPosition.measureIndex),
+          : _rel(
+              widget.playbackPosition.measureIndex,
+              widget.playbackPosition.partIndex,
+            ),
       playbackSymbolIndex: widget.playbackPosition.isNone
           ? null
           : widget.playbackPosition.symbolIndex,
       playbackNextPartIndex: widget.playbackPosition.hasNext
-          ? widget.playbackPosition.nextPartIndex
+          ? _display.part(widget.playbackPosition.nextPartIndex!)
           : null,
       playbackNextMeasureIndex: widget.playbackPosition.hasNext
-          ? _rel(widget.playbackPosition.nextMeasureIndex)
+          ? _rel(
+              widget.playbackPosition.nextMeasureIndex,
+              widget.playbackPosition.nextPartIndex,
+            )
           : null,
       playbackNextSymbolIndex: widget.playbackPosition.hasNext
           ? widget.playbackPosition.nextSymbolIndex
@@ -4594,82 +4681,50 @@ class _NotationAreaState extends State<_NotationArea>
       externalPreviewResolver: _previewGlyphForDragData,
       onExternalDrop: !canEdit
           ? null
-          : (target, data) => widget.onExternalDrop(
-              NotationInsertTarget(
-                partIndex: target.partIndex,
-                measureIndex: target.measureIndex + widget.pageFirstMeasure,
-                insertIndex: target.insertIndex,
-                indicatorX: target.indicatorX,
-                step: target.step,
-                octave: target.octave,
-              ),
-              data,
-            ),
+          : (target, data) {
+              final source = _sourceInsert(target);
+              if (source != null) widget.onExternalDrop(source, data);
+            },
       onAnnotationTap:
           !widget.insertMode && canEdit && widget.onAnnotationTap != null
-          ? (p, m, i) =>
-                widget.onAnnotationTap!(p, m + widget.pageFirstMeasure, i)
+          ? (p, m, i) {
+              final cell = _sourceCell(p, m);
+              if (cell != null) {
+                widget.onAnnotationTap!(cell.part, cell.measure, i);
+              }
+            }
           : null,
       onMeasureTap: !widget.insertMode && !widget.isPlaybackActive
-          ? widget.onMeasureTap
+          ? (target) {
+              final cell = target == null
+                  ? null
+                  : _sourceCell(target.partIndex, target.measureIndex);
+              widget.onMeasureTap(
+                cell == null
+                    ? null
+                    : NotationMeasureTarget(
+                        partIndex: cell.part,
+                        measureIndex: cell.measure,
+                      ),
+              );
+            }
           : null,
       onSymbolTap: (widget.insertMode || !canEdit)
           ? null
-          : (target) => widget.onSymbolTap(
-              target == null
-                  ? null
-                  : NotationSymbolTarget(
-                      partIndex: target.partIndex,
-                      measureIndex:
-                          target.measureIndex + widget.pageFirstMeasure,
-                      symbolIndex: target.symbolIndex,
-                      center: target.center,
-                      hitRect: target.hitRect,
-                    ),
-            ),
+          : (target) => widget.onSymbolTap(_sourceSymbol(target)),
       onInsertTap: (widget.insertMode && canEdit)
-          ? (target) => widget.onInsertTap(
-              target == null
-                  ? null
-                  : NotationInsertTarget(
-                      partIndex: target.partIndex,
-                      measureIndex:
-                          target.measureIndex + widget.pageFirstMeasure,
-                      insertIndex: target.insertIndex,
-                      indicatorX: target.indicatorX,
-                      step: target.step,
-                      octave: target.octave,
-                    ),
-            )
+          ? (target) => widget.onInsertTap(_sourceInsert(target))
           : null,
       onDragStarted: (widget.insertMode || !canEdit)
           ? null
-          : (target) => widget.onDragStarted(
-              NotationSymbolTarget(
-                partIndex: target.partIndex,
-                measureIndex: target.measureIndex + widget.pageFirstMeasure,
-                symbolIndex: target.symbolIndex,
-                center: target.center,
-                hitRect: target.hitRect,
-              ),
-            ),
+          : (target) {
+              final source = _sourceSymbol(target);
+              if (source != null) widget.onDragStarted(source);
+            },
       onDragGlobalUpdate: canEdit ? widget.onDragGlobalUpdate : null,
       onDragCompleted: canEdit
-          ? (reorder, global) => widget.onDragCompleted(
-              reorder == null
-                  ? null
-                  : NotationSymbolReorder(
-                      fromPartIndex: reorder.fromPartIndex,
-                      fromMeasureIndex:
-                          reorder.fromMeasureIndex + widget.pageFirstMeasure,
-                      fromSymbolIndex: reorder.fromSymbolIndex,
-                      toPartIndex: reorder.toPartIndex,
-                      toMeasureIndex:
-                          reorder.toMeasureIndex + widget.pageFirstMeasure,
-                      toSymbolIndex: reorder.toSymbolIndex,
-                    ),
-              global,
-            )
+          ? (reorder, global) =>
+                widget.onDragCompleted(_sourceReorder(reorder), global)
           : null,
       onDragCancelled: canEdit ? widget.onDragCancelled : null,
       suppressCanvasDragGhost: widget.suppressCanvasDragGhost,

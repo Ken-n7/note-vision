@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:note_vision/core/models/score.dart';
+import 'package:note_vision/core/widgets/score_notation/score_display_projection.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 import 'package:note_vision/features/editor/presentation/editor_layout_policy.dart';
 
@@ -19,12 +20,13 @@ class ScorePageThumbnail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final display = ScoreDisplayProjection.forScore(score);
     // Laid out as the editor lays out the score (Stage 4I engraving).
     final layoutPolicy = EditorLayoutPolicy.forScore(score);
     final thumbnailHeight =
         height ?? cardWidth * layoutPolicy.pageHeight / layoutPolicy.pageWidth;
 
-    if (score.parts.isEmpty || score.parts.first.measures.isEmpty) {
+    if (score.parts.isEmpty || layoutMeasuresForScore(score).isEmpty) {
       return _ThumbnailFrame(
         width: cardWidth,
         height: thumbnailHeight,
@@ -63,7 +65,12 @@ class ScorePageThumbnail extends StatelessWidget {
               width: layoutPolicy.pageWidth,
               height: layoutPolicy.pageHeight,
               child: ScoreNotationViewer(
-                score: score,
+                score: display.score,
+                hiddenMeasures: {
+                  for (final i in display.hiddenMeasures)
+                    if (i >= firstMeasureIndex && i < nextMeasureIndex)
+                      i - firstMeasureIndex,
+                },
                 measuresPerRow: layoutPolicy.measuresPerRow,
                 minMeasureWidth: layoutPolicy.minMeasureWidth,
                 rowHeight: layoutPolicy.rowHeight,

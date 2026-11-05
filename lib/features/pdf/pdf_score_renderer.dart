@@ -1,5 +1,6 @@
 import '../editor/presentation/editor_layout_policy.dart';
 import '../../core/widgets/score_notation/engraving_layout.dart';
+import '../../core/widgets/score_notation/score_display_projection.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
@@ -27,10 +28,14 @@ import 'package:pdf/pdf.dart';
 /// Uses the same pitch-to-position math as [ScoreNotationPainter] so that
 /// the PDF output matches the editor canvas layout.
 class PdfScoreRenderer {
-  const PdfScoreRenderer({this.compress = true}) : _policy = null;
+  const PdfScoreRenderer({this.compress = true})
+    : _policy = null,
+      _hiddenMeasures = const {};
   PdfScoreRenderer._configured(Score score, {required this.compress})
-    : _policy = EditorLayoutPolicy.forScore(score);
+    : _policy = EditorLayoutPolicy.forScore(score),
+      _hiddenMeasures = ScoreDisplayProjection.forScore(score).hiddenMeasures;
   final EditorLayoutPolicy? _policy;
+  final Set<int> _hiddenMeasures;
 
   /// PDF stream compression. Tests can disable this to inspect generated
   /// content streams without changing production output.
@@ -101,8 +106,10 @@ class PdfScoreRenderer {
   // ── Public API ────────────────────────────────────────────────────────────
 
   /// Returns raw PDF bytes for [score].
-  Future<Uint8List> render(Score score) =>
-      PdfScoreRenderer._configured(score, compress: compress)._render(score);
+  Future<Uint8List> render(Score score) => PdfScoreRenderer._configured(
+    score,
+    compress: compress,
+  )._render(ScoreDisplayProjection.forScore(score).score);
 
   Future<Uint8List> _render(Score score) async {
     final doc = PdfDocument(compress: compress);
@@ -157,7 +164,7 @@ class PdfScoreRenderer {
 
   List<PdfPageLayoutInfo> debugPageLayoutForTesting(Score score) {
     return PdfScoreRenderer._configured(score, compress: compress)
-        ._paginate(score)
+        ._paginate(ScoreDisplayProjection.forScore(score).score)
         .map(
           (page) => PdfPageLayoutInfo(
             firstMeasureIndex: page.firstMeasureIndex,
@@ -173,11 +180,14 @@ class PdfScoreRenderer {
     final pages = PdfScoreRenderer._configured(
       score,
       compress: compress,
-    )._paginate(score);
+    )._paginate(ScoreDisplayProjection.forScore(score).score);
     if (pageIndex < 0 || pageIndex >= pages.length) {
       return const <List<Measure>>[];
     }
-    return _sliceScoreForPage(score, pages[pageIndex]);
+    return _sliceScoreForPage(
+      ScoreDisplayProjection.forScore(score).score,
+      pages[pageIndex],
+    );
   }
 
   PdfHeaderLayoutInfo debugHeaderLayoutForTesting(Score score) {
@@ -292,6 +302,18 @@ class PdfScoreRenderer {
   }
 
   List<List<Measure>> _sliceScoreForPage(Score score, _PageData page) {
+    if (ScoreDisplayProjection.fromDisplayScore(score) != null) {
+      return [
+        for (final p in score.parts)
+          p.measures.sublist(
+            page.firstMeasureIndex,
+            math.min(
+              p.measures.length,
+              page.firstMeasureIndex + page.measureCount,
+            ),
+          ),
+      ];
+    }
     return score.parts
         .map(
           (part) => _sliceMeasuresWithInheritedMetadata(
@@ -389,10 +411,15 @@ class PdfScoreRenderer {
         final partMeasures = pageParts[pi];
         if (startM >= partMeasures.length) continue;
 
-        final endM = math.min(
+        var endM = math.min(
           startM + page.measuresPerSystem,
           partMeasures.length,
         );
+        while (endM > startM &&
+            _hiddenMeasures.contains(page.firstMeasureIndex + endM - 1)) {
+          endM--;
+        }
+        if (endM == startM) continue;
         final rowMeasures = partMeasures.sublist(startM, endM);
 
         // staffTop = top staff line in PDF coords (y from bottom).

@@ -13,6 +13,7 @@ import '../../services/score_timeline.dart';
 import 'score_notation_metrics.dart';
 import 'staff_pitch_mapper.dart';
 import 'voice_layout.dart';
+import 'score_display_projection.dart';
 
 /// Shared engraving coordinates in staff units (12 units per staff space).
 /// Musical time comes from the live timeline, including retained source gaps.
@@ -22,7 +23,10 @@ class EngravingLayout {
     List<List<Measure>> inputParts, {
     Score? score,
     int firstMeasure = 0,
-  }) : parts = _normalize(inputParts) {
+  }) : parts = ScoreDisplayProjection.fromDisplayScore(score) == null
+           ? _normalize(inputParts)
+           : inputParts {
+    final display = ScoreDisplayProjection.fromDisplayScore(score);
     final plain = Score(
       id: 'layout',
       title: '',
@@ -44,11 +48,16 @@ class EngravingLayout {
           continue;
         }
         try {
+          final cell = display?.origin(p, m + firstMeasure);
+          if (display != null && cell == null) {
+            timelines.add(MeasureTimeline([]));
+            continue;
+          }
           timelines.add(
             const ScoreTimelineBuilder().measure(
-              score ?? plain,
-              p,
-              m + (score == null ? 0 : firstMeasure),
+              display?.source ?? score ?? plain,
+              cell?.part ?? p,
+              cell?.measure ?? m + (score == null ? 0 : firstMeasure),
             ),
           );
         } on ScoreTimelineException {
@@ -144,6 +153,7 @@ class EngravingLayout {
                 timeSignature: m.timeSignature ?? previous?.timeSignature,
                 keySignature: m.keySignature ?? previous?.keySignature,
               );
+              ScoreDisplayProjection.copyRowContext(m, next);
               previous = next;
               return next;
             }(),

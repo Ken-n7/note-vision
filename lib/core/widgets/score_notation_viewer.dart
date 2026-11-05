@@ -11,6 +11,7 @@ import '../models/score.dart';
 import '../models/time_signature.dart';
 import 'score_notation/notation_layout.dart';
 import 'score_notation/engraving_layout.dart';
+import 'score_notation/score_display_projection.dart';
 import 'score_notation/lyric_layout.dart';
 import 'score_notation/annotation_layout.dart';
 import 'score_notation/score_notation_painter.dart';
@@ -81,6 +82,22 @@ NotationPageSlice sliceScoreForLayout({
   if (score == null || score.parts.isEmpty) {
     return const NotationPageSlice(parts: <List<Measure>>[]);
   }
+  if (ScoreDisplayProjection.fromDisplayScore(score) != null) {
+    return NotationPageSlice(
+      parts: [
+        for (final p in score.parts)
+          p.measures.sublist(
+            firstMeasureIndex.clamp(0, p.measures.length),
+            pageMeasureCount == null
+                ? p.measures.length
+                : (firstMeasureIndex + pageMeasureCount).clamp(
+                    0,
+                    p.measures.length,
+                  ),
+          ),
+      ],
+    );
+  }
 
   return NotationPageSlice(
     parts: score.parts
@@ -115,6 +132,7 @@ class ScoreNotationViewer extends StatefulWidget {
     this.selectedSymbolIndex,
     this.selectedSymbolIndices = const {},
     this.rangeSymbols = const {},
+    this.hiddenMeasures = const {},
     this.playbackPartIndex,
     this.playbackMeasureIndex,
     this.playbackSymbolIndex,
@@ -163,6 +181,7 @@ class ScoreNotationViewer extends StatefulWidget {
 
   /// A range selection in [selectedPartIndex]: (absolute measure, symbol).
   final Set<(int, int)> rangeSymbols;
+  final Set<int> hiddenMeasures;
 
   final int? playbackPartIndex;
   final int? playbackMeasureIndex;
@@ -439,6 +458,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
             ),
       onLongPressCancel: widget.onDragCompleted == null ? null : _cancelDrag,
       painter: ScoreNotationPainter(
+        hiddenMeasures: widget.hiddenMeasures,
         engraving: _engraving,
         lyricParts: _allParts,
         firstMeasureIndex: widget.firstMeasureIndex,
@@ -757,6 +777,7 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
           measureInRow++
         ) {
           final absoluteMeasureIndex = rowStartMeasure + measureInRow;
+          if (widget.hiddenMeasures.contains(absoluteMeasureIndex)) continue;
           final measureStartX =
               contentStartX + (measureInRow * widget.minMeasureWidth);
           final measureEndX = measureStartX + widget.minMeasureWidth;

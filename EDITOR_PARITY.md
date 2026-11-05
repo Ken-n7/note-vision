@@ -131,6 +131,56 @@ This changes work order, not the full-parity objective or acceptance criteria.
   phone exports: `Download/NoteVisionQA2021/`. Tested APK SHA-256:
   `9a27d88c81add3e05609699375c27508c225a6ade2af1aa8f8ff8b7c311a4b65`.
 
+### Scanned rows in reading order — 2026-11-05
+
+- Reproduced NVScan2020's column-by-column pagination with its real-photo
+  fixture: eight independently scanned rows were being painted as eight
+  simultaneous parts. `ScoreDisplayProjection` now presents sequential scans
+  row by row. The eight-row / three-bar case has one editor/thumbnail/PDF
+  page, with each source row's bars adjacent. Existing saved scans update
+  without rescanning or rewriting their music.
+- Eligibility uses sequential playback plus scan evidence/legacy scan ID;
+  imported MusicXML, simultaneous ensembles, grand staves, linked TAB and
+  percussion retain their layouts. The display copy has an explicit map back
+  to every original part/measure. Saved parts, notes, evidence and playback
+  remain intact; it does not guess that separate exercises are one instrument.
+- Up to four bars fit each row; denser notation expands the logical width
+  instead of forcing one ensemble column per page. Attached source-page
+  boundaries remain page boundaries. Short-row alignment slots are invisible
+  and reject insertion; original stored empty bars remain original bars.
+  Clef/key/meter contexts stay independent, and an independent row restates
+  its meter when present. No meter is invented for a row that lacks one.
+- Touch selection, insertion/drop, drag/reorder, range/issue highlights,
+  focus and playback positions translate between display and original cells.
+  Next/Previous symbol continue across scanned rows. Page navigation follows
+  original selections/playback in the new layout. Structural review previews
+  compute their own page grouping, so added bars are not clipped.
+- Focused regressions: **14 passed**, covering the real scan, ragged-row
+  pixels/hit areas, independent contexts/signatures, source page breaks,
+  editing/undo, navigation, playback, thumbnail/PDF consistency and structural
+  previews. Editor/PDF captures visually checked in
+  `/tmp/note-vision-scanned-layout-qa/`. Analysis clean; **1,045 full-suite
+  tests passed**.
+- Release **2022** passed Realme RMX1851 / Android 11 QA. Existing NVScan2020
+  opened as one page with eight rows of three bars; exported PDF matched.
+  Row-two touch selection/focus, E3 → F3 → Undo and original-photo tracking
+  worked. Latest user edits were saved before installation; post-install,
+  restored and cold-reopen MusicXML exports are byte-identical to that latest
+  baseline. All 12 projects retained; NVSymphony2019 keeps its ensemble
+  layout. Playback from row two stayed on page 1/1, with an active 44.1 kHz
+  stereo track and zero track underruns. Enlarged text (1.8x), landscape and
+  app error logs checked. Original font/rotation preferences restored, helper
+  removed; saved NVScan2020 left open with playback stopped. No iOS test or
+  new subjective listening confirmation. Evidence:
+  `/tmp/note-vision-phone-2022/` (including `qa-facts.json`); phone exports:
+  `Download/NoteVisionQA2022/`. Tested APK SHA-256:
+  `973388b9090f8e93e04be41c223c8b268a1dfcac20591ea9d837b8928a4650ac`.
+- MusicXML deliberately retains the stored part structure in this slice;
+  flattened/reclassified scan interchange is separate work. Recognition and
+  reconstruction errors remain reviewable; detector weights/thresholds are
+  unchanged. Automatic instrument/exercise grouping and full parity remain
+  on the roadmap.
+
 ## Reference and implementation policy
 
 Use the [MuseScore Studio handbook](https://handbook.musescore.org/llms.txt) as the

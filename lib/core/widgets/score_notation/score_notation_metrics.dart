@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import '../../models/measure.dart';
+import 'score_display_projection.dart';
 
 abstract final class ScoreNotationMetrics {
   static const musicFontFamily = 'NotoMusic';
@@ -134,7 +135,9 @@ abstract final class ScoreNotationMetrics {
     }
     final time = measures[index].timeSignature;
     return time != null &&
-        (index == 0 || measures[index - 1].timeSignature != time);
+        (index == 0 ||
+            measures[index - 1].timeSignature != time ||
+            ScoreDisplayProjection.beginsIndependentRow(measures[index]));
   }
 
   /// Whether that time signature goes inside the measure, after its

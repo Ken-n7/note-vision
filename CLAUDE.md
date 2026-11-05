@@ -23,8 +23,10 @@ Start with repeatable real-photo checks and evidence-backed reliability fixes;
 do not change the frozen detector or confidence thresholds without validation.
 The first slice hardens scan cancellation/retry against stale results and
 native model cleanup races (release 2020 verified below). The next slice keeps
-the original scan visible during manual correction, guided by real-photo
-error triage. Each app change still needs automated checks and phone QA before
+the original scan visible during manual correction (release 2021), guided by
+real-photo error triage. The current fix lays out sequential scanned rows in
+reading order instead of as ensemble columns. Each app change still needs
+automated checks and phone QA before
 the next feature. Full MuseScore parity remains an explicit
 long-term objective in `EDITOR_PARITY.md`; marching templates, family brackets
 and the remaining advanced features are deferred, not removed. Symphony's
@@ -283,6 +285,18 @@ These are final unless explicitly changed:
 
 ## EditorState — How It Works
 
+**Scanned row layout (2026-11-05):** sequential scan rows now have a display
+projection in reading order. NVScan2020's eight rows × three bars fit on one
+page in the editor, thumbnails and PDF instead of three ensemble columns.
+Stored parts/notes and MusicXML stay intact; this does not merge exercises or
+infer instruments. Ensembles/grand staves keep their existing layout. Touch,
+drag, selection, review and playback coordinates map to original parts/bars;
+Next/Previous symbol cross scanned-row boundaries. Missing row meter/key
+context stays absent, and short-row alignment gaps are neither drawn nor
+editable. Review previews use their own layout. Focused regressions: 14 passed;
+full suite: **1,045 passed**, analysis clean. Release **2022** passed Realme
+QA below. See EDITOR_PARITY.md.
+
 **Manual scan reference (2026-11-05):** Edit manually retains a source-photo
 reference alongside the editable paper; More → Original scan opens it without
 a checker finding. It follows selection, supports full-page/crop view and
@@ -352,7 +366,22 @@ reimplemented. Every feature is checked against MuseScore Studio 4.7.5 by
 `test/musescore_parity/` (see `EDITOR_PARITY.md`, "MuseScore comparison
 tests").
 
-Latest physical check: release **2021**, Realme RMX1851 / Android 11,
+Latest physical check: release **2022**, Realme RMX1851 / Android 11,
+2026-11-05. NVScan2020 now shows eight rows of three adjacent bars on one
+editor page; its PDF also has one page. Touching row two selected its original
+E3; Focus selected bar, Up to F3 and Undo worked. Original scan tracked that
+row's selected note. Latest user edits were saved before the app update;
+exports after install, QA Undo and cold reopen match that latest baseline
+byte-for-byte. All 12 projects retained; NVSymphony2019 retains its stacked
+ensemble layout. Playback from row two stayed on page 1/1; Android showed an
+active 44.1 kHz stereo track with zero track underruns. Enlarged text (1.8x)
+and landscape checked. App logs had no Flutter/crash/save errors. Phone font
+and rotation preferences restored; helper removed, NVScan2020 left open with
+playback stopped. Evidence: `/tmp/note-vision-phone-2022/` (including
+`qa-facts.json`); phone exports: `Download/NoteVisionQA2022/`.
+MusicXML retains original parts. No iOS or new subjective listening test.
+
+Previous physical check: release **2021**, Realme RMX1851 / Android 11,
 2026-11-05. More → Original scan and Review → Edit manually both retain an
 editable score beside its photo. Touch Up changed G2 to A2; undo/redo and
 the selected-symbol outline worked, with source tracking into Bar 2.
@@ -366,7 +395,7 @@ No iOS or new subjective listening test.
 
 Phone automation: lock rotation during coordinate-based checks and restore
 preferences afterward. Verify native DocumentsUI's SAVE action and filename
-EditText before typing; the guarded `/tmp/note-vision-phone-2021/export.py`
+EditText before typing; the guarded `/tmp/note-vision-phone-2022/export.py`
 uses current UI labels/bounds, preventing filename input into the editor.
 
 Previous physical check: release **2020**, Realme RMX1851 / Android 11,
