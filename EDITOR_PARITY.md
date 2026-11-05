@@ -7,6 +7,71 @@ another app does not satisfy this objective. Work branch: `feat/musescore-editor
 This is a multi-stage implementation. A completed stage is not full parity.
 The user cancelled the automatic quota-reset trigger request. Do not install one.
 
+## Current priorities — 2026-11-05
+
+The user prioritized scan accuracy, easy corrections and reliable playback
+while explicitly retaining full MuseScore parity as the long-term objective.
+Work through the everyday offline flow before adding more advanced templates:
+
+1. **Scan reliability and accuracy:** establish reproducible real-photo checks,
+   retain the frozen model/thresholds until validated changes show a benefit,
+   and fix failed, cancelled or retried scans. First slice: prevent stale scan
+   results and release the native detector safely when leaving the screen.
+2. **Easy corrections:** make uncertain/missing symbols easy to locate against
+   the original page; verify preview, manual edits, undo and save/reopen.
+   Measure changes against real scans rather than treating correct beat totals
+   as evidence that recognition is correct.
+3. **Reliable playback and export:** verify corrected pitches/rhythms, transport,
+   persistence and MusicXML/PDF through the complete scan-to-export flow.
+
+Use automated regressions and physical phone QA for each app change before
+starting the next feature. The Symphony listening check is still deferred;
+objective Android audio diagnostics do not establish subjective sound quality.
+All remaining parity items below stay on the roadmap, including marching and
+other templates, family brackets, advanced engraving and platform integrations.
+This changes work order, not the full-parity objective or acceptance criteria.
+
+### Scan lifecycle reliability — 2026-11-05
+
+- `ScanViewModel` invalidates work when reset, superseded or disposed. Late
+  successes/errors cannot replace the active photo's result. A new run clears
+  previous detection/mapping output; results publish together after source
+  evidence is ready. Leaving during preprocessing does not start detection.
+- Replacement requests wait for an active detection before reusing the native
+  model. Leaving during model loading/detection defers native cleanup until
+  that operation completes, including its failure path. Disposed view models
+  cannot start new work.
+- Eight asynchronous regression cases reproduced failures before the fix and
+  pass afterward. Focused scan tests: **12 passed**. Full suite:
+  `flutter test --no-pub --reporter expanded` **1,022 passed**;
+  `flutter analyze --no-pub` clean; `git diff --check` clean.
+  Logs: `/tmp/note-vision-scan-lifecycle-{before,after}.log`,
+  `/tmp/note-vision-scan-reliability-{analyze,tests}.log`.
+- Detector weights, thresholds and reconstruction are unchanged. This is a
+  reliability fix, with no recognition-accuracy improvement claimed.
+- **Device QA passed:** local release **2020**, Realme RMX1851 / Android 11.
+  Used handwritten photo `IMG_20261015_211254_063` from the existing labelled
+  review set. Starting then immediately leaving a scan returned to Capture;
+  its process log showed zero native detector initializations. A fresh scan
+  completed with one initialization, eight traced staves and 240 symbols.
+  Continued to the editor and visually checked original-image comparison.
+  Saved **NVScan2020**; MusicXML contains eight parts, 171 notes and eight
+  rests. A cold restart retained all 11 previous projects (12 total), and
+  the reopened scan's export was byte-identical. A short playback smoke
+  check showed an active 44.1 kHz stereo track with zero underruns; listening
+  remains deferred. Inspected app logs contained no Flutter exceptions,
+  rendering overflow or fatal exception. Display preferences unchanged;
+  temporary keyboard helper and duplicate gallery copy removed. QA source
+  photo/exports retained in `Download/NoteVisionQA2020/`; NVScan2020 left
+  open with playback stopped. No iOS test.
+  Evidence: `/tmp/note-vision-phone-2020/`, including `qa-facts.json`.
+  Tested APK SHA-256:
+  `5a61d5ad61c146431911ed87adef4f716c41be460025c29a73235d3ac6b59fb0`.
+- Next: triage real-photo pitch/rhythm errors and the manual-correction
+  workflow before selecting another change. Advanced parity items remain
+  queued; detector calibration requires validation, not assumptions based on
+  balanced bars or detector confidence alone.
+
 ## Reference and implementation policy
 
 Use the [MuseScore Studio handbook](https://handbook.musescore.org/llms.txt) as the

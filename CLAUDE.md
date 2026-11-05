@@ -17,6 +17,17 @@ mistakes in an editor, then exports or plays back the result. No internet. No se
 
 **Platform:** Android + iOS (Flutter). Also builds for Linux desktop but mobile is primary.
 
+**Current priority (user decision, 2026-11-05):** improve the everyday offline
+flow: scan accuracy, easy corrections and reliable playback/save/export.
+Start with repeatable real-photo checks and evidence-backed reliability fixes;
+do not change the frozen detector or confidence thresholds without validation.
+The first slice hardens scan cancellation/retry against stale results and
+native model cleanup races (release 2020 verified below). Each app change still
+needs automated checks and phone QA before the next feature. Full MuseScore parity remains an explicit
+long-term objective in `EDITOR_PARITY.md`; marching templates, family brackets
+and the remaining advanced features are deferred, not removed. Symphony's
+subjective listening check remains deferred.
+
 ---
 
 ## Team
@@ -270,6 +281,18 @@ These are final unless explicitly changed:
 
 ## EditorState — How It Works
 
+**Scan reliability completed (2026-11-05):** cancelled, reset or superseded
+scans cannot publish stale results/errors. Retries clear previous output and
+serialize native detection; leaving during loading/detection releases the
+model after that operation finishes. Eight new regression cases reproduced
+the failures before the fix; **1,022 tests passed**, analysis clean. Release
+**2020** passed Realme early-exit/rescan, original-image comparison, save,
+MusicXML export, playback smoke check and cold reopen. Detector weights,
+thresholds and reconstruction remain unchanged; no accuracy gain claimed.
+Next: use real-photo pitch/rhythm errors and correction friction to choose
+the next improvement. Full parity remains in the backlog. Details/evidence:
+`EDITOR_PARITY.md`, "Scan lifecycle reliability".
+
 **Device QA completed (2026-11-04):** the note-input fixes, Chord/Insert
 controls and TAB display changes passed on the Realme in release **2017**
 from `c738255`. The user's test-before-next-feature requirement for that
@@ -313,7 +336,20 @@ reimplemented. Every feature is checked against MuseScore Studio 4.7.5 by
 `test/musescore_parity/` (see `EDITOR_PARITY.md`, "MuseScore comparison
 tests").
 
-Latest physical check: release **2019**, Realme RMX1851 / Android 11,
+Latest physical check: release **2020**, Realme RMX1851 / Android 11,
+2026-11-05. Starting a scan then immediately returning to Capture did not
+initialize the detector. A fresh scan of the same handwritten test photo
+completed with eight traced staves and 240 detected symbols. Original scan
+comparison worked. Saved **NVScan2020** (eight parts, 171 notes, eight rests);
+its cold-reopen MusicXML export was byte-identical. All 11 prior projects
+retained (12 total). Short playback smoke check showed an active 44.1 kHz
+stereo track with zero underruns; subjective listening remains deferred.
+Display settings remain 0.9 font scale / automatic rotation; helper removed,
+NVScan2020 left open with playback stopped. Evidence:
+`/tmp/note-vision-phone-2020/`; phone files: `Download/NoteVisionQA2020/`.
+No iOS test.
+
+Previous physical check: release **2019**, Realme RMX1851 / Android 11,
 2026-11-05. Saved **NVSymphony2019** and **NVRename2019**; all nine previous
 projects retained (11 total). Checked mapped snare/side-stick, bass drum and
 cymbal entry, independent harp staves, shared percussion kit/volume/pan,
