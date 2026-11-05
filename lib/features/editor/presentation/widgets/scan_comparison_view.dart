@@ -12,10 +12,12 @@ class ScanComparisonView extends StatefulWidget {
     required this.page,
     required this.region,
     this.highlight,
+    this.semanticsLabel,
   });
   final ScoreSourcePage page;
   final SourceRegion region;
   final SourceRegion? highlight;
+  final String? semanticsLabel;
 
   @override
   State<ScanComparisonView> createState() => _ScanComparisonViewState();
@@ -35,7 +37,10 @@ class _ScanComparisonViewState extends State<ScanComparisonView> {
   @override
   void didUpdateWidget(covariant ScanComparisonView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.page.id != widget.page.id) _load();
+    if (oldWidget.page.id != widget.page.id ||
+        oldWidget.page.imageBase64 != widget.page.imageBase64) {
+      _load();
+    }
   }
 
   Future<void> _load() async {
@@ -75,7 +80,9 @@ class _ScanComparisonViewState extends State<ScanComparisonView> {
   Widget build(BuildContext context) {
     return Semantics(
       label:
-          'Original scan of the selected measure. The outlined box marks the selected symbol.',
+          widget.semanticsLabel ??
+          'Original scan of the selected measure.'
+              '${widget.highlight == null ? '' : ' The outlined box marks the selected symbol.'}',
       image: true,
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
@@ -92,6 +99,13 @@ class _ScanComparisonViewState extends State<ScanComparisonView> {
               : _image == null
               ? const Center(child: CircularProgressIndicator())
               : InteractiveViewer(
+                  key: ValueKey((
+                    widget.page.id,
+                    widget.region.x,
+                    widget.region.y,
+                    widget.region.width,
+                    widget.region.height,
+                  )),
                   minScale: 1,
                   maxScale: 5,
                   child: SizedBox.expand(

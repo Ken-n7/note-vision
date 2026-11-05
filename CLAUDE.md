@@ -22,8 +22,10 @@ flow: scan accuracy, easy corrections and reliable playback/save/export.
 Start with repeatable real-photo checks and evidence-backed reliability fixes;
 do not change the frozen detector or confidence thresholds without validation.
 The first slice hardens scan cancellation/retry against stale results and
-native model cleanup races (release 2020 verified below). Each app change still
-needs automated checks and phone QA before the next feature. Full MuseScore parity remains an explicit
+native model cleanup races (release 2020 verified below). The next slice keeps
+the original scan visible during manual correction, guided by real-photo
+error triage. Each app change still needs automated checks and phone QA before
+the next feature. Full MuseScore parity remains an explicit
 long-term objective in `EDITOR_PARITY.md`; marching templates, family brackets
 and the remaining advanced features are deferred, not removed. Symphony's
 subjective listening check remains deferred.
@@ -281,6 +283,20 @@ These are final unless explicitly changed:
 
 ## EditorState — How It Works
 
+**Manual scan reference (2026-11-05):** Edit manually retains a source-photo
+reference alongside the editable paper; More → Original scan opens it without
+a checker finding. It follows selection, supports full-page/crop view and
+zoom, and closes independently. Missing evidence shows an explicit message.
+Viewing is not a musical edit; pitch edits/undo preserve the photo and its
+coordinates. Phone, small-phone, enlarged-text, landscape and tablet captures
+checked; **1,031 tests passed**, analysis clean. Historical real-photo triage
+and its measurement limits are recorded in `EDITOR_PARITY.md`. Recognition
+weights/thresholds are unchanged; this improves correction workflow, not
+detector accuracy. Release **2021** passed Realme QA: reference retained during
+touch correction and undo/redo, source tracking, full-page/crop, large text,
+landscape and cold reopen. Edited export was byte-identical after restart;
+the original score was restored and verified byte-identical afterward.
+
 **Scan reliability completed (2026-11-05):** cancelled, reset or superseded
 scans cannot publish stale results/errors. Retries clear previous output and
 serialize native detection; leaving during loading/detection releases the
@@ -336,7 +352,24 @@ reimplemented. Every feature is checked against MuseScore Studio 4.7.5 by
 `test/musescore_parity/` (see `EDITOR_PARITY.md`, "MuseScore comparison
 tests").
 
-Latest physical check: release **2020**, Realme RMX1851 / Android 11,
+Latest physical check: release **2021**, Realme RMX1851 / Android 11,
+2026-11-05. More → Original scan and Review → Edit manually both retain an
+editable score beside its photo. Touch Up changed G2 to A2; undo/redo and
+the selected-symbol outline worked, with source tracking into Bar 2.
+Full-page/crop, 1.8x text and landscape checked. Saved A2 cold-reopened with
+a byte-identical export and its photo intact. Restored G2, saved and verified
+the export against the baseline byte-for-byte. All 12 projects retained;
+NVScan2020 left open with reference visible and playback stopped. Original
+font/rotation settings restored and helper removed. Evidence:
+`/tmp/note-vision-phone-2021/`; phone exports: `Download/NoteVisionQA2021/`.
+No iOS or new subjective listening test.
+
+Phone automation: lock rotation during coordinate-based checks and restore
+preferences afterward. Verify native DocumentsUI's SAVE action and filename
+EditText before typing; the guarded `/tmp/note-vision-phone-2021/export.py`
+uses current UI labels/bounds, preventing filename input into the editor.
+
+Previous physical check: release **2020**, Realme RMX1851 / Android 11,
 2026-11-05. Starting a scan then immediately returning to Capture did not
 initialize the detector. A fresh scan of the same handwritten test photo
 completed with eight traced staves and 240 detected symbols. Original scan

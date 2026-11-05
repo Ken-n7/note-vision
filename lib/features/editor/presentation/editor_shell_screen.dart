@@ -45,6 +45,7 @@ import 'package:note_vision/features/editor/model/editor_state_history.dart';
 import 'package:note_vision/features/editor/presentation/editor_layout_policy.dart';
 import 'package:note_vision/features/editor/presentation/widgets/notation_check_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/notation_review_panel.dart';
+import 'package:note_vision/features/editor/presentation/widgets/scan_reference_workspace.dart';
 import 'package:note_vision/features/editor/presentation/widgets/beam_editor_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/staves_sheet.dart';
 import 'package:note_vision/features/editor/presentation/widgets/lyrics_sheet.dart';
@@ -171,6 +172,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   // on, the issues are worked out again after every edit (a few ms).
   bool _notationCheckOn = false;
   bool _reviewOpen = false;
+  bool _showScanReference = false;
   bool _reviewPreview = false;
   bool _reviewListening = false;
   bool _reviewStarting = false;
@@ -734,6 +736,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     setState(() {
       _notationCheckOn = true;
       _reviewOpen = true;
+      _showScanReference = false;
     });
     final issue = _focusedIssue;
     if (issue != null) _showIssue(issue);
@@ -865,6 +868,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
     if (issue != null) _showIssue(issue);
     setState(() {
       _reviewOpen = false;
+      _showScanReference = _editorState.score.sourcePages.isNotEmpty;
       _reviewPreview = false;
       _reviewPlan = null;
     });
@@ -3154,6 +3158,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   );
 
               return _EditorWorkspace(
+                hasScanReference: _showScanReference,
                 isLandscape: isLandscape,
                 isDraggingNote: _isDraggingNote,
                 dragGlobal: _dragGlobal,
@@ -3188,7 +3193,8 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                           setState(() {});
                         },
                       ),
-                checkBar: _notationCheckOn && !_reviewOpen
+                checkBar:
+                    _notationCheckOn && !_reviewOpen && !_showScanReference
                     ? NotationCheckBar(
                         issueCount: _notationIssues.length,
                         appliedCount: _editorState.score.reviewHistory
@@ -3280,6 +3286,13 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                   onScanPage: isPlaybackActive || isReadOnly
                       ? null
                       : _onScanPage,
+                  scanReferenceVisible: _showScanReference,
+                  onCompareScan:
+                      !_reviewOpen && _editorState.score.sourcePages.isNotEmpty
+                      ? () => setState(
+                          () => _showScanReference = !_showScanReference,
+                        )
+                      : null,
                   onCheckNotation:
                       isPlaybackActive ||
                           isReadOnly ||
@@ -3288,7 +3301,17 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                       ? null
                       : _startNotationCheck,
                 ),
-                notationArea: notationArea,
+                notationArea: !_showScanReference
+                    ? notationArea
+                    : ScanReferenceWorkspace(
+                        score: _editorState.score,
+                        partIndex: _editorState.selectedPartIndex,
+                        measureIndex: _editorState.selectedMeasureIndex,
+                        symbolIndex: _editorState.selectedSymbolIndex,
+                        notationArea: notationArea,
+                        onClose: () =>
+                            setState(() => _showScanReference = false),
+                      ),
                 inspectorPanel: inspectorPanel,
                 playbackControls: PlaybackControlsBar(
                   relativeTempo: _editorState.score.parts.any(
@@ -3422,6 +3445,7 @@ class _EditorWorkspace extends StatelessWidget {
     this.reviewPanel,
     this.reviewPanelFraction = .62,
     this.onReviewResize,
+    this.hasScanReference = false,
     required this.header,
     required this.navigation,
     required this.notationArea,
@@ -3438,6 +3462,7 @@ class _EditorWorkspace extends StatelessWidget {
   final Widget? reviewPanel;
   final double reviewPanelFraction;
   final ValueChanged<double>? onReviewResize;
+  final bool hasScanReference;
   final Widget header;
   final Widget navigation;
   final Widget notationArea;
@@ -3576,11 +3601,11 @@ class _EditorWorkspace extends StatelessWidget {
                       : LayoutBuilder(
                           builder: (context, area) {
                             final dockHeight = math.min(
-                              272 +
+                              (hasScanReference ? 220 : 272) +
                                   (MediaQuery.textScalerOf(context).scale(12) -
                                           12) *
                                       3,
-                              area.maxHeight * .52,
+                              area.maxHeight * (hasScanReference ? .36 : .52),
                             );
                             return Column(
                               children: [
@@ -3780,6 +3805,7 @@ enum _HeaderMenuAction {
   staves,
   mixer,
   clearAllSymbols,
+  compareScan,
 }
 
 class _HeaderMenuItem extends StatelessWidget {
@@ -3829,6 +3855,8 @@ class _EditorHeader extends StatelessWidget {
     this.onSubmit,
     this.onScanPage,
     this.onCheckNotation,
+    this.onCompareScan,
+    this.scanReferenceVisible = false,
     this.onClearAllSymbols,
     this.onTranspose,
     this.concertPitch = false,
@@ -3858,6 +3886,8 @@ class _EditorHeader extends StatelessWidget {
   final VoidCallback? onSubmit;
   final VoidCallback? onScanPage;
   final VoidCallback? onCheckNotation;
+  final VoidCallback? onCompareScan;
+  final bool scanReferenceVisible;
   final VoidCallback? onClearAllSymbols;
   final VoidCallback? onTranspose;
   final bool concertPitch;
@@ -4086,6 +4116,8 @@ class _EditorHeader extends StatelessWidget {
                           onExportXml();
                         } else if (action == _HeaderMenuAction.exportPdf) {
                           onExportPdf();
+                        } else if (action == _HeaderMenuAction.compareScan) {
+                          onCompareScan?.call();
                         } else if (action == _HeaderMenuAction.transpose) {
                           onTranspose?.call();
                         } else if (action == _HeaderMenuAction.concertPitch) {
@@ -4135,6 +4167,18 @@ class _EditorHeader extends StatelessWidget {
                             label: 'Export PDF…',
                           ),
                         ),
+                        if (onCompareScan != null)
+                          PopupMenuItem(
+                            value: _HeaderMenuAction.compareScan,
+                            child: _HeaderMenuItem(
+                              icon: scanReferenceVisible
+                                  ? Icons.check
+                                  : Icons.document_scanner_outlined,
+                              label: scanReferenceVisible
+                                  ? 'Hide original scan'
+                                  : 'Original scan',
+                            ),
+                          ),
                         if (!isReviewMode) ...[
                           PopupMenuItem(
                             value: _HeaderMenuAction.mixer,

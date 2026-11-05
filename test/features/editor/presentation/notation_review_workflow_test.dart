@@ -362,6 +362,54 @@ void main() {
     },
   );
 
+  testWidgets('original scan stays visible while correcting a note manually', (
+    tester,
+  ) async {
+    await _pump(tester, withScan: true);
+    await tester.ensureVisible(find.text('Edit manually'));
+    await tester.tap(find.text('Edit manually'));
+    await tester.pump();
+    await tester.runAsync(() async {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    await tester.pumpAndSettle();
+    expect(find.byType(NotationReviewPanel), findsNothing);
+    expect(find.byType(ScanComparisonView), findsOneWidget);
+    await _tap(tester, find.byTooltip('Next symbol'));
+    final viewer = tester.widget<ScoreNotationViewer>(
+      find.byType(ScoreNotationViewer).first,
+    );
+    final before = viewer.score!;
+    final part = viewer.selectedPartIndex;
+    final measure = viewer.selectedMeasureIndex!;
+    final symbol = viewer.selectedSymbolIndex!;
+    final note = before.getSymbolAt(part, measure, symbol) as Note;
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+    await tester.pumpAndSettle();
+    final after = tester
+        .widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer).first)
+        .score!;
+    expect(
+      (after.getSymbolAt(part, measure, symbol) as Note).pitch,
+      isNot(note.pitch),
+    );
+    expect(find.byType(ScanComparisonView), findsOneWidget);
+    expect(
+      after.sourcePages.single.imageBase64,
+      before.sourcePages.single.imageBase64,
+    );
+    await _tap(tester, find.byTooltip('Undo'));
+    final undone = tester
+        .widget<ScoreNotationViewer>(find.byType(ScoreNotationViewer).first)
+        .score!;
+    expect(
+      (undone.getSymbolAt(part, measure, symbol) as Note).pitch,
+      note.pitch,
+    );
+    expect(find.byType(ScanComparisonView), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('review panel resizes without covering the score', (
     tester,
   ) async {

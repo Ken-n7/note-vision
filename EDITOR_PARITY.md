@@ -72,6 +72,65 @@ This changes work order, not the full-parity objective or acceptance criteria.
   queued; detector calibration requires validation, not assumptions based on
   balanced bars or detector confidence alone.
 
+### Original scan during manual correction — 2026-11-05
+
+- Triage of archived B9 v2 A score pairs from 34 real photos: 27 have matching
+  staff counts (3,006 reference notes/rests); seven staff-count mismatches
+  were excluded from per-staff alignment. A deterministic edit-distance
+  alignment gives 567 pitch-only substitutions, 172 length-only, 164 both,
+  11 note/rest substitutions, 57 missing tokens and 268 extra tokens
+  (1,239 edits, matching the archived 41.2% sequence error rate).
+  This is a historical diagnostic proxy: references come from labelled
+  boxes through the same reconstruction pipeline, written accidentals are
+  omitted, and alignments are not unique. It is neither a fresh inference
+  benchmark nor manually transcribed musical ground truth. Do not use it
+  to calibrate detector thresholds. Reproduction/artifacts:
+  `/tmp/note-vision-triage-2021/{triage.py,report.json}`; archived inputs:
+  `note-vision-data/out/review_eval/scores/`.
+- Concrete correction gap: Edit manually previously removed the source photo.
+  It now opens a modeless original-scan reference beside/above the editable
+  paper. More → Original scan opens it independently of checker findings.
+  It follows selected symbols/measures and the attached page, with a full-page
+  option for surrounding/missing notation, pinch zoom and a close button.
+  Measures without source evidence show a message instead of the prior image.
+- Reference visibility is workspace state, not a score edit. Musical edits,
+  undo, save and source evidence retain their existing semantics. Changing
+  crop/page resets its image viewport; ordinary pitch edits retain the view.
+  Compact layouts allocate more space to the score/reference and retain a
+  scrollable editing dock; the Review header remains available.
+- Focused reference/review regressions: **18 passed**, including manual pitch
+  editing/undo, page following, missing evidence, full-page/crop switching,
+  evidence persistence and opening without changing the score. Captures at
+  phone, 320×568, 1.8x text, landscape and tablet sizes were visually checked
+  in `/tmp/note-vision-triage-2021/screens/`.
+- Detector weights, thresholds, recognition and reconstruction are unchanged;
+  no scan-accuracy improvement is claimed. Full parity remains queued.
+- Final automated verification: `flutter analyze --no-pub` clean;
+  `flutter test --no-pub --reporter expanded` **1,031 passed**;
+  `git diff --check` clean. Logs:
+  `/tmp/note-vision-triage-2021/{analyze-final,focused-final,full-tests}.log`.
+- **Device QA passed:** local release **2021**, Realme RMX1851 / Android 11.
+  Used saved **NVScan2020**. More → Original scan and Review → Edit manually
+  both showed the original photo with editable paper and controls. Verified
+  full-page/crop switching, the selected-symbol outline, and source tracking
+  into Bar 2. Touch Up changed the first note G2 → A2; undo restored G2 and
+  redo restored A2 while the reference stayed open. MusicXML differed only
+  at that pitch. Saved A2, cold-restarted and verified a byte-identical
+  exported score; the original-photo reference reopened successfully.
+  Restored G2 with touch Down, saved and verified the baseline export
+  byte-for-byte. All 12 projects retained. Enlarged text (1.8x) and landscape
+  visually checked; inspected app logs had no Flutter exceptions/overflows.
+  Font scale 0.9 and original rotation preferences restored, temporary
+  keyboard helper removed, NVScan2020 left open with reference visible and
+  playback stopped. No iOS test or new subjective listening confirmation.
+  An early automated run was interrupted by auto-rotation; its unsaved QA
+  input was discarded and baseline recovery verified before rerunning with
+  portrait locked. Export automation now checks actual menu/dialog controls
+  before typing. No app-code changes were needed during phone QA.
+  Evidence: `/tmp/note-vision-phone-2021/` (including `qa-facts.json`);
+  phone exports: `Download/NoteVisionQA2021/`. Tested APK SHA-256:
+  `9a27d88c81add3e05609699375c27508c225a6ade2af1aa8f8ff8b7c311a4b65`.
+
 ## Reference and implementation policy
 
 Use the [MuseScore Studio handbook](https://handbook.musescore.org/llms.txt) as the
