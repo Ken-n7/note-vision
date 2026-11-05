@@ -322,6 +322,66 @@ This changes work order, not the full-parity objective or acceptance criteria.
   chords/grand staves, and ambiguous physically joined note/barline ink.
   Full MuseScore parity remains queued.
 
+### Expanded scan checks — 2026-11-05
+
+- Broadened release **2024** beyond the original three photos with
+  `IMG_20261015_211244_372.jpg` (eight sparse exercise staves),
+  `IMG_20261015_211332_790.jpg` (eight staves of clef-writing practice),
+  `IMG_20261015_211622_458.jpg` (five handwritten song staves with lyrics),
+  and `IMG_20261015_211432_497.jpg` (six uneven exercise staves with varied
+  keys). These are additional existing dataset photos, not an unseen-model
+  benchmark. No production code/model/threshold changes in this QA pass.
+- **Unfixed regressions in `3e56b39`:** replaying identical detections through
+  old/current geometry loses the sparse sheet's row-7 boundary at **x≈353**
+  and the uneven sheet's row-4 boundary at **x≈743** (904×1200 prepared input).
+  Both are visibly real barlines; the new attached-head check rejects them.
+  Candidate coverage remains sufficient. Diagnostic profiles show short
+  horizontal ink runs being accepted as attached heads. The uneven sheet's
+  row-3 boundary at x≈439.5 improves, but that does not offset these misses.
+  The original three-photo pass does not establish broad barline reliability.
+- Sparse sheet, physical Realme: **175 symbols / 9 detected staves** against
+  eight visible staves. Export has **137 notes / 8 rests**, with seven bars
+  allocated to every part; a synthesized staff overlaps real staves near the
+  bottom. Initial **4/4 becomes 44/4**, and row keys are inconsistent. The
+  missing row-7 boundary is visible in the scan overlay. Saved separately as
+  **NVExtraSparse2024**, with MusicXML and one-page PDF. Successful completion
+  and one-page layout do not mean correct transcription.
+- Clef-writing negative control, physical Realme: **121 symbols / 8 staves**;
+  **zero notes and rests** in exported MusicXML. Playback, notation review and
+  PDF export are disabled as expected for this empty musical score. Saved
+  separately as **NVExtraClefs2024**; the QA export guard correctly stopped
+  instead of pressing disabled PDF export.
+- Song, physical Realme: **117 symbols / 5 staves**, **92 notes / 10 rests**.
+  Both real barlines in row 2 are absent in the overlay; beat fallback makes
+  seven bars, then every part is padded to seven. This row also has no
+  boundaries with the old geometry in the fixed-detection replay, so it is
+  an existing failure rather than a new regression. Saved/exported separately
+  as **NVExtraSong2024**. Chord names/lyrics are not reconstructed; some chord
+  text is detected as accidentals. The PDF is one page with many empty bars.
+- Uneven exercises, physical Realme: **133 symbols / 6 staves**, **96 notes /
+  zero rests** despite visible filled-rectangle rest marks. The row-4 x≈743
+  barline is missing in the phone overlay. Rows without detected boundaries
+  use beat fallback; row 5 becomes 21 bars and every part is padded to 21.
+  Saved/exported separately as **NVExtraRagged2024**. One-page editor/PDF output
+  compresses excessive empty bars into very small notation; layout completion
+  is not an accuracy or readability pass.
+- Save/export completed for all four as separate projects (three PDFs; clef-only
+  PDF correctly disabled). Cold restart retains **22 projects**, including all
+  18 originals; the uneven score's cold MusicXML is byte-identical. The paired
+  score open before this QA also exports byte-identically and was restored,
+  saved and stopped. Retained app logs have no Flutter/crash/save errors.
+  Original automatic rotation/font settings restored; temporary helpers removed.
+  Exports and source photos: `Download/NoteVisionQAExtra2024/` (photos in
+  `Photos/`). Facts/hashes: `/tmp/note-vision-extra-images-2024/qa-facts.json`.
+  No iOS/listening test or new build; the unchanged app's prior 1,070-test pass
+  does not cover these manual accuracy failures.
+- Next: fix the attached-head false veto and add both real-photo regressions
+  before proceeding with meter/key reconstruction. Also reproduce duplicate
+  synthesized staves and beat-count fallback/padded bars on these sheets.
+  Full parity remains queued. Evidence: `/tmp/note-vision-extra-images-2024/`
+  (native-prepared inputs, fixed raw detections, geometry comparison, candidate
+  diagnostics and phone scan/export captures).
+
 ## Reference and implementation policy
 
 Use the [MuseScore Studio handbook](https://handbook.musescore.org/llms.txt) as the

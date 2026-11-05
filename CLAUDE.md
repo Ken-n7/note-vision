@@ -29,6 +29,11 @@ reading order instead of as ensemble columns (release 2022). Guided bar review
 now combines automatic photo comparison, direct corrections and saved review
 progress (release 2023). Barline geometry now separates missed-note stems from
 real boundaries, including boundaries inside loose note boxes (release 2024).
+Expanded checks on four additional dataset photos found two real boundaries
+falsely rejected by the new attached-head veto, an extra synthesized staff,
+and 4/4 read as 44/4. Fix these barline regressions before the next feature;
+the original three-photo pass is not broad accuracy validation. See the
+expanded QA checkpoint in `EDITOR_PARITY.md`.
 Each app change still needs
 automated checks and phone QA before
 the next feature. Full MuseScore parity remains an explicit
@@ -312,6 +317,21 @@ update, and mixed review retains 18 pending bars + one deferred. Evidence:
 `/tmp/note-vision-phone-2024/`; device checkpoint in `EDITOR_PARITY.md`.
 Recognition of meter/key, chords and joined note/barline ink still needs work;
 full parity remains queued.
+
+**Expanded scan QA (2026-11-05, unchanged release 2024):** four additional
+dataset photos were freshly scanned on the Realme (sparse exercises,
+clef-writing negative control, song with lyrics, uneven exercises). Two real
+barlines are newly rejected by the attached-head check: `211244_372` row 7
+x≈353 and `211432_497` row 4 x≈743 at 904×1200. These remain unfixed and take
+priority over another feature. Existing failures include eight visible staves
+becoming nine, 4/4 read as 44/4, the song's second row losing both boundaries,
+missed rests, and beat fallback padding every part to seven or 21 bars. The
+one-page PDFs become crowded with tiny notation and empty bars. The clef-only
+page correctly exports zero notes/rests and disables playback/PDF. See
+`EDITOR_PARITY.md` for exact cases; evidence:
+`/tmp/note-vision-extra-images-2024/`. The earlier 1,070 passing tests and
+three-photo check do not cover these failures; no model tuning or app changes
+were made in this QA pass.
 
 **Guided bar review (2026-11-05):** Review groups questions by original row/bar,
 opens the source photo automatically (crop/full-page and linked symbol outline),
