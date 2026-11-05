@@ -27,7 +27,9 @@ the original scan visible during manual correction (release 2021), guided by
 real-photo error triage. The current fix lays out sequential scanned rows in
 reading order instead of as ensemble columns (release 2022). Guided bar review
 now combines automatic photo comparison, direct corrections and saved review
-progress (release 2023). Each app change still needs
+progress (release 2023). Barline geometry now separates missed-note stems from
+real boundaries, including boundaries inside loose note boxes (release 2024).
+Each app change still needs
 automated checks and phone QA before
 the next feature. Full MuseScore parity remains an explicit
 long-term objective in `EDITOR_PARITY.md`; marching templates, family brackets
@@ -93,8 +95,10 @@ Camera / Gallery / MusicXML file
        time-sig digits and the overlay all read the staff where the symbol stands.
      clef-sized level staff (handwritten proportions: G clef 1.48 staves tall, F 0.85)
      projector staves where there is no clef; cluster/synthetic fallbacks after that
-   BarlineFinder — thin full-staff-height strokes that are not inside a clef or
-     stemmed-note box and stop at the staff → DetectionResult.barlines
+   BarlineFinder — thin full-staff-height strokes, excluding horizontal staff
+     support, clef boxes and connected note/head/stem ink. Loose note boxes can
+     contain an independent barline; uncertain ink keeps the original box veto.
+     Strokes must stop at the staff → DetectionResult.barlines
         ↓
 4. Reconstruction Pipeline
    StaffAssigner → MeasureGrouper → StemAssociator
@@ -287,6 +291,28 @@ These are final unless explicitly changed:
 
 ## EditorState — How It Works
 
+**Bar assignment reliability (2026-11-05):** `BarlineFinder` ignores horizontal
+staff ink when measuring vertical coverage, rejects attached heads on missed
+notes, and traces connected ink inside loose note boxes so a neighboring real
+barline is retained. The paired photo's first bass row changes from detected
+note counts **[1, 2, 17] to [3, 9, 8]** on the phone (**[3, 8, 9]** in
+the frozen local-runtime replay, whose detected notes differ slightly). Its
+source first bar has five heads; two remain missed by the unchanged model.
+Applies to new scans; saved music is not reparsed. Three native Android
+picker-prepared regression photos cover
+22 staves / 45 checked interior boundaries; mixed/dense score contents stay
+identical in replay and every detected note/rest stays in order. Android's
+Bitmap resize/JPEG input differs from older tools' Dart linear approximation;
+use committed `test/fixtures/barlines` for exact replay. **1,070 tests passed**,
+analysis clean. Physical **2024** QA freshly scanned all three photos:
+paired boundaries improved with all 139 note contents/order retained;
+mixed/dense musical MusicXML stayed identical, with one-page editor/PDF output
+for all three. Existing mixed/dense scores export byte-identically after the
+update, and mixed review retains 18 pending bars + one deferred. Evidence:
+`/tmp/note-vision-phone-2024/`; device checkpoint in `EDITOR_PARITY.md`.
+Recognition of meter/key, chords and joined note/barline ink still needs work;
+full parity remains queued.
+
 **Guided bar review (2026-11-05):** Review groups questions by original row/bar,
 opens the source photo automatically (crop/full-page and linked symbol outline),
 and embeds a tappable bar with pitch/illustrated length controls and row-scoped
@@ -313,8 +339,9 @@ visible staves were found, and each editor/PDF result has one page. Saved
 retains all 12 prior projects (15 total). Recognition remains inaccurate:
 initial 3/4 became 2/4 on the mixed sheet; the paired sheet's first bass bar
 has one exported note instead of five; the dense sheet's three-sharp key varies
-between rows and stacked notes lack chord grouping. Next accuracy work should
-reproduce bar assignment and meter/key errors before tuning the detector;
+between rows and stacked notes lack chord grouping. The bar-assignment
+follow-up is recorded above; next accuracy work should reproduce meter/key
+errors before tuning the detector;
 scan chord/grand-staff reconstruction remains on the parity roadmap. Evidence:
 `/tmp/note-vision-fresh-scans-2022/report.json` plus original photos, scan
 screenshots and raw MusicXML/PDF exports. Phone exports:

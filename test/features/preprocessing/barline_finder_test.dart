@@ -72,6 +72,48 @@ void main() {
     expect(barlines.single.staffId, 'staff-0');
   });
 
+  test('staff lines do not make a missed note stem look like a barline', () {
+    final image = _page([(300, 109, 151)]);
+    expect(
+      finder.find(image, const [staff], [_quarter(100), _quarter(400)]),
+      isEmpty,
+    );
+  });
+
+  test('an undetected note head vetoes its full-height stem', () {
+    final image = _page([(300, 100, 148)]);
+    img.fillCircle(
+      image,
+      x: 305,
+      y: 115,
+      radius: 6,
+      color: img.ColorRgb8(30, 30, 30),
+    );
+    expect(
+      finder.find(image, const [staff], [_quarter(100), _quarter(400)]),
+      isEmpty,
+    );
+  });
+
+  test('a separate barline inside a loose note box is retained', () {
+    final image = _page([(292, 90, 139), (300, 100, 148)]);
+    img.fillCircle(
+      image,
+      x: 286,
+      y: 133,
+      radius: 5,
+      color: img.ColorRgb8(30, 30, 30),
+    );
+    final notes = [
+      _quarter(100),
+      _quarter(280, fullBox: const Rect.fromLTRB(278, 88, 305, 143)),
+      _quarter(400),
+    ];
+    final found = finder.find(image, const [staff], notes);
+    expect(found, hasLength(1));
+    expect(found.single.x, closeTo(300.5, 1.5));
+  });
+
   test('a stroke that carries on past the staff is not a barline', () {
     final image = _page([(300, 70, 178)]);
     final barlines = finder.find(

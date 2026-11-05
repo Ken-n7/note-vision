@@ -208,9 +208,10 @@ This changes work order, not the full-parity objective or acceptance criteria.
   Evidence: `/tmp/note-vision-fresh-scans-2022/` (`report.json`, source photos,
   scan/editor captures and raw MusicXML/PDF). Phone exports:
   `Download/NoteVisionFreshScans2022/`.
-- Next: reproduce incorrect bar assignment and meter/key recognition against
-  these photos before changing heuristics or thresholds. Layout and successful
-  completion do not establish transcription accuracy; these existing test
+- Follow-up: bar assignment is addressed below; next reproduce meter/key
+  recognition against these photos before changing heuristics or thresholds.
+  Layout and successful completion do not establish transcription accuracy;
+  these existing test
   photos are not an unseen-photo benchmark. Chord/grand-staff reconstruction
   remains part of full parity.
 
@@ -268,6 +269,58 @@ This changes work order, not the full-parity objective or acceptance criteria.
   `/tmp/note-vision-phone-2023/qa-facts.json`; phone exports:
   `Download/NoteVisionQA2023/`. Tested APK SHA-256:
   `2da9cad49019d7bc30bc43b9b25600581869b94213de4d01ab73e992806c4340`.
+
+### Barline and bar assignment reliability — 2026-11-05
+
+- Reproduced the paired sheet's first bass row: 20 detected notes were split
+  **[1, 2, 17]**. Horizontal staff ink promoted a missed note's stem to a
+  boundary, while a loose neighboring note box hid a real barline.
+- `BarlineFinder` excludes horizontal staff bands from coverage, checks for
+  heads attached to otherwise unblocked stems, and traces connected note ink
+  inside full symbol boxes. Independent nearby boundaries can survive; weak
+  tracing evidence keeps the original conservative box veto. The model,
+  detection thresholds, note values and pitch calculations are unchanged.
+- Fixed local-runtime replay gives **[3, 8, 9]** and preserves all detected
+  symbols in order. Physical release 2024 gives **[3, 9, 8]**, preserving its
+  original 139 detected notes exactly; local/phone detections differ slightly
+  despite matching the written boundaries. The source first bar contains five
+  heads: two remain missed by the model. This improves placement of detected
+  music, not complete transcription.
+  New scans use the fix; existing saved scores are not reparsed or migrated.
+- Three committed native Android picker-prepared JPEGs and frozen detections
+  cover **22 staves / 45 visually checked interior boundaries**. Mixed/dense
+  score JSON stays identical in replay; all note/rest IDs stay in order.
+  Android Bitmap resize (`filter=false`) / JPEG-82 differs from the Dart
+  linear-resize approximation in older evaluation tools; the native input
+  reproduces the physical paired-sheet failure. These existing practice
+  photos are regression cases, not an unseen-photo accuracy benchmark.
+- Validation: **83 preprocessing/mapping tests**, **1,070 full-suite tests**,
+  analysis clean. Evidence: `/tmp/note-vision-bar-placement-2024/`, including
+  failing-before focused regressions, native before/after detection and score
+  JSON, and test logs. `tool/barline_trace_test.dart` retains the replay path.
+- Physical **2024** QA (Realme RMX1851 / Android 11): freshly uploaded all
+  three original photos through the complete on-device pipeline, with no
+  review fixes accepted. Saved new projects **NVBarsPaired2024**,
+  **NVBarsMixed2024**, **NVBarsDense2024** and exported MusicXML/PDF. Symbol/staff
+  counts remain **153/7**, **112/6**, **225/9**. The paired sheet's first
+  treble/bass/next-treble rows now split **[5,9,8]**, **[3,9,8]**, **[7,8,9]**.
+  All 139 paired-sheet notes keep their pitch/value/order; mixed/dense musical
+  MusicXML contents are identical to their original fresh-scan exports.
+  All three editor/PDF results remain one page. Existing recognition errors
+  (meter/key/chords) remain visible; this is a boundary fix.
+- Cold restart retains **18 projects** (all 15 originals plus the three new
+  scans); the paired score's cold MusicXML is byte-identical. Existing mixed
+  and user-edited dense scores also export byte-identically before/after the
+  update. Mixed review retains **18 pending bars + one deferred**, resuming
+  at Row 1 / Bar 2. Retained app logs show no Flutter/crash/save errors.
+  Font/rotation preferences are unchanged; temporary keyboard/resize helpers
+  removed. New paired result left saved and stopped. No iOS or subjective
+  listening test. Evidence: `/tmp/note-vision-phone-2024/qa-facts.json`;
+  phone exports: `Download/NoteVisionQA2024/`. Tested APK SHA-256:
+  `001262beb46fbaf4faf469121cf2e28865db5b560ee1849d72557d36f44a813c`.
+- Not yet: recovering missed symbols, reliable meter/key recognition, scan
+  chords/grand staves, and ambiguous physically joined note/barline ink.
+  Full MuseScore parity remains queued.
 
 ## Reference and implementation policy
 
