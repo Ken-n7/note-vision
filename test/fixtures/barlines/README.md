@@ -49,3 +49,9 @@ guards). This distinguishes head-sized ink from small staff-line fragments or
 a neighboring head's edge. Tapered heads need not meet the peak width on every
 row. Synthetic tests exercise both fragments and real missed heads at two scales.
 Evidence: /tmp/note-vision-barline-regressions-2025/.
+
+Meter regression (release 2026) reuses these unchanged detections. Sparse's
+off-column `symbol-2` is a false timeSig4 near the key; the aligned real digits
+give 4/4. `time_signature_real_scan_test.dart` checks that stack and the six
+other meter/control baselines. Missing or misclassified digits in these
+inputs are not musical ground truth and do not justify borrowing a meter.

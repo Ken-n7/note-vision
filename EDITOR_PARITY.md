@@ -436,6 +436,56 @@ This changes work order, not the full-parity objective or acceptance criteria.
   phone exports: `Download/NoteVisionQA2025/`. Tested APK SHA-256:
   `5e042523699d1997d1f547681a34b2920b4d1526a49641b0578eb9e6174b2473`.
 
+### Aligned meter reconstruction — 2026-11-06
+
+- Reproduced the sparse photo's 44/4: a high-confidence false `timeSig4` near
+  the key and the real upper 4 were both concatenated above the lower 4.
+  `SignatureInferrer` now builds contiguous, non-overlapping digit runs and
+  selects a centered upper/lower stack using glyph geometry and staff slope.
+  Confidence and beat totals do not select the meter. Overlapping alternatives
+  cannot become adjacent digits; comparable conflicting stacks return no
+  inferred meter with a warning. Extra/repeated digits also produce a warning.
+- Multi-digit numerators/denominators remain supported, including a genuinely
+  centered 44/4; this is not a numeric cap or a replacement of every 44.
+  Explicit C/cut-time signs retain their behavior. Missing rows and zero
+  components remain unresolved. No neighboring exercise supplies missing meter.
+- **24 focused tests passed**: 17 geometry cases and seven frozen-photo
+  pipeline cases. Nine unit cases and the sparse-photo case fail with the
+  previous parser. Exact before/after score-JSON replay changes only three
+  inherited numerator fields **44 → 4** in sparse P1; all notes, rests, keys,
+  bars and the other six scores are identical. These frozen inputs retain
+  known detector errors and are not complete musical ground truth.
+- Full suite: **1,101 tests passed**, analysis clean. Only the three touched
+  Dart files were formatted. The seven-photo replay and before-failure logs
+  are retained with the focused/full logs.
+- Model assets/confidence cutoffs, staff assignment, key inference, beat-count
+  fallback and existing project files are unchanged. Remaining extra staff,
+  misclassified/missing symbols (including mixed 3/4 → 2/4), song boundaries,
+  padded bars and full parity stay queued.
+  Evidence: `/tmp/note-vision-meter-2026/` (including `score-differences.json`,
+  before/focused logs and the seven before/after score replays).
+- Physical **2026** QA, Realme RMX1851 / Android 11: fresh Upload of the
+  sparse sheet retains **175 symbols / 9 staves**, **137 notes / 8 rests**.
+  Saved as **NVMeterSparse2026**, with MusicXML/PDF. All three inherited
+  P1 meters now export **4/4**, and the rendered PDF shows 4/4. Compared with
+  release 2025, only those numerator fields change; musical XML otherwise
+  matches exactly, including notes/rests, keys and bar assignments. The raw
+  overlay still includes the false detected digit, and the extra staff and
+  padded bars remain known failures.
+- Fresh uneven-sheet control retains **133 symbols / 6 staves**, **96 notes**,
+  and its existing 4/4 and 2/4 meters. Saved/exported as **NVMeterRagged2026**;
+  musical XML is identical to release 2025. Its zero-rest recognition error,
+  missed boundaries and 21-bar padding remain; PDF export is still one page.
+- Cold restart retains **27 projects**, including all 25 originals. Corrected
+  sparse MusicXML is byte-identical after reopening. The originally open
+  **NVBarsPaired2024** also exports byte-identically before/after installation;
+  it was restored, saved and stopped. Retained logs show no Flutter/crash/save
+  errors. Original phone preferences restored and temporary helpers/photo
+  copies removed. No iOS or subjective listening test. Facts/hashes:
+  `/tmp/note-vision-meter-2026/qa-facts.json`; phone exports:
+  `Download/NoteVisionQA2026/`. Tested APK SHA-256:
+  `281918ac8cf18f863722eb08e0ce02e3340bd0b1403a2de7cf645b1a5f732f87`.
+
 ## Reference and implementation policy
 
 Use the [MuseScore Studio handbook](https://handbook.musescore.org/llms.txt) as the

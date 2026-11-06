@@ -33,8 +33,10 @@ Expanded checks on four additional dataset photos found two real boundaries
 falsely rejected by the new attached-head veto, an extra synthesized staff,
 and 4/4 read as 44/4. The barline follow-up requires head-sized ink at the
 current staff scale and restores the two boundaries in regression tests.
-The original three-photo pass is not broad accuracy validation. Remaining
-staff, meter, missed-symbol and padded-bar failures are recorded in
+Aligned meter reconstruction now separates an off-column false 4 from the
+real 4/4 stack, with ambiguity/multi-digit regression coverage. The original
+three-photo pass is not broad accuracy validation. Remaining
+staff, misclassified/missing-symbol and padded-bar failures are recorded in
 `EDITOR_PARITY.md`; full parity stays queued.
 Each app change still needs
 automated checks and phone QA before
@@ -357,6 +359,27 @@ exports and the original saved paired score are byte-identical. Phone settings
 restored and temporary helpers removed. Evidence:
 `/tmp/note-vision-barline-regressions-2025/`; device checkpoint in
 `EDITOR_PARITY.md`.
+
+**Meter reconstruction follow-up (2026-11-06):** `SignatureInferrer` selects
+centered upper/lower digit runs instead of concatenating all detections on
+each row. The sparse photo's off-column false 4 no longer creates 44/4;
+warnings record ignored digits or unresolved competing stacks. Real multi-digit
+meters (including centered 44/4), C/cut time and staff slope remain supported.
+Missing rows are not borrowed from another exercise or inferred from beat
+totals. Seven-photo before/after JSON replay changes only three inherited
+P1 numerators 44 → 4; all other score data and the other six cases are identical.
+**1,101 tests passed**, including 24 focused cases; analysis clean. The model,
+confidence cutoffs, key/staff inference, beat fallback and existing project
+files are unchanged. Extra staff, misclassified/missing symbols (including the
+mixed sheet's 3/4 read as 2/4), missed song boundaries and padded-bar layout
+remain queued alongside full parity. Evidence:
+`/tmp/note-vision-meter-2026/`; checkpoint in `EDITOR_PARITY.md`. Physical
+release **2026** freshly scans sparse and uneven sheets: sparse PDF/MusicXML
+shows 4/4, changing only three numerator fields; all music/key/bar contents
+remain identical, and the 4/4–2/4 uneven control is unchanged. The corrected
+sparse export survives cold reopen byte-identically. All 25 original projects
+remain (27 with two new QA scans), and the original saved score exports
+byte-identically after installation. Phone preferences restored; helper removed.
 
 **Guided bar review (2026-11-05):** Review groups questions by original row/bar,
 opens the source photo automatically (crop/full-page and linked symbol outline),

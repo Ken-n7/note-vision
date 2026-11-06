@@ -60,24 +60,99 @@ class SignatureInferrer {
         ((symbol.symbol.height ?? 0) / 2) -
         staff.offsetAt(symbol.symbolCenterX);
 
-    final top = digits
-        .where((e) => centerY(e) <= midpoint)
-        .map((e) => SymbolClassifier.timeSigDigit(e.symbol.type)!)
-        .join();
-    final bottom = digits
-        .where((e) => centerY(e) > midpoint)
-        .map((e) => SymbolClassifier.timeSigDigit(e.symbol.type)!)
-        .join();
-
-    final beats = int.tryParse(top);
-    final beatType = int.tryParse(bottom);
-
-    if (beats == null || beatType == null) {
+    final top = _numbers(
+      digits.where((e) => centerY(e) <= midpoint).toList(),
+      centerY,
+    );
+    final bottom = _numbers(
+      digits.where((e) => centerY(e) > midpoint).toList(),
+      centerY,
+    );
+    final candidates =
+        <({_DigitNumber top, _DigitNumber bottom, double alignment})>[];
+    for (final upper in top) {
+      for (final lower in bottom) {
+        // A fraction is centered as a stack. Joining every digit on each
+        // side of the middle line can turn a nearby key glyph into 44/4.
+        final alignment =
+            (upper.centerX - lower.centerX).abs() /
+            math.min(upper.width, lower.width);
+        if (alignment > .5 ||
+            lower.centerY - upper.centerY <
+                math.min(upper.height, lower.height) / 2) {
+          continue;
+        }
+        candidates.add((top: upper, bottom: lower, alignment: alignment));
+      }
+    }
+    candidates.sort((a, b) => a.alignment.compareTo(b.alignment));
+    if (candidates.isEmpty) {
       warnings.add('Detected time-signature symbols could not be interpreted.');
       return null;
     }
+    final best = candidates.first;
+    // Repeated detections giving the same reading are harmless. Competing
+    // readings within a tenth of a digit width are not enough evidence to
+    // choose a meter, regardless of confidence or the notes' beat totals.
+    if (candidates.any(
+      (c) =>
+          c.alignment <= best.alignment + .1 &&
+          (c.top.value != best.top.value ||
+              c.bottom.value != best.bottom.value),
+    )) {
+      warnings.add(
+        'Detected time-signature stacks are ambiguous; check the original.',
+      );
+      return null;
+    }
+    if (best.top.entries.length + best.bottom.entries.length < digits.length) {
+      warnings.add('Unaligned or repeated time-signature digits were ignored.');
+    }
+    return TimeSignature(beats: best.top.value, beatType: best.bottom.value);
+  }
 
-    return TimeSignature(beats: beats, beatType: beatType);
+  /// Contiguous digits on one row can form a multi-digit number, but
+  /// overlapping alternative detections must never become adjacent digits.
+  static List<_DigitNumber> _numbers(
+    List<StaffOwnedSymbol> digits,
+    double Function(StaffOwnedSymbol) centerY,
+  ) {
+    final numbers = <_DigitNumber>[];
+    for (var start = 0; start < digits.length; start++) {
+      var text = '', right = double.negativeInfinity;
+      var width = 0.0, height = 0.0, level = 0.0;
+      for (var end = start; end < digits.length; end++) {
+        final digit = digits[end], box = digit.symbol.boundingBox;
+        if (box == null || box.width <= 0 || box.height <= 0) break;
+        if (end > start) {
+          final previous = digits[end - 1].symbol.boundingBox!;
+          final gap = box.left - previous.right;
+          final cell = math.min(previous.width, box.width);
+          if (gap < -cell / 2 ||
+              gap > cell / 2 ||
+              (centerY(digit) - centerY(digits[start])).abs() >
+                  math.min(box.height, digits[start].symbol.height!) / 2) {
+            break;
+          }
+        }
+        text += SymbolClassifier.timeSigDigit(digit.symbol.type)!;
+        right = math.max(right, box.right);
+        width += box.width;
+        height += box.height;
+        level += centerY(digit);
+        final count = end - start + 1, value = int.tryParse(text);
+        if (value == null || value <= 0) continue;
+        numbers.add((
+          entries: List.unmodifiable(digits.sublist(start, end + 1)),
+          value: value,
+          centerX: (digits[start].symbol.x + right) / 2,
+          centerY: level / count,
+          width: width / count,
+          height: height / count,
+        ));
+      }
+    }
+    return numbers;
   }
 
   KeySignature? inferKeySignature(
@@ -132,3 +207,12 @@ class SignatureInferrer {
         .toList(growable: false);
   }
 }
+
+typedef _DigitNumber = ({
+  List<StaffOwnedSymbol> entries,
+  int value,
+  double centerX,
+  double centerY,
+  double width,
+  double height,
+});
