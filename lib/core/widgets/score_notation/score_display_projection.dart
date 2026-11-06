@@ -41,10 +41,15 @@ class ScoreDisplayProjection {
   static final _cache = Expando<ScoreDisplayProjection>();
   static final _displayScores = Expando<ScoreDisplayProjection>();
   static final _independentRows = Expando<bool>();
+  static final _spans = Expando<int>();
+
+  /// Layout columns occupied by a complete unresolved source row.
+  static int span(Measure measure) => _spans[measure] ?? 1;
   static bool beginsIndependentRow(Measure measure) =>
       _independentRows[measure] == true;
   static void copyRowContext(Measure from, Measure to) {
     if (beginsIndependentRow(from)) _independentRows[to] = true;
+    if (span(from) > 1) _spans[to] = span(from);
   }
 
   static ScoreDisplayProjection? fromDisplayScore(Score? score) =>
@@ -129,7 +134,9 @@ class ScoreDisplayProjection {
                 page.isNotEmpty &&
                 lastPage != null &&
                 page != lastPage);
-        if (newPage || measure.startsNewSystem) pad();
+        if (newPage || measure.startsNewSystem || measure.unresolvedBarlines) {
+          pad();
+        }
         if (newPage) {
           largestGroup = math.max(largestGroup, groupRows);
           groupRows = 0;
@@ -145,9 +152,11 @@ class ScoreDisplayProjection {
           startsNewPage: newPage,
         );
         if (m == 0) _independentRows[rendered] = true;
+        if (measure.unresolvedBarlines) _spans[rendered] = columns;
         measures.add(rendered);
         cells.add((part: p, measure: m));
         column = (column + 1) % columns;
+        if (measure.unresolvedBarlines) pad();
         if (page?.isNotEmpty == true) lastPage = page;
       }
       pad();

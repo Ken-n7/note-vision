@@ -78,7 +78,7 @@ class EngravingLayout {
   final bars = <BarEngraving>[];
   BarPlacement place(int index, double width, int perRow, double prefix) =>
       bars[index].place(
-        width: width,
+        width: width * _span(index),
         inset: parts.fold(
           16.0,
           (inset, p) => index >= p.length
@@ -133,8 +133,17 @@ class EngravingLayout {
     return (above, below);
   }
 
-  double get minimumBarWidth =>
-      bars.fold(100.0, (n, b) => math.max(n, b.minimumWidth));
+  int _span(int index) => parts.fold(
+    1,
+    (n, p) => index < p.length
+        ? math.max(n, ScoreDisplayProjection.span(p[index]))
+        : n,
+  );
+
+  double get minimumBarWidth => bars.indexed.fold(
+    100.0,
+    (n, entry) => math.max(n, entry.$2.minimumWidth / _span(entry.$1)),
+  );
 
   static final _scores = Expando<EngravingLayout>();
   static EngravingLayout forScore(Score score) =>

@@ -4585,6 +4585,11 @@ class _NotationAreaState extends State<_NotationArea>
         _display.index(partIndex, absoluteMeasure) - widget.pageFirstMeasure;
     if (relative < 0 || relative >= widget.pageMeasureCount) return;
     final policy = widget.layoutPolicy;
+    final span = ScoreDisplayProjection.span(
+      _display.score.parts[_display.part(partIndex)].measures[relative +
+          widget.pageFirstMeasure],
+    );
+    final measureWidth = policy.minMeasureWidth * span;
     final row = relative ~/ policy.measuresPerRow;
     final column = relative % policy.measuresPerRow;
     final x =
@@ -4602,18 +4607,14 @@ class _NotationAreaState extends State<_NotationArea>
     );
     final scale = math
         .min(
-          viewport.width / (policy.minMeasureWidth * 1.7),
+          viewport.width / (measureWidth * (span > 1 ? 1.15 : 1.7)),
           freeHeight / (policy.rowHeight * 1.3),
         )
         .clamp(.15, 2.5);
     _transformController.value = Matrix4.identity()
       ..setEntry(0, 0, scale)
       ..setEntry(1, 1, scale)
-      ..setEntry(
-        0,
-        3,
-        viewport.width / 2 - (x + policy.minMeasureWidth / 2) * scale,
-      )
+      ..setEntry(0, 3, viewport.width / 2 - (x + measureWidth / 2) * scale)
       ..setEntry(
         1,
         3,

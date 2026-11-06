@@ -1,5 +1,5 @@
 // Tests for BGC-79: real-world reconstruction improvements.
-//  • Barline fallback: MeasureGrouper splits by beat count when no barlines.
+//  • Barline fallback: MeasureGrouper retains a complete unresolved row without barlines.
 //  • Signature inheritance: ScoreBuilder carries clef/timeSig/keySig forward.
 //  • Context-aware duration: stemless noteheadBlack infers whole or half from
 //    remaining beats in the measure.
@@ -36,14 +36,14 @@ void main() {
   // ─────────────────────────────────────────────────────────────────────────
 
   group('Barline fallback', () {
-    test('8 stemless noteheads with no barlines split into 2 measures of 4 (default 4/4)', () {
+    test('8 stemless noteheads without barlines remain on one row', () {
       final detection = DetectionResult(
         imageId: 'barline-fallback-8notes',
         staffs: const [staff],
         barlines: const [],
         symbols: [
           sym(id: 'clef', type: 'clefG', x: 5, y: 92, width: 20, height: 48),
-          // 8 noteheads — no stems, so barline fallback groups by beat count
+          // No visible boundaries support splitting these eight notes.
           for (int i = 0; i < 8; i++)
             sym(id: 'n$i', type: 'noteheadBlackOnLine', x: 50.0 + i * 12, y: 130),
         ],
@@ -52,12 +52,12 @@ void main() {
       final result = mapper.map(detection);
       final part = result.score.parts.single;
 
-      expect(part.measures.length, 2, reason: 'default 4/4 → 8 notes split into 2×4');
-      expect(part.measures[0].notes.length, 4);
-      expect(part.measures[1].notes.length, 4);
+      expect(part.measures.length, 1);
+      expect(part.measures.single.unresolvedBarlines, isTrue);
+      expect(part.measures.single.notes.length, 8);
     });
 
-    test('timeSigCutCommon (2/2) causes 6 notes to split into 3 measures of 2', () {
+    test('cut time alone does not establish boundaries between six notes', () {
       final detection = DetectionResult(
         imageId: 'barline-fallback-cut-common',
         staffs: const [staff],
@@ -73,10 +73,9 @@ void main() {
       final result = mapper.map(detection);
       final part = result.score.parts.single;
 
-      expect(part.measures.length, 3, reason: '2/2 → 6 notes split into 3×2');
-      expect(part.measures[0].notes.length, 2);
-      expect(part.measures[1].notes.length, 2);
-      expect(part.measures[2].notes.length, 2);
+      expect(part.measures.length, 1);
+      expect(part.measures.single.unresolvedBarlines, isTrue);
+      expect(part.measures.single.notes.length, 6);
     });
 
     test('signature symbols (clef) are placed in the first measure by the fallback', () {
@@ -94,9 +93,7 @@ void main() {
       final result = mapper.map(detection);
       final part = result.score.parts.single;
 
-      // 4 whole notes → 1 measure (each whole consumes 0 quarter-beat-equivalent
-      // in _splitByBeats, which counts symbol occurrences, not actual beat values)
-      // All 4 notes stay in one measure; clef is inferred there.
+      // All four notes stay together with their leading clef.
       expect(part.measures.first.clef?.sign, 'G');
       expect(part.measures.first.notes.length, 4);
     });
@@ -258,9 +255,7 @@ void main() {
       );
 
       final result = mapper.map(detection);
-      // With default 4/4 and 4 notes, the barline fallback keeps them all in
-      // one measure (beat split triggers BEFORE adding note 5, which does not
-      // exist here).
+      // All four notes stay together without detected boundaries.
       final notes = result.score.parts.single.measures.single.notes;
 
       expect(notes.length, 4);

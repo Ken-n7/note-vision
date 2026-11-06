@@ -132,7 +132,10 @@ void main() {
       final result = mapper.map(detection);
       final measure = result.score.parts.single.measures.single;
 
-      expect(result.warnings, contains('No barlines detected; falling back to beat-count measure splitting.'));
+      expect(
+        result.warnings,
+        contains('No barlines detected on staff-1; row kept together for review.'),
+      );
       expect(measure.notes.single.type, 'whole');
       expect(measure.notes.single.pitch, 'G4');
       expect(measure.rests.single.type, 'half');

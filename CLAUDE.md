@@ -37,7 +37,9 @@ Aligned meter reconstruction now separates an off-column false 4 from the
 real 4/4 stack, with ambiguity/multi-digit regression coverage. Merged clef boxes spanning two traced rows no longer add an extra staff, and
 new scans keep each row's own bar count instead of padding every row to the
 longest. The original three-photo pass is not broad accuracy validation.
-Remaining misclassified/missing-symbol and beat-fallback failures are recorded in
+Unresolved scan rows now stay together for review with full-width display;
+beat counting no longer invents their internal boundaries. Remaining
+misclassified/missing-symbol and staff/barline geometry failures are recorded in
 `EDITOR_PARITY.md`; full parity stays queued.
 Each app change still needs
 automated checks and phone QA before
@@ -240,7 +242,7 @@ These are final unless explicitly changed:
 - **Model:** `assets/models/best.tflite` — YOLO26n model B9 v2 A, 960×960 FP32 LiteRT, 24 handwritten classes, trained on stretched grayscale images (data project and training notebooks live outside this repo). SHA-256: `841a0959ac9569bca8f90d151e27b185fa0b495df22a377df640c2379602be76`. Dataset `d0222605`, variant A (1,163 training images), best epoch 65; selected over B using 25 real validation photos. All nine exported evaluations were independently reproduced. Frozen real test AP50 79.92% (B8 80.43%), older real test 95.40%, synthetic test 90.97%; the separate fresh-page AP50 94.25% covers only one page. C/cut time remain synthetic-only in evaluation. Keep the existing confidence cutoffs until validation-based app calibration; detector scores exclude staff filtering and reconstruction. Initialization checks the FP32 tensor contract before decoding.
 - **Tiling strategy:** No tiling — full image always stretched to 960×960 (no letterbox, no stave-based cropping). Model was trained on full-page stretches.
 - **Staff detection:** `StaffLineTracer` per clef (preferred) → clef-sized level staff → `HorizontalProjectionStaffDetector` where no clef → cluster / `SyntheticStaffBuilder` fallbacks. A clef box spanning two already traced staff middles does not synthesize another staff; repeated clefs on a recovered row share that row. A staff with no clef of its own is read in the clef of the nearest staff above (else below).
-- **Bars:** split at barlines found by `BarlineFinder`; a staff with none falls back to beat counting. `ScoreBuilder` retains each scanned row's own bar count. The sequential display projection supplies hidden layout cells without saving artificial bars; imported ensembles retain their separate layout.
+- **Bars:** split at barlines found by `BarlineFinder`; a staff with none keeps its musical symbols together as one `unresolvedBarlines` row for explicit photo review; a meter does not establish boundaries. `ScoreBuilder` retains each scanned row's own bar count. The sequential display projection supplies hidden layout cells without saving artificial bars; imported ensembles retain their separate layout.
 - **Engraving:** Stage 4I EngravingLayout / BarPlacement shares rational onset positions across screen, PDF, hit targets, lyrics/text, insertion and playhead. Duration springs, compact grace clusters, aligned staves/voices, chord-second head displacement/shared stems, accidental columns and ledger lines. Text/lyrics reserve ink bounds; simultaneous text stacks; note/stem/mark headroom moves text/lyrics and staves apart. Score-wide density chooses up to four equal-width bars per row; oversized logical pages fit uniformly onto A4. Automatic overflow pages retain explicit breaks; longest-staff layout slots keep uneven ensembles visible. Geometry/policy cache by immutable score; saved models/audio unchanged. Remaining optical engraving, variable-width bars, system locks, advanced collisions and cross-staff work are in EDITOR_PARITY.md; next is 5C new-score wizard.
 - **Notation renderer:** CustomPainter — not a text list, not an SVG library. Editor and PDF follow the same rules: the key signature starts every row; the time signature shows on a page's first measure and wherever it changes (before the row's opening barline when the key leaves room, else inside the measure, whose notes move right; `ScoreNotationMetrics.timeSignatureInMeasure`). Flags are solid and point right on up and down stems; beamed eighths and sixteenths are drawn with beams (a chord tone neither joins nor ends a group).
 - **Undo/redo:** Whole-state snapshot, max 50 entries, new edit clears redo stack
@@ -409,14 +411,52 @@ update and is restored saved/stopped. Retained logs show no Flutter/crash/save
 errors; phone preferences restored and temporary helpers removed. Requested QA
 photo copies remain, and exports are in `Download/NoteVisionQA2027/`.
 
+**Unresolved scan rows (2026-11-06):** the uneven sheet's last two rows have
+no drawn internal barlines. `MeasureGrouper` keeps each complete row together,
+with persistent `Measure.unresolvedBarlines`, instead of partitioning by assumed
+beat capacity. Ordinary barline-based reconstruction is unchanged. Review says
+"Barlines unconfirmed", keeps the photo comparison, and asks whether this is an
+unbarred exercise or a missed line; it offers no guessed split or beat-total
+fix for that row. Existing Keep/Review later decisions still apply.
+The display projection gives the row all layout columns without adding musical
+bars. Shared engraving, canvas, PDF, hit/input targets, playhead and review focus
+use that width; unconfirmed rows have no invented bar numbers/end strokes.
+Note entry, duration changes and drag/drop use the actual row contents rather
+than a nominal single-bar capacity, preserving the written meter and undo.
+Frozen seven-photo replay: uneven **37 → 13** stored groups (**[2,2,3,4,1,1]**),
+song **19 → 13** (**[3,1,3,3,3]**); every note/rest JSON is identical. These totals
+include unresolved rows, not 13 verified written bars. The other five scores are
+identical. Existing projects are not reparsed or migrated. JSON/project storage
+retains the flag; ordinary MusicXML keeps the full sequence in one measure and
+its written meter, without NoteVision's review flag.
+The song's actual missing boundaries remain a separate geometry issue: its
+second staff trace ends near x266, limiting the finder to x311. A diagnostic
+wider search sees the first written boundary at x343, while x612 is still
+rejected because the extrapolated staff top drifts. Do not solve this by
+loosening confidence or accepting note stems. **1,115 tests passed**, analysis clean. Evidence:
+`/tmp/note-vision-boundaries-2028/`; checkpoint in `EDITOR_PARITY.md`.
+Physical release **2028** confirms uneven **96 notes**, **[2,2,3,4,1,1]**
+stored groups and a six-row one-page PDF. After cold reopening, its fifth
+row still shows "Barlines unconfirmed" and the explicit source-comparison
+warning without a split proposal. Playback works on that 21-note row. Song
+retains **92 notes / 10 rests**, **[3,1,3,3,3]** groups and five visible PDF rows;
+physical note/rest content matches its earlier baseline. Sparse control retains
+137 notes / 8 rests, byte-identical MusicXML and pixel-identical PDF to release
+2027. All three new scans reopen with byte-identical XML; collection **30 → 33**.
+The song's true missed boundaries remain queued. Original paired score exports
+byte-identically before/after installation and is restored saved/stopped.
+Retained logs show no Flutter/crash/save errors. Original phone preferences are
+restored; temporary helpers removed and requested recent test copies retained.
+QA exports: `Download/NoteVisionQA2028/`; facts/hashes in the work directory.
+
 **Phone QA photos:** user authorized dataset reads from
 `/home/ken/Workspace/note-vision-data`. `tool/android_qa_images.py --serial
-6d718c9c --batch 2027 <photo> ...` creates checksum-verified copies in
+6d718c9c --batch <new-batch> <photo> ...` creates checksum-verified copies in
 `Pictures/NoteVisionQA`, refreshes only their file dates, and synchronously indexes
 them so pending adb writes become visible. The first supplied photo sorts newest.
-The three selected dataset photos have no embedded EXIF capture date; the helper
+Selected dataset photos have no embedded EXIF capture date; the helper
 stops if an older embedded date could override recency. It refuses to replace an
-existing different copy. Originals remain unchanged. Keep this album for future
+existing different copy; use a new batch for a different selection. Originals remain unchanged. Keep this album for future
 QA; verify the picker visually after refreshing rather than assuming copy time
 controls its order.
 

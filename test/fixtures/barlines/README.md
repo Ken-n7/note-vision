@@ -63,3 +63,11 @@ continues to contain the old extra staff so earlier barline/meter tests retain
 their original inputs. New full-output replays retain eight rows of three bars;
 new mapped scans also stop padding shorter rows to match a longer row. The
 uneven photo's 21-bar beat fallback and missing symbols remain unresolved.
+
+Unresolved-row regression (release 2028): ragged's last two source rows have
+no internal barlines. Their full note sequences now remain as one reviewable
+row apiece (`unresolvedBarlines`) instead of 21 and five guessed measures.
+Song's second row also remains unresolved, because its real x≈343/x≈612 lines
+were missed after a short staff trace. Neither case justifies inventing
+boundaries from beat totals. Frozen input JSON is unchanged; new tests verify
+persistent review context and preserve all detected notes/rests.

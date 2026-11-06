@@ -1,6 +1,6 @@
 // Reconstruction from the whole-symbol model: one box per note, value in
-// metadata['noteType'], no stems/flags/barlines. Measures must split by the
-// notes' real beat values, not one beat per symbol.
+// metadata['noteType'], no separate stems/flags. Without detected barlines,
+// preserve the complete row and its explicit note/rest values for review.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_vision/core/models/note.dart';
@@ -35,7 +35,7 @@ void main() {
         : {'noteType': noteType, if (beamed) 'beamed': true},
   );
 
-  test('splits measures by note value and keeps each note type', () {
+  test('keeps explicit mixed values together when barlines are unresolved', () {
     final detection = DetectionResult(
       staffs: const [staff],
       symbols: [
@@ -51,18 +51,16 @@ void main() {
     final result = const DetectionToScoreMapperService().map(detection);
     final measures = result.score.parts.single.measures;
 
-    expect(measures, hasLength(3));
+    expect(measures, hasLength(1));
+    expect(measures.single.unresolvedBarlines, isTrue);
     expect(
-      measures[0].symbols.map((s) => (s as Note).type),
+      measures.single.symbols.take(8).map((s) => (s as Note).type),
       List.filled(8, 'eighth'),
     );
-    expect((measures[1].symbols.single as Note).type, 'whole');
-    expect((measures[2].symbols[0] as Rest).type, 'half');
-    expect((measures[2].symbols[1] as Note).type, 'half');
-    expect(
-      result.warnings.where((w) => w.contains('stem')),
-      isEmpty,
-    );
+    expect((measures.single.symbols[8] as Note).type, 'whole');
+    expect((measures.single.symbols[9] as Rest).type, 'half');
+    expect((measures.single.symbols[10] as Note).type, 'half');
+    expect(result.warnings.where((w) => w.contains('stem')), isEmpty);
   });
 
   test('notes the detector found under a beam stay beamed', () {

@@ -249,7 +249,8 @@ class NotationReviewService {
                 for (final (p, part) in score.parts.indexed)
                   if (!part.linked)
                     for (final (m, measure) in part.measures.indexed)
-                      if (measure.symbols.any((s) => s is Note || s is Rest))
+                      if (!measure.unresolvedBarlines &&
+                          measure.symbols.any((s) => s is Note || s is Rest))
                         setupIssue(p, m),
               ...NotationChecker.check(score),
             ]
@@ -337,7 +338,7 @@ class NotationReviewService {
 
   static String location(Score score, NotationIssue issue) =>
       score.isScannedMusic
-      ? 'Row ${issue.partIndex + 1} · Bar ${score.parts[issue.partIndex].measures[issue.measureIndex].number}'
+      ? 'Row ${issue.partIndex + 1} · ${score.parts[issue.partIndex].measures[issue.measureIndex].unresolvedBarlines ? 'Barlines unconfirmed' : 'Bar ${score.parts[issue.partIndex].measures[issue.measureIndex].number}'}'
       : 'Measure ${score.parts[issue.partIndex].measures[issue.measureIndex].number}'
             ' · ${score.parts[issue.partIndex].name}';
 

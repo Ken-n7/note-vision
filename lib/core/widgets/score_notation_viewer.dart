@@ -780,7 +780,10 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
           if (widget.hiddenMeasures.contains(absoluteMeasureIndex)) continue;
           final measureStartX =
               contentStartX + (measureInRow * widget.minMeasureWidth);
-          final measureEndX = measureStartX + widget.minMeasureWidth;
+          final measureEndX =
+              measureStartX +
+              widget.minMeasureWidth *
+                  ScoreDisplayProjection.span(measures[absoluteMeasureIndex]);
           if (position.dx < measureStartX || position.dx > measureEndX) {
             continue;
           }

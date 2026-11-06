@@ -81,6 +81,28 @@ Score shortRows({List<int> lengths = const [1, 3], bool pages = false}) =>
       ],
     );
 
+Score unresolvedRows() {
+  final score = shortRows();
+  final first = score.parts.first;
+  final note = first.measures.single.notes.single;
+  return score.copyWith(
+    parts: [
+      first.copyWith(
+        measures: [
+          first.measures.single.copyWith(
+            unresolvedBarlines: true,
+            symbols: [
+              for (var i = 0; i < 24; i++)
+                note.copyWith(step: ['C', 'D', 'E', 'F', 'G', 'A', 'B'][i % 7]),
+            ],
+          ),
+        ],
+      ),
+      score.parts.last,
+    ],
+  );
+}
+
 Future<void> save(WidgetTester tester) async {
   await tester.tap(find.text('Save'));
   await tester.pumpAndSettle();
@@ -223,6 +245,166 @@ void main() {
       Directory(out).createSync(recursive: true);
       File('$out/scanned-rows.pdf').writeAsBytesSync(bytes);
     }
+  });
+
+  test(
+    'an unresolved source row spans the full width without stored filler',
+    () {
+      final score = unresolvedRows();
+      final before = jsonEncode(score.toJson());
+      final display = ScoreDisplayProjection.forScore(score);
+      expect(display.columns, 3);
+      expect(display.hiddenMeasures, {1, 2});
+      expect(
+        ScoreDisplayProjection.span(display.score.parts.first.measures.first),
+        3,
+      );
+      final layout = EngravingLayout.forScore(display.score);
+      final policy = EditorLayoutPolicy.forScore(score);
+      final placement = layout.place(
+        0,
+        policy.minMeasureWidth,
+        3,
+        policy.rowPrefixWidth,
+      );
+      expect(placement.symbolX(0, 23), greaterThan(2 * policy.minMeasureWidth));
+      expect(placement.symbolX(0, 23), lessThan(3 * policy.minMeasureWidth));
+      expect(policy.pageWidth, lessThan(1200));
+      expect(score.parts.map((p) => p.measures.length), [1, 3]);
+      expect(jsonEncode(score.toJson()), before);
+      final pages = const PdfScoreRenderer().debugPageLayoutForTesting(score);
+      expect(pages, hasLength(1));
+      expect(pages.single.measuresPerSystem, 3);
+    },
+  );
+
+  test(
+    'unresolved row PDF exports with every note and the original meter',
+    () async {
+      final score = unresolvedRows();
+      final xml = const MusicXmlExportService().toMusicXml(score);
+      expect(RegExp('<note>').allMatches(xml), hasLength(27));
+      final bytes = await const PdfScoreRenderer().render(score);
+      expect(bytes.length, greaterThan(1000));
+      final out = Platform.environment['NV_EDITOR_SCREENSHOTS'];
+      if (out != null) {
+        Directory(out).createSync(recursive: true);
+        File('$out/unresolved-row.pdf').writeAsBytesSync(bytes);
+      }
+    },
+  );
+
+  testWidgets(
+    'the far end of an unresolved row edits the right note and undoes',
+    (tester) async {
+      final (_, storage) = await pumpControls(
+        tester,
+        score: unresolvedRows(),
+        existingProject: true,
+      );
+      await save(tester);
+      final before = storage.saved.last.decodeScore();
+      await tapCell(tester, 0, 23);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pumpAndSettle();
+      await save(tester);
+      final after = storage.saved.last.decodeScore();
+      expect(after.parts.first.measures.single.unresolvedBarlines, isTrue);
+      expect(
+        after.parts.first.measures.single.notes[23].pitch,
+        isNot(before.parts.first.measures.single.notes[23].pitch),
+      );
+      expect(
+        after.parts.first.measures.single.notes.take(23).map((n) => n.toJson()),
+        before.parts.first.measures.single.notes
+            .take(23)
+            .map((n) => n.toJson()),
+      );
+      expect(after.parts.last.toJson(), before.parts.last.toJson());
+      await tester.tap(find.byTooltip('Undo'));
+      await tester.pumpAndSettle();
+      await save(tester);
+      expect(storage.saved.last.decodeScore().toJson(), before.toJson());
+      await tester.tap(find.byTooltip('Review & Correct'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('No barlines were read'), findsOneWidget);
+      expect(find.textContaining('Row 1 · Barlines unconfirmed'), findsWidgets);
+      expect(find.text('Split into 8 bars'), findsNothing);
+      final paint = tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((w) => w.painter)
+          .whereType<ScoreNotationPainter>()
+          .first;
+      final drawing = find.byWidgetPredicate(
+        (w) => w is CustomPaint && identical(w.painter, paint),
+      );
+      final canvas = tester.renderObject<RenderBox>(drawing);
+      final viewer = find
+          .ancestor(of: drawing, matching: find.byType(InteractiveViewer))
+          .first;
+      final viewport = tester.getRect(viewer);
+      final targets = ScoreNotationPainter.buildSymbolTargets(
+        parts: paint.parts,
+        measuresPerRow: paint.measuresPerRow,
+        minMeasureWidth: paint.minMeasureWidth,
+        rowHeight: paint.rowHeight,
+        padding: paint.padding,
+        rowPrefixWidth: paint.rowPrefixWidth,
+        engraving: paint.engraving,
+      ).where((t) => t.measureIndex == 0);
+      for (final target in [targets.first, targets.last]) {
+        expect(
+          canvas.localToGlobal(target.center).dx,
+          inInclusiveRange(viewport.left, viewport.right),
+        );
+      }
+    },
+  );
+
+  testWidgets('note input reaches the full-width row beyond its first cell', (
+    tester,
+  ) async {
+    final score = unresolvedRows();
+    final display = ScoreDisplayProjection.forScore(score);
+    final policy = EditorLayoutPolicy.forScore(score);
+    NotationInsertTarget? inserted;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ScoreNotationViewer(
+            score: display.score,
+            measuresPerRow: policy.measuresPerRow,
+            minMeasureWidth: policy.minMeasureWidth,
+            hiddenMeasures: display.hiddenMeasures,
+            insertMode: true,
+            onInsertTap: (target) => inserted = target,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final view = tester.widget<ScoreNotationViewer>(
+      find.byType(ScoreNotationViewer),
+    );
+    final p = painter(tester);
+    final finder = find.byWidgetPredicate(
+      (w) => w is CustomPaint && identical(w.painter, p),
+    );
+    final box = tester.renderObject<RenderBox>(finder);
+    await tester.tapAt(
+      box.localToGlobal(
+        Offset(
+          p.padding.left + p.rowPrefixWidth + 3 * p.minMeasureWidth - 8,
+          p.padding.top + 28 + 24,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(view.insertMode, isTrue);
+    expect(inserted, isNotNull);
+    expect(inserted!.measureIndex, 0);
+    expect(inserted!.insertIndex, 24);
+    expect(tester.takeException(), isNull);
   });
 
   test('ensembles and grand staves retain their instrument layout', () {

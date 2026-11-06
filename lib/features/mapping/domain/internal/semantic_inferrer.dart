@@ -167,6 +167,7 @@ class SemanticInferrer {
 
           return SemanticMeasure(
             number: measure.number,
+            unresolvedBarlines: measure.unresolvedBarlines,
             clef: clef,
             timeSignature: timeSignature,
             keySignature: keySignature,

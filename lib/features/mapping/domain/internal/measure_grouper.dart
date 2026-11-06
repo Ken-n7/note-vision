@@ -16,14 +16,15 @@ class MeasureGrouper {
   }) {
     if (assignments.isEmpty) return const [];
 
-    final staffSymbols = assignments
-        .where(
-          (e) =>
-              e.staff.id == staff.id &&
-              !SymbolClassifier.isRepeatDot(e.symbol.type),
-        )
-        .toList()
-      ..sort((a, b) => a.symbolCenterX.compareTo(b.symbolCenterX));
+    final staffSymbols =
+        assignments
+            .where(
+              (e) =>
+                  e.staff.id == staff.id &&
+                  !SymbolClassifier.isRepeatDot(e.symbol.type),
+            )
+            .toList()
+          ..sort((a, b) => a.symbolCenterX.compareTo(b.symbolCenterX));
     final repeatDots = assignments
         .where(
           (e) =>
@@ -32,20 +33,38 @@ class MeasureGrouper {
         )
         .toList();
 
-    final barlines = detection.barlines
-        .where((b) => b.staffId == null || b.staffId == staff.id)
-        .toList()
-      ..sort((a, b) => a.x.compareTo(b.x));
+    final barlines =
+        detection.barlines
+            .where((b) => b.staffId == null || b.staffId == staff.id)
+            .toList()
+          ..sort((a, b) => a.x.compareTo(b.x));
     final boundaryTypes = _boundaryTypes(barlines, repeatDots);
 
     if (barlines.isEmpty) {
-      warnings.add(
-        'No barlines detected; falling back to beat-count measure splitting.',
-      );
-      return _splitByBeats(
-        staff: staff,
-        staffSymbols: staffSymbols,
-      );
+      if (staffSymbols.any(
+        (s) =>
+            SymbolClassifier.isNotehead(s.symbol.type) ||
+            SymbolClassifier.isSupportedRest(s.symbol.type),
+      )) {
+        warnings.add(
+          'No barlines detected on ${staff.id}; row kept together for review.',
+        );
+        return [
+          MeasureSymbols(
+            number: 1,
+            staff: staff,
+            symbols: List.unmodifiable(staffSymbols),
+            unresolvedBarlines: true,
+          ),
+        ];
+      }
+      return [
+        MeasureSymbols(
+          number: 1,
+          staff: staff,
+          symbols: List.unmodifiable(staffSymbols),
+        ),
+      ];
     }
 
     final measures = <MeasureSymbols>[];
@@ -58,13 +77,15 @@ class MeasureGrouper {
       while (barlineIndex < barlines.length &&
           symbol.symbolCenterX > barlines[barlineIndex].x) {
         final boundary = boundaryTypes[barlines[barlineIndex].x];
-        measures.add(MeasureSymbols(
-          number: measureNumber,
-          staff: staff,
-          symbols: List.unmodifiable(currentSymbols),
-          leftBarlineType: pendingLeftBarlineType,
-          rightBarlineType: boundary?.rightType,
-        ));
+        measures.add(
+          MeasureSymbols(
+            number: measureNumber,
+            staff: staff,
+            symbols: List.unmodifiable(currentSymbols),
+            leftBarlineType: pendingLeftBarlineType,
+            rightBarlineType: boundary?.rightType,
+          ),
+        );
         currentSymbols = [];
         pendingLeftBarlineType = boundary?.leftType;
         measureNumber++;
@@ -73,12 +94,14 @@ class MeasureGrouper {
       currentSymbols.add(symbol);
     }
 
-    measures.add(MeasureSymbols(
-      number: measureNumber,
-      staff: staff,
-      symbols: List.unmodifiable(currentSymbols),
-      leftBarlineType: pendingLeftBarlineType,
-    ));
+    measures.add(
+      MeasureSymbols(
+        number: measureNumber,
+        staff: staff,
+        symbols: List.unmodifiable(currentSymbols),
+        leftBarlineType: pendingLeftBarlineType,
+      ),
+    );
 
     while (barlineIndex < barlines.length) {
       final boundary = boundaryTypes[barlines[barlineIndex].x];
@@ -92,93 +115,17 @@ class MeasureGrouper {
       barlineIndex++;
       if (barlineIndex >= barlines.length) break;
       measureNumber++;
-      measures.add(MeasureSymbols(
-        number: measureNumber,
-        staff: staff,
-        symbols: const [],
-        leftBarlineType: boundary?.leftType,
-      ));
-    }
-
-    return measures;
-  }
-
-  List<MeasureSymbols> _splitByBeats({
-    required DetectedStaff staff,
-    required List<StaffOwnedSymbol> staffSymbols,
-  }) {
-    if (staffSymbols.isEmpty) {
-      return [MeasureSymbols(number: 1, staff: staff, symbols: const [])];
-    }
-
-    final beatsPerMeasure = _inferBeatsPerMeasure(staffSymbols);
-    final measures = <MeasureSymbols>[];
-    var measureNumber = 1;
-    var currentSymbols = <StaffOwnedSymbol>[];
-    var beatCount = 0.0;
-
-    for (final symbol in staffSymbols) {
-      final isMusical = SymbolClassifier.isNotehead(symbol.symbol.type) ||
-          SymbolClassifier.isSupportedRest(symbol.symbol.type);
-      final beats = isMusical ? _beatsFor(symbol) : 0.0;
-
-      if (isMusical &&
-          beatCount > 0 &&
-          beatCount + beats > beatsPerMeasure + 1e-6) {
-        measures.add(MeasureSymbols(
+      measures.add(
+        MeasureSymbols(
           number: measureNumber,
           staff: staff,
-          symbols: List.unmodifiable(currentSymbols),
-        ));
-        currentSymbols = [];
-        measureNumber++;
-        beatCount = 0;
-      }
-
-      currentSymbols.add(symbol);
-      beatCount += beats;
+          symbols: const [],
+          leftBarlineType: boundary?.leftType,
+        ),
+      );
     }
-
-    measures.add(MeasureSymbols(
-      number: measureNumber,
-      staff: staff,
-      symbols: List.unmodifiable(currentSymbols),
-    ));
 
     return measures;
-  }
-
-  /// Beats a musical symbol occupies. Noteheads only know their value when
-  /// the detector supplies `metadata['noteType']`; otherwise (stem not yet
-  /// associated) they count as one beat.
-  double _beatsFor(StaffOwnedSymbol entry) {
-    final noteType = switch (entry.symbol.type) {
-      'restWhole' => 'whole',
-      'restHalf' => 'half',
-      'restQuarter' => 'quarter',
-      'rest8th' => 'eighth',
-      'rest16th' => 'sixteenth',
-      _ => entry.symbol.metadata?['noteType'] as String?,
-    };
-    return noteType == null ? 1 : SymbolClassifier.beatValueFor(noteType);
-  }
-
-  int _inferBeatsPerMeasure(List<StaffOwnedSymbol> symbols) {
-    for (final s in symbols) {
-      if (s.symbol.type == 'timeSigCommon') return 4;
-      if (s.symbol.type == 'timeSigCutCommon') return 2;
-    }
-    final digits = symbols
-        .where((s) => SymbolClassifier.timeSigDigit(s.symbol.type) != null)
-        .toList()
-      ..sort((a, b) => a.symbolCenterX.compareTo(b.symbolCenterX));
-    if (digits.isNotEmpty) {
-      final val = int.tryParse(
-        SymbolClassifier.timeSigDigit(digits.first.symbol.type)!,
-      );
-      if (val != null && val > 0) return val;
-    }
-    return 4;
   }
 
   Map<double, _BoundaryType> _boundaryTypes(

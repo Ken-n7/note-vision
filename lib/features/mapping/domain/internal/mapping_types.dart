@@ -10,16 +10,14 @@ class StaffOwnedSymbol {
   final DetectedSymbol symbol;
   final DetectedStaff staff;
 
-  const StaffOwnedSymbol({
-    required this.symbol,
-    required this.staff,
-  });
+  const StaffOwnedSymbol({required this.symbol, required this.staff});
 
   double get symbolCenterX => symbol.x + ((symbol.width ?? 0) / 2);
 }
 
 class MeasureSymbols {
   final int number;
+  final bool unresolvedBarlines;
   final DetectedStaff staff;
   final List<StaffOwnedSymbol> symbols;
   final BarlineType? leftBarlineType;
@@ -27,6 +25,7 @@ class MeasureSymbols {
 
   const MeasureSymbols({
     required this.number,
+    this.unresolvedBarlines = false,
     required this.staff,
     required this.symbols,
     this.leftBarlineType,
@@ -36,6 +35,7 @@ class MeasureSymbols {
 
 class SemanticMeasure {
   final int number;
+  final bool unresolvedBarlines;
   final Clef? clef;
   final TimeSignature? timeSignature;
   final KeySignature? keySignature;
@@ -45,6 +45,7 @@ class SemanticMeasure {
 
   const SemanticMeasure({
     required this.number,
+    this.unresolvedBarlines = false,
     required this.clef,
     required this.timeSignature,
     required this.keySignature,

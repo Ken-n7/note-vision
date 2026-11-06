@@ -556,6 +556,85 @@ This changes work order, not the full-parity objective or acceptance criteria.
   `/tmp/note-vision-staves-2027/qa-facts.json`. Tested APK SHA-256:
   `066cd85827da6197053fcf7c2f5ad8578ce670ef9850fd541fbaca8b98682385`.
 
+### Unresolved rows instead of guessed bars — 2026-11-06
+
+- Visual inspection confirms that the uneven sheet's fifth and sixth rows
+  have no drawn internal barlines. Beat-count fallback fabricated **21** and
+  **5** bars from their notes. A meter alone does not establish boundaries.
+  No-barline rows now remain complete with `Measure.unresolvedBarlines`;
+  rows with detected boundaries retain their existing grouping.
+- The flag survives `copyWith`, score/project JSON and undo; old JSON defaults
+  false and is not migrated. Review asks the user to compare the whole row,
+  distinguishes possible unbarred exercises from missed lines, and offers no
+  automatic beat-count split. The existing Keep/Review later decisions work.
+  Ordinary MusicXML preserves the complete row in one measure with its meter;
+  this format does not carry NoteVision's unresolved-boundary review flag.
+- Each unresolved row spans all display columns. Hidden layout cells remain
+  absent from saved music. Canvas/PDF do not draw invented bar numbers or end
+  strokes, and share full-width note placement with hit/input targets and the
+  playhead. Review focus includes the row's far end. Note entry and duration
+  correction do not force music into invented bars; normal meter-aware input
+  and its overflow behavior are retained for confirmed bars.
+- Four new reconstruction/review regressions fail before the change. They
+  cover explicit note values, the native-prepared uneven photo, persistent
+  flag/copy behavior and a review warning without a guessed split. Layout
+  checks cover full-width placement/PDF, far-end selection/edit/undo, review
+  messaging/focus and insertion. Two input cases cover appending and changing
+  duration on an overfull unresolved row while preserving the rest and undo.
+- Seven frozen full-output replays preserve every note/rest JSON exactly.
+  Uneven **[2,2,3,4,21,5] → [2,2,3,4,1,1]**, song
+  **[3,7,3,3,3] → [3,1,3,3,3]**. Both now contain 13 stored groups, including
+  unresolved rows; these are not 13 verified written bars. Sparse, bass,
+  mixed, dense and clef-only entire scores are identical to release 2027.
+- The song's missed true barlines are diagnosed, not fixed in this slice.
+  Its second staff trace ends near x266 and restricts the current search to
+  x311. A diagnostic wider search finds the x343 line, but the x612 line
+  still fails the above-staff check because the extrapolated top drifts.
+  This needs a geometry fix with stem controls. Finder logic, frozen model,
+  confidence cutoffs and detected note values are unchanged. Full parity and
+  remaining recognition errors stay queued. Evidence:
+  Full **1,115 tests passed**, analysis clean; **38 input/layout tests passed**.
+  `/tmp/note-vision-boundaries-2028/`, including before-failure logs,
+  `diagnosis{,-fullwidth}.log` and `replay-comparison.json`.
+- Physical **2028** QA, Realme RMX1851 / Android 11: fresh uneven Upload
+  retains **133 symbols / 6 staves / 96 notes / 0 detected rests**. Saved
+  **NVRowsRagged2028** with counts **[2,2,3,4,1,1]**. Exported MusicXML
+  preserves every note's pitch, accidental, duration and other content/order
+  against release 2027. One-page PDF now shows **six** source rows instead of
+  twelve; the last two span the full row with no invented bar numbers/strokes.
+  Cold reopen retains the metadata: Review reaches **Row 5 · Barlines
+  unconfirmed**, and its scrollable details show the explicit explanation
+  without an automatic split. Source photo remains available. Scroll within
+  the details above the fixed footer to reach the explanation below the
+  signature controls. Evidence: `phone/review-verification.json`
+  and `boundary-warning-final2028.png` in the work directory.
+- The uneven row's **12/13, Staff 5 measure 1** position supports Play/Stop
+  after reopening. New song Upload retains **117 symbols / 5 staves / 92
+  notes / 10 rests** (phone counts differ from frozen local inference's 12
+  rests). Saved **NVRowsSong2028**, with groups **[3,1,3,3,3]** and all note/rest
+  pitches, values and other content/order matching its physical release-2024
+  baseline. Explicit beam begin/end tags can change when guessed bars disappear.
+  PDF has five source rows on one page. Row 2 remains unconfirmed: its real
+  boundaries and other recognition mistakes still require review.
+- Fresh sparse control retains **175 symbols / 8 staves / 137 notes / 8
+  rests** and eight rows of three bars, saved **NVRowsSparse2028**. MusicXML
+  is byte-identical to release 2027; its one-page PDF raster is pixel-identical
+  at 1400 px. The new policy does not alter confirmed rows. QA selected uneven
+  and song via recent copies **NVQA2028-01/02** in `Pictures/NoteVisionQA`, plus
+  the retained sparse copy from batch 2027. Originals are unchanged.
+- Final cold restart shows **33 projects** (30 before the three new scans).
+  All three new scores' cold MusicXML exports are byte-identical to their
+  initial exports, including the unresolved rows. The separate earlier
+  cold-reopen review check confirms the unresolved flag itself is preserved.
+- The originally open **NVBarsPaired2024** exports byte-identically before
+  installation and after cold reopen; restored saved and stopped. Original
+  phone preferences restored; temporary keyboard/UI-dump helpers removed.
+  Retained logs contain **45 app lines / zero Flutter/crash/save errors**.
+  Test-photo copies remain recent in `Pictures/NoteVisionQA`; originals are
+  unchanged. Exports: `Download/NoteVisionQA2028/`; facts/hashes:
+  `/tmp/note-vision-boundaries-2028/qa-facts.json`. Tested APK SHA-256:
+  `0ac26d61ed193120c766628681deb2eea9ea937761bd6d60a64c2b018a2ba0a7`.
+
 ## Reference and implementation policy
 
 Use the [MuseScore Studio handbook](https://handbook.musescore.org/llms.txt) as the

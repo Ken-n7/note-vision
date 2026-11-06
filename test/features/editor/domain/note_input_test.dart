@@ -86,6 +86,66 @@ void main() {
     expect(pitches(bass), ['C3']);
   });
 
+  test(
+    'input on an unresolved row preserves existing music without guessed bars',
+    () {
+      final original = bar([for (var i = 0; i < 8; i++) note('C', 4)]);
+      final part = original.score.parts.single;
+      final before = original.copyWith(
+        score: original.score.copyWith(
+          parts: [
+            part.copyWith(
+              measures: [
+                part.measures.single.copyWith(unresolvedBarlines: true),
+              ],
+            ),
+          ],
+        ),
+      );
+      final after = before.enterNote('D', halfDuration);
+      expect(after.score.parts.single.measures, hasLength(1));
+      expect(
+        after.score.parts.single.measures.single.unresolvedBarlines,
+        isTrue,
+      );
+      expect(after.score.parts.single.measures.single.notes, hasLength(9));
+      expect(
+        after.score.parts.single.measures.single.notes
+            .take(8)
+            .map((n) => n.toJson()),
+        before.score.parts.single.measures.single.notes.map((n) => n.toJson()),
+      );
+      expect(after.score.parts.single.measures.single.notes.last.type, 'half');
+      expect(after.applyUndo().score.toJson(), before.score.toJson());
+    },
+  );
+
+  test(
+    'an unresolved row permits correcting duration despite its total length',
+    () {
+      final original = bar([
+        for (var i = 0; i < 8; i++) note('C', 4),
+      ], select: 7);
+      final part = original.score.parts.single;
+      final before = original.copyWith(
+        score: original.score.copyWith(
+          parts: [
+            part.copyWith(
+              measures: [
+                part.measures.single.copyWith(unresolvedBarlines: true),
+              ],
+            ),
+          ],
+        ),
+      );
+      expect(before.canSetSelectedDuration(halfDuration), isTrue);
+      final after = before.setSelectedDuration(halfDuration);
+      expect(after.score.parts.single.measures, hasLength(1));
+      expect(after.score.parts.single.measures.single.notes.last.type, 'half');
+      expect(after.applyUndo().score.toJson(), before.score.toJson());
+    },
+  );
+
   test('a full bar continues in a new bar, as one undo step', () {
     var state = bar([note('C', 5), note('D', 5), note('E', 5)], select: 2);
     state = state.enterNote('F', quarterDuration);

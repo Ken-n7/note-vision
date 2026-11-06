@@ -345,6 +345,20 @@ class NotationChecker {
     final measure = part.measures[m];
     final musical = _musical(measure);
     if (musical.isEmpty) return;
+    if (measure.unresolvedBarlines) {
+      issues.add(
+        NotationIssue(
+          kind: NotationIssueKind.scanContext,
+          partIndex: p,
+          measureIndex: m,
+          message:
+              'No barlines were read on this row. The notes are kept together. '
+              'Check the photo: this may be an unbarred exercise, or lines may '
+              'have been missed.',
+        ),
+      );
+      return;
+    }
     final meter =
         _meterAt(part, m) ??
         (score.isScannedMusic ? null : _meterAt(score.parts.first, m));

@@ -15,6 +15,7 @@ import '../../models/score_symbol.dart';
 import '../../models/spanner.dart';
 import '../../models/time_signature.dart';
 import 'score_notation_metrics.dart';
+import 'score_display_projection.dart';
 import 'mark_glyphs.dart';
 import 'staff_pitch_mapper.dart';
 import 'voice_layout.dart';
@@ -395,7 +396,13 @@ class ScoreNotationPainter extends CustomPainter {
             staffTop + ScoreNotationMetrics.staffHeightFor(staffLineSpacing);
         final rowStartX = padding.left;
         final contentStartX = rowStartX + rowPrefixWidth;
-        final rowEndX = contentStartX + (rowMeasures.length * minMeasureWidth);
+        final rowEndX =
+            contentStartX +
+            rowMeasures.fold<int>(
+                  0,
+                  (n, m) => n + ScoreDisplayProjection.span(m),
+                ) *
+                minMeasureWidth;
         final timeInMeasure = [
           for (var i = 0; i < rowMeasures.length; i++)
             ScoreNotationMetrics.timeSignatureInMeasure(
@@ -753,25 +760,27 @@ class ScoreNotationPainter extends CustomPainter {
       );
     }
 
-    canvas.drawLine(
-      Offset(
-        row.contentStartX,
-        row.staffTop + (singleLine ? staffLineSpacing : 0),
-      ),
-      Offset(
-        row.contentStartX,
-        row.staffBottom - (singleLine ? staffLineSpacing : 0),
-      ),
-      thinBarPaint,
-    );
-    canvas.drawLine(
-      Offset(row.rowEndX, row.staffTop + (singleLine ? staffLineSpacing : 0)),
-      Offset(
-        row.rowEndX,
-        row.staffBottom - (singleLine ? staffLineSpacing : 0),
-      ),
-      thinBarPaint,
-    );
+    if (!row.measures.first.unresolvedBarlines) {
+      canvas.drawLine(
+        Offset(
+          row.contentStartX,
+          row.staffTop + (singleLine ? staffLineSpacing : 0),
+        ),
+        Offset(
+          row.contentStartX,
+          row.staffBottom - (singleLine ? staffLineSpacing : 0),
+        ),
+        thinBarPaint,
+      );
+      canvas.drawLine(
+        Offset(row.rowEndX, row.staffTop + (singleLine ? staffLineSpacing : 0)),
+        Offset(
+          row.rowEndX,
+          row.staffBottom - (singleLine ? staffLineSpacing : 0),
+        ),
+        thinBarPaint,
+      );
+    }
 
     _drawMeasures(canvas, row, thinBarPaint);
   }
@@ -823,11 +832,14 @@ class ScoreNotationPainter extends CustomPainter {
     ) {
       final measure = row.measures[measureInRow];
       final measureX = row.contentStartX + (measureInRow * minMeasureWidth);
-      final nextMeasureX = measureX + minMeasureWidth;
+      final nextMeasureX =
+          measureX + minMeasureWidth * ScoreDisplayProjection.span(measure);
 
       // A grand staff numbers its bars once, above the upper staff; a
       // pickup is not numbered.
-      if (!joinedParts.contains(row.partIndex) && !measure.implicit) {
+      if (!joinedParts.contains(row.partIndex) &&
+          !measure.implicit &&
+          !measure.unresolvedBarlines) {
         _drawMeasureNumber(
           canvas,
           text: '${measure.number}',
@@ -860,7 +872,7 @@ class ScoreNotationPainter extends CustomPainter {
       _drawMarkShapes(
         canvas,
         barShapes(
-          width: minMeasureWidth,
+          width: minMeasureWidth * ScoreDisplayProjection.span(measure),
           spacing: staffLineSpacing,
           left: measure.leftBarlineType,
           right: measure.rightBarlineType,
@@ -1508,7 +1520,10 @@ class ScoreNotationPainter extends CustomPainter {
             : placement.timeX(MusicalTime.zero));
     final nextMeasure = playbackNextMeasureIndex;
     final nextSymbol = playbackNextSymbolIndex;
-    var nextX = measureStartX + minMeasureWidth - 8;
+    var nextX =
+        measureStartX +
+        minMeasureWidth * ScoreDisplayProjection.span(measure) -
+        8;
     if (nextMeasure != null &&
         nextSymbol != null &&
         playbackNextPartIndex == partIndex &&

@@ -972,7 +972,10 @@ class PdfScoreRenderer {
     final staffBottom = staffTop - _staffH;
     final rowStartX = _pageX0 + _padX;
     final contentStartX = rowStartX + _prefixW;
-    final staffEndX = contentStartX + rowMeasures.length * _mw;
+    final staffEndX =
+        contentStartX +
+        rowMeasures.fold<int>(0, (n, m) => n + ScoreDisplayProjection.span(m)) *
+            _mw;
     // Where time signatures go: as in the editor (ScoreNotationMetrics).
     final timeInMeasure = [
       for (var mi = 0; mi < rowMeasures.length; mi++)
@@ -1002,24 +1005,26 @@ class PdfScoreRenderer {
       );
     }
 
-    // Opening barline
-    _line(
-      g,
-      contentStartX,
-      staffTop - (singleLine ? _ls : 0),
-      contentStartX,
-      staffBottom + (singleLine ? _ls : 0),
-      ScoreNotationMetrics.barlineStrokeWidth * _scale,
-    );
-    // Closing barline
-    _line(
-      g,
-      staffEndX,
-      staffTop - (singleLine ? _ls : 0),
-      staffEndX,
-      staffBottom + (singleLine ? _ls : 0),
-      ScoreNotationMetrics.barlineStrokeWidth * _scale,
-    );
+    if (!rowMeasures.first.unresolvedBarlines) {
+      // Opening barline
+      _line(
+        g,
+        contentStartX,
+        staffTop - (singleLine ? _ls : 0),
+        contentStartX,
+        staffBottom + (singleLine ? _ls : 0),
+        ScoreNotationMetrics.barlineStrokeWidth * _scale,
+      );
+      // Closing barline
+      _line(
+        g,
+        staffEndX,
+        staffTop - (singleLine ? _ls : 0),
+        staffEndX,
+        staffBottom + (singleLine ? _ls : 0),
+        ScoreNotationMetrics.barlineStrokeWidth * _scale,
+      );
+    }
 
     // Clef
     if (clefSign == 'T') {
@@ -1111,7 +1116,8 @@ class PdfScoreRenderer {
     for (var mi = 0; mi < rowMeasures.length; mi++) {
       final measure = rowMeasures[mi];
       final measureStartX = contentStartX + mi * _mw;
-      final measureEndX = measureStartX + _mw;
+      final measureEndX =
+          measureStartX + _mw * ScoreDisplayProjection.span(measure);
 
       // Measure barline (except before first)
       if (mi > 0) {
@@ -1141,7 +1147,7 @@ class PdfScoreRenderer {
         g,
         font,
         barShapes(
-          width: _mw / _scale,
+          width: _mw / _scale * ScoreDisplayProjection.span(measure),
           spacing: _ls / _scale,
           left: measure.leftBarlineType,
           right: measure.rightBarlineType,
@@ -1155,7 +1161,7 @@ class PdfScoreRenderer {
       );
 
       // Measure number (once per grand staff, above the upper staff)
-      if (numberBars && !measure.implicit) {
+      if (numberBars && !measure.implicit && !measure.unresolvedBarlines) {
         _text(
           g,
           font,

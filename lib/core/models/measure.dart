@@ -12,6 +12,10 @@ import 'time_signature.dart';
 
 class Measure {
   final int number;
+
+  /// This scan row has no confirmed internal barlines. Its complete symbol
+  /// sequence is kept together until the user checks it against the page.
+  final bool unresolvedBarlines;
   final String? reviewId;
   final SourceRegion? source;
   final Clef? clef;
@@ -40,6 +44,7 @@ class Measure {
   const Measure({
     required this.number,
     this.reviewId,
+    this.unresolvedBarlines = false,
     this.source,
     this.clef,
     this.timeSignature,
@@ -62,6 +67,7 @@ class Measure {
   /// that adding a field to [Measure] cannot be lost by a copy.
   Measure copyWith({
     int? number,
+    bool? unresolvedBarlines,
     Object? reviewId = _keep,
     Object? source = _keep,
     Object? clef = _keep,
@@ -79,6 +85,7 @@ class Measure {
     List<ScoreAnnotation>? annotations,
   }) => Measure(
     number: number ?? this.number,
+    unresolvedBarlines: unresolvedBarlines ?? this.unresolvedBarlines,
     reviewId: identical(reviewId, _keep) ? this.reviewId : reviewId as String?,
     source: identical(source, _keep) ? this.source : source as SourceRegion?,
     clef: identical(clef, _keep) ? this.clef : clef as Clef?,
@@ -108,6 +115,7 @@ class Measure {
 
   Map<String, dynamic> toJson() => {
     'number': number,
+    if (unresolvedBarlines) 'unresolvedBarlines': true,
     if (annotations.isNotEmpty)
       'annotations': [for (final a in annotations) a.toJson()],
     if (reviewId != null) 'reviewId': reviewId,
@@ -130,6 +138,7 @@ class Measure {
 
   factory Measure.fromJson(Map<String, dynamic> json) => Measure(
     number: json['number'] as int,
+    unresolvedBarlines: json['unresolvedBarlines'] as bool? ?? false,
     annotations: [
       for (final a in json['annotations'] as List? ?? const [])
         ScoreAnnotation.fromJson(Map<String, dynamic>.from(a as Map)),

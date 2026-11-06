@@ -39,6 +39,7 @@ class ScoreBuilder {
       built.add(
         Measure(
           number: m.number,
+          unresolvedBarlines: m.unresolvedBarlines,
           clef: m.clef ?? lastClef,
           timeSignature: m.timeSignature ?? lastTime,
           keySignature: m.keySignature ?? lastKey,

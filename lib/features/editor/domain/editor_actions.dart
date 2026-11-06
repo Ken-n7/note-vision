@@ -2522,6 +2522,8 @@ extension EditorActions on EditorState {
   /// How long bar [measure] may be: its meter, or for a pickup what it
   /// already holds; null without a meter.
   static double? _capacity(Score score, int part, int measure) {
+    // A written meter does not establish boundaries on an unresolved scan row.
+    if (score.parts[part].measures[measure].unresolvedBarlines) return null;
     final meter = ScoreTimelineBuilder.meterLength(
       ScoreTimelineBuilder.activeMeter(score, part, measure),
     );
@@ -3015,6 +3017,10 @@ extension EditorActions on EditorState {
         ),
       );
       return allowOverfull ||
+          score
+              .parts[selectedPartIndex!]
+              .measures[selectedMeasureIndex!]
+              .unresolvedBarlines ||
           capacity.isZero ||
           timeline.laneDuration(selected.lane).compareTo(capacity) <= 0;
     } on ScoreTimelineException {
@@ -3046,7 +3052,8 @@ extension EditorActions on EditorState {
           measureIndex: measureIndex,
         ),
       );
-      return capacity.isZero ||
+      return score.parts[partIndex].measures[measureIndex].unresolvedBarlines ||
+          capacity.isZero ||
           timeline.laneDuration(inserted.lane).compareTo(capacity) <= 0;
     } on ScoreTimelineException {
       return false;
@@ -3119,7 +3126,8 @@ bool _laneFits(Score score, int part, int measure, VoiceLane lane) {
     final capacity = ScoreTimelineBuilder.meterLength(
       ScoreTimelineBuilder.activeMeter(score, part, measure),
     );
-    return capacity.isZero ||
+    return score.parts[part].measures[measure].unresolvedBarlines ||
+        capacity.isZero ||
         timeline.laneDuration(lane).compareTo(capacity) <= 0;
   } on ScoreTimelineException {
     return false;
@@ -3183,7 +3191,8 @@ bool _fitsMeter(Score score, int part, int measure) {
     final capacity = ScoreTimelineBuilder.meterLength(
       ScoreTimelineBuilder.activeMeter(score, part, measure),
     );
-    return capacity.isZero ||
+    return score.parts[part].measures[measure].unresolvedBarlines ||
+        capacity.isZero ||
         timeline.symbols.every(
           (e) => timeline.laneDuration(e.lane).compareTo(capacity) <= 0,
         );
