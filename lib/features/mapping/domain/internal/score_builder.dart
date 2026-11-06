@@ -52,7 +52,9 @@ class ScoreBuilder {
     return Part(id: partId, name: partName, measures: List.unmodifiable(built));
   }
 
-  /// Builds a [Score] from a list of already-built [Part]s.
+  /// Builds a scanned score, retaining each source row's own measures.
+  /// The sequential display projection supplies hidden layout cells as needed;
+  /// these must not become empty musical bars in playback or saved exports.
   Score buildFromParts(List<Part> parts) {
     return Score(
       id: 'mapped-score',
@@ -66,31 +68,8 @@ class ScoreBuilder {
                 measures: [Measure(number: 1, symbols: [])],
               ),
             ]
-          : _sameLength(parts),
+          : List.unmodifiable(parts),
     );
-  }
-
-  /// Every part gets as many measures as the longest, padded with empty ones:
-  /// the editor pages by measure index across all parts, so a short part
-  /// would hide the extra measures of the others. Staves of one scan often
-  /// differ in bar count.
-  static List<Part> _sameLength(List<Part> parts) {
-    final longest = parts
-        .map((p) => p.measures.length)
-        .reduce((a, b) => a > b ? a : b);
-    return [
-      for (final part in parts)
-        if (part.measures.length == longest)
-          part
-        else
-          part.copyWith(
-            measures: [
-              ...part.measures,
-              for (var n = part.measures.length + 1; n <= longest; n++)
-                Measure(number: n, symbols: const []),
-            ],
-          ),
-    ];
   }
 
   /// Convenience: single-pass build for a single part (used by legacy callers).

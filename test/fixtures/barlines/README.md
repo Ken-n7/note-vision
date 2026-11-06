@@ -55,3 +55,11 @@ off-column `symbol-2` is a false timeSig4 near the key; the aligned real digits
 give 4/4. `time_signature_real_scan_test.dart` checks that stack and the six
 other meter/control baselines. Missing or misclassified digits in these
 inputs are not musical ground truth and do not justify borrowing a meter.
+
+Staff recovery regression (release 2027) decodes the sparse photo's frozen
+G-clef boxes through `detectFromOutput` on this JPEG. The image's eight actual
+traced rows must not gain a ninth from the merged clef box. The frozen JSON
+continues to contain the old extra staff so earlier barline/meter tests retain
+their original inputs. New full-output replays retain eight rows of three bars;
+new mapped scans also stop padding shorter rows to match a longer row. The
+uneven photo's 21-bar beat fallback and missing symbols remain unresolved.

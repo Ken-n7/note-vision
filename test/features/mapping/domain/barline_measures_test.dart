@@ -1,5 +1,5 @@
-// Bars follow the barlines found on each staff, and staves with fewer bars
-// are padded so the editor (which pages by measure index) hides none.
+// Scanned rows retain their own bar counts; display-only filler belongs to
+// the sequential layout projection, not to the saved musical score.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:note_vision/features/detection/domain/detected_barline.dart';
@@ -30,7 +30,7 @@ void main() {
         metadata: noteType == null ? null : {'noteType': noteType},
       );
 
-  test('each staff is split at its own barlines and all get the same count', () {
+  test('each scanned row keeps its own bar count', () {
     final result = const DetectionToScoreMapperService().map(
       DetectionResult(
         staffs: [staffAt(0), staffAt(1)],
@@ -55,11 +55,31 @@ void main() {
     );
 
     final parts = result.score.parts;
-    expect(
-      parts[0].measures.map((m) => m.symbols.length),
-      [3, 1, 2],
-    );
-    expect(parts[1].measures.map((m) => m.symbols.length), [1, 1, 0]);
-    expect(parts[1].measures.map((m) => m.number), [1, 2, 3]);
+    expect(parts[0].measures.map((m) => m.symbols.length), [3, 1, 2]);
+    expect(parts[1].measures.map((m) => m.symbols.length), [1, 1]);
+    expect(parts[1].measures.map((m) => m.number), [1, 2]);
+  });
+  test('a longer lower row and a genuine empty bar are preserved', () {
+    final score = const DetectionToScoreMapperService()
+        .map(
+          DetectionResult(
+            staffs: [staffAt(0), staffAt(1)],
+            barlines: const [
+              DetectedBarline(x: 150, staffId: 'staff-1'),
+              DetectedBarline(x: 250, staffId: 'staff-1'),
+            ],
+            symbols: [
+              sym('clefG', 0, 10),
+              sym('noteheadWholeInSpace', 0, 60, noteType: 'whole'),
+              sym('clefG', 1, 10),
+              sym('noteheadWholeInSpace', 1, 60, noteType: 'whole'),
+              sym('noteheadWholeInSpace', 1, 300, noteType: 'whole'),
+            ],
+          ),
+        )
+        .score;
+    expect(score.parts.map((p) => p.measures.length), [1, 3]);
+    expect(score.parts[1].measures.map((m) => m.symbols.length), [1, 0, 1]);
+    expect(score.parts[1].measures.map((m) => m.number), [1, 2, 3]);
   });
 }

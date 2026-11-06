@@ -486,6 +486,76 @@ This changes work order, not the full-parity objective or acceptance criteria.
   `Download/NoteVisionQA2026/`. Tested APK SHA-256:
   `281918ac8cf18f863722eb08e0ce02e3340bd0b1403a2de7cf645b1a5f732f87`.
 
+### Traced staff recovery and natural scan bars — 2026-11-06
+
+- Sparse's giant G-clef box covers two real traced rows, but its center lies
+  between them at the left edge. Clef fallback now recognizes those two staff
+  middles at the box's own x, using their slope offsets, and adds no ninth row.
+  Already synthesized rows also cover repeated clef detections on the same row.
+  A lone untraced clef still recovers a staff from the existing proportions.
+- `ScoreBuilder` no longer pads scanned parts to the longest row. The existing
+  reading-order projection already supports ragged parts and hidden display-only
+  cells. Real empty measures and all measures in a longer lower row are retained.
+  Existing saved scores are not reparsed or automatically trimmed; imported
+  ensembles/templates do not use this scan builder.
+- Frozen full-output replay of all seven photos preserves every note/rest ID,
+  order and duration. Sparse changes **9 → 8** staves and **63 → 24** stored bars
+  (eight rows of three). Ten bottom-row pitch steps now use the actual traced
+  staff instead of the giant fake staff. The other six photos' musical symbols
+  are identical: uneven bars **[21,21,21,21,21,21] → [2,2,3,4,21,5]**,
+  song **[7,7,7,7,7] → [3,7,3,3,3]**, mixed
+  **[4,4,4,4,4,4] → [4,3,3,3,3,3]**; bass, dense and clef-only unchanged.
+- Three new staff cases reproduce the bug via public post-inference decoding,
+  including the sparse native-prepared photo's frozen clef boxes. They and the
+  updated padding expectation fail before the fix. Another test retains a real
+  empty middle bar and all bars of a longer lower row. Full **1,105 tests passed**;
+  `flutter analyze` clean. Existing ragged-row editor/PDF/hit-target tests pass.
+- Model/confidence thresholds, inferred note values, key inference and beat-count
+  fallback are unchanged. Missing/misclassified notes/rests, wrong meter digits,
+  song boundaries and the uneven row's unresolved 21-bar fallback still need
+  work; full MuseScore parity remains queued. Baselines are regression controls,
+  not complete musical ground truth. Evidence:
+  `/tmp/note-vision-staves-2027/`, including before-failure logs and
+  `score-differences.json`.
+- QA photo staging: `tool/android_qa_images.py` copies selected dataset files to
+  `Pictures/NoteVisionQA`, verifies SHA-256, updates only the copies' timestamps
+  and finishes MediaStore indexing. An adb-pushed pending image is otherwise
+  hidden from the picker; modifying the EXIF-derived MediaStore capture-date
+  column is not reliable once published. Dataset originals have no EXIF capture
+  dates, so refreshed file dates put all three selected photos at the top of
+  Android Photos → Recent. Verified visually in source order: sparse, uneven,
+  then new `IMG_20261017_160726_522` (five-staff control). Originals stay intact;
+  the named album is retained for future QA. Embedded older dates cause a clear
+  helper failure instead of an unsupported claim that the photo is recent.
+- Physical **2027** QA, Realme RMX1851 / Android 11: sparse retains
+  **175 symbols**, **137 notes / 8 rests**, now **8 staves** and eight rows of
+  three bars (**24**, previously 63). Saved **NVStaffSparse2027**; MusicXML
+  confirms ten bottom-row pitch changes (including the B-flat implied by its
+  key) and unchanged other note content/order. PDF is one page with eight
+  populated rows and no fake ninth row or trailing padded bars.
+- Uneven retains **133 symbols / 6 staves / 96 notes / 0 detected rests**,
+  stored counts **[2,2,3,4,21,5]** (**37**, previously 126). Saved
+  **NVStaffRagged2027**; all exported note content/order matches release 2026.
+  PDF is one page with twelve visual rows; the unresolved 21-bar fallback
+  still takes six rows, but other rows have no trailing musical bars. Seeking
+  reaches **37/37, Staff 6 measure 5**; playback from the beginning shows Pause
+  and Stop returns to Play. This checks transport, not subjective audio.
+- New dataset control `IMG_20261017_160726_522` scans as **113 symbols /
+  5 staves**, saved **NVStaffControl2027** with five rows of three bars, **44
+  notes / 16 rests**, and one-page PDF/MusicXML. This checks the scan/export
+  path on another photo, not complete pitch/rhythm/meter accuracy. All three
+  new scores reopen after a cold restart with byte-identical MusicXML; the
+  collection now shows **30 projects** (27 before these three scans).
+- The originally open **NVBarsPaired2024** exports byte-identically before
+  installation and after cold reopening; restored saved and stopped. Original
+  font/rotation preferences restored. Retained app logs contain **62 app lines /
+  zero Flutter/crash/save errors**. Temporary keyboard/UI-dump helpers removed;
+  the requested three recent photo copies remain in `Pictures/NoteVisionQA`.
+  Final helper rerun succeeds and preserves source image bytes. QA exports are
+  retained in `Download/NoteVisionQA2027/`; facts/hashes are in
+  `/tmp/note-vision-staves-2027/qa-facts.json`. Tested APK SHA-256:
+  `066cd85827da6197053fcf7c2f5ad8578ce670ef9850fd541fbaca8b98682385`.
+
 ## Reference and implementation policy
 
 Use the [MuseScore Studio handbook](https://handbook.musescore.org/llms.txt) as the

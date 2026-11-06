@@ -277,11 +277,9 @@ class TfliteSymbolDetector implements SymbolDetector {
     ]);
   }
 
-  /// Tier-3 staff recovery: any detected clef whose center Y falls outside
-  /// every already-known staff is unambiguous evidence of a missed staff.
-  /// Staff geometry is derived from the clef bbox using known engraving
-  /// proportions per clef type — one clef is sufficient, no spacing check
-  /// required.
+  /// Recover an untraced staff from clef proportions. A merged clef box
+  /// spanning two traced rows is already explained by those rows, even when
+  /// its center falls in the gap between them.
   List<DetectedStaff> _addClefStaves(
     List<DetectedSymbol> symbols,
     List<DetectedStaff> detectedStaves,
@@ -301,31 +299,45 @@ class TfliteSymbolDetector implements SymbolDetector {
 
       final clefCenterY = box.center.dy;
 
-      final covered = detectedStaves.any(
-        (s) => s.containsY(clefCenterY, x: box.center.dx),
-      );
+      final covered = [
+        ...detectedStaves,
+        ...synthesized,
+      ].any((s) => s.containsY(clefCenterY, x: box.center.dx));
       if (covered) continue;
+
+      final spannedRows = detectedStaves.where((staff) {
+        if (staff.lineYs.length != 5) return false;
+        final middle = staff.lineYs[2] + staff.offsetAt(box.center.dx);
+        return middle >= box.top && middle <= box.bottom;
+      }).length;
+      if (spannedRows >= 2) continue;
 
       final List<double> lineYs;
 
       if (clef.musicSymbol == MusicSymbol.clefG) {
-        final lineSpacing =
-            (box.height / _gClefHeightInSpaces).clamp(8.0, double.infinity);
+        final lineSpacing = (box.height / _gClefHeightInSpaces).clamp(
+          8.0,
+          double.infinity,
+        );
         final topLineY = box.top + _gClefSpacesAboveTopLine * lineSpacing;
         lineYs = List.generate(5, (i) => topLineY + i * lineSpacing);
       } else {
-        final lineSpacing =
-            (box.height / _fClefHeightInSpaces).clamp(8.0, double.infinity);
+        final lineSpacing = (box.height / _fClefHeightInSpaces).clamp(
+          8.0,
+          double.infinity,
+        );
         final topLineY = box.top + _fClefSpacesAboveTopLine * lineSpacing;
         lineYs = List.generate(5, (i) => topLineY + i * lineSpacing);
       }
 
-      synthesized.add(DetectedStaff(
-        id: 'clef-staff-$synthIndex',
-        topY: lineYs.first - (lineYs[1] - lineYs[0]),
-        bottomY: lineYs.last + (lineYs[1] - lineYs[0]),
-        lineYs: lineYs,
-      ));
+      synthesized.add(
+        DetectedStaff(
+          id: 'clef-staff-$synthIndex',
+          topY: lineYs.first - (lineYs[1] - lineYs[0]),
+          bottomY: lineYs.last + (lineYs[1] - lineYs[0]),
+          lineYs: lineYs,
+        ),
+      );
       synthIndex++;
     }
 
