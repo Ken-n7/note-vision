@@ -28,11 +28,11 @@ img.Image _page(List<(int, int, int)> strokes) {
   return image;
 }
 
-DetectedSymbol _quarter(double x, {Rect? fullBox}) =>
+DetectedSymbol _quarter(double x, {Rect? fullBox, double scale = 1}) =>
     DetectedSymbol.fromMusicSymbol(
       id: 'n$x',
       symbol: MusicSymbol.noteheadBlackInSpace,
-      boundingBox: Rect.fromLTWH(x, 130, 12, 9),
+      boundingBox: Rect.fromLTWH(x, 130 * scale, 12 * scale, 9 * scale),
       metadata: {
         'noteType': 'quarter',
         if (fullBox != null)
@@ -91,6 +91,75 @@ void main() {
     );
     expect(
       finder.find(image, const [staff], [_quarter(100), _quarter(400)]),
+      isEmpty,
+    );
+  });
+
+  for (final scale in [1, 2]) {
+    test('a short ink spur is not a note head at scale $scale', () {
+      final source = _page([(300, 100, 148)]);
+      // A small remnant of a curved/broken staff line touches the barline.
+      // Three dark rows alone used to be enough to call this a note head.
+      img.fillRect(
+        source,
+        x1: 300,
+        y1: 116,
+        x2: 307,
+        y2: 118,
+        color: img.ColorRgb8(30, 30, 30),
+      );
+      final image = img.copyResize(
+        source,
+        width: source.width * scale,
+        height: source.height * scale,
+        interpolation: img.Interpolation.nearest,
+      );
+      final scaledStaff = DetectedStaff(
+        id: staff.id,
+        topY: staff.topY * scale,
+        bottomY: staff.bottomY * scale,
+        lineYs: [for (final y in _lines) y * scale],
+      );
+      final found = finder.find(
+        image,
+        [scaledStaff],
+        [
+          _quarter(100.0 * scale, scale: scale.toDouble()),
+          _quarter(400.0 * scale, scale: scale.toDouble()),
+        ],
+      );
+      expect(found, hasLength(1));
+      expect(found.single.x, closeTo(300.5 * scale, scale.toDouble()));
+    });
+  }
+
+  test('a missed head still vetoes a stem on a larger staff', () {
+    final source = _page([(300, 100, 148)]);
+    img.fillCircle(
+      source,
+      x: 305,
+      y: 115,
+      radius: 6,
+      color: img.ColorRgb8(30, 30, 30),
+    );
+    final image = img.copyResize(
+      source,
+      width: 1200,
+      height: 520,
+      interpolation: img.Interpolation.nearest,
+    );
+    final largeStaff = DetectedStaff(
+      id: staff.id,
+      topY: 176,
+      bottomY: 320,
+      lineYs: [for (final y in _lines) y * 2],
+    );
+    expect(
+      finder.find(
+        image,
+        [largeStaff],
+        [_quarter(200, scale: 2), _quarter(800, scale: 2)],
+      ),
       isEmpty,
     );
   });

@@ -102,4 +102,66 @@ void main() {
       }
     });
   }
+
+  for (final name in ['sparse', 'ragged', 'song', 'clefs']) {
+    test('$name expanded photo preserves confirmed boundaries and symbols', () {
+      final photo = img.grayscale(
+        img.decodeJpg(File('$_root/$name.jpg').readAsBytesSync())!,
+      );
+      final original = DetectionResult.fromJson(
+        jsonDecode(File('$_root/$name.detection.json').readAsStringSync())
+            as Map<String, dynamic>,
+      );
+      final beforeJson = jsonEncode(original.toJson());
+      final lines = const BarlineFinder().find(
+        photo,
+        original.staffs,
+        original.symbols,
+      );
+      final restoredRow = switch (name) {
+        'sparse' => 6,
+        'ragged' => 3,
+        _ => -1,
+      };
+      for (final (row, staff) in original.staffs.indexed) {
+        final expectedXs = [
+          ...original.barlines
+              .where((b) => b.staffId == staff.id)
+              .map((b) => b.x),
+          if (row == restoredRow) name == 'sparse' ? 353.0 : 743.0,
+        ]..sort();
+        final actualXs = lines
+            .where((b) => b.staffId == staff.id)
+            .map((b) => b.x)
+            .toList();
+        expect(
+          actualXs,
+          hasLength(expectedXs.length),
+          reason: '$name row ${row + 1}',
+        );
+        for (var i = 0; i < expectedXs.length; i++) {
+          expect(
+            actualXs[i],
+            closeTo(expectedXs[i], 2.5),
+            reason: '$name row ${row + 1}',
+          );
+        }
+      }
+      expect(jsonEncode(original.toJson()), beforeJson);
+      const mapper = DetectionToScoreMapperService();
+      final before = mapper.map(original).score;
+      final after = mapper
+          .map(
+            DetectionResult(
+              staffs: original.staffs,
+              symbols: original.symbols,
+              barlines: lines,
+            ),
+          )
+          .score;
+      expect(_ids(after), _ids(before));
+      if (restoredRow == -1) expect(after.toJson(), before.toJson());
+      if (name == 'clefs') expect(_ids(after), isEmpty);
+    });
+  }
 }

@@ -331,8 +331,9 @@ This changes work order, not the full-parity objective or acceptance criteria.
   and `IMG_20261015_211432_497.jpg` (six uneven exercise staves with varied
   keys). These are additional existing dataset photos, not an unseen-model
   benchmark. No production code/model/threshold changes in this QA pass.
-- **Unfixed regressions in `3e56b39`:** replaying identical detections through
-  old/current geometry loses the sparse sheet's row-7 boundary at **x≈353**
+- **Regressions in `3e56b39` (fixed by release 2025 below):** replaying identical
+  detections through pre-fix/release-2024 geometry loses the sparse sheet's
+  row-7 boundary at **x≈353**
   and the uneven sheet's row-4 boundary at **x≈743** (904×1200 prepared input).
   Both are visibly real barlines; the new attached-head check rejects them.
   Candidate coverage remains sufficient. Diagnostic profiles show short
@@ -381,6 +382,59 @@ This changes work order, not the full-parity objective or acceptance criteria.
   Full parity remains queued. Evidence: `/tmp/note-vision-extra-images-2024/`
   (native-prepared inputs, fixed raw detections, geometry comparison, candidate
   diagnostics and phone scan/export captures).
+
+### Barline false-head follow-up — 2026-11-06
+
+- The expanded QA failures are now committed regression inputs. A candidate
+  stem must have consecutive broad ink rows spanning at least a third of a
+  staff space, with a peak width over half a space and the existing stroke
+  guards. This replaces the scale-independent three-row veto. A small staff
+  fragment or neighboring head edge no longer hides a real line; a tapered
+  head can still qualify without being wide on every row.
+- Frozen-input tests restore sparse row 7 at **x≈353** and uneven row 4 at
+  **x≈743**. Every detected note/rest ID remains in reading order. Original
+  three-photo expectations, including rejection of the paired sheet's missed
+  note stem at x≈241, remain intact. Song and clef-only score JSON stays
+  identical to its frozen baseline. All seven prepared photos are committed;
+  the four expanded baselines retain known recognition errors and are not
+  complete transcription ground truth.
+- Two real-photo cases and two scaled ink-fragment tests fail with the prior
+  finder and pass with the updated shape check. A larger missed-head case
+  keeps stem rejection covered. Focused tests: **16 passed**; full suite:
+  **1,077 passed**, analysis clean.
+  Logs: `/tmp/note-vision-barline-regressions-2025/` (including isolated
+  previous-finder replay in `before-final.log`).
+- Remaining: duplicate synthesized staff, 4/4 → 44/4, missed song boundaries
+  and rests, and beat-count fallback/padded bars still need separate fixes.
+  Model weights, confidence thresholds and score migration are unchanged;
+  existing projects are not reparsed. Full MuseScore parity remains queued.
+- Release **2025**, Realme RMX1851 / Android 11: fresh sparse-sheet Upload
+  restores the row-7 boundary in the overlay and saved MusicXML. Detected-note
+  distribution changes **[14,5] → [6,8,5]** (trailing padded bars omitted).
+  All **137 notes / 8 rests** retain their exact exported contents and order;
+  other row assignments are unchanged. Saved as **NVLinesSparse2025**, with
+  MusicXML/PDF. The extra staff, 44/4 and padded bars remain visible.
+- Fresh uneven-sheet Upload restores row 4 at x≈743 in the phone overlay;
+  saved MusicXML changes **[2,4,9] → [2,4,8,1]** with all **96 notes** retaining
+  exact contents/order, and other row assignments unchanged. Saved as
+  **NVLinesRagged2025**, with MusicXML/PDF. Local-runtime frozen detections give
+  [2,4,7,1] instead; as before, local/phone note counts are not interchangeable.
+  Existing missed rests and 21-bar padding remain separate failures.
+- Fresh paired-sheet control still has **153 symbols / 7 staves**, with all
+  **139 notes** and their exported contents/order unchanged from release 2024.
+  First bass row remains **[3,9,8]**; the missed stem does not return as a false
+  boundary. Saved/exported as **NVLinesPaired2025**. Two missing source notes
+  remain missed by the unchanged model.
+- All three MusicXML/PDF exports completed; PDFs remain one page (padded-case
+  readability problems are unchanged). Cold restart retains **25 projects**,
+  including all 22 originals. Sparse/uneven cold exports are byte-identical;
+  the originally open **NVBarsPaired2024** also exports byte-identically before
+  and after the update. Original score restored, saved and stopped. Retained
+  app logs have no Flutter/crash/save errors. Original font/rotation settings
+  restored; temporary helper/photo copies removed. No iOS or new subjective
+  listening test. Evidence: `/tmp/note-vision-barline-regressions-2025/qa-facts.json`;
+  phone exports: `Download/NoteVisionQA2025/`. Tested APK SHA-256:
+  `5e042523699d1997d1f547681a34b2920b4d1526a49641b0578eb9e6174b2473`.
 
 ## Reference and implementation policy
 

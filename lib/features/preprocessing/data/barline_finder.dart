@@ -303,7 +303,12 @@ class BarlineFinder {
     int strokeWidth,
   ) {
     final reach = (2 * space).ceil();
-    var broadRows = 0, lastBroad = -2;
+    // A head occupies a substantial fraction of a staff space in both
+    // dimensions. A few thick staff-line pixels or the edge of a nearby
+    // head can touch a barline without turning it into a note stem.
+    final minWidth = math.max(strokeWidth + 2 * _reach, space / 2);
+    final minRows = math.max(_reach + 1, (space / 3).ceil());
+    var broadRows = 0, lastBroad = -2, widest = 0;
     for (
       var y = math.max(0, top.floor());
       y <= math.min(gray.height - 1, bottom.ceil());
@@ -332,9 +337,11 @@ class BarlineFinder {
       if (ink - left >= reach || right - ink >= reach) continue;
       final width = right - left + 1;
       if (width > strokeWidth + 2 * _reach && width <= 1.5 * space) {
-        broadRows = lastBroad == y - 1 ? broadRows + 1 : 1;
+        final connected = lastBroad == y - 1;
+        broadRows = connected ? broadRows + 1 : 1;
+        widest = connected ? math.max(widest, width) : width;
         lastBroad = y;
-        if (broadRows >= _reach + 1) return true;
+        if (broadRows >= minRows && widest > minWidth) return true;
       }
     }
     return false;

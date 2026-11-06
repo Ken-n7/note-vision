@@ -31,9 +31,11 @@ progress (release 2023). Barline geometry now separates missed-note stems from
 real boundaries, including boundaries inside loose note boxes (release 2024).
 Expanded checks on four additional dataset photos found two real boundaries
 falsely rejected by the new attached-head veto, an extra synthesized staff,
-and 4/4 read as 44/4. Fix these barline regressions before the next feature;
-the original three-photo pass is not broad accuracy validation. See the
-expanded QA checkpoint in `EDITOR_PARITY.md`.
+and 4/4 read as 44/4. The barline follow-up requires head-sized ink at the
+current staff scale and restores the two boundaries in regression tests.
+The original three-photo pass is not broad accuracy validation. Remaining
+staff, meter, missed-symbol and padded-bar failures are recorded in
+`EDITOR_PARITY.md`; full parity stays queued.
 Each app change still needs
 automated checks and phone QA before
 the next feature. Full MuseScore parity remains an explicit
@@ -322,8 +324,9 @@ full parity remains queued.
 dataset photos were freshly scanned on the Realme (sparse exercises,
 clef-writing negative control, song with lyrics, uneven exercises). Two real
 barlines are newly rejected by the attached-head check: `211244_372` row 7
-x≈353 and `211432_497` row 4 x≈743 at 904×1200. These remain unfixed and take
-priority over another feature. Existing failures include eight visible staves
+x≈353 and `211432_497` row 4 x≈743 at 904×1200. These were unfixed at that
+checkpoint; the 2026-11-06 follow-up below addresses them. Other failures
+include eight visible staves
 becoming nine, 4/4 read as 44/4, the song's second row losing both boundaries,
 missed rests, and beat fallback padding every part to seven or 21 bars. The
 one-page PDFs become crowded with tiny notation and empty bars. The clef-only
@@ -332,6 +335,28 @@ page correctly exports zero notes/rests and disables playback/PDF. See
 `/tmp/note-vision-extra-images-2024/`. The earlier 1,070 passing tests and
 three-photo check do not cover these failures; no model tuning or app changes
 were made in this QA pass.
+
+**Barline regression follow-up (2026-11-06):** head veto requires consecutive
+broad ink spanning a third of a staff space with a peak width over half a space,
+plus existing stroke guards. Small staff-line fragments and neighboring-head
+edges no longer hide sparse row 7 (x≈353) or uneven row 4 (x≈743). Tapered heads
+still qualify; the paired sheet's missed-note stem remains rejected. All seven
+native-prepared photos are committed with frozen detections: original three
+expectations remain intact, both added boundaries return without losing or
+reordering detected note/rest IDs, and song/clef-control score JSON is unchanged.
+The expanded inputs retain known detection errors; they are not complete ground
+truth. **1,077 tests passed**, including 16 focused cases; analysis clean. Four
+regressions fail against the previous finder. No model/threshold changes or
+saved-score migration. Extra staff, 44/4, missed song bars/rests and padded-bar
+layout remain separate work. Physical release **2025** freshly scans both
+affected sheets and the original paired control: both boundaries return in
+the overlay and MusicXML, with all detected note contents/order retained.
+The paired row stays [3,9,8] and all 139 notes remain unchanged. Cold restart
+retains all 22 original projects plus three new QA scans; sparse/uneven cold
+exports and the original saved paired score are byte-identical. Phone settings
+restored and temporary helpers removed. Evidence:
+`/tmp/note-vision-barline-regressions-2025/`; device checkpoint in
+`EDITOR_PARITY.md`.
 
 **Guided bar review (2026-11-05):** Review groups questions by original row/bar,
 opens the source photo automatically (crop/full-page and linked symbol outline),
