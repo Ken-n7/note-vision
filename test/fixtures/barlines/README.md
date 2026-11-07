@@ -71,3 +71,12 @@ Song's second row also remains unresolved, because its real x≈343/x≈612 line
 were missed after a short staff trace. Neither case justifies inventing
 boundaries from beat totals. Frozen input JSON is unchanged; new tests verify
 persistent review context and preserve all detected notes/rests.
+
+Shifted-staff regression (release 2029) re-traces the song JPEG using its frozen
+clef boxes. A short candidate one line too low (four real tracks plus ledger
+ink) must yield to the better-supported real staff. Both actual second-row
+barlines near x343/x612 return with the unchanged finder, and x241 remains a
+note stem even without its detection. The first ledger note is C4. Frozen JSON
+retains the historical bad trace for older isolated tests; no fixture outputs
+are rewritten to hide that failure. Other pitch/head-localization errors in
+these detections are not complete musical ground truth.

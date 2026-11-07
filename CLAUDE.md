@@ -38,7 +38,9 @@ real 4/4 stack, with ambiguity/multi-digit regression coverage. Merged clef boxe
 new scans keep each row's own bar count instead of padding every row to the
 longest. The original three-photo pass is not broad accuracy validation.
 Unresolved scan rows now stay together for review with full-width display;
-beat counting no longer invents their internal boundaries. Remaining
+beat counting no longer invents their internal boundaries. Shifted ledger-line
+runs now yield to a better supported real staff, restoring the song's missing
+barlines without changing the finder thresholds. Remaining
 misclassified/missing-symbol and staff/barline geometry failures are recorded in
 `EDITOR_PARITY.md`; full parity stays queued.
 Each app change still needs
@@ -241,7 +243,7 @@ These are final unless explicitly changed:
 
 - **Model:** `assets/models/best.tflite` — YOLO26n model B9 v2 A, 960×960 FP32 LiteRT, 24 handwritten classes, trained on stretched grayscale images (data project and training notebooks live outside this repo). SHA-256: `841a0959ac9569bca8f90d151e27b185fa0b495df22a377df640c2379602be76`. Dataset `d0222605`, variant A (1,163 training images), best epoch 65; selected over B using 25 real validation photos. All nine exported evaluations were independently reproduced. Frozen real test AP50 79.92% (B8 80.43%), older real test 95.40%, synthetic test 90.97%; the separate fresh-page AP50 94.25% covers only one page. C/cut time remain synthetic-only in evaluation. Keep the existing confidence cutoffs until validation-based app calibration; detector scores exclude staff filtering and reconstruction. Initialization checks the FP32 tensor contract before decoding.
 - **Tiling strategy:** No tiling — full image always stretched to 960×960 (no letterbox, no stave-based cropping). Model was trained on full-page stretches.
-- **Staff detection:** `StaffLineTracer` per clef (preferred) → clef-sized level staff → `HorizontalProjectionStaffDetector` where no clef → cluster / `SyntheticStaffBuilder` fallbacks. A clef box spanning two already traced staff middles does not synthesize another staff; repeated clefs on a recovered row share that row. A staff with no clef of its own is read in the clef of the nearest staff above (else below).
+- **Staff detection:** `StaffLineTracer` per clef (preferred) → clef-sized level staff → `HorizontalProjectionStaffDetector` where no clef → cluster / `SyntheticStaffBuilder` fallbacks. Competing five-line runs sharing four ordered tracks at a one-line shift use independent-strip support to retain the better-supported real staff, after oversized-staff rejection. A clef box spanning two already traced staff middles does not synthesize another staff; repeated clefs on a recovered row share that row. A staff with no clef of its own is read in the clef of the nearest staff above (else below).
 - **Bars:** split at barlines found by `BarlineFinder`; a staff with none keeps its musical symbols together as one `unresolvedBarlines` row for explicit photo review; a meter does not establish boundaries. `ScoreBuilder` retains each scanned row's own bar count. The sequential display projection supplies hidden layout cells without saving artificial bars; imported ensembles retain their separate layout.
 - **Engraving:** Stage 4I EngravingLayout / BarPlacement shares rational onset positions across screen, PDF, hit targets, lyrics/text, insertion and playhead. Duration springs, compact grace clusters, aligned staves/voices, chord-second head displacement/shared stems, accidental columns and ledger lines. Text/lyrics reserve ink bounds; simultaneous text stacks; note/stem/mark headroom moves text/lyrics and staves apart. Score-wide density chooses up to four equal-width bars per row; oversized logical pages fit uniformly onto A4. Automatic overflow pages retain explicit breaks; longest-staff layout slots keep uneven ensembles visible. Geometry/policy cache by immutable score; saved models/audio unchanged. Remaining optical engraving, variable-width bars, system locks, advanced collisions and cross-staff work are in EDITOR_PARITY.md; next is 5C new-score wizard.
 - **Notation renderer:** CustomPainter — not a text list, not an SVG library. Editor and PDF follow the same rules: the key signature starts every row; the time signature shows on a page's first measure and wherever it changes (before the row's opening barline when the key leaves room, else inside the measure, whose notes move right; `ScoreNotationMetrics.timeSignatureInMeasure`). Flags are solid and point right on up and down stems; beamed eighths and sixteenths are drawn with beams (a chord tone neither joins nor ends a group).
@@ -448,6 +450,45 @@ byte-identically before/after installation and is restored saved/stopped.
 Retained logs show no Flutter/crash/save errors. Original phone preferences are
 restored; temporary helpers removed and requested recent test copies retained.
 QA exports: `Download/NoteVisionQA2028/`; facts/hashes in the work directory.
+
+**Shifted staff runs (2026-11-07):** the song's short second-row trace was
+one staff line too low: four real tracks plus a ledger line. It fit the detected
+clef slightly better than the real candidate. `StaffLineTracer` now retains
+track identities per line across joined fragments. Of two eligible five-line
+runs sharing four ordered tracks at a one-line shift, the run seen in more
+independent strips wins; ties retain the previous clef-based choice. Existing
+oversized-staff rejection runs first. No clef/barline thresholds or model
+weights change. The real trace reaches x654 instead of x266; both written
+boundaries near x343/x612 are detected by the unchanged finder, with the
+misleading x241 stem still rejected when its note detection is removed.
+Frozen full-output replay: song **[3,1,3,3,3] → [3,3,3,3,3]**; all detected
+note/rest IDs, order and lengths stay unchanged. **31** second-row pitches now
+use the real staff geometry (first ledger note **E4 → C4**, visually checked).
+Other notehead-localization/recognition errors remain; this is not a complete
+transcription oracle. All six other frozen scores are identical. Old saved
+projects are not reparsed. Four new tests cover ledger runs above/below, a
+genuinely short independent staff, and the real song's boundaries, note values
+and ledger C4. Two initial cases failed before the fix. Full **1,119 tests
+passed**, analysis clean. Evidence: `/tmp/note-vision-trace-2029/`; checkpoint in
+`EDITOR_PARITY.md`. Full parity and remaining recognition errors stay queued.
+
+Realme release **2029** freshly scanned song/sparse/uneven copies placed first
+in the photo picker: **117/175/133 symbols**, **5/8/6 staves**. Song export has
+**[3,3,3,3,3]**, **92 notes/10 rests**; all note/rest lengths and order are
+preserved. Native output has **32** second-row pitch changes using the real
+staff (frozen local replay has 31); first ledger note is C4. All other song
+rows are identical. Both control MusicXML scores and PDF rasters are identical
+to release 2028; all three PDFs are one page. Play/Stop verified on the
+corrected second row; no subjective listening claim.
+After restart, all three new projects export byte-identically. The older
+`NVRowsSong2028` also matches its pre-install export exactly, including its
+unresolved row. Collection **33 → 36**; retained app logs have no Flutter,
+crash or save errors. Tested APK SHA-256:
+`201f9be91652ba7535bbf071c2a026f3df6920abbd960367d97215bfd11a3b88`.
+Original preferences and Home/collection state restored; temporary helpers
+removed, requested recent test copies retained. Eleven exports are hashed in
+`Download/NoteVisionQA2029/`; complete facts in
+`/tmp/note-vision-trace-2029/qa-facts.json`.
 
 **Phone QA photos:** user authorized dataset reads from
 `/home/ken/Workspace/note-vision-data`. `tool/android_qa_images.py --serial

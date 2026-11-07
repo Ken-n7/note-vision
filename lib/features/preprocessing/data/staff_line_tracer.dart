@@ -355,8 +355,10 @@ class StaffLineTracer {
         final ids = [for (var k = i; k < i + 5; k++) here[k].$2];
         final key = ids.join(',');
         keys[key] = ids;
-        (seen[key] ??= [])
-            .add((j, [for (var k = i; k < i + 5; k++) here[k].$1]));
+        (seen[key] ??= []).add((
+          j,
+          [for (var k = i; k < i + 5; k++) here[k].$1],
+        ));
       }
     }
 
@@ -383,12 +385,41 @@ class StaffLineTracer {
       }
     }
     final groups = <int, List<(int, List<double>)>>{};
+    final identities = <int, List<Set<int>>>{};
     for (var a = 0; a < names.length; a++) {
-      (groups[find(a)] ??= []).addAll(seen[names[a]]!);
+      final root = find(a);
+      (groups[root] ??= []).addAll(seen[names[a]]!);
+      final slots = identities[root] ??= List.generate(5, (_) => <int>{});
+      for (var line = 0; line < 5; line++) {
+        slots[line].add(keys[names[a]]![line]);
+      }
     }
 
+    // A missing outer line plus a ledger line can masquerade as a staff
+    // shifted by one line. They cannot both be distinct five-line staves
+    // when they share the same four ordered tracks. Prefer the run seen in
+    // more independent strips, rather than whichever best fits a noisy clef.
+    bool shifted(List<Set<int>> a, List<Set<int>> b) {
+      for (final shift in [-1, 1]) {
+        var shared = 0;
+        for (var i = 0; i < 5; i++) {
+          final j = i + shift;
+          if (j >= 0 && j < 5 && a[i].any(b[j].contains)) shared++;
+        }
+        if (shared == 4) return true;
+      }
+      return false;
+    }
+
+    final support = {
+      for (final entry in groups.entries)
+        entry.key: entry.value.map((s) => s.$1).toSet().length,
+    };
+
     final out = <StaffCandidate>[];
-    for (final sightings in groups.values) {
+    final origin = <StaffCandidate, int>{};
+    for (final entry in groups.entries) {
+      final sightings = entry.value;
       if (sightings.length < _minSeen) continue;
       sightings.sort((a, b) => a.$1.compareTo(b.$1));
       final lines = [
@@ -397,8 +428,9 @@ class StaffLineTracer {
       ];
       var dys = [
         for (final s in sightings)
-          [for (var i = 0; i < 5; i++) s.$2[i] - lines[i]]
-                  .reduce((a, b) => a + b) /
+          [
+                for (var i = 0; i < 5; i++) s.$2[i] - lines[i],
+              ].reduce((a, b) => a + b) /
               5,
       ];
       if (dys.length >= 3) {
@@ -410,20 +442,31 @@ class StaffLineTracer {
           dys.last,
         ];
       }
-      out.add(StaffCandidate(
+      final candidate = StaffCandidate(
         lines: lines,
         xs: [for (final s in sightings) centreX(s.$1)],
         dys: dys,
-      ));
+      );
+      out.add(candidate);
+      origin[candidate] = entry.key;
     }
     // Where a staff is only partly traced, its lines and its neighbour's can
     // pass for one tall staff. A run that swallows a smaller staff is that.
-    return [
+    final physical = [
       for (final c in out)
         if (!out.any((d) {
           final x = d.xs[d.xs.length ~/ 2];
           return d.height < 0.7 * c.height && c.spans(d.middleAt(x), x: x);
         }))
+          c,
+    ];
+    return [
+      for (final c in physical)
+        if (!physical.any(
+          (d) =>
+              support[origin[d]]! > support[origin[c]]! &&
+              shifted(identities[origin[c]]!, identities[origin[d]]!),
+        ))
           c,
     ];
   }

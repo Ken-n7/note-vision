@@ -635,6 +635,62 @@ This changes work order, not the full-parity objective or acceptance criteria.
   `/tmp/note-vision-boundaries-2028/qa-facts.json`. Tested APK SHA-256:
   `0ac26d61ed193120c766628681deb2eea9ea937761bd6d60a64c2b018a2ba0a7`.
 
+### Shifted staff runs and the song's barlines — 2026-11-07
+
+- The song's second clef chose a false short candidate: **four real staff
+  tracks plus a ledger line**, shifted down by one line. Its clef-fit cost
+  (~0.45) beat the real longer candidate (~0.64), despite only ten observed
+  strips versus seventeen. The short trace ended near x266 and excluded the
+  true boundaries from the barline search.
+- `StaffLineTracer` carries per-line track identity through joined fragments.
+  Competing eligible five-line runs sharing four ordered tracks at a one-line
+  shift cannot represent distinct staves; prefer the run supported by more
+  independent strips. Equal support keeps the previous clef choice. The
+  existing oversized-staff rejection runs before this comparison, so rejected
+  geometry cannot suppress a valid staff. Independent short staves remain.
+- The real second-row trace reaches x654. The unchanged `BarlineFinder` now
+  finds both written lines at x≈342/611 (reference x≈343/612), with no relaxed
+  cover, width, head or extension checks. The x241 note stem remains rejected,
+  including after removing the nearby note detections. Frozen model weights,
+  detector confidence cutoffs and clef-fit thresholds are unchanged.
+- Two initial cases reproduce the old failure. Four new tests cover missing
+  top/bottom tracks with competing ledger runs, a true shorter staff with
+  independent tracks, and the native-prepared song image through tracing,
+  barline finding and reconstruction. The first row-2 ledger note maps to
+  **C4**, as written, instead of E4; all non-pitch symbol fields remain equal.
+- Seven frozen full-output replays preserve every note/rest ID, reading order
+  and length. Song groups **[3,1,3,3,3] → [3,3,3,3,3]** (15 bars), and **31**
+  second-row note pitches use the corrected staff geometry. Every other
+  musical symbol field is identical, including confidence, source bounds,
+  note values and chord flags. The six other complete scores (sparse, uneven,
+  bass, mixed, dense, clef-only) are identical to release 2028. Existing saved
+  scores are not migrated or rescanned. Remaining head localization and
+  recognition errors still require review; full MuseScore parity remains
+  queued. Full **1,119 tests passed**; analysis clean. Evidence:
+  `/tmp/note-vision-trace-2029/`, including before logs, candidate diagnostics,
+  final four-case test log, and `comparison.json`.
+- Realme release **2029**: refreshed, checksum-verified dataset copies appear
+  first in the photo picker. Fresh song/sparse/uneven scans detect
+  **117/175/133 symbols**, **5/8/6 staves**. Song exports **15 bars**, **92
+  notes/10 rests**, with all lengths and order unchanged and no changes in
+  other rows. The native second-row output has **32** geometry-derived pitch
+  changes (local frozen replay: 31); first ledger note is C4. Sparse and uneven
+  MusicXML scores and PDF rasters are identical to release 2028, preserving
+  **24 bars/137 notes/8 rests** and **13 groups/96 notes/0 rests** respectively.
+  All PDFs are one page. Play/Stop works on the corrected second row;
+  subjective listening was not performed.
+- After app restart, all three new projects export byte-identically. The
+  pre-existing `NVRowsSong2028` also matches its pre-install export exactly,
+  preserving its unresolved row; no saved-project reparse. Collection
+  **33 → 36**. Retained logs contain **66 app lines**, with no Flutter,
+  crash or save errors. Tested APK SHA-256:
+  `201f9be91652ba7535bbf071c2a026f3df6920abbd960367d97215bfd11a3b88`.
+- Original font/rotation preferences and Home/collection state restored;
+  temporary helpers removed, recent test copies retained. Eleven exports
+  archived and checksum-verified in `Download/NoteVisionQA2029/`. Complete
+  evidence: `/tmp/note-vision-trace-2029/qa-facts.json`. Remaining recognition
+  errors and full MuseScore parity stay queued.
+
 ## Reference and implementation policy
 
 Use the [MuseScore Studio handbook](https://handbook.musescore.org/llms.txt) as the
