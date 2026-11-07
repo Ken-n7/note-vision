@@ -40,7 +40,8 @@ longest. The original three-photo pass is not broad accuracy validation.
 Unresolved scan rows now stay together for review with full-width display;
 beat counting no longer invents their internal boundaries. Shifted ledger-line
 runs now yield to a better supported real staff, restoring the song's missing
-barlines without changing the finder thresholds. Remaining
+barlines without changing the finder thresholds. Beamed-note pitch heads now
+use one-ended beam evidence while preserving staff/rhythm association. Remaining
 misclassified/missing-symbol and staff/barline geometry failures are recorded in
 `EDITOR_PARITY.md`; full parity stays queued.
 Each app change still needs
@@ -102,6 +103,10 @@ Camera / Gallery / MusicXML file
    (for pitch), the model's whole box is kept in metadata['fullBox'] and the note
    value in metadata['noteType']. Beam boxes turn beamed quarters into 8ths/16ths
    and mark them metadata['beamed'], so the editor draws them beamed.
+   For these beamed notes, a detected beam at only one stem end supplies a
+   separate metadata['pitchBox'] at the opposite end. Only PitchCalculator
+   reads that refinement; suppression, staff/rhythm association and original
+   scan boxes keep their prior geometry. Ambiguous beams retain the ink guess.
    Staves, in order of preference:
      StaffLineTracer — follows each drawn line across the page (hand-ruled, sloped,
        bent staves); each detected clef picks the five lines it sits on.
@@ -489,6 +494,49 @@ Original preferences and Home/collection state restored; temporary helpers
 removed, requested recent test copies retained. Eleven exports are hashed in
 `Download/NoteVisionQA2029/`; complete facts in
 `/tmp/note-vision-trace-2029/qa-facts.json`.
+
+**Beam-guided pitch heads (2026-11-07):** dark beams sometimes beat the actual
+head in the end-band ink comparison, producing large pitch errors. Only
+quarter detections already interpreted as beamed eighths/sixteenths receive a
+beam-guided pitch box, after unchanged NMS. A beam touching just one end band
+(with the existing stem-tip reach) selects the opposite end. Missing, middle,
+unrelated or both-end beam evidence keeps the previous ink fallback. Explicit
+flagged, half and whole classes keep their existing estimates. `DetectedSymbol`
+copies metadata with `copyWith`; its separate pitch box round-trips through
+detection JSON. `PitchCalculator` alone consumes it. Moving the shared symbol
+box was rejected because it reassigned ledger notes and changed dot attachment.
+Seven frozen-output replays preserve all symbols, order, rhythm, source bounds,
+staves and barlines. Only pitch step/octave changes: **25 song, 10 dense, 7
+paired, 1 sparse**; uneven, mixed and clef-only scores are identical. The
+**43** head ends were visually checked; this does not establish exact pitch
+accuracy within the fixed end bands. Seventeen regressions cover beam direction,
+ambiguous/unrelated/missing beams, short stems, explicit classes, public decode
+through pitch/JSON, and all 43 real-photo cases. Disabling beam guidance makes
+eight tests fail. Full **1,136 tests passed**, analysis clean. Evidence:
+`/tmp/note-vision-heads-2030/`. Detector weights/cutoffs and old saved scores
+remain unchanged. Precise head fitting, missing/wrong symbols and full parity
+remain queued.
+
+Realme release **2030** fresh song/dense/paired scans: **117/225/153 symbols**,
+**5/9/7 staves**, **25/9/7 pitch changes** (dense local replay has 10). All
+exported non-pitch note fields, note/rest counts, row/bar assignments and
+key/meter declarations are preserved: **92/10**, **172/8**, **139/0** notes/rests
+and **15/27/21 bars**. All three PDFs are one page and visually checked.
+Song second-row Play/Stop passed; subjective listening was not performed.
+The re-encoded dataset dense copy gave 230 symbols and was rejected as a
+baseline comparison before Save. Original dense/paired compressed JPEG data
+and decoded pixels were preserved in QA copies; only their EXIF date text
+changed to make them recent. Source originals and orientation are unchanged.
+Hashes and pixel/scan checks: `phone/recent-pixel-copies.json` in the evidence
+directory. Picker timestamp ties can reorder thumbnails; verify the preview.
+After restart, all three new projects export byte-identically. The older
+`NVTraceSong2029` matches its pre-install export exactly. Collection **36 →
+39**; retained app logs show no Flutter/crash/save errors. Original font and
+rotation preferences and Home/collection state restored; temporary helpers
+removed, requested test copies retained. Eleven exports and two original-byte
+input copies are archived/checksummed in `Download/NoteVisionQA2030/`.
+Complete facts: `/tmp/note-vision-heads-2030/qa-facts.json`. Tested APK SHA-256:
+`04a3c16005dda1af860ca2a827c841566351c0d88e405f3eb1c883f29e815cbb`.
 
 **Phone QA photos:** user authorized dataset reads from
 `/home/ken/Workspace/note-vision-data`. `tool/android_qa_images.py --serial

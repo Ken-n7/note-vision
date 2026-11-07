@@ -80,3 +80,13 @@ note stem even without its detection. The first ledger note is C4. Frozen JSON
 retains the historical bad trace for older isolated tests; no fixture outputs
 are rewritten to hide that failure. Other pitch/head-localization errors in
 these detections are not complete musical ground truth.
+
+Beam-guided pitch regression (release 2030): `beamed_heads.json` freezes local
+beam rectangles and 43 visually checked head-end labels across song, dense,
+paired/bass and sparse. These are notes whose darker beam fooled the old ink
+comparison. Tests use the existing JPEGs and whole-symbol boxes, with no model
+execution. The opposite end band supplies a separate pitch estimate; it does
+not move the symbol box used for suppression, staff/rhythm association or
+source review. Labels establish which end contains the head, not the exact
+vertical center or a complete musical transcription. Existing frozen detections
+and barline fixtures remain unchanged.

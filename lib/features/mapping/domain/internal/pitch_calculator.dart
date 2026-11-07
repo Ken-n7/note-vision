@@ -22,9 +22,11 @@ class PitchCalculator {
 
     // Read the head against the staff as it runs under it: a sloped staff
     // is higher or lower there than its level lines say.
-    final centerX = symbol.x + ((symbol.width ?? 0) / 2);
+    final head = symbol.pitchBoundingBox;
+    final centerX = head?.center.dx ?? symbol.x + ((symbol.width ?? 0) / 2);
     final centerY =
-        symbol.y + ((symbol.height ?? 0) / 2) - staff.offsetAt(centerX);
+        (head?.center.dy ?? symbol.y + ((symbol.height ?? 0) / 2)) -
+        staff.offsetAt(centerX);
 
     // Reject noteheads that are clearly outside the staff — almost certainly
     // false-positive detections (text, artifacts, noise). Allow up to 2× staff

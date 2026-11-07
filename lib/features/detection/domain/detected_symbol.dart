@@ -17,6 +17,10 @@ class DetectedSymbol {
   /// symbol's own box is shrunk to the notehead.
   static const fullBoxKey = 'fullBox';
 
+  /// Optional refined head used only for pitch, as `[left, top, right, bottom]`.
+  /// Staff ownership, rhythm association and suppression use the original box.
+  static const pitchBoxKey = 'pitchBox';
+
   const DetectedSymbol({
     required this.id,
     required this.type,
@@ -51,6 +55,36 @@ class DetectedSymbol {
     if (width == null || height == null) return null;
     return Rect.fromLTWH(x, y, width!, height!);
   }
+
+  /// The unmodified model box, or the symbol box when no head was extracted.
+  Rect? get fullBoundingBox => _metadataBox(fullBoxKey) ?? boundingBox;
+
+  Rect? get pitchBoundingBox => _metadataBox(pitchBoxKey) ?? boundingBox;
+
+  Rect? _metadataBox(String key) {
+    final full = metadata?[key];
+    if (full is List && full.length == 4 && full.every((v) => v is num)) {
+      return Rect.fromLTRB(
+        (full[0] as num).toDouble(),
+        (full[1] as num).toDouble(),
+        (full[2] as num).toDouble(),
+        (full[3] as num).toDouble(),
+      );
+    }
+    return null;
+  }
+
+  /// Refines metadata while retaining the detector's identity and geometry.
+  DetectedSymbol copyWith({Map<String, Object?>? metadata}) => DetectedSymbol(
+    id: id,
+    type: type,
+    x: x,
+    y: y,
+    width: width,
+    height: height,
+    confidence: confidence,
+    metadata: metadata ?? this.metadata,
+  );
 
   MusicSymbol? get musicSymbol {
     try {

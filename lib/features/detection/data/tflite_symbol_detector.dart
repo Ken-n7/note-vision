@@ -148,14 +148,33 @@ class TfliteSymbolDetector implements SymbolDetector {
     List<DetectedStaff> staves,
     Float32List raw,
   ) {
-    final nmsMusical = _nms(
-      _parseOutput(
-        raw,
-        image: fullImage,
-        scaleX: fullImage.width / _inputSize,
-        scaleY: fullImage.height / _inputSize,
-      ),
+    final decoded = _parseOutput(
+      raw,
+      image: fullImage,
+      scaleX: fullImage.width / _inputSize,
+      scaleY: fullImage.height / _inputSize,
     );
+    // Keep suppression, staff ownership and rhythm on the original geometry.
+    // The refined head is a pitch estimate: moving the shared symbol box can
+    // instead move ledger notes to a neighbour or attach a different dot.
+    final nmsMusical = [
+      for (final symbol in _nms(decoded.symbols))
+        if (symbol.metadata?['beamed'] == true)
+          symbol.copyWith(
+            metadata: {
+              ...symbol.metadata!,
+              DetectedSymbol.pitchBoxKey: _rectValues(
+                noteheadRect(
+                  fullImage,
+                  symbol.fullBoundingBox!,
+                  beams: decoded.beams,
+                ),
+              ),
+            },
+          )
+        else
+          symbol,
+    ];
 
     // The model has no staff class. Each clef first looks for the real lines
     // it sits on, which follow a sloped or hand-ruled staff; failing that it
@@ -526,7 +545,7 @@ class TfliteSymbolDetector implements SymbolDetector {
   /// Converts raw model output into [DetectedSymbol]s in original-image
   /// pixel space. Note boxes are shrunk to their notehead so pitch is read
   /// from the head, not the middle of the stem.
-  List<DetectedSymbol> _parseOutput(
+  ({List<DetectedSymbol> symbols, List<Rect> beams}) _parseOutput(
     Float32List raw, {
     required img.Image image,
     required double scaleX,
@@ -545,7 +564,9 @@ class TfliteSymbolDetector implements SymbolDetector {
         }
       }
 
-      if (confidence < confidenceThresholdFor(_classes[classIndex].$1)) continue;
+      if (confidence < confidenceThresholdFor(_classes[classIndex].$1)) {
+        continue;
+      }
 
       final cx = raw[a] * _inputSize * scaleX;
       final cy = raw[_anchors + a] * _inputSize * scaleY;
@@ -617,7 +638,7 @@ class TfliteSymbolDetector implements SymbolDetector {
       );
     }
 
-    return detections;
+    return (symbols: detections, beams: beams);
   }
 
   /// How far past a note box's top and bottom a beam may sit and still count,
@@ -654,13 +675,22 @@ class TfliteSymbolDetector implements SymbolDetector {
   /// which is what the staff-synthesis fallbacks assume.
   static const double _noteheadBoxRatio = 0.16;
 
-  /// Returns the notehead of a stemmed note box, centred in whichever end
-  /// band (top or bottom) has more ink. The head is a filled/ringed blob,
-  /// the other end is only a thin stem tip plus flag.
-  // ponytail: ink-density guess, ~95% right on the test set; misses some
-  // wide flagged notes. Train a separate notehead class if pitch errors matter.
+  static List<double> _rectValues(Rect box) => [
+    box.left,
+    box.top,
+    box.right,
+    box.bottom,
+  ];
+
+  /// A beam at just one stem end puts the head at the other end. Otherwise
+  /// retain the ink-density fallback; a beam through both ends is ambiguous.
+  /// The selected band is still an estimate, not a fitted notehead contour.
   @visibleForTesting
-  static Rect noteheadRect(img.Image image, Rect box) {
+  static Rect noteheadRect(
+    img.Image image,
+    Rect box, {
+    List<Rect> beams = const [],
+  }) {
     final band = box.height * _noteheadBandRatio;
     final top = Rect.fromLTRB(box.left, box.top, box.right, box.top + band);
     final bottom = Rect.fromLTRB(
@@ -669,8 +699,26 @@ class TfliteSymbolDetector implements SymbolDetector {
       box.right,
       box.bottom,
     );
-    final head =
-        _meanLuminance(image, top) < _meanLuminance(image, bottom) ? top : bottom;
+    final reach = box.height * _beamReachRatio;
+    final topTip = Rect.fromLTRB(
+      box.left,
+      box.top - reach,
+      box.right,
+      top.bottom,
+    );
+    final bottomTip = Rect.fromLTRB(
+      box.left,
+      bottom.top,
+      box.right,
+      box.bottom + reach,
+    );
+    final beamAtTop = beams.any(topTip.overlaps);
+    final beamAtBottom = beams.any(bottomTip.overlaps);
+    final head = beamAtTop != beamAtBottom
+        ? (beamAtTop ? bottom : top)
+        : (_meanLuminance(image, top) < _meanLuminance(image, bottom)
+              ? top
+              : bottom);
     return Rect.fromCenter(
       center: head.center,
       width: box.width,

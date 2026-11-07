@@ -691,6 +691,63 @@ This changes work order, not the full-parity objective or acceptance criteria.
   evidence: `/tmp/note-vision-trace-2029/qa-facts.json`. Remaining recognition
   errors and full MuseScore parity stay queued.
 
+### Beam-guided pitch heads — 2026-11-07
+
+- The end-band ink heuristic can choose a dark beam instead of the notehead,
+  causing large pitch errors. Use the existing detected beam rectangles on
+  quarter boxes already interpreted as beamed eighths/sixteenths: a beam
+  touching only one end band selects the opposite end for pitch. Reuse the
+  existing band proportions and stem-tip reach; no model, confidence, beam
+  matching or suppression threshold changes.
+- Suppression runs on the original head estimates. The surviving symbol keeps
+  its box and receives separate `pitchBox` metadata via `copyWith`. Only
+  `PitchCalculator` reads it; staff ownership, note order, dot/accidental
+  association and source bounds retain their prior geometry. Directly moving
+  the shared box was rejected after replay showed ledger notes changing staff
+  and a dot changing note length. Existing projects are not rescanned.
+- Absent, unrelated, middle-band and both-end beams retain the ink fallback.
+  Explicit eighth/sixteenth, half and whole model classes are unchanged.
+  Seventeen tests cover both stem directions, these fallbacks, short stems,
+  class isolation, public decoding through pitch/JSON, and **43 visually
+  checked head ends across four photos**. Disabling beam guidance reproduces
+  eight failures. The real-photo fixture adds beam rectangles and head-end
+  labels; historical detection JSON is not rewritten.
+- All seven full frozen-output replays preserve every detected symbol, note
+  count/order/value, source bound, staff and barline. Only pitch step/octave
+  changes: **song 25, dense 10, paired 7, sparse 1**. Uneven, mixed and clef-only
+  complete scores are identical. Full **1,136 tests passed**, analysis clean.
+  Evidence: `/tmp/note-vision-heads-2030/`, including `before-guide.log`,
+  visual crop comparisons, seven-photo `comparison.json` and complete logs.
+- Remaining: fixed-band centering still misses exact head contours; explicit
+  flagged notes and wrongly detected beams can remain wrong. These existing
+  dataset photos are regression examples, not a broad accuracy benchmark.
+  Missing/misclassified symbols and full MuseScore parity stay queued.
+- Realme release **2030**: fresh song/dense/paired scans detect
+  **117/225/153 symbols**, **5/9/7 staves**. Exported pitch changes are
+  **25/9/7** respectively (dense local replay: 10). Every non-pitch note
+  field, note/rest count, bar assignment, key and meter declaration matches
+  the native baseline. Song has **92 notes/10 rests/15 bars**; dense
+  **172/8/27**; paired **139/0/21**. All three one-page PDFs are visually
+  checked. Song second-row Play/Stop passed; no subjective listening test.
+- The re-encoded dense dataset variant produced **230 symbols**, so the QA
+  guard stopped before saving or comparing it to the original baseline.
+  Recent original-pixel dense/paired copies change EXIF date text only:
+  compressed JPEG data, decoded pixels, orientation and source originals
+  are checksum-verified unchanged. This avoids treating a new image encoding
+  as an app regression. Equal capture timestamps reordered the thumbnails;
+  verify the source preview. Evidence: `phone/recent-pixel-copies.json`.
+- Cold restart: all three new projects export byte-identically; the older
+  `NVTraceSong2029` matches its pre-install export exactly. Collection
+  **36 → 39**. Retained logs have **37 app lines**, no Flutter/crash/save
+  errors. Original font/rotation preferences and Home/collection state are
+  restored; temporary helpers removed, requested photo copies retained.
+  Eleven exports and two original-byte input copies are archived and hashed
+  in `Download/NoteVisionQA2030/`. Complete evidence:
+  `/tmp/note-vision-heads-2030/qa-facts.json`. Tested APK SHA-256:
+  `04a3c16005dda1af860ca2a827c841566351c0d88e405f3eb1c883f29e815cbb`.
+  Exact head centering, other symbol errors and full MuseScore parity remain
+  queued.
+
 ## Reference and implementation policy
 
 Use the [MuseScore Studio handbook](https://handbook.musescore.org/llms.txt) as the
