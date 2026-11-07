@@ -13,6 +13,7 @@ import '../domain/detected_symbol.dart';
 import '../domain/detection_result.dart';
 import '../domain/music_symbol.dart';
 import '../domain/symbol_detector.dart';
+import 'notehead_center_finder.dart';
 
 class TfliteSymbolDetector implements SymbolDetector {
   static const String _modelPath = 'assets/models/best.tflite';
@@ -168,6 +169,7 @@ class TfliteSymbolDetector implements SymbolDetector {
                   fullImage,
                   symbol.fullBoundingBox!,
                   beams: decoded.beams,
+                  refineCenter: true,
                 ),
               ),
             },
@@ -690,6 +692,7 @@ class TfliteSymbolDetector implements SymbolDetector {
     img.Image image,
     Rect box, {
     List<Rect> beams = const [],
+    bool refineCenter = false,
   }) {
     final band = box.height * _noteheadBandRatio;
     final top = Rect.fromLTRB(box.left, box.top, box.right, box.top + band);
@@ -719,11 +722,18 @@ class TfliteSymbolDetector implements SymbolDetector {
         : (_meanLuminance(image, top) < _meanLuminance(image, bottom)
               ? top
               : bottom);
-    return Rect.fromCenter(
+    final estimate = Rect.fromCenter(
       center: head.center,
       width: box.width,
       height: box.height * _noteheadBoxRatio,
     );
+    return refineCenter && beamAtTop != beamAtBottom
+        ? const NoteheadCenterFinder().refine(
+            image,
+            band: head,
+            estimate: estimate,
+          )
+        : estimate;
   }
 
   static double _meanLuminance(img.Image image, Rect r) {

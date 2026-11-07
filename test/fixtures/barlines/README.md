@@ -90,3 +90,13 @@ not move the symbol box used for suppression, staff/rhythm association or
 source review. Labels establish which end contains the head, not the exact
 vertical center or a complete musical transcription. Existing frozen detections
 and barline fixtures remain unchanged.
+
+Bounded-centre regression (release 2031): `head_centers.json` supplies local beam
+rectangles and broad, visually checked vertical-centre intervals for six song
+heads. Three fitted heads reach their intervals; three clipped/weak cases must
+retain their known offset estimates. This does not relabel those fallbacks as
+correct. Tests keep the historical detections unchanged and refine only the
+separate pitch box. These intervals are neither exact contours nor a complete
+musical-pitch oracle. The optional annotation-box diagnostic lives in
+`tool/notehead_center_eval_test.dart`; its known boxes/end choices are not model
+inference or an unseen-photo benchmark.

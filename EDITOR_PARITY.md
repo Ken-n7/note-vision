@@ -748,6 +748,59 @@ This changes work order, not the full-parity objective or acceptance criteria.
   Exact head centering, other symbol errors and full MuseScore parity remain
   queued.
 
+### Bounded head centering — 2026-11-07
+
+- `NoteheadCenterFinder` may refine the vertical centre of a one-ended beamed
+  pitch estimate. Local paper contrast and solid-window support filter thin
+  strokes. A single compact component must be fully bounded, have supported
+  middle and no enclosed light pockets. Hollow, competing, clipped, tiny,
+  low-contrast or ambiguous-beam evidence keeps the previous estimate. Binary
+  and 8-bit luminance share a normalized scale. Only `pitchBox` changes;
+  association geometry, source review, NMS and detector cutoffs stay fixed.
+- **21 new tests** cover two scales/directions, thin/thick strokes, hollow and
+  weak ink, clipping/invalid inputs, competing blobs, class/beam isolation,
+  decoder/pitch/JSON integration and six real-photo cases. Three photo intervals
+  improve; three known offset heads deliberately retain their estimates when
+  fitting evidence is insufficient. Ten tests fail with fitting disabled.
+  Full **1,157 tests passed**; analysis clean.
+- Seven fixed-output photo replays change **11 pitch-centre coordinates**.
+  Only two score pitches change: song row 3/bar 2 and dense row 9/bar 3,
+  **A4 → B4**. Every note/rest ID, order, length, source bound, key/meter,
+  staff and barline is preserved; all other score fields are identical.
+  Sparse, uneven, paired, mixed and clef-only complete scores are unchanged.
+- Reproducible production Dart diagnostic:
+  `NV_CENTER_MPP=<annotations/images root> NV_CENTER_WORK=<out> flutter test
+  --no-pub tool/notehead_center_eval_test.dart`. **11,864** beamed filled-head
+  annotations on unshared stems supply whole-symbol boxes and known head ends;
+  **1,700** qualify. Mean absolute vertical error in head-height units changes
+  **0.1831 → 0.1590** overall, **0.2193 → 0.0513** on fits. **1,436** improve,
+  **252** worsen and **12** tie; **seven** worsen by over a quarter head height.
+  Both writer subsets improve on average. This uses known annotation boxes,
+  not inference or an unseen-model musical-accuracy benchmark. Thick staff/
+  ledger intersections and steep/slanted heads remain counterexamples.
+- Evidence: `/tmp/note-vision-centers-2031/`, including before/focused/full
+  logs, seven-photo `comparison.json`, photo crops, annotation summaries and
+  the largest regression examples. Remaining shape/symbol errors and full
+  MuseScore parity stay queued.
+- Realme release **2031**: original-pixel song/dense/paired copies are placed
+  first in the gallery using staggered copy dates, preserving source originals,
+  compressed JPEG data and orientation. **117/225/153 symbols**, **5/9/7 staves**.
+  Native song and dense each confirm the same single **A4 → B4**; every other
+  note field, count/order, key/meter and bar placement is preserved. Song has
+  **92 notes/10 rests/15 bars**, dense **172/8/27**, paired **139/0/21**.
+  Paired MusicXML is byte-identical and its PDF raster pixel-identical to 2030.
+  All PDFs are one page; song/dense renders visually checked. Play/Stop passes;
+  subjective listening was not performed.
+- All three new projects cold-reopen with byte-identical exports. Existing
+  `NVHeadsSong2030` matches its pre-install export exactly. Collection
+  **39 → 42**. **50** retained app log lines contain no Flutter/crash/save
+  errors. Original font/rotation preferences and Home/collection state are
+  restored; temporary helpers removed, requested recent copies retained.
+  Eleven exports archived/checksummed in `Download/NoteVisionQA2031/`.
+  Complete evidence: `/tmp/note-vision-centers-2031/qa-facts.json`.
+  Tested APK SHA-256:
+  `2c3d46979cd372ace2b1dda3525e257d98cfa54bfdb9e895619a54a1f6f55f1f`.
+
 ## Reference and implementation policy
 
 Use the [MuseScore Studio handbook](https://handbook.musescore.org/llms.txt) as the

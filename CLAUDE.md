@@ -41,7 +41,9 @@ Unresolved scan rows now stay together for review with full-width display;
 beat counting no longer invents their internal boundaries. Shifted ledger-line
 runs now yield to a better supported real staff, restoring the song's missing
 barlines without changing the finder thresholds. Beamed-note pitch heads now
-use one-ended beam evidence while preserving staff/rhythm association. Remaining
+use one-ended beam evidence while preserving staff/rhythm association.
+Clear beamed heads can now refine their vertical centre from bounded solid ink;
+uncertain shapes keep their previous estimate. Remaining
 misclassified/missing-symbol and staff/barline geometry failures are recorded in
 `EDITOR_PARITY.md`; full parity stays queued.
 Each app change still needs
@@ -106,7 +108,9 @@ Camera / Gallery / MusicXML file
    For these beamed notes, a detected beam at only one stem end supplies a
    separate metadata['pitchBox'] at the opposite end. Only PitchCalculator
    reads that refinement; suppression, staff/rhythm association and original
-   scan boxes keep their prior geometry. Ambiguous beams retain the ink guess.
+   scan boxes keep their prior geometry. A compact, bounded solid-ink component
+   can refine that pitch centre; uncertain shapes keep the end-band estimate.
+   Ambiguous beams retain the ink guess.
    Staves, in order of preference:
      StaffLineTracer — follows each drawn line across the page (hand-ruled, sloped,
        bent staves); each detected clef picks the five lines it sits on.
@@ -537,6 +541,47 @@ removed, requested test copies retained. Eleven exports and two original-byte
 input copies are archived/checksummed in `Download/NoteVisionQA2030/`.
 Complete facts: `/tmp/note-vision-heads-2030/qa-facts.json`. Tested APK SHA-256:
 `04a3c16005dda1af860ca2a827c841566351c0d88e405f3eb1c883f29e815cbb`.
+
+**Bounded head centering (2026-11-07):** `NoteheadCenterFinder` refines only
+one-ended beamed pitch boxes. Solid rectangular support filters thin strokes;
+only one compact, fully bounded component with supported middle and no enclosed
+paper pockets supplies its vertical centre. Hollow, clipped, competing, weak,
+out-of-frame and ambiguous-beam evidence keeps the previous estimate. Local
+paper contrast is normalized for binary/8-bit inputs. Original symbol boxes,
+NMS, ownership, rhythm, source bounds, model weights and cutoffs are unchanged.
+Seven frozen-output replays change **11 pitch centres**, with two score changes
+(song row 3/bar 2 and dense row 9/bar 3, **A4 → B4**). Every other score field
+is identical; the other five complete scores are identical to release 2030.
+Twenty-one tests cover fitting at two scales/stem directions, stroke/noise and
+ambiguity fallbacks, binary/8-bit contrast, decoder → pitch/JSON, three photo
+centre intervals and three deliberately unresolved photo controls. Disabling
+fitting fails ten tests. Full **1,157 tests passed**, analysis clean.
+The production Dart annotation-box diagnostic (`tool/notehead_center_eval_test.dart`)
+covers **11,864** beamed filled heads on unshared stems, with labelled boxes
+and end selection:
+**1,700** fitted; normalized mean centre error **0.1831 → 0.1590** overall,
+**0.2193 → 0.0513** on fits. Of fits, **1,436 improve, 252 worsen, 12 tie**;
+**seven** worsen by over a quarter head height (thick crossing/slanted ink).
+This is a centering proxy on known data, without model inference, not unseen
+scan/pitch accuracy. Remaining uncertain heads and other symbol errors still
+need review. Evidence: `/tmp/note-vision-centers-2031/`. Full parity stays queued.
+
+Realme release **2031**: fresh song/dense/paired scans detect **117/225/153
+symbols**, **5/9/7 staves**. The same **A4 → B4** occurs once in song and dense;
+paired MusicXML is byte-identical and its PDF raster pixel-identical to release
+2030. All other exported note fields, counts/order, key/meter and bar placements
+are preserved (**92/10/15**, **172/8/27**, **139/0/21** notes/rests/bars).
+All PDFs are one page; new song/dense renders visually checked. Play/Stop
+passed; no subjective listening claim. Recent copies preserve compressed image
+pixels/orientation and originals; only copy dates change, staggered to avoid ties.
+All three saved results cold-reopen with byte-identical exports. The older
+`NVHeadsSong2030` matches its pre-install export exactly. Collection **39 →
+42**; **50** retained app log lines have no Flutter/crash/save errors. Original
+font/rotation and Home/collection state restored; temporary helpers removed,
+requested recent copies retained. Eleven exports archived/hashed in
+`Download/NoteVisionQA2031/`; complete facts in the evidence directory.
+Tested APK SHA-256:
+`2c3d46979cd372ace2b1dda3525e257d98cfa54bfdb9e895619a54a1f6f55f1f`.
 
 **Phone QA photos:** user authorized dataset reads from
 `/home/ken/Workspace/note-vision-data`. `tool/android_qa_images.py --serial
