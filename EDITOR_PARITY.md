@@ -801,6 +801,43 @@ This changes work order, not the full-parity objective or acceptance criteria.
   Tested APK SHA-256:
   `2c3d46979cd372ace2b1dda3525e257d98cfa54bfdb9e895619a54a1f6f55f1f`.
 
+### Key-signature model/reconstruction diagnosis — 2026-11-08
+
+- Visually checked **27 written sharp glyphs**, three per row, on the dense
+  sheet. Historical detections and current production decoding of its frozen
+  local raw outputs give leading counts **1,2,2,3,2,1,3,3,3**; the mapper
+  counts exactly those symbols. Six missing glyphs have peak sharp scores
+  **0.171/0.228/0.355/0.283/0.294/0.394**, below the frozen **0.40** cutoff.
+  One is classified as `timeSig4` at **0.668** (peak sharp **0.013**).
+  Under the local matching rules, none has an above-cutoff winning sharp
+  candidate lost to NMS, staff assignment or leading-signature collection.
+- The diagnostic counterfactual supplies only the manually labelled sharp
+  glyphs. All nine rows then map three sharps, with every mapped note/rest
+  unchanged. `tool/key_signature_trace_test.dart` runs on the existing fixture;
+  `NV_KEY_WORK=<full/raw root>` additionally invokes the actual decoder.
+  `NV_KEY_REPORT=<output.json>` saves per-glyph details;
+  `NV_KEY_LABELS=<B9 24-class YOLO label file>` audits existing annotations.
+  `test/fixtures/barlines/key_sharp_centers.json` records approximate matching
+  centers, not exact contours, key-pitch semantics or a complete transcription.
+- The final B9 dataset puts this page in **test**, with all 27 key glyphs
+  already labelled as sharp (29 sharp labels including body accidentals).
+  The incoming Roboflow archive uses a different class order/split; do not
+  mistake that archive's `train` location for the final training split.
+  Keep test membership intact. Next model work should first audit separate
+  validation pages, then use independent training examples for weak sharps
+  and sharp/digit confusion. Any cutoff change still requires validation.
+- This diagnoses a known photo, not unseen recognition accuracy or proof
+  that all key-signature mapping is correct. Production code, model, cutoffs,
+  saved projects, phone installation and dataset originals remain unchanged.
+  No new phone QA is needed for this diagnostic-only change. Full parity
+  and other everyday recognition work remain queued. Evidence:
+  `/tmp/note-vision-key-triage-2031/` (frozen/raw reports and annotation audit).
+- Final validation: fixture diagnostic passed; raw decoder/annotation audit
+  passed; `flutter analyze --no-pub` clean; full **1,157 tests passed**;
+  `git diff --check` clean. Initial checks exhausted `/tmp` quota; only this
+  turn's failed compiler caches were removed, and verification reran with
+  temporary files under the ignored project build cache.
+
 ## Reference and implementation policy
 
 Use the [MuseScore Studio handbook](https://handbook.musescore.org/llms.txt) as the

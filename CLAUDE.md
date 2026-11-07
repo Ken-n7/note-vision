@@ -583,6 +583,29 @@ requested recent copies retained. Eleven exports archived/hashed in
 Tested APK SHA-256:
 `2c3d46979cd372ace2b1dda3525e257d98cfa54bfdb9e895619a54a1f6f55f1f`.
 
+**Key-signature diagnosis (2026-11-08):** the dense photo visibly repeats
+three sharps on nine rows (27 glyphs). Both historical detections and a replay
+of frozen local raw outputs retain leading counts **1,2,2,3,2,1,3,3,3**;
+the mapper returns exactly those counts. Six missing sharp candidates peak at
+**0.171/0.228/0.355/0.283/0.294/0.394**, below the frozen **0.40** cutoff.
+The seventh is confidently misclassified as `timeSig4` (**0.668**, sharp
+score at most **0.013**). No missing glyph has a qualifying raw sharp candidate
+lost in suppression/staff assignment/signature grouping under the diagnostic's
+local matching rules. Supplying the 27 labelled glyphs yields three sharps on
+every row while preserving every mapped note/rest. This supports model-side
+recognition work for this page, not a general claim that all signature mapping
+is correct. No production/model/cutoff changes or new phone build.
+`tool/key_signature_trace_test.dart` and `key_sharp_centers.json` reproduce the
+trace/counterfactual; optional `NV_KEY_WORK`, `NV_KEY_REPORT`, `NV_KEY_LABELS`
+enable raw-output and annotation audits. The final B9 24-class **test** labels
+already contain all 27 key sharps (29 total including body accidentals).
+Keep this known test page in its split; investigate separate validation pages
+before choosing threshold calibration or more training examples. Original
+dataset files are unchanged. Evidence: `/tmp/note-vision-key-triage-2031/`.
+Frozen-fixture and raw-output/annotation diagnostics pass; final analysis is
+clean and all **1,157 tests pass**. Initial verification hit the `/tmp` quota;
+reruns using the ignored project build cache completed successfully.
+
 **Phone QA photos:** user authorized dataset reads from
 `/home/ken/Workspace/note-vision-data`. `tool/android_qa_images.py --serial
 6d718c9c --batch <new-batch> <photo> ...` creates checksum-verified copies in

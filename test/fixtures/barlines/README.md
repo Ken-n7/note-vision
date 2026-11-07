@@ -100,3 +100,19 @@ separate pitch box. These intervals are neither exact contours nor a complete
 musical-pitch oracle. The optional annotation-box diagnostic lives in
 `tool/notehead_center_eval_test.dart`; its known boxes/end choices are not model
 inference or an unseen-photo benchmark.
+
+Key-signature diagnostic (2026-11-08): `key_sharp_centers.json` marks the dense
+page's 27 written sharp glyphs (three on each of nine rows). These approximate
+centers provide exclusive nearest-glyph matching, not exact boxes or a full
+transcription. `flutter test --no-pub tool/key_signature_trace_test.dart` traces
+the existing fixture through the actual mapper and verifies that supplying the
+labelled sharps yields three per row with identical mapped notes/rests. Optional
+`NV_KEY_WORK=<root with full/dense.png and raw/dense.bin>` runs the production
+decoder too; `NV_KEY_REPORT=<output.json>` saves the detailed trace;
+`NV_KEY_LABELS=<B9 24-class YOLO labels>` checks existing sharp annotations.
+Six missing sharps are below 0.40 and one is misclassified as a 4; the mapper
+counts its retained key glyphs correctly. The final dataset's test annotation
+already labels all 27. Do not move this known test page into training, lower
+cutoffs based on it, or silently fill missing glyphs from neighboring rows.
+Historical detections remain unchanged. Evidence:
+`/tmp/note-vision-key-triage-2031/`.

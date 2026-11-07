@@ -1,0 +1,16 @@
+{
+  "photo": "dense",
+  "imageSize": [904, 1200],
+  "description": "Approximate visually checked centers of three written sharp glyphs per row. Diagnostic matching anchors, not precise boxes or a full musical transcription.",
+  "rows": [
+    [[98, 119], [112, 155], [133, 118]],
+    [[98, 245], [112, 286], [134, 245]],
+    [[96, 374], [113, 413], [128, 372]],
+    [[100, 503], [116, 546], [135, 502]],
+    [[96, 643], [113, 682], [132, 642]],
+    [[96, 756], [113, 800], [132, 756]],
+    [[100, 878], [118, 916], [131, 876]],
+    [[106, 1009], [120, 1049], [131, 1005]],
+    [[118, 1117], [132, 1152], [134, 1111]]
+  ]
+}
