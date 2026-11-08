@@ -31,9 +31,8 @@ class SemanticInferrer {
 
     return measures
         .map((measure) {
-          final signatureSymbols = _signatureInferrer
+          var signatureSymbols = _signatureInferrer
               .collectLeadingSignatureSymbols(measure.symbols);
-          final signatureIds = signatureSymbols.map((e) => e.symbol.id).toSet();
 
           final inferredClef = _signatureInferrer.inferClef(
             signatureSymbols,
@@ -41,6 +40,17 @@ class SemanticInferrer {
           );
           activeClef = inferredClef ?? activeClef;
           final clef = activeClef;
+          final leadingAccidental = _signatureInferrer.leadingNoteAccidental(
+            measure,
+            signatureSymbols,
+            clef: clef,
+          );
+          if (leadingAccidental != null) {
+            signatureSymbols = signatureSymbols
+                .where((e) => e.symbol.id != leadingAccidental.accidentalId)
+                .toList();
+          }
+          final signatureIds = signatureSymbols.map((e) => e.symbol.id).toSet();
           final timeSignature = _signatureInferrer.inferTimeSignature(
             measure.staff,
             signatureSymbols,
@@ -57,7 +67,8 @@ class SemanticInferrer {
               .where(
                 (e) =>
                     SymbolClassifier.isAnyAccidental(e.symbol.type) &&
-                    !signatureIds.contains(e.symbol.id),
+                    !signatureIds.contains(e.symbol.id) &&
+                    e.symbol.id != leadingAccidental?.accidentalId,
               )
               .toList();
           final augmentationDots = measure.symbols
@@ -71,10 +82,13 @@ class SemanticInferrer {
               .where((e) => e.symbol.type == 'ledgerLine')
               .map((e) => e.symbol)
               .toList(growable: false);
-          final noteAlters = _matchAccidentalsToNoteheads(
-            bodyAccidentals,
-            measure.symbols,
-          );
+          final noteAlters = {
+            ..._matchAccidentalsToNoteheads(bodyAccidentals, measure.symbols),
+            // The tight match also covers slightly overlapping loose boxes,
+            // which the ordinary left-of-note association cannot consume.
+            if (leadingAccidental != null)
+              leadingAccidental.noteId: leadingAccidental.alter,
+          };
           final symbolDots = _matchAugmentationDots(
             augmentationDots,
             measure.symbols,

@@ -116,3 +116,16 @@ already labels all 27. Do not move this known test page into training, lower
 cutoffs based on it, or silently fill missing glyphs from neighboring rows.
 Historical detections remain unchanged. Evidence:
 `/tmp/note-vision-key-triage-2031/`.
+
+First-note accidental regression (release 2033): visually checked source crops
+show dense row 1/bar 3's C-flat (`symbol-51` → note `symbol-2`), dense row 2/bar
+2's F-flat (`symbol-226` → `symbol-208`) and sparse row 1/bar 3's E-flat
+(`symbol-104` → `symbol-818`). Their slightly overlapping detection boxes
+previously made the flats into key glyphs instead of written note accidentals.
+`leading_note_accidental_test.dart` reuses unchanged fixture detections and
+checks each flat's unique target, inherited keys, accidental carry/reset and
+all other score fields against a control with only those glyphs removed.
+Ambiguous key positions, first rows and clef/time/group anchors keep their
+previous interpretation. This is a focused reconstruction regression, not
+complete transcription ground truth or improved model detection. Source crops
+and seven-photo field comparisons: `/tmp/note-vision-accidentals-2033/`.

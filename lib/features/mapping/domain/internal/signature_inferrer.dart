@@ -4,6 +4,7 @@ import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/features/detection/domain/detected_staff.dart';
 import 'mapping_types.dart';
+import 'pitch_calculator.dart';
 import 'symbol_classifier.dart';
 
 class SignatureInferrer {
@@ -176,6 +177,89 @@ class SignatureInferrer {
     return KeySignature(
       fifths: types.single == 'accidentalFlat' ? -count : count,
     );
+  }
+
+  /// An isolated accidental immediately attached to a continuation bar's
+  /// first note can be mistaken for a new key by the leading-region rule.
+  /// Only separate clear non-key pitches. F-sharp/B-flat on their standard
+  /// key pitch are genuinely ambiguous; groups and signature anchors stay.
+  /// Naturals on F/B can cancel a one-accidental key, so also stay unresolved.
+  ({String accidentalId, String noteId, int alter})? leadingNoteAccidental(
+    MeasureSymbols measure,
+    List<StaffOwnedSymbol> leading, {
+    required Clef? clef,
+  }) {
+    if (measure.number <= 1 ||
+        measure.staff.lineYs.length != 5 ||
+        leading.any(
+          (e) =>
+              SymbolClassifier.isSupportedClef(e.symbol.type) ||
+              SymbolClassifier.isTimeSignatureSymbol(e.symbol.type),
+        )) {
+      return null;
+    }
+    final accidentals = leading
+        .where((e) => SymbolClassifier.isKeySignatureAccidental(e.symbol.type))
+        .toList();
+    if (accidentals.length != 1) return null;
+    final accidental = accidentals.single.symbol;
+    final box = accidental.boundingBox;
+    final alter = SymbolClassifier.alterFor(accidental.type);
+    if (box == null || box.isEmpty || alter == null) return null;
+    final ordered = [...measure.symbols]
+      ..sort((a, b) => a.symbolCenterX.compareTo(b.symbolCenterX));
+    final first = ordered
+        .where(
+          (e) =>
+              SymbolClassifier.isNotehead(e.symbol.type) ||
+              SymbolClassifier.isSupportedRest(e.symbol.type),
+        )
+        .firstOrNull;
+    if (first == null || !SymbolClassifier.isNotehead(first.symbol.type)) {
+      return null;
+    }
+    final lines = [...measure.staff.lineYs]..sort();
+    final spacing = (lines.last - lines.first) / 4;
+    if (!spacing.isFinite || spacing <= 0) return null;
+    // A flat's loop is near the bottom of its box; sharp/natural strokes
+    // straddle the pitch. Compare levels on the actual sloped staff.
+    final accidentalY =
+        box.top +
+        box.height * (alter == -1 ? .8 : .5) -
+        measure.staff.offsetAt(box.center.dx);
+    final matches = <StaffOwnedSymbol>[];
+    for (final note in ordered.where(
+      (e) => SymbolClassifier.isNotehead(e.symbol.type),
+    )) {
+      final head = note.symbol.boundingBox;
+      if (head == null ||
+          head.isEmpty ||
+          (note.symbolCenterX - first.symbolCenterX).abs() > head.width / 2) {
+        continue;
+      }
+      final gap = head.left - box.right;
+      final noteY = head.center.dy - measure.staff.offsetAt(head.center.dx);
+      if (box.center.dx < head.center.dx &&
+          gap >= -head.width / 4 &&
+          gap <= spacing * .75 &&
+          (noteY - accidentalY).abs() <= spacing * .35) {
+        matches.add(note);
+      }
+    }
+    if (matches.length != 1) return null;
+    final note = matches.single;
+    final pitch = const PitchCalculator().calculate(
+      symbol: note.symbol,
+      staff: measure.staff,
+      clef: clef,
+    );
+    if (pitch == null ||
+        (alter == 1 && pitch.step == 'F') ||
+        (alter == -1 && pitch.step == 'B') ||
+        (alter == 0 && (pitch.step == 'F' || pitch.step == 'B'))) {
+      return null;
+    }
+    return (accidentalId: accidental.id, noteId: note.symbol.id, alter: alter);
   }
 
   List<StaffOwnedSymbol> collectLeadingSignatureSymbols(

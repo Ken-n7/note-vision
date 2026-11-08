@@ -46,6 +46,8 @@ Clear beamed heads can now refine their vertical centre from bounded solid ink;
 uncertain shapes keep their previous estimate.
 Review now offers an explicit previewed key correction across selected scan
 rows, keeping later different keys and recording the correction as one edit.
+Clear note-attached accidentals at continuation-bar openings now stay on their
+first note instead of creating a false key; ambiguous/anchored keys stay for review.
 Remaining misclassified/missing-symbol and staff/barline geometry failures are recorded in
 `EDITOR_PARITY.md`; full parity stays queued.
 Each app change still needs
@@ -629,8 +631,8 @@ This corrects opening sections only. A later key context may itself be a scan
 error and remains for separate bar review; this does not establish that the
 whole transcription is correct. The native dense scan retains its existing
 later -1 contexts on row 1/bar 3 and row 2/bars 2–3. Distinguishing a note's
-accidental at a bar opening from an actual key change is a separate app-side
-investigation, independent of the model's missed opening sharps.
+accidental at a bar opening from an actual key change is addressed for clear
+continuation cases below, independently of the model's missed opening sharps.
 
 Realme release **2032** passed QA using saved `NVCenterDense2031`: installation
 preserved its fresh baseline byte-for-byte. Default single-row selection,
@@ -649,6 +651,61 @@ log lines**, no Flutter/crash/save errors. Facts:
 `/tmp/note-vision-key-rows-2032/phone/qa-facts.json`. Tested APK SHA-256:
 `d383b684c0e09c203b0e3fd2d8dfaebf96aea4a8fa891ce1029763bd8063617d`.
 No model change, fresh inference, iOS test or subjective listening claim.
+
+**First-note accidentals (2026-11-08):** source crops confirm dense row 1/bar 3
+has C-flat, dense row 2/bar 2 has F-flat, and sparse row 1/bar 3 has E-flat.
+The mapper previously consumed these as leading key glyphs. In continuation
+bars without a clef/time anchor, a single glyph tightly aligned with exactly
+one first-onset note can now be separated from the key region. The comparison
+uses staff-scale gap/vertical support, permits limited loose-box overlap, and
+follows staff slope. The glyph is consumed once by its paired note; ordinary
+body matching cannot attach it a second time. Existing PitchCalculator spelling
+preserves ambiguous F-sharp/B-flat readings and F/B-natural cancellation cases.
+First-row keys, multiple-glyph groups, anchored signatures, rests, competing
+heads, unsupported clefs and weak geometry retain their prior interpretation.
+No detector/model/cutoff, staff, barline, source-box, pitch-step or rhythm changes.
+
+**27 new regressions** cover three scales/slopes, treble/bass, real/ambiguous
+keys and cancellations, overlap and weak-context fallbacks, JSON/XML, accidental
+carry and next-bar reset, and both real photos. Disabling the rule fails **12**
+tests. Full **1,197 tests passed**; analysis clean. Seven fixed-detection replays
+change only **three written flats** plus **three dense key contexts** (row 1/bar
+3: -1 → 1; row 2/bars 2–3: -1 → 2). The other five entire scores are identical.
+This is a focused known-photo reconstruction fix, not a complete transcription
+benchmark. Opening-key model misses and ambiguous/new-sheet cases still need
+review. Old saved projects are not reinterpreted. Evidence:
+`/tmp/note-vision-accidentals-2033/`. Full parity remains queued.
+
+Remaining counterexample: sparse row 1/bar 3 still misses the sharp on its
+second E. `symbol-106` overlaps that head (`symbol-819`), and ordinary body
+matching rejects negative gaps, then associates the sharp with a later note.
+That pre-existing association is not changed by this first-note rule. The new
+E-flat's carry is correct for the reconstructed notation, but the following
+E notes still disagree with the photo. Do not count every changed sounding
+pitch as an accuracy gain. Next app-side candidate: tight-overlap association
+for body accidentals, with source checks and chord/vertical ambiguity controls.
+
+Realme release **2033** passed fresh scan QA on dense, sparse and song originals
+using pixel-identical recent copies. Dense: **225 symbols / 9 staves**, **172
+notes / 8 rests / 27 bars**; both first-note flats return and the three false
+key contexts are repaired. Sparse: **175 symbols / 8 staves**, **137 notes / 8
+rests / 24 bars**; the first E-flat returns while keys remain unchanged. Native
+XML has four/three sounding-alteration changes respectively, consistent with
+the reconstructed keys/carry (subject to the remaining source errors above).
+All other written fields, counts/order and bar placements are preserved. Song:
+**117 symbols / 5 staves**, **92 notes / 10 rests / 15 bars**, musically identical
+to release 2031; only the XML encoding date differs, and its PDF is
+pixel-identical. All three PDFs are one page and visually checked; Play/Stop
+passed. Each new project cold-reopens with a byte-identical export. Existing
+dense and freshly saved old-build sparse baselines remain byte-identical after
+installation. All previous **42 projects** retained; **46 total** including four
+new QA projects. Original font/rotation/Home restored, temporary device helpers
+removed, requested recent copies retained and source originals unchanged.
+Thirteen exports archived/checksummed in `Download/NoteVisionQA2033/`.
+**94 retained app log lines**, no Flutter/crash/save errors. Complete facts:
+`/tmp/note-vision-accidentals-2033/phone/qa-facts.json`. Tested APK SHA-256:
+`e6d015ed0ba023dfe439c7526bd967fc57f70ab783fc693c4512827086de7977`.
+No model change, iOS test or subjective listening claim.
 
 **Phone QA photos:** user authorized dataset reads from
 `/home/ken/Workspace/note-vision-data`. `tool/android_qa_images.py --serial
