@@ -42,6 +42,7 @@ class Score {
             (p) => p.measures.any(
               (m) =>
                   m.source != null ||
+                  m.unassignedAccidentals.isNotEmpty ||
                   m.symbols.any(
                     (s) => switch (s) {
                       Note(:final source) ||

@@ -51,6 +51,9 @@ first note instead of creating a false key; ambiguous/anchored keys stay for rev
 Body accidentals with a small, unambiguous overlap now attach at the aligned
 pitch head instead of skipping to a later note. Competing glyphs/heads and
 weak geometry retain their prior association; detector weights stay frozen.
+Unassigned body accidentals now stay as photo-linked review evidence: select a
+note to assign the mark, or ignore it explicitly; decisions and correction
+history travel with the saved project. No musical note changes automatically.
 Remaining misclassified/missing-symbol and staff/barline geometry failures are recorded in
 `EDITOR_PARITY.md`; full parity stays queued.
 Each app change still needs
@@ -748,6 +751,46 @@ temporary helpers removed, recent copies retained and source originals unchanged
 Evidence: `/tmp/note-vision-body-2034/phone/qa-facts.json`. Tested APK SHA-256:
 `e64073779a3669a83449d37c467ee8c620b27efbed278581902e9a0b469e08c9`.
 No iOS or subjective-listening claim. Full MuseScore parity remains queued.
+
+**Unassigned accidental review — 2026-11-09 / release 2035:** new scans keep
+unattached/overwritten body accidentals outside musical symbols. Review outlines
+the saved mark and asks the user to select its note; explicit assignment changes
+only that note’s written alter and removes that mark. Ignore, review later,
+save/reopen, undo/redo and conflict-checked history restore retain the evidence
+and decisions. Rests, stale/ambiguous evidence and playback/read-only assignment
+are guarded; missing photo/coordinates are explained. IDs are namespaced per
+attached page. Old scores default to no pending marks; blank staves inherit none.
+
+**29 new regressions**, including five responsive layouts, multi-mark/multi-page
+identity, absent photo/coordinates, persistence/history, XML independence and
+playback carry/reset. Analysis clean; full **1,269 passed** with concurrency 2.
+Seven exact detector-output replays preserve every pre-existing score field:
+dense recovers 3 marks, bass 2, mixed 1, ragged 3 and song 1; sparse and clefs
+have none. No model/cutoff or automatic musical change. Assignments are within
+the reviewed bar; undetected glyphs and old lost evidence cannot be recovered.
+Full MuseScore parity remains queued. Evidence: `/tmp/note-vision-unassigned-2035/`.
+
+Realme **2035** fresh scans: dense **225 symbols / 9 staves**, **172 notes / 8
+rests / 27 bars**; song **117 / 5**, **92 / 10 / 15**. Both initially export
+identically to 2034 after title/date normalization. Assigning the outlined
+natural changes only row 1/bar 3’s fourth note E4 to a written natural; undo
+restores the original XML byte for byte. Redo/save and cold reopen retain the
+correction and history. Song’s “flat” is actually the letter D in a handwritten
+D/F# chord label: Ignore leaves its XML byte-identical and its saved decision
+survives cold reopen. Both PDFs are one page and visually checked; song’s raster
+is pixel-identical to 2034. Play/Stop passed on both. The old dense project stays
+byte-identical across installation. All **49 previous projects** retained,
+**51 total**; eleven exports archived/checksummed in `Download/NoteVisionQA2035/`.
+**94 retained app log lines**, no Flutter/crash/save errors. A cold-export helper
+stopped after rotation produced zero accessibility bounds for a visually present
+button; the check passed when repeated in portrait. Original font/rotation/Home
+restored, temporary helpers removed, recent copies retained and originals
+unchanged. Facts: `/tmp/note-vision-unassigned-2035/phone/qa-facts.json`.
+Tested APK SHA-256:
+`62d91f9457b5c9cbcc935b2610066412d6fc84545afab75f243c46731cf12053`.
+No model change, iOS test or subjective-listening claim. Existing wide review
+previews still need horizontal scrolling; selection arrows do not yet bring the
+selected note into view. Full MuseScore parity remains queued.
 
 **Phone QA photos:** user authorized dataset reads from
 `/home/ken/Workspace/note-vision-data`. `tool/android_qa_images.py --serial

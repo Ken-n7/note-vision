@@ -5,7 +5,8 @@ import 'package:note_vision/core/theme/app_theme.dart';
 Color notationIssueColor(NotationIssueKind kind) =>
     kind == NotationIssueKind.scanContext
     ? AppColors.accent
-    : kind == NotationIssueKind.lowConfidence
+    : kind == NotationIssueKind.lowConfidence ||
+          kind == NotationIssueKind.unassignedAccidental
     ? const Color(0xFFF59E0B)
     : AppColors.error;
 

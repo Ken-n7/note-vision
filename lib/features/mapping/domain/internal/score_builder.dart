@@ -40,6 +40,7 @@ class ScoreBuilder {
         Measure(
           number: m.number,
           unresolvedBarlines: m.unresolvedBarlines,
+          unassignedAccidentals: m.unassignedAccidentals,
           clef: m.clef ?? lastClef,
           timeSignature: m.timeSignature ?? lastTime,
           keySignature: m.keySignature ?? lastKey,

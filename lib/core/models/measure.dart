@@ -18,6 +18,7 @@ class Measure {
   final bool unresolvedBarlines;
   final String? reviewId;
   final SourceRegion? source;
+  final List<UnassignedAccidental> unassignedAccidentals;
   final Clef? clef;
   final TimeSignature? timeSignature;
   final KeySignature? keySignature;
@@ -46,6 +47,7 @@ class Measure {
     this.reviewId,
     this.unresolvedBarlines = false,
     this.source,
+    this.unassignedAccidentals = const [],
     this.clef,
     this.timeSignature,
     this.keySignature,
@@ -70,6 +72,7 @@ class Measure {
     bool? unresolvedBarlines,
     Object? reviewId = _keep,
     Object? source = _keep,
+    List<UnassignedAccidental>? unassignedAccidentals,
     Object? clef = _keep,
     Object? timeSignature = _keep,
     Object? keySignature = _keep,
@@ -88,6 +91,7 @@ class Measure {
     unresolvedBarlines: unresolvedBarlines ?? this.unresolvedBarlines,
     reviewId: identical(reviewId, _keep) ? this.reviewId : reviewId as String?,
     source: identical(source, _keep) ? this.source : source as SourceRegion?,
+    unassignedAccidentals: unassignedAccidentals ?? this.unassignedAccidentals,
     clef: identical(clef, _keep) ? this.clef : clef as Clef?,
     timeSignature: identical(timeSignature, _keep)
         ? this.timeSignature
@@ -120,6 +124,10 @@ class Measure {
       'annotations': [for (final a in annotations) a.toJson()],
     if (reviewId != null) 'reviewId': reviewId,
     if (source != null) 'source': source!.toJson(),
+    if (unassignedAccidentals.isNotEmpty)
+      'unassignedAccidentals': [
+        for (final a in unassignedAccidentals) a.toJson(),
+      ],
     if (clef != null) 'clef': clef!.toJson(),
     if (timeSignature != null) 'timeSignature': timeSignature!.toJson(),
     if (keySignature != null) 'keySignature': keySignature!.toJson(),
@@ -139,6 +147,10 @@ class Measure {
   factory Measure.fromJson(Map<String, dynamic> json) => Measure(
     number: json['number'] as int,
     unresolvedBarlines: json['unresolvedBarlines'] as bool? ?? false,
+    unassignedAccidentals: [
+      for (final a in json['unassignedAccidentals'] as List? ?? const [])
+        UnassignedAccidental.fromJson(Map<String, dynamic>.from(a as Map)),
+    ],
     annotations: [
       for (final a in json['annotations'] as List? ?? const [])
         ScoreAnnotation.fromJson(Map<String, dynamic>.from(a as Map)),

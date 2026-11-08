@@ -42,6 +42,58 @@ class ScoreSourcePage {
       );
 }
 
+/// A detected mark that did not survive reconstruction as a written accidental.
+/// Kept outside the musical symbols until a person assigns or ignores it.
+class UnassignedAccidental {
+  const UnassignedAccidental({
+    required this.id,
+    required this.alter,
+    this.source,
+  });
+
+  final String id;
+  final int alter;
+  final SourceRegion? source;
+
+  static const _keep = Object();
+
+  UnassignedAccidental copyWith({
+    String? id,
+    int? alter,
+    Object? source = _keep,
+  }) => UnassignedAccidental(
+    id: id ?? this.id,
+    alter: alter ?? this.alter,
+    source: identical(source, _keep) ? this.source : source as SourceRegion?,
+  );
+
+  String get name => switch (alter) {
+    -2 => 'double flat',
+    -1 => 'flat',
+    0 => 'natural',
+    1 => 'sharp',
+    2 => 'double sharp',
+    _ => 'accidental',
+  };
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'alter': alter,
+    if (source != null) 'source': source!.toJson(),
+  };
+
+  factory UnassignedAccidental.fromJson(Map<String, dynamic> json) =>
+      UnassignedAccidental(
+        id: json['id'] as String,
+        alter: json['alter'] as int,
+        source: json['source'] == null
+            ? null
+            : SourceRegion.fromJson(
+                Map<String, dynamic>.from(json['source'] as Map),
+              ),
+      );
+}
+
 enum ReviewDisposition { applied, kept, deferred }
 
 /// Lives with the score, so decisions participate in save/load and undo/redo.

@@ -2,6 +2,7 @@ import 'package:note_vision/core/models/barline_type.dart';
 import 'package:note_vision/core/models/clef.dart';
 import 'package:note_vision/core/models/key_signature.dart';
 import 'package:note_vision/core/models/score_symbol.dart';
+import 'package:note_vision/core/models/score_review.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/features/detection/domain/detected_staff.dart';
 import 'package:note_vision/features/detection/domain/detected_symbol.dart';
@@ -36,6 +37,7 @@ class MeasureSymbols {
 class SemanticMeasure {
   final int number;
   final bool unresolvedBarlines;
+  final List<UnassignedAccidental> unassignedAccidentals;
   final Clef? clef;
   final TimeSignature? timeSignature;
   final KeySignature? keySignature;
@@ -46,6 +48,7 @@ class SemanticMeasure {
   const SemanticMeasure({
     required this.number,
     this.unresolvedBarlines = false,
+    this.unassignedAccidentals = const [],
     required this.clef,
     required this.timeSignature,
     required this.keySignature,

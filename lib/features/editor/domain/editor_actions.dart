@@ -1921,6 +1921,7 @@ extension EditorActions on EditorState {
                   m.copyWith(
                     reviewId: null,
                     source: null,
+                    unassignedAccidentals: const [],
                     clef: i == 0
                         ? entry.clef ?? const Clef(sign: 'G', line: 2)
                         : null,

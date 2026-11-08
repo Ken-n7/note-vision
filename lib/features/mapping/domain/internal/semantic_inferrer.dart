@@ -82,8 +82,13 @@ class SemanticInferrer {
               .where((e) => e.symbol.type == 'ledgerLine')
               .map((e) => e.symbol)
               .toList(growable: false);
+          final bodyBindings = _matchAccidentalsToNoteheads(
+            bodyAccidentals,
+            measure.symbols,
+          );
           final noteAlters = {
-            ..._matchAccidentalsToNoteheads(bodyAccidentals, measure.symbols),
+            for (final binding in bodyBindings.entries)
+              binding.key: binding.value.alter,
             // Leading glyphs were excluded from body matching above, so a
             // continuation-note accidental is consumed only once.
             if (leadingAccidental != null)
@@ -178,10 +183,30 @@ class SemanticInferrer {
 
           _warnAboutClef(clef, measure, warnings);
           ordered.sort((a, b) => a.x.compareTo(b.x));
+          final builtNotes = ordered
+              .map((e) => e.symbol)
+              .whereType<Note>()
+              .map((n) => n.reviewId)
+              .toSet();
+          final consumed = {
+            for (final binding in bodyBindings.entries)
+              if (builtNotes.contains(binding.key) &&
+                  binding.key != leadingAccidental?.noteId)
+                binding.value.accidentalId,
+          };
 
           return SemanticMeasure(
             number: measure.number,
             unresolvedBarlines: measure.unresolvedBarlines,
+            unassignedAccidentals: [
+              for (final accidental in bodyAccidentals)
+                if (!consumed.contains(accidental.symbol.id))
+                  UnassignedAccidental(
+                    id: accidental.symbol.id,
+                    alter: SymbolClassifier.alterFor(accidental.symbol.type)!,
+                    source: _source(accidental.symbol),
+                  ),
+            ],
             clef: clef,
             timeSignature: timeSignature,
             keySignature: keySignature,
@@ -195,7 +220,7 @@ class SemanticInferrer {
 
   /// Prefer a unique, pitch-aligned tight overlap. Otherwise retain the
   /// ordinary nearest notehead to the right (2× head widths + 20 px).
-  Map<String, int> _matchAccidentalsToNoteheads(
+  Map<String, ({int alter, String accidentalId})> _matchAccidentalsToNoteheads(
     List<StaffOwnedSymbol> accidentals,
     List<StaffOwnedSymbol> allSymbols,
   ) {
@@ -216,7 +241,7 @@ class SemanticInferrer {
         acc.symbol.id: _tightOverlappingNotehead(acc, noteheads),
     };
 
-    final result = <String, int>{};
+    final result = <String, ({int alter, String accidentalId})>{};
     for (final acc in accidentals) {
       final alter = SymbolClassifier.alterFor(acc.symbol.type);
       if (alter == null) continue;
@@ -234,7 +259,9 @@ class SemanticInferrer {
         target = null;
       }
       target ??= ordinary[acc.symbol.id];
-      if (target != null) result[target.symbol.id] = alter;
+      if (target != null) {
+        result[target.symbol.id] = (alter: alter, accidentalId: acc.symbol.id);
+      }
     }
     return result;
   }

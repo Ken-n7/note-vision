@@ -21,7 +21,9 @@ class ScoreSourceService {
   }) async {
     final hasEvidence = score.parts.any(
       (p) => p.measures.any(
-        (m) => m.symbols.any((s) => NotationReviewService.sourceOf(s) != null),
+        (m) =>
+            m.symbols.any((s) => NotationReviewService.sourceOf(s) != null) ||
+            m.unassignedAccidentals.any((a) => a.source != null),
       ),
     );
     if (!hasEvidence || width <= 0 || height <= 0) {
@@ -34,7 +36,11 @@ class ScoreSourceService {
     for (final part in json['parts'] as List) {
       for (final measure in part['measures'] as List) {
         final regions = <Map<String, dynamic>>[];
-        for (final symbol in measure['symbols'] as List) {
+        final marks = measure['unassignedAccidentals'] as List? ?? const [];
+        for (final mark in marks) {
+          mark['id'] = '$pageId:${mark['id']}';
+        }
+        for (final symbol in [...(measure['symbols'] as List), ...marks]) {
           final source = symbol['source'] as Map<String, dynamic>?;
           if (source == null) continue;
           source['pageId'] = pageId;
@@ -45,7 +51,9 @@ class ScoreSourceService {
             0.0,
             1.0,
           );
-          symbol['reviewId'] = '$pageId:${symbol['reviewId']}';
+          if (symbol.containsKey('symbolType')) {
+            symbol['reviewId'] = '$pageId:${symbol['reviewId']}';
+          }
           regions.add(source);
         }
         if (regions.isNotEmpty) {

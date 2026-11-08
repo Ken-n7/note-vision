@@ -172,7 +172,7 @@ class NotationReviewService {
       _ => null,
     };
     return '${issue.kind.name}:${score.parts[issue.partIndex].id}:'
-        '${measure.reviewId ?? issue.measureIndex}:${symbolId ?? issue.symbolIndex ?? '-'}';
+        '${measure.reviewId ?? issue.measureIndex}:${issue.unassignedAccidental?.id ?? symbolId ?? issue.symbolIndex ?? '-'}';
   }
 
   static Map<String, dynamic> _musical(Measure measure) {
@@ -353,6 +353,46 @@ class NotationReviewService {
       return score;
     }
     return _decision(score, issue, ReviewDisposition.kept);
+  }
+
+  /// Explicitly bind one preserved scan mark to a note in the reviewed bar.
+  /// The caller records this alongside ordinary corrections for undo/restore.
+  static Score? assignAccidental(Score score, NotationIssue issue, int index) {
+    final mark = issue.unassignedAccidental;
+    if (issue.kind != NotationIssueKind.unassignedAccidental ||
+        mark == null ||
+        !const [-2, -1, 0, 1, 2].contains(mark.alter) ||
+        issue.partIndex < 0 ||
+        issue.partIndex >= score.parts.length) {
+      return null;
+    }
+    final part = score.parts[issue.partIndex];
+    if (issue.measureIndex < 0 || issue.measureIndex >= part.measures.length) {
+      return null;
+    }
+    final bar = part.measures[issue.measureIndex];
+    if (index < 0 || index >= bar.symbols.length) return null;
+    final note = bar.symbols[index];
+    final matches = bar.unassignedAccidentals
+        .where((a) => a.id == mark.id)
+        .toList();
+    if (note is! Note ||
+        matches.length != 1 ||
+        jsonEncode(matches.single.toJson()) != jsonEncode(mark.toJson())) {
+      return null;
+    }
+    final symbols = [...bar.symbols]
+      ..[index] = note.copyWith(alter: mark.alter);
+    final bars = [...part.measures]
+      ..[issue.measureIndex] = bar.copyWith(
+        symbols: symbols,
+        unassignedAccidentals: bar.unassignedAccidentals
+            .where((a) => a.id != mark.id)
+            .toList(),
+      );
+    final parts = [...score.parts]
+      ..[issue.partIndex] = part.copyWith(measures: bars);
+    return score.copyWith(parts: parts);
   }
 
   static NotationReviewPlan prepare(Score score, Set<String> selectedKeys) {
@@ -614,10 +654,12 @@ class NotationReviewService {
   };
 
   static SourceRegion? measureSource(Measure measure, {String? pageId}) {
-    final sources = measure.symbols
-        .map(sourceOf)
-        .whereType<SourceRegion>()
-        .toList();
+    final sources = [
+      ...measure.symbols.map(sourceOf).whereType<SourceRegion>(),
+      ...measure.unassignedAccidentals
+          .map((a) => a.source)
+          .whereType<SourceRegion>(),
+    ];
     final page =
         pageId ?? sources.firstOrNull?.pageId ?? measure.source?.pageId;
     final own = sources.where((s) => s.pageId == page).toList();
@@ -639,6 +681,7 @@ class NotationReviewService {
 
   static String title(NotationIssueKind kind) => switch (kind) {
     NotationIssueKind.scanContext => 'Check this bar against the photo',
+    NotationIssueKind.unassignedAccidental => 'Assign this accidental',
     NotationIssueKind.lowConfidence => 'Check this symbol',
     NotationIssueKind.missingComponent => 'Check the notation',
     NotationIssueKind.misplacedAccidental => 'Check this accidental',

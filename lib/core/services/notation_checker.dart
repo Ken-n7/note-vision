@@ -7,6 +7,7 @@ import '../models/note_value.dart';
 import '../models/part.dart';
 import '../models/rest.dart';
 import '../models/score.dart';
+import '../models/score_review.dart';
 import '../models/score_symbol.dart';
 import '../models/time_signature.dart';
 import 'accidentals.dart';
@@ -16,6 +17,7 @@ import 'accidentals.dart';
 /// beat totals and a time signature the bars do not follow.
 enum NotationIssueKind {
   scanContext,
+  unassignedAccidental,
   lowConfidence,
   missingComponent,
   misplacedAccidental,
@@ -35,6 +37,7 @@ class NotationIssue {
     required this.message,
     this.fixLabel,
     this.fix,
+    this.unassignedAccidental,
   });
 
   final NotationIssueKind kind;
@@ -44,6 +47,7 @@ class NotationIssue {
   /// The symbol the issue is about; null when it is about the whole bar.
   final int? symbolIndex;
   final String message;
+  final UnassignedAccidental? unassignedAccidental;
 
   /// What accepting the issue does ("Split into 2 bars"); null when the issue
   /// can only be reviewed and edited by hand.
@@ -55,7 +59,7 @@ class NotationIssue {
   /// Identifies the issue across re-checks, so a dismissed issue stays
   /// dismissed while the score is edited elsewhere.
   String get key =>
-      '${kind.name}:$partIndex:$measureIndex:${symbolIndex ?? '-'}:$message';
+      '${kind.name}:$partIndex:$measureIndex:${unassignedAccidental?.id ?? symbolIndex ?? '-'}:$message';
 }
 
 /// Rule-based check of a reconstructed score. It reads the score only; every
@@ -96,6 +100,20 @@ class NotationChecker {
       final accidentals = _AccidentalState();
       for (var m = 0; m < part.measures.length; m++) {
         final measure = part.measures[m];
+        for (final mark in measure.unassignedAccidentals) {
+          issues.add(
+            NotationIssue(
+              kind: NotationIssueKind.unassignedAccidental,
+              partIndex: p,
+              measureIndex: m,
+              unassignedAccidental: mark,
+              message:
+                  'A detected ${mark.name} was not linked to a note. '
+                  'Compare the mark with the photo, then select its note. '
+                  'Ignore it only if it is a duplicate or not part of the music.',
+            ),
+          );
+        }
         accidentals.startMeasure(measure);
         _checkSymbols(score, p, m, measure, accidentals, issues);
         if (!explained.contains(m)) {

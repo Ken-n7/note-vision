@@ -27,6 +27,8 @@ class ReviewBarEditor extends StatelessWidget {
     required this.onCorrect,
     required this.canEdit,
     required this.setupOpen,
+    this.selectionOnly = false,
+    this.selectionPrompt,
   });
 
   final Score score;
@@ -35,6 +37,8 @@ class ReviewBarEditor extends StatelessWidget {
   final ValueChanged<int?> onSelect;
   final void Function(Score base, Score corrected, String label) onCorrect;
   final bool canEdit, setupOpen;
+  final bool selectionOnly;
+  final String? selectionPrompt;
 
   Measure get bar => score.parts[part].measures[measure];
   EditorState get selection => EditorState(score: score).selectSymbolAt(
@@ -92,7 +96,8 @@ class ReviewBarEditor extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          '${score.isScannedMusic ? 'Scanned' : 'Current'} bar · Tap a note to correct it',
+          selectionPrompt ??
+              '${score.isScannedMusic ? 'Scanned' : 'Current'} bar · Tap a note to correct it',
         ),
         const SizedBox(height: 6),
         SizedBox(
@@ -169,7 +174,7 @@ class ReviewBarEditor extends StatelessWidget {
               ),
             ],
           ),
-        if (selected is Note || selected is Rest) ...[
+        if (!selectionOnly && (selected is Note || selected is Rest)) ...[
           if (selected is Note)
             Wrap(
               spacing: 8,
@@ -246,125 +251,126 @@ class ReviewBarEditor extends StatelessWidget {
             style: TextStyle(fontSize: 12),
           ),
         ],
-        ExpansionTile(
-          key: ValueKey(('setup', part, measure)),
-          tilePadding: EdgeInsets.zero,
-          initiallyExpanded: setupOpen,
-          title: const Text('Clef, key and time signature'),
-          children: [
-            const Text(
-              'Changes apply from this bar to the next written change on this staff.',
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<Clef>(
-              initialValue: clef,
-              decoration: const InputDecoration(labelText: 'Clef'),
-              isExpanded: true,
-              hint: const Text('Not read'),
-              items: [
-                for (final c in clefs)
-                  DropdownMenuItem(
-                    value: c,
-                    child: Text(switch ((c.sign, c.line)) {
-                      ('G', 2) => '𝄞 Treble',
-                      ('F', 4) => '𝄢 Bass',
-                      ('C', 3) => 'Alto',
-                      ('C', 4) => 'Tenor',
-                      _ => '${c.sign} · line ${c.line}',
-                    }),
-                  ),
-              ],
-              onChanged: canEdit
-                  ? (v) {
-                      if (v != null) {
-                        _metadata(bar.copyWith(clef: v), 'Correct clef');
-                      }
-                    }
-                  : null,
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<int>(
-              initialValue: keySignature?.fifths,
-              hint: const Text('Not shown / not read'),
-              decoration: const InputDecoration(
-                labelText: 'Sharps or flats at the start',
+        if (!selectionOnly)
+          ExpansionTile(
+            key: ValueKey(('setup', part, measure)),
+            tilePadding: EdgeInsets.zero,
+            initiallyExpanded: setupOpen,
+            title: const Text('Clef, key and time signature'),
+            children: [
+              const Text(
+                'Changes apply from this bar to the next written change on this staff.',
               ),
-              isExpanded: true,
-              items: [
-                for (var n = -7; n <= 7; n++)
-                  DropdownMenuItem(
-                    value: n,
-                    child: Text(
-                      n == 0
-                          ? 'No sharps or flats'
-                          : '${n.abs()} ${n > 0 ? 'sharps ♯' : 'flats ♭'}',
+              const SizedBox(height: 8),
+              DropdownButtonFormField<Clef>(
+                initialValue: clef,
+                decoration: const InputDecoration(labelText: 'Clef'),
+                isExpanded: true,
+                hint: const Text('Not read'),
+                items: [
+                  for (final c in clefs)
+                    DropdownMenuItem(
+                      value: c,
+                      child: Text(switch ((c.sign, c.line)) {
+                        ('G', 2) => '𝄞 Treble',
+                        ('F', 4) => '𝄢 Bass',
+                        ('C', 3) => 'Alto',
+                        ('C', 4) => 'Tenor',
+                        _ => '${c.sign} · line ${c.line}',
+                      }),
                     ),
-                  ),
-              ],
-              onChanged: canEdit
-                  ? (v) {
-                      if (v != null) {
-                        _metadata(
-                          bar.copyWith(keySignature: KeySignature(fifths: v)),
-                          'Correct key signature',
-                        );
+                ],
+                onChanged: canEdit
+                    ? (v) {
+                        if (v != null) {
+                          _metadata(bar.copyWith(clef: v), 'Correct clef');
+                        }
                       }
-                    }
-                  : null,
-            ),
-            const SizedBox(height: 8),
-            if (ScanKeyCorrection.supports(score))
-              OutlinedButton.icon(
-                icon: const Icon(Icons.playlist_add_check),
-                label: const Text('Correct key across rows…'),
-                onPressed: !canEdit
-                    ? null
-                    : () async {
-                        final plan = await ScanKeyCorrectionSheet.show(
-                          context,
-                          score,
-                          part,
-                        );
-                        final corrected = plan?.applyTo(score);
-                        if (corrected != null) {
-                          onCorrect(
-                            score,
-                            corrected,
-                            'Correct key on ${plan!.changes.length} scanned ${plan.changes.length == 1 ? 'row' : 'rows'}',
+                    : null,
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<int>(
+                initialValue: keySignature?.fifths,
+                hint: const Text('Not shown / not read'),
+                decoration: const InputDecoration(
+                  labelText: 'Sharps or flats at the start',
+                ),
+                isExpanded: true,
+                items: [
+                  for (var n = -7; n <= 7; n++)
+                    DropdownMenuItem(
+                      value: n,
+                      child: Text(
+                        n == 0
+                            ? 'No sharps or flats'
+                            : '${n.abs()} ${n > 0 ? 'sharps ♯' : 'flats ♭'}',
+                      ),
+                    ),
+                ],
+                onChanged: canEdit
+                    ? (v) {
+                        if (v != null) {
+                          _metadata(
+                            bar.copyWith(keySignature: KeySignature(fifths: v)),
+                            'Correct key signature',
                           );
                         }
-                      },
+                      }
+                    : null,
               ),
-            DropdownButtonFormField<TimeSignature>(
-              initialValue: meter,
-              decoration: const InputDecoration(labelText: 'Time signature'),
-              isExpanded: true,
-              hint: const Text('Not shown / not read'),
-              items: [
-                if (measure == 0)
-                  const DropdownMenuItem(
-                    value: null,
-                    child: Text('Not shown on the photo'),
-                  ),
-                for (final t in meters)
-                  DropdownMenuItem(
-                    value: t,
-                    child: Text('${t.beats}/${t.beatType}'),
-                  ),
-              ],
-              onChanged: canEdit
-                  ? (v) => _metadata(
-                      bar.copyWith(timeSignature: v),
-                      'Correct time signature',
-                    )
-                  : null,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Check the barlines and any stacked notes too. Use Edit manually for missing notes, barlines or chords.',
-            ),
-          ],
-        ),
+              const SizedBox(height: 8),
+              if (ScanKeyCorrection.supports(score))
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.playlist_add_check),
+                  label: const Text('Correct key across rows…'),
+                  onPressed: !canEdit
+                      ? null
+                      : () async {
+                          final plan = await ScanKeyCorrectionSheet.show(
+                            context,
+                            score,
+                            part,
+                          );
+                          final corrected = plan?.applyTo(score);
+                          if (corrected != null) {
+                            onCorrect(
+                              score,
+                              corrected,
+                              'Correct key on ${plan!.changes.length} scanned ${plan.changes.length == 1 ? 'row' : 'rows'}',
+                            );
+                          }
+                        },
+                ),
+              DropdownButtonFormField<TimeSignature>(
+                initialValue: meter,
+                decoration: const InputDecoration(labelText: 'Time signature'),
+                isExpanded: true,
+                hint: const Text('Not shown / not read'),
+                items: [
+                  if (measure == 0)
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text('Not shown on the photo'),
+                    ),
+                  for (final t in meters)
+                    DropdownMenuItem(
+                      value: t,
+                      child: Text('${t.beats}/${t.beatType}'),
+                    ),
+                ],
+                onChanged: canEdit
+                    ? (v) => _metadata(
+                        bar.copyWith(timeSignature: v),
+                        'Correct time signature',
+                      )
+                    : null,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Check the barlines and any stacked notes too. Use Edit manually for missing notes, barlines or chords.',
+              ),
+            ],
+          ),
       ],
     );
   }

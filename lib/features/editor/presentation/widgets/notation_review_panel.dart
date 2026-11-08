@@ -87,7 +87,8 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
               NotationReviewService.key(widget.score, i) == widget.focusedKey,
         )
         .firstOrNull;
-    if (oldBar?.partIndex != newBar?.partIndex ||
+    if (oldBar?.unassignedAccidental?.id != newBar?.unassignedAccidental?.id ||
+        oldBar?.partIndex != newBar?.partIndex ||
         oldBar?.measureIndex != newBar?.measureIndex) {
       _selectedSymbol = newBar?.symbolIndex;
       _compareScan = true;
@@ -337,11 +338,13 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
     final currentBar = bars[index];
     final measures = widget.score.parts[issue.partIndex].measures;
     final measure = measures[issue.measureIndex];
+    final accidental = issue.unassignedAccidental;
     final selected = _selectedSymbol ?? issue.symbolIndex;
     final symbol = selected == null
         ? null
         : measure.symbols.elementAtOrNull(selected);
     final source =
+        accidental?.source ??
         NotationReviewService.sourceOf(symbol) ??
         NotationReviewService.measureSource(measure);
     final page = widget.score.sourcePages
@@ -384,6 +387,18 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
             icon: const Icon(Icons.playlist_add_check),
             label: const Text('Resume this bar'),
           ),
+        if (accidental != null) ...[
+          Text(
+            'Which note needs this ${accidental.name}?',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            accidental.source == null
+                ? 'The mark’s exact position is unavailable. Compare the bar with your original sheet, then tap its note below. Ignore it if it is a duplicate or not music.'
+                : 'Compare the outlined mark with the photo, then tap its note below. Use Ignore mark if it is a duplicate or not music.',
+          ),
+        ],
         if (page != null && source != null) ...[
           Row(
             children: [
@@ -438,9 +453,15 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
                             )
                           : crop;
                     }(),
-              highlight:
-                  NotationReviewService.sourceOf(symbol) ??
-                  NotationReviewService.measureSource(measure),
+              highlight: accidental != null
+                  ? accidental.source
+                  : NotationReviewService.sourceOf(symbol) ??
+                        NotationReviewService.measureSource(measure),
+              semanticsLabel: accidental == null
+                  ? null
+                  : accidental.source == null
+                  ? 'Original photo of this bar. The detected mark has no saved position.'
+                  : 'Original photo. The outlined box marks the unassigned ${accidental.name}.',
             ),
         ] else
           const Text('No photo is attached. Compare with your original sheet.'),
@@ -455,7 +476,36 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
             canEdit: widget.canEdit,
             onCorrect: widget.onCorrect,
             setupOpen: issue.kind == NotationIssueKind.scanContext,
+            selectionOnly: accidental != null,
+            selectionPrompt: accidental == null
+                ? null
+                : 'Scanned bar · Tap the note for this ${accidental.name}',
           ),
+        if (_plan == null && accidental != null) ...[
+          const SizedBox(height: 8),
+          FilledButton.icon(
+            icon: const Icon(Icons.link),
+            onPressed: !widget.canEdit || symbol is! Note || selected == null
+                ? null
+                : () {
+                    final corrected = NotationReviewService.assignAccidental(
+                      widget.score,
+                      issue,
+                      selected,
+                    );
+                    if (corrected != null) {
+                      widget.onCorrect(
+                        widget.score,
+                        corrected,
+                        'Assign ${accidental.name} to ${symbol.step}${symbol.octave}',
+                      );
+                    }
+                  },
+            label: Text('Assign ${accidental.name} to selected note'),
+          ),
+          if (symbol is! Note)
+            const Text('Select a note in the bar to enable assignment.'),
+        ],
         if (currentBar.length > 1) ...[
           const SizedBox(height: 12),
           Text('${currentBar.length} checks in this bar'),
@@ -467,6 +517,8 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
                   label: Text(
                     check.kind == NotationIssueKind.scanContext
                         ? 'Bar setup'
+                        : check.unassignedAccidental != null
+                        ? '${n + 1}. Assign ${check.unassignedAccidental!.name}'
                         : '${n + 1}. ${NotationReviewService.title(check.kind)}',
                   ),
                   selected: identical(issue, check),
@@ -476,35 +528,37 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
           ),
         ],
         const SizedBox(height: 8),
-        Row(
-          children: [
-            Icon(
-              issue.kind == NotationIssueKind.lowConfidence
-                  ? Icons.help_outline_rounded
-                  : Icons.info_outline_rounded,
-              color: notationIssueColor(issue.kind),
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                NotationReviewService.title(issue.kind),
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
+        if (accidental == null)
+          Row(
+            children: [
+              Icon(
+                issue.kind == NotationIssueKind.lowConfidence
+                    ? Icons.help_outline_rounded
+                    : Icons.info_outline_rounded,
+                color: notationIssueColor(issue.kind),
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  NotationReviewService.title(issue.kind),
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
         const SizedBox(height: 8),
-        Text(
-          issue.kind == NotationIssueKind.lowConfidence
-              ? 'Check this symbol against the original scan. Recognition was uncertain.'
-              : issue.message,
-          style: const TextStyle(color: AppColors.textPrimary, height: 1.5),
-        ),
+        if (accidental == null)
+          Text(
+            issue.kind == NotationIssueKind.lowConfidence
+                ? 'Check this symbol against the original scan. Recognition was uncertain.'
+                : issue.message,
+            style: const TextStyle(color: AppColors.textPrimary, height: 1.5),
+          ),
         if (issue.hasFix) ...[
           const SizedBox(height: 14),
           Container(
@@ -644,6 +698,8 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
                 child: Text(
                   issue.kind == NotationIssueKind.scanContext
                       ? 'Setup matches photo'
+                      : issue.kind == NotationIssueKind.unassignedAccidental
+                      ? 'Ignore mark'
                       : 'Keep original',
                 ),
               ),
