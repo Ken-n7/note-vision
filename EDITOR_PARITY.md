@@ -838,6 +838,60 @@ This changes work order, not the full-parity objective or acceptance criteria.
   turn's failed compiler caches were removed, and verification reran with
   temporary files under the ignored project build cache.
 
+### Correct opening keys across selected scan rows — 2026-11-08
+
+- Review's bar setup now offers **Correct key across rows**. Choose the correct
+  sharp/flat count and rows, then preview before applying. Only the current row
+  starts selected; Select all and Clear selection are explicit. Current/Proposed
+  notation and the focused row's photo are shown before the affected-bar list;
+  the preview-row selector changes both views. Back/Cancel/preview do not edit.
+- `ScanKeyCorrection` changes opening keys, including repeated values stored
+  by the scan mapper, up to the next different key on each chosen row. An
+  explicit zero-sharp key is a boundary. Inherited null values remain inherited.
+  Already matching rows are skipped. No note/accidental, rhythm, clef, meter,
+  barline or source evidence is rewritten. Playback and XML naturally follow
+  the corrected key; written naturals remain explicit naturals.
+- One application follows the existing review-history/Undo/Redo/save/restore
+  path across all affected rows. Playback beginning during preview blocks the
+  correction; a stale score cannot accept its plan. The flow is limited to
+  independent sequential scans, excluding imported/ensemble, linked/TAB and
+  percussion notation. Full parity and automatic recognition work remain queued.
+- Regression coverage includes the dense nine-row photo: correcting five
+  incomplete opening keys makes all nine keys three sharps, with all other
+  score fields unchanged. Additional checks cover later key changes, missing
+  keys, no-op/invalid/stale plans, excluded score types, history restore and
+  JSON persistence, Undo/Redo, playback/XML naturals, explicit row selection,
+  Cancel/preview, playback locking and small/large-text/landscape layouts.
+  Evidence: `/tmp/note-vision-key-rows-2032/`.
+- Automated validation: **13 new tests**, full **1,170 passed**; analysis clean;
+  focused new/previous guided-review checks passed. Small-phone, enlarged-text,
+  landscape and tablet preview captures were visually inspected. UI tests load
+  shipped fonts consistently in screenshot and ordinary runs; their lazy-list
+  navigation explicitly scrolls controls into view.
+- Scope: opening sections only. Later different contexts stay even if they
+  also need correction. The native dense scan retains its existing -1 keys
+  on row 1/bar 3 and row 2/bars 2–3; this feature does not certify those as
+  musical key changes. Separating body accidentals at bar openings from key
+  changes remains an app-side investigation, alongside model recognition.
+- **Realme release 2032 passed:** saved `NVCenterDense2031` matches its fresh
+  baseline after installation. Default selection, Cancel, Current/Proposed and
+  row/photo following verified. A single-row edit changes two keys. Batch
+  selection changes **12 key entries in five rows**, skipping four matching
+  rows and preserving later different contexts. All **172 written notes / eight
+  rests** retain their fields; **14 sounding alterations** follow the corrected
+  key with written natural/carry behavior verified. One Undo restores baseline,
+  one Redo reproduces the batch. Corrected cold reopen is byte-identical; saved
+  History restores the original and a second cold reopen exactly matches its
+  pre-install baseline. PDF is one page and visually checked; Play/Stop,
+  enlarged text (1.8x) and landscape checked. No subjective listening claim.
+- All **42 projects** retained. Original font/rotation and Home restored;
+  temporary helpers removed. Eleven exports archived/checksummed in
+  `Download/NoteVisionQA2032/`. **386 retained app log lines** have no
+  Flutter/crash/save errors. No detector/model/cutoff changes or fresh inference.
+  Complete facts: `/tmp/note-vision-key-rows-2032/phone/qa-facts.json`.
+  Tested APK SHA-256:
+  `d383b684c0e09c203b0e3fd2d8dfaebf96aea4a8fa891ce1029763bd8063617d`.
+
 ## Reference and implementation policy
 
 Use the [MuseScore Studio handbook](https://handbook.musescore.org/llms.txt) as the

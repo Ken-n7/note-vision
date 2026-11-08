@@ -43,8 +43,10 @@ runs now yield to a better supported real staff, restoring the song's missing
 barlines without changing the finder thresholds. Beamed-note pitch heads now
 use one-ended beam evidence while preserving staff/rhythm association.
 Clear beamed heads can now refine their vertical centre from bounded solid ink;
-uncertain shapes keep their previous estimate. Remaining
-misclassified/missing-symbol and staff/barline geometry failures are recorded in
+uncertain shapes keep their previous estimate.
+Review now offers an explicit previewed key correction across selected scan
+rows, keeping later different keys and recording the correction as one edit.
+Remaining misclassified/missing-symbol and staff/barline geometry failures are recorded in
 `EDITOR_PARITY.md`; full parity stays queued.
 Each app change still needs
 automated checks and phone QA before
@@ -605,6 +607,48 @@ dataset files are unchanged. Evidence: `/tmp/note-vision-key-triage-2031/`.
 Frozen-fixture and raw-output/annotation diagnostics pass; final analysis is
 clean and all **1,157 tests pass**. Initial verification hit the `/tmp` quota;
 reruns using the ignored project build cache completed successfully.
+
+**Selected-row key corrections (2026-11-08):** Review → Clef, key and time
+signature → Correct key across rows opens an explicit row/key selection and
+Current/Proposed preview beside the original photo. Only the current row is
+selected initially; Select all is an explicit choice. The correction changes
+opening keys and repeated inherited values through the first different key,
+preserving later key changes, written notes/accidentals, rhythm and scan evidence.
+Rows already matching are skipped. One correction uses the existing review
+history, Undo/Redo, save and conflict-checked restore path. Stale previews and
+playback locks cannot apply an edit. Available only for independent sequential
+scan rows; ensembles/imported sources, linked/TAB/percussion staves are excluded.
+Implementation: `scan_key_correction.dart`, `scan_key_correction_sheet.dart`.
+Thirteen new domain/widget tests include real dense-photo correction,
+history/JSON/Undo/Redo, playback/XML naturals and responsive layouts. Final
+analysis clean; all **1,170 tests passed**. Evidence:
+`/tmp/note-vision-key-rows-2032/`.
+Full MuseScore parity remains queued.
+
+This corrects opening sections only. A later key context may itself be a scan
+error and remains for separate bar review; this does not establish that the
+whole transcription is correct. The native dense scan retains its existing
+later -1 contexts on row 1/bar 3 and row 2/bars 2–3. Distinguishing a note's
+accidental at a bar opening from an actual key change is a separate app-side
+investigation, independent of the model's missed opening sharps.
+
+Realme release **2032** passed QA using saved `NVCenterDense2031`: installation
+preserved its fresh baseline byte-for-byte. Default single-row selection,
+Cancel, Current/Proposed and row/photo following passed. Single-row correction
+changes two key entries; batch selection changes **12 entries across five rows**,
+skipping four matching rows and preserving later different keys. Every written
+field of **172 notes / 8 rests** is preserved; **14 sounding alterations** follow
+the corrected key (including explicit natural/carry behavior). One Undo restores
+the baseline; one Redo reproduces the batch export. Corrected cold reopen is
+byte-identical. Saved History restores the original, and a second cold reopen
+matches the pre-install baseline exactly. PDF is one page and visually checked;
+Play/Stop, 1.8x text and landscape checked. All **42 projects** remain, original
+font/rotation and Home restored, temporary device helpers removed. Eleven
+exports archived/checksummed in `Download/NoteVisionQA2032/`; **386 retained app
+log lines**, no Flutter/crash/save errors. Facts:
+`/tmp/note-vision-key-rows-2032/phone/qa-facts.json`. Tested APK SHA-256:
+`d383b684c0e09c203b0e3fd2d8dfaebf96aea4a8fa891ce1029763bd8063617d`.
+No model change, fresh inference, iOS test or subjective listening claim.
 
 **Phone QA photos:** user authorized dataset reads from
 `/home/ken/Workspace/note-vision-data`. `tool/android_qa_images.py --serial

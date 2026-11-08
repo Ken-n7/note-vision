@@ -11,7 +11,9 @@ import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/widgets/score_notation/engraving_layout.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 import 'package:note_vision/features/editor/domain/editor_actions.dart';
+import 'package:note_vision/features/editor/domain/scan_key_correction.dart';
 import 'package:note_vision/features/editor/model/editor_state.dart';
+import 'scan_key_correction_sheet.dart';
 
 /// Small, selection-scoped corrections without leaving the photo comparison.
 class ReviewBarEditor extends StatelessWidget {
@@ -311,6 +313,28 @@ class ReviewBarEditor extends StatelessWidget {
                   : null,
             ),
             const SizedBox(height: 8),
+            if (ScanKeyCorrection.supports(score))
+              OutlinedButton.icon(
+                icon: const Icon(Icons.playlist_add_check),
+                label: const Text('Correct key across rows…'),
+                onPressed: !canEdit
+                    ? null
+                    : () async {
+                        final plan = await ScanKeyCorrectionSheet.show(
+                          context,
+                          score,
+                          part,
+                        );
+                        final corrected = plan?.applyTo(score);
+                        if (corrected != null) {
+                          onCorrect(
+                            score,
+                            corrected,
+                            'Correct key on ${plan!.changes.length} scanned ${plan.changes.length == 1 ? 'row' : 'rows'}',
+                          );
+                        }
+                      },
+              ),
             DropdownButtonFormField<TimeSignature>(
               initialValue: meter,
               decoration: const InputDecoration(labelText: 'Time signature'),
