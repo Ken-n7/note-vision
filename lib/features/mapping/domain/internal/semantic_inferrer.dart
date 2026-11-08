@@ -84,8 +84,8 @@ class SemanticInferrer {
               .toList(growable: false);
           final noteAlters = {
             ..._matchAccidentalsToNoteheads(bodyAccidentals, measure.symbols),
-            // The tight match also covers slightly overlapping loose boxes,
-            // which the ordinary left-of-note association cannot consume.
+            // Leading glyphs were excluded from body matching above, so a
+            // continuation-note accidental is consumed only once.
             if (leadingAccidental != null)
               leadingAccidental.noteId: leadingAccidental.alter,
           };
@@ -193,9 +193,8 @@ class SemanticInferrer {
         .toList(growable: false);
   }
 
-  /// For each body accidental, finds the nearest notehead immediately to its
-  /// right (within 2× notehead widths + 20 px) and returns a map from
-  /// notehead ID to the corresponding MusicXML `alter` value.
+  /// Prefer a unique, pitch-aligned tight overlap. Otherwise retain the
+  /// ordinary nearest notehead to the right (2× head widths + 20 px).
   Map<String, int> _matchAccidentalsToNoteheads(
     List<StaffOwnedSymbol> accidentals,
     List<StaffOwnedSymbol> allSymbols,
@@ -208,35 +207,118 @@ class SemanticInferrer {
             .toList()
           ..sort((a, b) => a.symbolCenterX.compareTo(b.symbolCenterX));
 
-    final result = <String, int>{};
+    final ordinary = {
+      for (final acc in accidentals)
+        acc.symbol.id: _nearestRightNotehead(acc, noteheads),
+    };
+    final overlapping = {
+      for (final acc in accidentals)
+        acc.symbol.id: _tightOverlappingNotehead(acc, noteheads),
+    };
 
+    final result = <String, int>{};
     for (final acc in accidentals) {
       final alter = SymbolClassifier.alterFor(acc.symbol.type);
       if (alter == null) continue;
-
-      final accRight = acc.symbol.x + (acc.symbol.width ?? 8.0);
-
-      StaffOwnedSymbol? nearest;
-      double? nearestDist;
-
-      for (final notehead in noteheads) {
-        final dist = notehead.symbol.x - accRight;
-        if (dist < 0) continue; // accidental must be to the left
-        final threshold = (notehead.symbol.width ?? 12.0) * 2 + 20;
-        if (dist > threshold) continue;
-
-        if (nearestDist == null || dist < nearestDist) {
-          nearestDist = dist;
-          nearest = notehead;
-        }
+      var target = overlapping[acc.symbol.id];
+      final targetId = target?.symbol.id;
+      if (targetId != null &&
+          accidentals.any(
+            (other) =>
+                other.symbol.id != acc.symbol.id &&
+                (overlapping[other.symbol.id]?.symbol.id == targetId ||
+                    ordinary[other.symbol.id]?.symbol.id == targetId),
+          )) {
+        // Do not steal an existing binding or resolve competing glyphs by
+        // iteration order. Ambiguity retains the prior association.
+        target = null;
       }
+      target ??= ordinary[acc.symbol.id];
+      if (target != null) result[target.symbol.id] = alter;
+    }
+    return result;
+  }
 
-      if (nearest != null) {
-        result[nearest.symbol.id] = alter;
+  StaffOwnedSymbol? _nearestRightNotehead(
+    StaffOwnedSymbol acc,
+    List<StaffOwnedSymbol> noteheads,
+  ) {
+    final accRight = acc.symbol.x + (acc.symbol.width ?? 8.0);
+    StaffOwnedSymbol? nearest;
+    double? nearestDist;
+    for (final notehead in noteheads) {
+      final dist = notehead.symbol.x - accRight;
+      if (dist < 0) continue;
+      final threshold = (notehead.symbol.width ?? 12.0) * 2 + 20;
+      if (dist > threshold) continue;
+      if (nearestDist == null || dist < nearestDist) {
+        nearestDist = dist;
+        nearest = notehead;
       }
     }
+    return nearest;
+  }
 
-    return result;
+  StaffOwnedSymbol? _tightOverlappingNotehead(
+    StaffOwnedSymbol acc,
+    List<StaffOwnedSymbol> noteheads,
+  ) {
+    final box = acc.symbol.boundingBox;
+    final alter = SymbolClassifier.alterFor(acc.symbol.type);
+    final staff = acc.staff;
+    if (box == null ||
+        box.isEmpty ||
+        alter == null ||
+        staff.lineYs.length != 5 ||
+        !staff.lineYs.every((y) => y.isFinite) ||
+        ![box.left, box.top, box.right, box.bottom].every((v) => v.isFinite)) {
+      return null;
+    }
+    final lines = [...staff.lineYs]..sort();
+    final spacing = (lines.last - lines.first) / 4;
+    if (spacing <= 0 ||
+        !spacing.isFinite ||
+        box.width > spacing * 1.5 ||
+        box.height < spacing * .5 ||
+        box.height > spacing * 3) {
+      return null;
+    }
+    final accidentalY =
+        box.top +
+        box.height * (alter < 0 ? .8 : .5) -
+        staff.offsetAt(box.center.dx);
+    StaffOwnedSymbol? match;
+    for (final note in noteheads) {
+      final head = note.symbol.boundingBox;
+      final pitchHead = note.symbol.pitchBoundingBox;
+      if (head == null ||
+          head.isEmpty ||
+          pitchHead == null ||
+          pitchHead.isEmpty ||
+          note.staff.id != staff.id ||
+          ![
+            head.left,
+            head.top,
+            head.right,
+            head.bottom,
+            pitchHead.center.dx,
+            pitchHead.center.dy,
+          ].every((v) => v.isFinite) ||
+          head.width > spacing * 2 ||
+          head.height > spacing * 1.2) {
+        continue;
+      }
+      final gap = head.left - box.right;
+      final noteY = pitchHead.center.dy - staff.offsetAt(pitchHead.center.dx);
+      if (gap < 0 &&
+          gap >= -head.width / 4 &&
+          box.center.dx < head.center.dx &&
+          (noteY - accidentalY).abs() <= spacing * .35) {
+        if (match != null) return null;
+        match = note;
+      }
+    }
+    return match;
   }
 
   Map<String, int> _matchAugmentationDots(

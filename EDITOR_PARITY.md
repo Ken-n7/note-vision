@@ -926,14 +926,14 @@ This changes work order, not the full-parity objective or acceptance criteria.
   Full MuseScore parity stays queued. Evidence:
   `/tmp/note-vision-accidentals-2033/` (source crops, focused/before/full logs,
   seven-score comparison and phone QA).
-- Remaining counterexample: sparse row 1/bar 3's second E still lacks its
+- Counterexample at this checkpoint: sparse row 1/bar 3's second E lacks its
   sharp. Its `symbol-106` box overlaps head `symbol-819`; the ordinary matcher
   rejects that negative gap and attaches it later. This first-note rule keeps
   that existing body association unchanged. E-flat carry is notation-consistent
   but does not make those later E pitches match the source. Changed sounding
   pitches are not all verified accuracy gains. Tight-overlap body-accidental
-  association is a separate next candidate; other missing/misread symbols and
-  full parity remain queued.
+  association is addressed in the follow-up below; other missing/misread
+  symbols and full parity remain queued.
 - **Realme release 2033 passed fresh QA:** pixel-identical recent dense,
   sparse and song copies detect **225/175/117 symbols**, **9/8/5 staves**.
   Dense (**172 notes / eight rests / 27 bars**) restores both written flats
@@ -954,6 +954,53 @@ This changes work order, not the full-parity objective or acceptance criteria.
   Facts: `/tmp/note-vision-accidentals-2033/phone/qa-facts.json`.
   Tested APK SHA-256:
   `e6d015ed0ba023dfe439c7526bd967fc57f70ab783fc693c4512827086de7977`.
+
+### Body accidentals overlapping their noteheads — 2026-11-09
+
+- Reproduced the sparse row 1/bar 3 failure: the sharp's box ends slightly
+  inside its intended second E head. The ordinary matcher rejected the
+  negative gap and attached it to a later, misread A. A unique tight-overlap
+  match now takes precedence, consuming the glyph once at the intended head.
+- New matches require five staff lines, finite, staff-sized boxes, at most
+  one-quarter head-width overlap and pitch alignment within .35 staff spaces.
+  Flat loops use the lower part of the glyph; other accidentals use its centre.
+  Alignment follows the staff slope and the same refined pitch head used by
+  `PitchCalculator`. Competing heads/glyphs and existing ordinary bindings
+  retain the previous association. Positive-gap matching and signature
+  inference retain their existing rules.
+- **43 new regressions** cover five accidental types, three scales, slopes,
+  ambiguity/fallbacks, refined pitch geometry, the real sparse scan, JSON/XML
+  and playback carry/reset. The initial regression run reproduced **32
+  failures** before the implementation. Full **1,240 passed**; analysis clean;
+  diff check clean. The first full run timed out in an existing review-widget
+  `pumpAndSettle`; that six-test file passed alone, and the entire suite passed
+  with concurrency 2. No editor test or production UI was changed for the retry.
+- Seven replays use the exact archived detector outputs from release 2033.
+  Only written accidental assignments change in dense, bass, mixed and sparse;
+  ragged, song and clef-only scores are identical. Source crops were inspected
+  for all affected bars. Notes/rests, steps/octaves, rhythms, keys, barlines and
+  source geometry are unchanged. This fixes association, not the classifier:
+  missing/repeated glyphs, misread heads and uncertain glyph classes still need
+  review. It is not a broad transcription-accuracy claim. Full parity remains
+  queued. Evidence: `/tmp/note-vision-body-2034/`.
+- **Realme release 2034 passed fresh QA:** sparse **175 symbols / 8 staves**,
+  **137 notes / 8 rests / 24 bars**; dense **225 / 9**, **172 / 8 / 27**; song
+  **117 / 5**, **92 / 10 / 15**. Sparse's sharp moves to its second E and leaves
+  the misread later A; dense has seven written-accidental field changes.
+  Each has three sounding-alter changes under the existing key/carry rules;
+  all other exported fields are preserved. The prior dense phone baseline has
+  one fewer preceding note than the replay: affected pitches align by occurrence
+  before comparison against the phone baseline. Song is musically unchanged,
+  and its PDF raster is pixel-identical to 2033. All three PDFs are one page,
+  visually checked; Play/Stop passed, without a subjective-listening claim.
+- All three new projects cold-reopen with byte-identical XML. Existing sparse
+  export is preserved across installation apart from the date across midnight.
+  Previous **46 projects** retained, **49 total**; eleven exports archived and
+  checksummed in `Download/NoteVisionQA2034/`. **466 retained app log lines**,
+  no Flutter/crash/save errors. Original font/rotation/Home restored; temporary
+  helpers removed; recent copies retained and source originals unchanged.
+  Facts: `/tmp/note-vision-body-2034/phone/qa-facts.json`. Tested APK SHA-256:
+  `e64073779a3669a83449d37c467ee8c620b27efbed278581902e9a0b469e08c9`.
 
 ## Reference and implementation policy
 
