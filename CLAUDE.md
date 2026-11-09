@@ -58,6 +58,8 @@ Review’s Previous/Next selection now follows the selected note or rest horizon
 in wide bar previews; manual panning remains available. Short review bars now
 fit the available width using their own engraving density; dense bars retain
 readable spacing and scroll when needed.
+High and low ledger notes now follow selection vertically too; the bounded
+preview can be panned vertically without reducing notation size.
 Remaining misclassified/missing-symbol and staff/barline geometry failures are recorded in
 `EDITOR_PARITY.md`; full parity stays queued.
 Each app change still needs
@@ -852,8 +854,8 @@ bar switching, score corrections, empty/single-note bars, tapping and unchanged
 photo/decision evidence. The short-bar test fails on the previous implementation.
 Analysis clean; full **1,298 passed** with concurrency 2. Evidence:
 `/tmp/note-vision-review-fit-2038/`. No detector/cutoff, musical model, playback
-or export change. Full parity remains queued; dense-row zoom and extreme-ledger
-vertical following remain future work.
+or export change. Full parity remains queued; extreme-ledger vertical following
+is addressed by the next follow-up. Dense-row zoom remains future work.
 
 Realme **2038** passed on **NVMarkDense2035**. Row 1/bar 3’s clef, key,
 accidentals and all four notes now fit together without sideways scrolling;
@@ -872,6 +874,41 @@ Tested APK SHA-256:
 `b81f3c4de5d4d537a5cf6b145eabda624189a62ff78446e87a5945398cfd9704`.
 No model/cutoff change, iOS test or new subjective-listening claim. Full parity
 remains queued.
+
+**Reveal ledger notes in Review — 2026-11-09 / release 2039:** Review shares
+the renderer's existing vertical headroom calculation, including clefs,
+ledger notes, lyrics and staff text. Its preview grows from 155 to at most
+240 logical pixels, then scrolls vertically with a visible scrollbar.
+Previous/Next reveals the selected note/rest on both axes using the renderer's
+tap geometry; manual pan remains available. An unselected new bar reveals its
+first symbol without creating a selection or review decision. Full-part
+source context and lyric/annotation spacing remain intact.
+
+**13 new regressions** cover extreme notes, four clefs, initial visibility,
+manual pan/refollow, two-axis dense bars, resize, edits, lyric/text headroom,
+unrelated-bar headroom, read-only/empty/cleared cases and unchanged photo/review
+evidence. The low-note regression fails on the old preview (head y=378 beyond
+viewport bottom 201.5). Analysis clean; full **1,311 passed** with concurrency 2.
+Evidence: `/tmp/note-vision-review-vertical-2039/`. No model/cutoff change;
+full MuseScore parity remains queued.
+
+Realme **2039** passed on the isolated imported **NVLedger2039** project.
+Release 2038 reproduced the selected C1 spilling beyond the paper into the
+correction controls. C1 and C8 now remain inside the preview; manual vertical
+pan/refollow, landscape/portrait selection retention and **1.8x text** were
+visually checked. No musical corrections or review decisions were added.
+Post-navigation and cold-reopen MusicXML are byte-identical to the pre-update
+baseline. **51 existing projects retained, plus one QA project (52 total).**
+Five QA input/export files archived/checksummed in `Download/NoteVisionQA2039/`.
+**450 retained app log lines**, no Flutter/crash/overflow/save errors. Original
+font/rotation/screen-timeout restored, phone at Home, temporary helpers removed.
+The post-install launch needed a saved-app restart. Native picker file rows
+ignored standard ADB unknown-tool taps; a temporary `TOOL_TYPE_FINGER` helper
+selected the isolated fixture (`accessibility/NVTouch.java` under the evidence
+root). Facts: `/tmp/note-vision-review-vertical-2039/phone/qa-facts.json`.
+Tested APK SHA-256:
+`83de989f8e54d1b12f8b2aa80e5af3bbac30d0a5b66183a8adf7671923c50bf2`.
+No iOS test or new listening claim. Full parity remains queued.
 
 **Phone QA photos:** user authorized dataset reads from
 `/home/ken/Workspace/note-vision-data`. `tool/android_qa_images.py --serial

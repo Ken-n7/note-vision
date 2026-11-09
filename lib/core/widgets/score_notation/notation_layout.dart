@@ -3,6 +3,49 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../models/measure.dart';
+import 'annotation_layout.dart';
+import 'engraving_layout.dart';
+import 'lyric_layout.dart';
+
+/// Shared headroom used by notation drawing, hit targets and bounded previews.
+class NotationVerticalLayout {
+  const NotationVerticalLayout({
+    required this.rowHeight,
+    required this.padding,
+  });
+
+  final double rowHeight;
+  final EdgeInsets padding;
+
+  factory NotationVerticalLayout.forParts(
+    List<List<Measure>> parts, {
+    required double rowHeight,
+    required EdgeInsets padding,
+  }) {
+    final clearance = EngravingLayout.verticalClearance(parts);
+    final extra =
+        LyricLayout.extraHeight(parts) +
+        AnnotationLayout.extraHeight(parts) +
+        clearance.$1 +
+        clearance.$2;
+    final hasLyrics = parts
+        .expand((p) => p)
+        .expand((m) => m.notes)
+        .any((n) => n.lyrics.any((l) => !l.hidden));
+    return NotationVerticalLayout(
+      rowHeight: extra == 0 && !hasLyrics
+          ? rowHeight
+          : math.max(rowHeight, 140 + extra),
+      padding: padding.copyWith(
+        top:
+            padding.top +
+            LyricLayout.aboveHeight(parts) +
+            AnnotationLayout.aboveHeight(parts) +
+            clearance.$1,
+      ),
+    );
+  }
+}
 
 class NotationLayout {
   const NotationLayout({
@@ -51,9 +94,8 @@ class NotationLayoutCalculator {
       measures.length,
       normalizedMeasuresPerRow,
     );
-    final width = padding.horizontal +
-        rowPrefixWidth +
-        longestRowCount * minMeasureWidth;
+    final width =
+        padding.horizontal + rowPrefixWidth + longestRowCount * minMeasureWidth;
 
     final rowCount = measures.isEmpty
         ? 0

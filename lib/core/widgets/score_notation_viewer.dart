@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -12,8 +10,6 @@ import '../models/time_signature.dart';
 import 'score_notation/notation_layout.dart';
 import 'score_notation/engraving_layout.dart';
 import 'score_notation/score_display_projection.dart';
-import 'score_notation/lyric_layout.dart';
-import 'score_notation/annotation_layout.dart';
 import 'score_notation/score_notation_painter.dart';
 import 'score_notation/staff_pitch_mapper.dart';
 
@@ -266,29 +262,29 @@ class _ScoreNotationViewerState extends State<ScoreNotationViewer> {
   List<List<Measure>> get _allParts => widget.score == null
       ? const []
       : EngravingLayout.forScore(widget.score!).parts;
-  double get _rowHeight {
+  List<List<Measure>>? _verticalParts;
+  double? _verticalBaseHeight;
+  EdgeInsets? _verticalBasePadding;
+  NotationVerticalLayout? _vertical;
+  NotationVerticalLayout get _verticalLayout {
     final parts = _allParts;
-    final extra =
-        LyricLayout.extraHeight(parts) +
-        AnnotationLayout.extraHeight(parts) +
-        EngravingLayout.verticalClearance(parts).$1 +
-        EngravingLayout.verticalClearance(parts).$2;
-    final hasLyrics = parts
-        .expand((p) => p)
-        .expand((m) => m.notes)
-        .any((n) => n.lyrics.any((l) => !l.hidden));
-    return extra == 0 && !hasLyrics
-        ? widget.rowHeight
-        : math.max(widget.rowHeight, 140 + extra);
+    if (!identical(parts, _verticalParts) ||
+        widget.rowHeight != _verticalBaseHeight ||
+        widget.padding != _verticalBasePadding) {
+      _verticalParts = parts;
+      _verticalBaseHeight = widget.rowHeight;
+      _verticalBasePadding = widget.padding;
+      _vertical = NotationVerticalLayout.forParts(
+        parts,
+        rowHeight: widget.rowHeight,
+        padding: widget.padding,
+      );
+    }
+    return _vertical!;
   }
 
-  EdgeInsets get _padding => widget.padding.copyWith(
-    top:
-        widget.padding.top +
-        LyricLayout.aboveHeight(_allParts) +
-        AnnotationLayout.aboveHeight(_allParts) +
-        EngravingLayout.verticalClearance(_allParts).$1,
-  );
+  double get _rowHeight => _verticalLayout.rowHeight;
+  EdgeInsets get _padding => _verticalLayout.padding;
 
   @override
   Widget build(BuildContext context) {

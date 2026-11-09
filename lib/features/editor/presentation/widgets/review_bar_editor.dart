@@ -10,6 +10,7 @@ import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/widgets/score_notation/engraving_layout.dart';
 import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
+import 'package:note_vision/core/widgets/score_notation/score_notation_painter.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/domain/scan_key_correction.dart';
@@ -97,17 +98,14 @@ class ReviewBarEditor extends StatelessWidget {
               '${score.isScannedMusic ? 'Scanned' : 'Current'} bar · Tap a note to correct it',
         ),
         const SizedBox(height: 6),
-        SizedBox(
-          height: 155,
-          child: _ReviewBarPreview(
-            key: ValueKey((part, measure)),
-            score: score,
-            part: part,
-            measure: measure,
-            selectedSymbol: selectedSymbol,
-            onSelect: onSelect,
-            canEdit: canEdit,
-          ),
+        _ReviewBarPreview(
+          key: ValueKey((part, measure)),
+          score: score,
+          part: part,
+          measure: measure,
+          selectedSymbol: selectedSymbol,
+          onSelect: onSelect,
+          canEdit: canEdit,
         ),
         if (bar.symbols.any((s) => s is Note || s is Rest))
           Row(
@@ -387,11 +385,15 @@ class _ReviewBarPreview extends StatefulWidget {
 
 class _ReviewBarPreviewState extends State<_ReviewBarPreview> {
   final _scroll = ScrollController();
-  (Score, int?, double, double)? _lastRequest;
+  final _verticalScroll = ScrollController();
+  (Score, int?, double, double, double)? _lastRequest;
   bool _revealScheduled = false;
+  bool _revealDefault = false;
   Score? _sourceScore, _previewScore;
   EngravingLayout? _barEngraving;
+  NotationVerticalLayout? _vertical;
   double _measureWidth = 0;
+  double _viewportHeight = 0;
   static const _padding = EdgeInsets.all(12);
   static const _rowHeight = 145.0;
 
@@ -402,8 +404,18 @@ class _ReviewBarPreviewState extends State<_ReviewBarPreview> {
         parts: [widget.score.parts[widget.part]],
       );
       _barEngraving = null;
+      _vertical = null;
     }
     return _previewScore!;
+  }
+
+  NotationVerticalLayout get _verticalLayout {
+    final score = _score;
+    return _vertical ??= NotationVerticalLayout.forParts(
+      EngravingLayout.forScore(score).parts,
+      rowHeight: _rowHeight,
+      padding: _padding,
+    );
   }
 
   EngravingLayout get _engraving {
@@ -426,13 +438,14 @@ class _ReviewBarPreviewState extends State<_ReviewBarPreview> {
         measures: _engraving.parts.single,
         measuresPerRow: 1,
         minMeasureWidth: width,
-        rowHeight: _rowHeight,
-        padding: _padding,
+        rowHeight: _verticalLayout.rowHeight,
+        padding: _verticalLayout.padding,
       );
 
   @override
   void dispose() {
     _scroll.dispose();
+    _verticalScroll.dispose();
     super.dispose();
   }
 
@@ -441,36 +454,62 @@ class _ReviewBarPreviewState extends State<_ReviewBarPreview> {
     _revealScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _revealScheduled = false;
-      if (!mounted ||
-          !_scroll.hasClients ||
-          !_scroll.position.hasContentDimensions) {
+      if (!mounted) return;
+      if (widget.selectedSymbol == null && !_revealDefault) return;
+      final index = widget.selectedSymbol ?? 0;
+      final bar = widget.score.parts[widget.part].measures[widget.measure];
+      if (index < 0 ||
+          (bar.symbols.isNotEmpty && index >= bar.symbols.length)) {
         return;
       }
-      final index = widget.selectedSymbol;
-      final bar = widget.score.parts[widget.part].measures[widget.measure];
-      if (index == null || index < 0 || index >= bar.symbols.length) return;
       final layout = _layout(_measureWidth);
-      final x =
-          _padding.left +
-          layout.rowPrefixWidth +
-          _engraving
-              .place(0, _measureWidth, 1, layout.rowPrefixWidth)
-              .symbolX(0, index);
-      if (!x.isFinite) return;
-      final position = _scroll.position;
-      // Keep the notehead, selection ring and nearby accidental off the edges.
-      const margin = 36.0;
-      final target = x - margin < position.pixels
-          ? x - margin
-          : x + margin > position.pixels + position.viewportDimension
-          ? x + margin - position.viewportDimension
-          : position.pixels;
-      final offset = target.clamp(
-        position.minScrollExtent,
-        position.maxScrollExtent,
-      );
-      if ((offset - position.pixels).abs() > .5) _scroll.jumpTo(offset);
+      final part = _score.parts.single;
+      final target = ScoreNotationPainter.buildSymbolTargets(
+        parts: _engraving.parts,
+        engraving: _engraving,
+        measuresPerRow: 1,
+        minMeasureWidth: _measureWidth,
+        rowHeight: _verticalLayout.rowHeight,
+        padding: _verticalLayout.padding,
+        rowPrefixWidth: layout.rowPrefixWidth,
+        tabTunings: {
+          if (part.isTab && part.tabTuning != null) 0: part.tabTuning!,
+        },
+        singleLineParts: {if (part.singleLine) 0},
+      ).where((t) => t.symbolIndex == index).firstOrNull;
+      if (target != null && widget.selectedSymbol != null) {
+        _revealAxis(
+          _scroll,
+          target.hitRect.left - 20,
+          target.hitRect.right + 20,
+        );
+      }
+      // Include stems/ledger lines around the head, matching actual tap geometry.
+      final region =
+          target?.hitRect ??
+          Rect.fromLTWH(0, _verticalLayout.padding.top + 28, 0, 48);
+      _revealAxis(_verticalScroll, region.top - 32, region.bottom + 32);
     });
+  }
+
+  void _revealAxis(ScrollController controller, double start, double end) {
+    if (!controller.hasClients ||
+        !controller.position.hasContentDimensions ||
+        !start.isFinite ||
+        !end.isFinite) {
+      return;
+    }
+    final position = controller.position;
+    final target = start < position.pixels
+        ? start
+        : end > position.pixels + position.viewportDimension
+        ? end - position.viewportDimension
+        : position.pixels;
+    final offset = target.clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    if ((offset - position.pixels).abs() > .5) controller.jumpTo(offset);
   }
 
   @override
@@ -486,34 +525,55 @@ class _ReviewBarPreviewState extends State<_ReviewBarPreview> {
             ? constraints.maxWidth - _padding.horizontal - prefix
             : minimum,
       );
+      final layout = _layout(_measureWidth);
+      _viewportHeight = layout.size.height.clamp(155.0, 240.0);
       final request = (
         widget.score,
         widget.selectedSymbol,
         _measureWidth,
         constraints.maxWidth,
+        _viewportHeight,
       );
       if (_lastRequest != request) {
+        _revealDefault =
+            _lastRequest == null || !identical(_lastRequest!.$1, widget.score);
         _lastRequest = request;
         _scheduleReveal();
       }
-      return SingleChildScrollView(
-        controller: _scroll,
-        scrollDirection: Axis.horizontal,
-        child: ScoreNotationViewer(
-          score: _score,
-          firstMeasureIndex: widget.measure,
-          pageMeasureCount: 1,
-          measuresPerRow: 1,
-          minMeasureWidth: _measureWidth,
-          rowHeight: _rowHeight,
-          padding: _padding,
-          backgroundColor: Colors.white,
-          selectedPartIndex: 0,
-          selectedMeasureIndex: 0,
-          selectedSymbolIndex: widget.selectedSymbol,
-          onSymbolTap: widget.canEdit
-              ? (target) => widget.onSelect(target?.symbolIndex)
-              : null,
+      return Scrollbar(
+        controller: _verticalScroll,
+        thumbVisibility: layout.size.height > _viewportHeight,
+        notificationPredicate: (notification) =>
+            notification.metrics.axis == Axis.vertical,
+        child: SizedBox(
+          height: _viewportHeight,
+          child: SingleChildScrollView(
+            controller: _scroll,
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: layout.size.width,
+              height: _viewportHeight,
+              child: SingleChildScrollView(
+                controller: _verticalScroll,
+                child: ScoreNotationViewer(
+                  score: _score,
+                  firstMeasureIndex: widget.measure,
+                  pageMeasureCount: 1,
+                  measuresPerRow: 1,
+                  minMeasureWidth: _measureWidth,
+                  rowHeight: _rowHeight,
+                  padding: _padding,
+                  backgroundColor: Colors.white,
+                  selectedPartIndex: 0,
+                  selectedMeasureIndex: 0,
+                  selectedSymbolIndex: widget.selectedSymbol,
+                  onSymbolTap: widget.canEdit
+                      ? (target) => widget.onSelect(target?.symbolIndex)
+                      : null,
+                ),
+              ),
+            ),
+          ),
         ),
       );
     },

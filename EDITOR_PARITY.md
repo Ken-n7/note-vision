@@ -1128,9 +1128,41 @@ This changes work order, not the full-parity objective or acceptance criteria.
   `/tmp/note-vision-review-fit-2038/phone/qa-facts.json`.
   Tested APK SHA-256:
   `b81f3c4de5d4d537a5cf6b145eabda624189a62ff78446e87a5945398cfd9704`.
-- Not yet: shrinking an entire dense row to one screen, preview zoom controls
-  or automatic vertical following for extreme ledger notes. Full MuseScore
+- Not yet: shrinking an entire dense row to one screen or preview zoom controls.
+  Extreme-ledger following is addressed below. Full MuseScore
   parity remains queued.
+
+## App follow-up — reveal ledger notes in Review (2026-11-09)
+
+- Review uses the renderer's shared vertical headroom for ledger notes, lyrics
+  and staff text. The preview grows within 155–240 logical pixels, then allows
+  vertical panning with a scrollbar; notation retains its readable size.
+- Previous/Next follows the selected note/rest on both axes using actual
+  renderer tap geometry. Initial unselected bars reveal their first symbol;
+  manual pan, resizing, score edits and empty bars remain supported. Existing
+  full-part lyric/annotation policy and retained-source context are preserved.
+- **13 new regressions**, analysis clean; full **1,311 passed** with concurrency 2.
+  Coverage includes extreme notes in four clefs, initial visibility, manual pan,
+  both-axis navigation, resize, pitch edits, lyrics/text, unrelated headroom,
+  empty/read-only/cleared cases and unchanged photo/decision evidence. The old
+  implementation fails the low-note visibility regression. Evidence:
+  `/tmp/note-vision-review-vertical-2039/`.
+- **Realme release 2039 passed:** isolated imported **NVLedger2039** reproduces
+  the old C1 clipping on 2038. Selected C1/C8 now remain in the preview; manual
+  vertical pan/refollow, rotation with retained selection and **1.8x text** were
+  visually checked. No musical correction or review decision was added.
+  Post-navigation and cold-reopen XML are byte-identical to the baseline.
+- **51 existing projects retained; one QA project added (52 total).** Five QA
+  input/export files archived/checksummed in `Download/NoteVisionQA2039/`.
+  **450 retained app log lines**, no app errors. Original font/rotation/timeout
+  restored, phone returned Home, temporary helpers removed. A saved-app restart
+  resolved the post-install launch wait; native picker rows required a temporary
+  finger-event helper. No iOS or new listening claim. Facts:
+  `/tmp/note-vision-review-vertical-2039/phone/qa-facts.json`.
+  Tested APK SHA-256:
+  `83de989f8e54d1b12f8b2aa80e5af3bbac30d0a5b66183a8adf7671923c50bf2`.
+- Not yet: dense-row zoom controls or showing every extreme note at once in a
+  bounded preview. Detector/cutoffs and full MuseScore parity scope remain unchanged.
 
 ## Reference and implementation policy
 
