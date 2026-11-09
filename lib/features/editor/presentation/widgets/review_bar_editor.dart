@@ -9,6 +9,7 @@ import 'package:note_vision/core/models/rest.dart';
 import 'package:note_vision/core/models/score.dart';
 import 'package:note_vision/core/models/time_signature.dart';
 import 'package:note_vision/core/widgets/score_notation/engraving_layout.dart';
+import 'package:note_vision/core/widgets/score_notation/notation_layout.dart';
 import 'package:note_vision/core/widgets/score_notation_viewer.dart';
 import 'package:note_vision/features/editor/domain/editor_actions.dart';
 import 'package:note_vision/features/editor/domain/scan_key_correction.dart';
@@ -102,24 +103,15 @@ class ReviewBarEditor extends StatelessWidget {
         const SizedBox(height: 6),
         SizedBox(
           height: 155,
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: ScoreNotationViewer(
-              score: score.copyWith(parts: [score.parts[part]]),
-              firstMeasureIndex: measure,
-              pageMeasureCount: 1,
-              measuresPerRow: 1,
-              minMeasureWidth: width,
-              rowHeight: 145,
-              padding: const EdgeInsets.all(12),
-              backgroundColor: Colors.white,
-              selectedPartIndex: 0,
-              selectedMeasureIndex: 0,
-              selectedSymbolIndex: selectedSymbol,
-              onSymbolTap: canEdit
-                  ? (target) => onSelect(target?.symbolIndex)
-                  : null,
-            ),
+          child: _ReviewBarPreview(
+            key: ValueKey((part, measure)),
+            score: score,
+            part: part,
+            measure: measure,
+            selectedSymbol: selectedSymbol,
+            minMeasureWidth: width,
+            onSelect: onSelect,
+            canEdit: canEdit,
           ),
         ),
         if (bar.symbols.any((s) => s is Note || s is Rest))
@@ -374,4 +366,140 @@ class ReviewBarEditor extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Owns horizontal navigation separately from the review sheet's vertical scroll.
+class _ReviewBarPreview extends StatefulWidget {
+  const _ReviewBarPreview({
+    super.key,
+    required this.score,
+    required this.part,
+    required this.measure,
+    required this.selectedSymbol,
+    required this.minMeasureWidth,
+    required this.onSelect,
+    required this.canEdit,
+  });
+
+  final Score score;
+  final int part, measure;
+  final int? selectedSymbol;
+  final double minMeasureWidth;
+  final ValueChanged<int?> onSelect;
+  final bool canEdit;
+
+  @override
+  State<_ReviewBarPreview> createState() => _ReviewBarPreviewState();
+}
+
+class _ReviewBarPreviewState extends State<_ReviewBarPreview> {
+  final _scroll = ScrollController();
+  (Score, int?, double, double)? _lastRequest;
+  bool _revealScheduled = false;
+  Score? _sourceScore, _previewScore;
+
+  Score get _score {
+    if (!identical(_sourceScore, widget.score)) {
+      _sourceScore = widget.score;
+      _previewScore = widget.score.copyWith(
+        parts: [widget.score.parts[widget.part]],
+      );
+    }
+    return _previewScore!;
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _scheduleReveal() {
+    if (_revealScheduled) return;
+    _revealScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _revealScheduled = false;
+      if (!mounted ||
+          !_scroll.hasClients ||
+          !_scroll.position.hasContentDimensions) {
+        return;
+      }
+      final index = widget.selectedSymbol;
+      final bar = widget.score.parts[widget.part].measures[widget.measure];
+      if (index == null || index < 0 || index >= bar.symbols.length) return;
+      final measures = sliceMeasuresWithInheritedMetadata(
+        measures: _score.parts.single.measures,
+        firstMeasureIndex: widget.measure,
+        pageMeasureCount: 1,
+      );
+      final layout = const NotationLayoutCalculator().calculate(
+        measures: measures,
+        measuresPerRow: 1,
+        minMeasureWidth: widget.minMeasureWidth,
+        rowHeight: 145,
+        padding: const EdgeInsets.all(12),
+      );
+      final engraving = EngravingLayout(
+        [measures],
+        score: _score,
+        firstMeasure: widget.measure,
+      );
+      final x =
+          12 +
+          layout.rowPrefixWidth +
+          engraving
+              .place(0, widget.minMeasureWidth, 1, layout.rowPrefixWidth)
+              .symbolX(0, index);
+      if (!x.isFinite) return;
+      final position = _scroll.position;
+      // Keep the notehead, selection ring and nearby accidental off the edges.
+      const margin = 36.0;
+      final target = x - margin < position.pixels
+          ? x - margin
+          : x + margin > position.pixels + position.viewportDimension
+          ? x + margin - position.viewportDimension
+          : position.pixels;
+      final offset = target.clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      );
+      if ((offset - position.pixels).abs() > .5) _scroll.jumpTo(offset);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final request = (
+        widget.score,
+        widget.selectedSymbol,
+        widget.minMeasureWidth,
+        constraints.maxWidth,
+      );
+      if (_lastRequest != request) {
+        _lastRequest = request;
+        _scheduleReveal();
+      }
+      return SingleChildScrollView(
+        controller: _scroll,
+        scrollDirection: Axis.horizontal,
+        child: ScoreNotationViewer(
+          score: _score,
+          firstMeasureIndex: widget.measure,
+          pageMeasureCount: 1,
+          measuresPerRow: 1,
+          minMeasureWidth: widget.minMeasureWidth,
+          rowHeight: 145,
+          padding: const EdgeInsets.all(12),
+          backgroundColor: Colors.white,
+          selectedPartIndex: 0,
+          selectedMeasureIndex: 0,
+          selectedSymbolIndex: widget.selectedSymbol,
+          onSymbolTap: widget.canEdit
+              ? (target) => widget.onSelect(target?.symbolIndex)
+              : null,
+        ),
+      );
+    },
+  );
 }

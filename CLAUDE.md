@@ -54,6 +54,8 @@ weak geometry retain their prior association; detector weights stay frozen.
 Unassigned body accidentals now stay as photo-linked review evidence: select a
 note to assign the mark, or ignore it explicitly; decisions and correction
 history travel with the saved project. No musical note changes automatically.
+Review’s Previous/Next selection now follows the selected note or rest horizontally
+in wide bar previews; manual panning remains available.
 Remaining misclassified/missing-symbol and staff/barline geometry failures are recorded in
 `EDITOR_PARITY.md`; full parity stays queued.
 Each app change still needs
@@ -788,9 +790,51 @@ restored, temporary helpers removed, recent copies retained and originals
 unchanged. Facts: `/tmp/note-vision-unassigned-2035/phone/qa-facts.json`.
 Tested APK SHA-256:
 `62d91f9457b5c9cbcc935b2610066412d6fc84545afab75f243c46731cf12053`.
-No model change, iOS test or subjective-listening claim. Existing wide review
-previews still need horizontal scrolling; selection arrows do not yet bring the
-selected note into view. Full MuseScore parity remains queued.
+No model change, iOS test or subjective-listening claim. At this checkpoint,
+wide review previews still required manual horizontal scrolling; the selection
+follow-up below resolves that navigation gap. Full MuseScore parity remains queued.
+
+**Review horizontal following — 2026-11-09 / release 2037:** Previous/Next and
+initial issue selection now reveal the selected note/rest horizontally in a wide
+bar preview. The preview uses the same inherited bar metadata and engraving
+placement as the renderer, rather than estimating from symbol order. It keeps
+selection rings and nearby accidentals off the viewport edges, clamps at scroll
+limits, follows resize/reflow and resets for another bar/staff. Manual panning
+survives unrelated rebuilds; rapid updates coalesce after layout and disposed or
+invalid selections are guarded. A stable review-panel key preserves the selected
+note and review mode when switching between the bottom and side layouts; this
+fixes selection loss found during release 2036 phone QA and reproduced in a
+regression test. Read-only selections remain visible without allowing edits.
+Accidental review keeps its original photo mark fixed; panning changes no review
+decisions or score data.
+
+**16 new regressions** cover traversal both ways, four viewport/text sizes,
+manual panning, resizing, inherited signatures, bar/staff changes, irregular
+rhythm/chords/graces/rests/voices, score reflow, rapid updates/disposal, read-only
+and empty cases, tapping and the complete accidental-review flow. The traversal
+regression fails on the previous code at the seventh head. Full **1,285 passed**
+with concurrency 2; analysis clean. Evidence:
+`/tmp/note-vision-review-navigation-2037/`. Full parity stays queued; no detector,
+confidence cutoff, musical model, playback or export behavior changes.
+
+Realme **2037** passed on the existing **NVMarkDense2035** project. Selecting
+row 2/bar 2’s last E4 eighth reveals its head with a margin; the half rest also
+follows and leaves accidental assignment disabled. Manual pan, Previous/Next,
+landscape → portrait and **1.8x text** were visually checked. E4 stays selected
+through layout changes, and accidental review keeps the original photo mark.
+No new assignment or review decision was made. The post-navigation export and
+cold-reopen export are byte-identical to the pre-update baseline; the original
+“Assign natural to E4” correction history remains intact. All **51 projects**
+retained, no new projects. Three XML exports archived/checksummed in
+`Download/NoteVisionQA2037/`; the partial 2036 baseline is archived separately
+in `Download/NoteVisionQA2036/`. **192 retained app log lines**, no Flutter,
+crash, overflow or save errors. Original font/rotation settings restored; phone
+returned to Home; both temporary helpers removed. Facts:
+`/tmp/note-vision-review-navigation-2037/phone/qa-facts.json`.
+Tested APK SHA-256:
+`227d6b7cb9c930bf2fb41554cf81ae23e92997aadfa368fea871a306a07729ca`.
+No model/cutoff change, iOS test or new subjective-listening claim. Full parity
+remains queued.
 
 **Phone QA photos:** user authorized dataset reads from
 `/home/ken/Workspace/note-vision-data`. `tool/android_qa_images.py --serial

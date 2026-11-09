@@ -181,6 +181,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
   double _reviewPanelFraction = .88;
   String? _focusedIssueKey;
   NotationReviewPlan? _reviewPlan;
+  final _reviewPanelKey = GlobalKey();
   final GlobalKey<_NotationAreaState> _notationAreaKey = GlobalKey();
   Score? _checkedScore;
   List<NotationIssue> _checkedIssues = const [];
@@ -3268,6 +3269,7 @@ class _EditorShellScreenState extends State<EditorShellScreen> {
                 reviewPanel: !_reviewOpen
                     ? null
                     : NotationReviewPanel(
+                        key: _reviewPanelKey,
                         score: _editorState.score,
                         issues: _notationIssues,
                         focusedKey: _focusedIssueKey,

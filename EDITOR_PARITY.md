@@ -1046,9 +1046,52 @@ This changes work order, not the full-parity objective or acceptance criteria.
   `62d91f9457b5c9cbcc935b2610066412d6fc84545afab75f243c46731cf12053`.
 - Not yet: assigning a mark across bars, reinterpreting old saved scans,
   recovering undetected marks or automatically deciding ambiguous glyphs.
-  Existing wide bar previews need horizontal scrolling; the note-selection
-  arrows do not yet scroll the selected note into view (observed on Realme
-  during release 2035 QA).
+
+
+
+## App follow-up — follow selection in review previews (2026-11-09)
+
+- Previous/Next and initial issue selection now bring the selected head or rest
+  into view horizontally. The preview uses its actual sliced/inherited bar
+  context and shared engraving placement, including chord displacements, grace
+  notes and separate voices; it does not estimate position from symbol index.
+- Panning moves only enough to reveal the selection with a margin, within the
+  scroll extents. Manual panning survives unrelated rebuilds; changing selection,
+  score geometry or viewport width reveals the current target again. Changing
+  bar/staff starts a fresh viewport. Rapid changes coalesce after layout, with
+  disposal and invalid/empty-selection guards. Read-only review can reveal its
+  selection without enabling edits.
+- Release 2036 phone rotation exposed selection loss when the editor moved
+  the review panel between bottom and side layouts. A stable panel key now
+  preserves its selection and review mode across that reparenting; a regression
+  reproduces the failure without this fix.
+- Only the digital bar viewport moves. Accidental review keeps its photo mark
+  fixed; navigation changes no score JSON, review decisions or musical data.
+- **16 new regressions** cover forward/backward traversal, four viewport/text
+  sizes, manual panning, resize, inherited signatures, bar/staff changes,
+  irregular rhythm/chords/graces/rests/voices, score reflow, rapid updates,
+  disposal, read-only/empty cases, tapping after following and the complete
+  accidental-review flow. The traversal test fails on the previous code when
+  the seventh head leaves the viewport. Analysis clean; full **1,285 passed**
+  with concurrency 2. Evidence: `/tmp/note-vision-review-navigation-2037/`.
+- **Realme release 2037 passed:** last E4 eighth and the half rest follow into
+  view in the saved dense scan; rest assignment stays disabled. Manual pan and
+  refollow, Previous/Next, landscape/portrait and **1.8x text** visually checked.
+  The selected E4 survives the panel layout switch; the photo mark stays fixed.
+  No musical correction or new review decision was made. Post-navigation and
+  cold-reopen XML are byte-identical to the pre-update export; the original
+  correction history remains intact.
+- **51 projects retained, no new projects.** Three XML exports archived and
+  checksummed in `Download/NoteVisionQA2037/`; the partial 2036 baseline is in
+  its own archive. **192 retained app log lines**, no app errors. Original
+  font/rotation/Home restored; temporary helpers removed. No iOS or new
+  subjective-listening check; model/cutoffs and full-parity scope unchanged.
+  Facts: `/tmp/note-vision-review-navigation-2037/phone/qa-facts.json`.
+  Tested APK SHA-256:
+  `227d6b7cb9c930bf2fb41554cf81ae23e92997aadfa368fea871a306a07729ca`.
+- Not yet: fitting an entire dense row into the preview at once, automatic
+  vertical following for extreme ledger notes, or different review-bar zoom.
+  Model/cutoffs and full MuseScore parity scope remain unchanged.
 
 ## Reference and implementation policy
 
