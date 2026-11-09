@@ -31,6 +31,38 @@ All remaining parity items below stay on the roadmap, including marching and
 other templates, family brackets, advanced engraving and platform integrations.
 This changes work order, not the full-parity objective or acceptance criteria.
 
+### Local genre training and Kundiman data — 2026-11-09–10
+
+- Added `tool/genre/` for CPU training and evaluation of the genre LSTM,
+  separately from the frozen B9 detector. The benchmark matches the app's
+  cap-before-key estimation, 64-event windows/32 stride, 16-note minimum and
+  unchanged .7/.4 display gates. Results distinguish training diagnostics,
+  validation, song-held-out folds, external negatives and fresh test works.
+- Added attributed melody transcriptions of *Sa Silong ng Langit* (15 bars,
+  55 events, training) and the historical anonymous *Kundiman* (14 bars,
+  47 sounding events, fresh test). This adds two independent works, not
+  independent augmented windows: 15 training / 4 validation / 1 fresh test.
+  All passages of a work stay in one partition. Source originals are unchanged.
+- Quarantined 13 PDMX work IDs tagged both Jazz and Waltz (26 rows), freezing
+  the existing partitions before removal. Uniform duration augmentation and
+  key estimation from realistic visible contexts apply across genres.
+- Local four-member fine-tuning completed on CPU. Increased real-Kundiman
+  sampling improved known-training short excerpts but increased false labels
+  on other genres. Validation-only calibration reduced those false labels but
+  lost short-Kundiman recognition. **No candidate was promoted.** See
+  `tool/genre/results.json` for the experiment decision and evidence limits.
+  Clean fold 0 failed its validation constraints; a complete new four-fold
+  result is not claimed. LiteRT export passed 115-prefix probability checks
+  with maximum absolute error 1.79e-7, without replacing the app asset.
+- Six Python contract/data checks pass; `flutter analyze --no-pub` is clean;
+  full `flutter test --no-pub --reporter expanded`: **1,327 passed**. The genre
+  asset and app code are unchanged, so no new phone build or device QA is
+  claimed. Release 2041 remains the last tested app build.
+- **Not yet:** a validated replacement genre model; broader independently
+  sourced Kundiman repertoire; complete cross-source composition deduplication;
+  full held-out validation and phone QA for any future candidate. Advanced
+  editor parity remains on the roadmap below.
+
 ### Scan lifecycle reliability — 2026-11-05
 
 - `ScanViewModel` invalidates work when reset, superseded or disposed. Late

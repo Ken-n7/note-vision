@@ -62,6 +62,20 @@ High and low ledger notes now follow selection vertically too; the bounded
 preview can be panned vertically without reducing notation size.
 Review also offers Fit bar, zoom in/out and a percentage button to restore
 100%; zooming follows selection without changing the score or photo evidence.
+Genre training can now run locally on the Ryzen CPU using `tool/genre/`:
+exact mobile-window benchmarking, frozen work partitions, label-conflict
+quarantine, bounded fine-tuning, validation-only calibration and LiteRT export.
+Two attributed real Kundiman excerpts were added: Sa Silong ng Langit for
+training and an anonymous historical Kundiman reserved for testing. The new
+corpus has 15 training works, four validation works and one fresh test work;
+these are excerpts, not full-song transcriptions. Thirteen PDMX work IDs with
+contradictory Jazz/Waltz labels are quarantined without modifying source data.
+The trial weights were not promoted: stronger Kundiman sampling increased
+false Kundiman labels, while calibration reduced short-Kundiman recognition.
+The shipped model/thresholds remain unchanged. See `tool/genre/results.json`
+for measured results and `tool/genre/README.md` for reproduction and limits.
+More independently verified Kundiman works are still needed; this experiment
+does not establish an improvement to the app's genre accuracy.
 Remaining misclassified/missing-symbol and staff/barline geometry failures are recorded in
 `EDITOR_PARITY.md`; full parity stays queued.
 Each app change still needs

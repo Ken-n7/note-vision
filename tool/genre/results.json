@@ -1,0 +1,767 @@
+{
+  "run_dates_local": [
+    "2026-11-09",
+    "2026-11-10"
+  ],
+  "decision": "retain_shipped_model",
+  "reasons": [
+    "Uncalibrated sampling gains on known training excerpts increased false Kundiman calls.",
+    "Validation-calibrated candidate lost known-training Kundiman labels: 11/14 to 9/14 at 40 events; 13/14 to 11/14 at 80.",
+    "Clean fold 0 admitted no calibration satisfying the unchanged validation constraints; stopped before remaining folds.",
+    "No demonstrated gain on independent Kundiman works; one new test work is insufficient broad validation."
+  ],
+  "shipped_model_sha256": "72595c786cc2c6567766ce51654ce350d45bc6864a1138843e99e15902bb7717",
+  "app_code_or_model_changed": false,
+  "phone_qa": "No new phone build; shipped release 2041 unaffected.",
+  "artifact_directory": "/home/ken/Workspace/note-vision/.dart_tool/genre_runs/clean",
+  "runtime": {
+    "python": "3.12",
+    "torch": "2.13.0+cu130 (CPU)",
+    "litert": "2.2.0",
+    "litert_torch": "0.9.4",
+    "cpu": "AMD Ryzen 3 7320U",
+    "compute_threads": 2
+  },
+  "training": {
+    "steps_per_member": 200,
+    "seeds": [
+      7,
+      1,
+      2,
+      3
+    ],
+    "batch_size": 64,
+    "learning_rate": 0.0001,
+    "real_kundiman_share": 0.7,
+    "synthetic_kundiman_share": 0.3,
+    "real_training_works": 15,
+    "validation_works": 4,
+    "fresh_test_works": 1
+  },
+  "input_hashes": {
+    "pieces": "433b90f5e4dd742cff9c4e63ea00a5309c01d7514c9fe38d6ab76cec8f6fb180",
+    "more": "49c2cfc5a982f690d3fc5fc0ab625c7e2838319edc095a3bd5640b07b868c16a",
+    "pdmx": "6f03a360f1260fe95726d4a4afc14d1c79768c98fabf2658f85773992af0b6f7",
+    "extra": "26c30f0e2e6167f3a5336c0b0eb3ac87df4df063c96b57aee1ad4f9c134ef445"
+  },
+  "quarantine": {
+    "pdmx_QmNuSWidKF5aFPW968qbH48WjKyMYcfS1CfwVhcZoPN9sq": [
+      "jazz",
+      "waltz"
+    ],
+    "pdmx_QmPNBRTuFiSJAgTZci7ZPvfuNmUiaooEaQ5Bss4mYDEGpw": [
+      "jazz",
+      "waltz"
+    ],
+    "pdmx_QmQTUkZPNM3Xvg9dScGfjASeut3iGV9fPJqaV1R7fAHqWH": [
+      "jazz",
+      "waltz"
+    ],
+    "pdmx_QmQYE3uvUfi1CQPbAdRqwrRrBfDjA7XnTitqeZVKb1VytB": [
+      "jazz",
+      "waltz"
+    ],
+    "pdmx_QmTXubLH9z9fbDxvB3v1dxpudTHiuYcp4nGdvSx4o33zZm": [
+      "jazz",
+      "waltz"
+    ],
+    "pdmx_QmUPE4Sdor4KbE7Lkw2qpJydR9eF59Eg4hrHBFxrUmx6Q2": [
+      "jazz",
+      "waltz"
+    ],
+    "pdmx_QmWobVTRDsCNt2DghH7qf1To7dP7VPZqWER6aqsKSqg3ad": [
+      "jazz",
+      "waltz"
+    ],
+    "pdmx_QmXWsW3esGsxiC9QyTAgMTEm85kBkgrLgA1RXWNNKjTPvz": [
+      "jazz",
+      "waltz"
+    ],
+    "pdmx_QmY5KAa1UxU6iGXux2vz5EzSoTp3apXhYv1AZrUNgnauxr": [
+      "jazz",
+      "waltz"
+    ],
+    "pdmx_QmZzNFCJmbobsanTdw5ecsYpYxJuweUXEFbst9GaVUaFdQ": [
+      "jazz",
+      "waltz"
+    ],
+    "pdmx_QmacuG15tfzWWXG7SNHuHpXL7RjEMPURsTNnppD6ALETtH": [
+      "jazz",
+      "waltz"
+    ],
+    "pdmx_QmbNgcbmDC5zK81hrkdWrsNrEqUfUM8q8dzrXvnsHYyDcD": [
+      "jazz",
+      "waltz"
+    ],
+    "pdmx_QmewXTR9L5zVUFGfGgsBt6K1xQubNBSqAuiTJb2FKvqRQR": [
+      "jazz",
+      "waltz"
+    ]
+  },
+  "calibration_all": {
+    "kundiman_scale": 0.125,
+    "validation_baseline": {
+      "40": {
+        "kundiman": 4,
+        "false_kundiman": 9,
+        "negative_correct": 465
+      },
+      "80": {
+        "kundiman": 4,
+        "false_kundiman": 3,
+        "negative_correct": 471
+      },
+      "320": {
+        "kundiman": 4,
+        "false_kundiman": 2,
+        "negative_correct": 473
+      }
+    },
+    "attempts": [
+      {
+        "scale": 1.0,
+        "metrics": {
+          "40": {
+            "kundiman": 4,
+            "false_kundiman": 28,
+            "negative_correct": 449
+          },
+          "80": {
+            "kundiman": 4,
+            "false_kundiman": 12,
+            "negative_correct": 463
+          },
+          "320": {
+            "kundiman": 4,
+            "false_kundiman": 15,
+            "negative_correct": 461
+          }
+        }
+      },
+      {
+        "scale": 0.75,
+        "metrics": {
+          "40": {
+            "kundiman": 4,
+            "false_kundiman": 22,
+            "negative_correct": 454
+          },
+          "80": {
+            "kundiman": 4,
+            "false_kundiman": 12,
+            "negative_correct": 463
+          },
+          "320": {
+            "kundiman": 4,
+            "false_kundiman": 14,
+            "negative_correct": 462
+          }
+        }
+      },
+      {
+        "scale": 0.5,
+        "metrics": {
+          "40": {
+            "kundiman": 4,
+            "false_kundiman": 16,
+            "negative_correct": 459
+          },
+          "80": {
+            "kundiman": 4,
+            "false_kundiman": 7,
+            "negative_correct": 468
+          },
+          "320": {
+            "kundiman": 4,
+            "false_kundiman": 10,
+            "negative_correct": 466
+          }
+        }
+      },
+      {
+        "scale": 0.25,
+        "metrics": {
+          "40": {
+            "kundiman": 4,
+            "false_kundiman": 7,
+            "negative_correct": 467
+          },
+          "80": {
+            "kundiman": 4,
+            "false_kundiman": 4,
+            "negative_correct": 470
+          },
+          "320": {
+            "kundiman": 4,
+            "false_kundiman": 4,
+            "negative_correct": 471
+          }
+        }
+      },
+      {
+        "scale": 0.125,
+        "metrics": {
+          "40": {
+            "kundiman": 4,
+            "false_kundiman": 5,
+            "negative_correct": 468
+          },
+          "80": {
+            "kundiman": 4,
+            "false_kundiman": 2,
+            "negative_correct": 472
+          },
+          "320": {
+            "kundiman": 4,
+            "false_kundiman": 1,
+            "negative_correct": 474
+          }
+        }
+      }
+    ],
+    "selection": "validation only; largest admissible fixed-grid scale"
+  },
+  "calibration_fold0": {
+    "kundiman_scale": null,
+    "validation_baseline": {
+      "40": {
+        "kundiman": 4,
+        "false_kundiman": 7,
+        "negative_correct": 468
+      },
+      "80": {
+        "kundiman": 4,
+        "false_kundiman": 4,
+        "negative_correct": 470
+      },
+      "320": {
+        "kundiman": 4,
+        "false_kundiman": 1,
+        "negative_correct": 473
+      }
+    },
+    "attempts": [
+      {
+        "scale": 1.0,
+        "metrics": {
+          "40": {
+            "kundiman": 4,
+            "false_kundiman": 29,
+            "negative_correct": 449
+          },
+          "80": {
+            "kundiman": 4,
+            "false_kundiman": 18,
+            "negative_correct": 458
+          },
+          "320": {
+            "kundiman": 4,
+            "false_kundiman": 17,
+            "negative_correct": 459
+          }
+        }
+      },
+      {
+        "scale": 0.75,
+        "metrics": {
+          "40": {
+            "kundiman": 4,
+            "false_kundiman": 21,
+            "negative_correct": 456
+          },
+          "80": {
+            "kundiman": 4,
+            "false_kundiman": 16,
+            "negative_correct": 460
+          },
+          "320": {
+            "kundiman": 4,
+            "false_kundiman": 15,
+            "negative_correct": 461
+          }
+        }
+      },
+      {
+        "scale": 0.5,
+        "metrics": {
+          "40": {
+            "kundiman": 4,
+            "false_kundiman": 13,
+            "negative_correct": 463
+          },
+          "80": {
+            "kundiman": 4,
+            "false_kundiman": 9,
+            "negative_correct": 466
+          },
+          "320": {
+            "kundiman": 4,
+            "false_kundiman": 14,
+            "negative_correct": 462
+          }
+        }
+      },
+      {
+        "scale": 0.25,
+        "metrics": {
+          "40": {
+            "kundiman": 4,
+            "false_kundiman": 8,
+            "negative_correct": 468
+          },
+          "80": {
+            "kundiman": 4,
+            "false_kundiman": 5,
+            "negative_correct": 469
+          },
+          "320": {
+            "kundiman": 4,
+            "false_kundiman": 7,
+            "negative_correct": 468
+          }
+        }
+      },
+      {
+        "scale": 0.125,
+        "metrics": {
+          "40": {
+            "kundiman": 4,
+            "false_kundiman": 6,
+            "negative_correct": 470
+          },
+          "80": {
+            "kundiman": 4,
+            "false_kundiman": 2,
+            "negative_correct": 472
+          },
+          "320": {
+            "kundiman": 4,
+            "false_kundiman": 3,
+            "negative_correct": 472
+          }
+        }
+      }
+    ],
+    "selection": "validation only; largest admissible fixed-grid scale"
+  },
+  "cv_status": "Clean fold 0 trained but rejected on validation. Full four-fold candidate testing not completed; no new CV accuracy claimed.",
+  "export_parity": {
+    "checked": 115,
+    "max_absolute_error": 1.7881393432617188e-07,
+    "sha256": "96abd5787b5c274e40c9a736c21d68db6f03fd0fd27ad760cd65ac21ac550e1d"
+  },
+  "verification": {
+    "flutter_analyze": "clean",
+    "flutter_tests_passed": 1327,
+    "python_tests_passed": 6,
+    "preparation_reproduced": true
+  },
+  "limitations": [
+    "Both new transcriptions are excerpts, not complete songs.",
+    "Known-training metrics are diagnostics, not held-out generalization.",
+    "Only one fresh positive test work; negative-source composition-level deduplication remains incomplete.",
+    "Initial results included legacy contradictory labels and are exploratory only.",
+    "The system /tmp quota interrupted early outputs. Checkpoints were preserved, artifacts moved to ignored project storage, and validation/tests rerun."
+  ],
+  "calibrated_summary": [
+    {
+      "split": "external_negative",
+      "prefix": 40,
+      "genre": "jazz",
+      "excerpts": 50,
+      "baseline_app_correct": 50,
+      "candidate_app_correct": 50,
+      "baseline_called_kundiman": 0,
+      "candidate_called_kundiman": 0
+    },
+    {
+      "split": "external_negative",
+      "prefix": 40,
+      "genre": "other",
+      "excerpts": 623,
+      "baseline_app_correct": null,
+      "candidate_app_correct": null,
+      "baseline_called_kundiman": 0,
+      "candidate_called_kundiman": 0
+    },
+    {
+      "split": "external_negative",
+      "prefix": 40,
+      "genre": "waltz",
+      "excerpts": 36,
+      "baseline_app_correct": 35,
+      "candidate_app_correct": 35,
+      "baseline_called_kundiman": 1,
+      "candidate_called_kundiman": 1
+    },
+    {
+      "split": "external_negative",
+      "prefix": 80,
+      "genre": "jazz",
+      "excerpts": 50,
+      "baseline_app_correct": 50,
+      "candidate_app_correct": 50,
+      "baseline_called_kundiman": 0,
+      "candidate_called_kundiman": 0
+    },
+    {
+      "split": "external_negative",
+      "prefix": 80,
+      "genre": "other",
+      "excerpts": 623,
+      "baseline_app_correct": null,
+      "candidate_app_correct": null,
+      "baseline_called_kundiman": 0,
+      "candidate_called_kundiman": 0
+    },
+    {
+      "split": "external_negative",
+      "prefix": 80,
+      "genre": "waltz",
+      "excerpts": 36,
+      "baseline_app_correct": 35,
+      "candidate_app_correct": 35,
+      "baseline_called_kundiman": 1,
+      "candidate_called_kundiman": 1
+    },
+    {
+      "split": "external_negative",
+      "prefix": 320,
+      "genre": "jazz",
+      "excerpts": 50,
+      "baseline_app_correct": 50,
+      "candidate_app_correct": 50,
+      "baseline_called_kundiman": 0,
+      "candidate_called_kundiman": 0
+    },
+    {
+      "split": "external_negative",
+      "prefix": 320,
+      "genre": "other",
+      "excerpts": 623,
+      "baseline_app_correct": null,
+      "candidate_app_correct": null,
+      "baseline_called_kundiman": 0,
+      "candidate_called_kundiman": 0
+    },
+    {
+      "split": "external_negative",
+      "prefix": 320,
+      "genre": "waltz",
+      "excerpts": 36,
+      "baseline_app_correct": 36,
+      "candidate_app_correct": 36,
+      "baseline_called_kundiman": 0,
+      "candidate_called_kundiman": 0
+    },
+    {
+      "split": "fresh_test",
+      "prefix": 40,
+      "genre": "kundiman",
+      "excerpts": 1,
+      "baseline_app_correct": 1,
+      "candidate_app_correct": 1,
+      "baseline_called_kundiman": 1,
+      "candidate_called_kundiman": 1
+    },
+    {
+      "split": "fresh_test",
+      "prefix": 80,
+      "genre": "kundiman",
+      "excerpts": 1,
+      "baseline_app_correct": 1,
+      "candidate_app_correct": 1,
+      "baseline_called_kundiman": 1,
+      "candidate_called_kundiman": 1
+    },
+    {
+      "split": "fresh_test",
+      "prefix": 320,
+      "genre": "kundiman",
+      "excerpts": 1,
+      "baseline_app_correct": 1,
+      "candidate_app_correct": 1,
+      "baseline_called_kundiman": 1,
+      "candidate_called_kundiman": 1
+    },
+    {
+      "split": "known_training",
+      "prefix": 40,
+      "genre": "kundiman",
+      "excerpts": 14,
+      "baseline_app_correct": 11,
+      "candidate_app_correct": 9,
+      "baseline_called_kundiman": 11,
+      "candidate_called_kundiman": 9
+    },
+    {
+      "split": "known_training",
+      "prefix": 80,
+      "genre": "kundiman",
+      "excerpts": 14,
+      "baseline_app_correct": 13,
+      "candidate_app_correct": 11,
+      "baseline_called_kundiman": 13,
+      "candidate_called_kundiman": 11
+    },
+    {
+      "split": "known_training",
+      "prefix": 320,
+      "genre": "kundiman",
+      "excerpts": 14,
+      "baseline_app_correct": 14,
+      "candidate_app_correct": 14,
+      "baseline_called_kundiman": 14,
+      "candidate_called_kundiman": 14
+    },
+    {
+      "split": "new_train",
+      "prefix": 40,
+      "genre": "kundiman",
+      "excerpts": 1,
+      "baseline_app_correct": 1,
+      "candidate_app_correct": 1,
+      "baseline_called_kundiman": 1,
+      "candidate_called_kundiman": 1
+    },
+    {
+      "split": "new_train",
+      "prefix": 80,
+      "genre": "kundiman",
+      "excerpts": 1,
+      "baseline_app_correct": 1,
+      "candidate_app_correct": 1,
+      "baseline_called_kundiman": 1,
+      "candidate_called_kundiman": 1
+    },
+    {
+      "split": "new_train",
+      "prefix": 320,
+      "genre": "kundiman",
+      "excerpts": 1,
+      "baseline_app_correct": 1,
+      "candidate_app_correct": 1,
+      "baseline_called_kundiman": 1,
+      "candidate_called_kundiman": 1
+    },
+    {
+      "split": "test",
+      "prefix": 40,
+      "genre": "jazz",
+      "excerpts": 182,
+      "baseline_app_correct": 171,
+      "candidate_app_correct": 171,
+      "baseline_called_kundiman": 0,
+      "candidate_called_kundiman": 0
+    },
+    {
+      "split": "test",
+      "prefix": 40,
+      "genre": "other",
+      "excerpts": 440,
+      "baseline_app_correct": null,
+      "candidate_app_correct": null,
+      "baseline_called_kundiman": 0,
+      "candidate_called_kundiman": 0
+    },
+    {
+      "split": "test",
+      "prefix": 40,
+      "genre": "waltz",
+      "excerpts": 281,
+      "baseline_app_correct": 263,
+      "candidate_app_correct": 271,
+      "baseline_called_kundiman": 13,
+      "candidate_called_kundiman": 6
+    },
+    {
+      "split": "test",
+      "prefix": 80,
+      "genre": "jazz",
+      "excerpts": 182,
+      "baseline_app_correct": 174,
+      "candidate_app_correct": 174,
+      "baseline_called_kundiman": 0,
+      "candidate_called_kundiman": 0
+    },
+    {
+      "split": "test",
+      "prefix": 80,
+      "genre": "other",
+      "excerpts": 440,
+      "baseline_app_correct": null,
+      "candidate_app_correct": null,
+      "baseline_called_kundiman": 0,
+      "candidate_called_kundiman": 0
+    },
+    {
+      "split": "test",
+      "prefix": 80,
+      "genre": "waltz",
+      "excerpts": 281,
+      "baseline_app_correct": 269,
+      "candidate_app_correct": 273,
+      "baseline_called_kundiman": 7,
+      "candidate_called_kundiman": 3
+    },
+    {
+      "split": "test",
+      "prefix": 320,
+      "genre": "jazz",
+      "excerpts": 182,
+      "baseline_app_correct": 176,
+      "candidate_app_correct": 176,
+      "baseline_called_kundiman": 0,
+      "candidate_called_kundiman": 0
+    },
+    {
+      "split": "test",
+      "prefix": 320,
+      "genre": "other",
+      "excerpts": 440,
+      "baseline_app_correct": null,
+      "candidate_app_correct": null,
+      "baseline_called_kundiman": 0,
+      "candidate_called_kundiman": 0
+    },
+    {
+      "split": "test",
+      "prefix": 320,
+      "genre": "waltz",
+      "excerpts": 281,
+      "baseline_app_correct": 272,
+      "candidate_app_correct": 274,
+      "baseline_called_kundiman": 4,
+      "candidate_called_kundiman": 2
+    },
+    {
+      "split": "valid",
+      "prefix": 40,
+      "genre": "jazz",
+      "excerpts": 202,
+      "baseline_app_correct": 189,
+      "candidate_app_correct": 189,
+      "baseline_called_kundiman": 1,
+      "candidate_called_kundiman": 1
+    },
+    {
+      "split": "valid",
+      "prefix": 40,
+      "genre": "kundiman",
+      "excerpts": 4,
+      "baseline_app_correct": 4,
+      "candidate_app_correct": 4,
+      "baseline_called_kundiman": 4,
+      "candidate_called_kundiman": 4
+    },
+    {
+      "split": "valid",
+      "prefix": 40,
+      "genre": "other",
+      "excerpts": 460,
+      "baseline_app_correct": null,
+      "candidate_app_correct": null,
+      "baseline_called_kundiman": 1,
+      "candidate_called_kundiman": 0
+    },
+    {
+      "split": "valid",
+      "prefix": 40,
+      "genre": "waltz",
+      "excerpts": 285,
+      "baseline_app_correct": 276,
+      "candidate_app_correct": 279,
+      "baseline_called_kundiman": 7,
+      "candidate_called_kundiman": 4
+    },
+    {
+      "split": "valid",
+      "prefix": 80,
+      "genre": "jazz",
+      "excerpts": 202,
+      "baseline_app_correct": 190,
+      "candidate_app_correct": 190,
+      "baseline_called_kundiman": 1,
+      "candidate_called_kundiman": 1
+    },
+    {
+      "split": "valid",
+      "prefix": 80,
+      "genre": "kundiman",
+      "excerpts": 4,
+      "baseline_app_correct": 4,
+      "candidate_app_correct": 4,
+      "baseline_called_kundiman": 4,
+      "candidate_called_kundiman": 4
+    },
+    {
+      "split": "valid",
+      "prefix": 80,
+      "genre": "other",
+      "excerpts": 460,
+      "baseline_app_correct": null,
+      "candidate_app_correct": null,
+      "baseline_called_kundiman": 0,
+      "candidate_called_kundiman": 0
+    },
+    {
+      "split": "valid",
+      "prefix": 80,
+      "genre": "waltz",
+      "excerpts": 285,
+      "baseline_app_correct": 281,
+      "candidate_app_correct": 282,
+      "baseline_called_kundiman": 2,
+      "candidate_called_kundiman": 1
+    },
+    {
+      "split": "valid",
+      "prefix": 320,
+      "genre": "jazz",
+      "excerpts": 202,
+      "baseline_app_correct": 192,
+      "candidate_app_correct": 192,
+      "baseline_called_kundiman": 1,
+      "candidate_called_kundiman": 1
+    },
+    {
+      "split": "valid",
+      "prefix": 320,
+      "genre": "kundiman",
+      "excerpts": 4,
+      "baseline_app_correct": 4,
+      "candidate_app_correct": 4,
+      "baseline_called_kundiman": 4,
+      "candidate_called_kundiman": 4
+    },
+    {
+      "split": "valid",
+      "prefix": 320,
+      "genre": "other",
+      "excerpts": 460,
+      "baseline_app_correct": null,
+      "candidate_app_correct": null,
+      "baseline_called_kundiman": 0,
+      "candidate_called_kundiman": 0
+    },
+    {
+      "split": "valid",
+      "prefix": 320,
+      "genre": "waltz",
+      "excerpts": 285,
+      "baseline_app_correct": 281,
+      "candidate_app_correct": 282,
+      "baseline_called_kundiman": 1,
+      "candidate_called_kundiman": 0
+    }
+  ],
+  "baseline_runtime_parity": {
+    "checked": 99,
+    "max_absolute_error": 1.4901161193847656e-07
+  },
+  "export_full_corpus_check": {
+    "excerpts": 2579,
+    "prefixes": 7737,
+    "display_labels_match_torch": true
+  }
+}
