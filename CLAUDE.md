@@ -55,7 +55,9 @@ Unassigned body accidentals now stay as photo-linked review evidence: select a
 note to assign the mark, or ignore it explicitly; decisions and correction
 history travel with the saved project. No musical note changes automatically.
 Review’s Previous/Next selection now follows the selected note or rest horizontally
-in wide bar previews; manual panning remains available.
+in wide bar previews; manual panning remains available. Short review bars now
+fit the available width using their own engraving density; dense bars retain
+readable spacing and scroll when needed.
 Remaining misclassified/missing-symbol and staff/barline geometry failures are recorded in
 `EDITOR_PARITY.md`; full parity stays queued.
 Each app change still needs
@@ -833,6 +835,41 @@ returned to Home; both temporary helpers removed. Facts:
 `/tmp/note-vision-review-navigation-2037/phone/qa-facts.json`.
 Tested APK SHA-256:
 `227d6b7cb9c930bf2fb41554cf81ae23e92997aadfa368fea871a306a07729ca`.
+No model/cutoff change, iOS test or new subjective-listening claim. Full parity
+remains queued.
+
+**Fit current review bar — 2026-11-09 / release 2038:** previews now use the
+current staff/bar’s own inherited context and engraving minimum, filling the
+available viewport when there is room. Unrelated dense bars/staves no longer
+force short passages to scroll. Dense bars retain the shared minimum spacing
+and horizontal scrolling; no glyph/staff scaling. Selection following uses the
+same resolved width; resize, reflow, manual pan and bar/staff changes remain
+supported. Cached single-bar layout is invalidated by immutable score changes.
+
+**13 new regressions** cover short/dense cases, four viewport/text sizes,
+unrelated-density isolation, resize/scroll transitions, inherited clef/key/meter,
+bar switching, score corrections, empty/single-note bars, tapping and unchanged
+photo/decision evidence. The short-bar test fails on the previous implementation.
+Analysis clean; full **1,298 passed** with concurrency 2. Evidence:
+`/tmp/note-vision-review-fit-2038/`. No detector/cutoff, musical model, playback
+or export change. Full parity remains queued; dense-row zoom and extreme-ledger
+vertical following remain future work.
+
+Realme **2038** passed on **NVMarkDense2035**. Row 1/bar 3’s clef, key,
+accidentals and all four notes now fit together without sideways scrolling;
+selecting the last E4 keeps the whole bar visible. The twelve-symbol row 3/bar 3
+retains readable notation and scrolls to later selections. Manual pan/refollow,
+landscape/portrait and **1.8x text** were visually checked; selection is retained.
+No musical correction or new review decision was made. Post-navigation and
+cold-reopen MusicXML are byte-identical to the pre-update baseline; the original
+correction history remains intact. All **51 projects** retained, no new projects.
+Three XML exports archived/checksummed in `Download/NoteVisionQA2038/`.
+**406 retained app log lines**, no Flutter/crash/overflow/save errors. A stale
+post-install activity wait remained behind Launcher without app crash errors;
+a fresh activity task resumed QA. Original font/rotation/Home restored;
+temporary helper removed. Facts: `/tmp/note-vision-review-fit-2038/phone/qa-facts.json`.
+Tested APK SHA-256:
+`b81f3c4de5d4d537a5cf6b145eabda624189a62ff78446e87a5945398cfd9704`.
 No model/cutoff change, iOS test or new subjective-listening claim. Full parity
 remains queued.
 

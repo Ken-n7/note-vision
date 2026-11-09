@@ -68,10 +68,6 @@ class ReviewBarEditor extends StatelessWidget {
     final selected = selectedSymbol == null
         ? null
         : bar.symbols.elementAtOrNull(selectedSymbol!);
-    final width = math.max(
-      280.0,
-      EngravingLayout.forScore(score).minimumBarWidth + 110,
-    );
     final clefs = <Clef>{
       ?clef,
       const Clef(sign: 'G', line: 2),
@@ -109,7 +105,6 @@ class ReviewBarEditor extends StatelessWidget {
             part: part,
             measure: measure,
             selectedSymbol: selectedSymbol,
-            minMeasureWidth: width,
             onSelect: onSelect,
             canEdit: canEdit,
           ),
@@ -376,7 +371,6 @@ class _ReviewBarPreview extends StatefulWidget {
     required this.part,
     required this.measure,
     required this.selectedSymbol,
-    required this.minMeasureWidth,
     required this.onSelect,
     required this.canEdit,
   });
@@ -384,7 +378,6 @@ class _ReviewBarPreview extends StatefulWidget {
   final Score score;
   final int part, measure;
   final int? selectedSymbol;
-  final double minMeasureWidth;
   final ValueChanged<int?> onSelect;
   final bool canEdit;
 
@@ -397,6 +390,10 @@ class _ReviewBarPreviewState extends State<_ReviewBarPreview> {
   (Score, int?, double, double)? _lastRequest;
   bool _revealScheduled = false;
   Score? _sourceScore, _previewScore;
+  EngravingLayout? _barEngraving;
+  double _measureWidth = 0;
+  static const _padding = EdgeInsets.all(12);
+  static const _rowHeight = 145.0;
 
   Score get _score {
     if (!identical(_sourceScore, widget.score)) {
@@ -404,9 +401,34 @@ class _ReviewBarPreviewState extends State<_ReviewBarPreview> {
       _previewScore = widget.score.copyWith(
         parts: [widget.score.parts[widget.part]],
       );
+      _barEngraving = null;
     }
     return _previewScore!;
   }
+
+  EngravingLayout get _engraving {
+    final score = _score;
+    return _barEngraving ??= EngravingLayout(
+      [
+        sliceMeasuresWithInheritedMetadata(
+          measures: score.parts.single.measures,
+          firstMeasureIndex: widget.measure,
+          pageMeasureCount: 1,
+        ),
+      ],
+      score: score,
+      firstMeasure: widget.measure,
+    );
+  }
+
+  NotationLayout _layout(double width) =>
+      const NotationLayoutCalculator().calculate(
+        measures: _engraving.parts.single,
+        measuresPerRow: 1,
+        minMeasureWidth: width,
+        rowHeight: _rowHeight,
+        padding: _padding,
+      );
 
   @override
   void dispose() {
@@ -427,28 +449,12 @@ class _ReviewBarPreviewState extends State<_ReviewBarPreview> {
       final index = widget.selectedSymbol;
       final bar = widget.score.parts[widget.part].measures[widget.measure];
       if (index == null || index < 0 || index >= bar.symbols.length) return;
-      final measures = sliceMeasuresWithInheritedMetadata(
-        measures: _score.parts.single.measures,
-        firstMeasureIndex: widget.measure,
-        pageMeasureCount: 1,
-      );
-      final layout = const NotationLayoutCalculator().calculate(
-        measures: measures,
-        measuresPerRow: 1,
-        minMeasureWidth: widget.minMeasureWidth,
-        rowHeight: 145,
-        padding: const EdgeInsets.all(12),
-      );
-      final engraving = EngravingLayout(
-        [measures],
-        score: _score,
-        firstMeasure: widget.measure,
-      );
+      final layout = _layout(_measureWidth);
       final x =
-          12 +
+          _padding.left +
           layout.rowPrefixWidth +
-          engraving
-              .place(0, widget.minMeasureWidth, 1, layout.rowPrefixWidth)
+          _engraving
+              .place(0, _measureWidth, 1, layout.rowPrefixWidth)
               .symbolX(0, index);
       if (!x.isFinite) return;
       final position = _scroll.position;
@@ -470,10 +476,20 @@ class _ReviewBarPreviewState extends State<_ReviewBarPreview> {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
+      final minimum = _engraving.minimumBarWidth;
+      final prefix = _layout(minimum).rowPrefixWidth;
+      // Keep the shared engraving minimum; use the rest of the viewport when
+      // this bar fits. Other bars/staves must not stretch this preview.
+      _measureWidth = math.max(
+        minimum,
+        constraints.hasBoundedWidth
+            ? constraints.maxWidth - _padding.horizontal - prefix
+            : minimum,
+      );
       final request = (
         widget.score,
         widget.selectedSymbol,
-        widget.minMeasureWidth,
+        _measureWidth,
         constraints.maxWidth,
       );
       if (_lastRequest != request) {
@@ -488,9 +504,9 @@ class _ReviewBarPreviewState extends State<_ReviewBarPreview> {
           firstMeasureIndex: widget.measure,
           pageMeasureCount: 1,
           measuresPerRow: 1,
-          minMeasureWidth: widget.minMeasureWidth,
-          rowHeight: 145,
-          padding: const EdgeInsets.all(12),
+          minMeasureWidth: _measureWidth,
+          rowHeight: _rowHeight,
+          padding: _padding,
           backgroundColor: Colors.white,
           selectedPartIndex: 0,
           selectedMeasureIndex: 0,

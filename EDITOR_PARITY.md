@@ -1093,6 +1093,45 @@ This changes work order, not the full-parity objective or acceptance criteria.
   vertical following for extreme ledger notes, or different review-bar zoom.
   Model/cutoffs and full MuseScore parity scope remain unchanged.
 
+
+## App follow-up — fit the current review bar (2026-11-09)
+
+- Review sizes its preview from the current staff/bar’s inherited context and
+  shared engraving minimum. Unrelated dense bars or staves no longer stretch
+  short passages beyond the preview viewport.
+- Short bars use the available width including the row prefix and paper
+  padding. Dense bars keep their engraving minimum and horizontal scrolling;
+  glyphs/staff spacing are not scaled down. The same resolved width drives
+  rendering and selection following, including resize and score reflow.
+- The preview caches its single-bar engraving by immutable score context.
+  Note selection, manual panning, initial selection and bar/staff resets keep
+  their existing behavior. Photo evidence, review decisions, saved score data,
+  playback, exports, detector and confidence cutoffs are unchanged.
+- **13 new regressions** cover short bars beside dense bars/staves, four
+  viewport/text sizes, independence from unrelated density, readable dense
+  spacing, resize between fitting/scrolling, bar switching, inherited clef/key/
+  meter, current-bar edits, empty/single-note cases, tapping and photo evidence.
+  The short-bar regression fails on the previous implementation. Analysis
+  clean; full **1,298 passed** with concurrency 2. Evidence:
+  `/tmp/note-vision-review-fit-2038/`.
+- **Realme release 2038 passed:** the saved dense scan’s four-note row 1/bar 3
+  fits its clef/key/accidentals and all notes together, including the selected
+  last E4. The twelve-symbol row 3/bar 3 keeps readable spacing and scrolls to
+  later notes. Manual pan/refollow, rotation and **1.8x text** visually checked.
+  No musical correction or review decision was added; post-navigation and cold
+  XML are byte-identical to the pre-update baseline, with original history intact.
+- **51 projects retained; no new projects.** Three XML files archived and
+  checksummed in `Download/NoteVisionQA2038/`. **406 retained app log lines**,
+  no app errors. A stale post-install shell activity wait was retried with a
+  fresh task; original font/rotation/Home restored and helper removed. No iOS
+  or new listening claim; model/cutoffs unchanged. Facts:
+  `/tmp/note-vision-review-fit-2038/phone/qa-facts.json`.
+  Tested APK SHA-256:
+  `b81f3c4de5d4d537a5cf6b145eabda624189a62ff78446e87a5945398cfd9704`.
+- Not yet: shrinking an entire dense row to one screen, preview zoom controls
+  or automatic vertical following for extreme ledger notes. Full MuseScore
+  parity remains queued.
+
 ## Reference and implementation policy
 
 Use the [MuseScore Studio handbook](https://handbook.musescore.org/llms.txt) as the
