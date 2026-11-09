@@ -66,6 +66,7 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
   int _comparisonIndex = 0;
   final ScrollController _scroll = ScrollController();
   final GlobalKey _scanKey = GlobalKey();
+  final GlobalKey _barEditorKey = GlobalKey(debugLabel: 'Review bar editor');
 
   @override
   void didUpdateWidget(covariant NotationReviewPanel oldWidget) {
@@ -468,6 +469,7 @@ class _NotationReviewPanelState extends State<NotationReviewPanel> {
         const SizedBox(height: 10),
         if (_plan == null)
           ReviewBarEditor(
+            key: _barEditorKey,
             score: widget.score,
             part: issue.partIndex,
             measure: issue.measureIndex,

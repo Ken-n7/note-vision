@@ -361,7 +361,7 @@ class ReviewBarEditor extends StatelessWidget {
   }
 }
 
-/// Owns horizontal navigation separately from the review sheet's vertical scroll.
+/// Owns preview zoom and panning separately from the review sheet's scroll.
 class _ReviewBarPreview extends StatefulWidget {
   const _ReviewBarPreview({
     super.key,
@@ -386,7 +386,7 @@ class _ReviewBarPreview extends StatefulWidget {
 class _ReviewBarPreviewState extends State<_ReviewBarPreview> {
   final _scroll = ScrollController();
   final _verticalScroll = ScrollController();
-  (Score, int?, double, double, double)? _lastRequest;
+  (Score, int?, double, double, double, double)? _lastRequest;
   bool _revealScheduled = false;
   bool _revealDefault = false;
   Score? _sourceScore, _previewScore;
@@ -394,8 +394,18 @@ class _ReviewBarPreviewState extends State<_ReviewBarPreview> {
   NotationVerticalLayout? _vertical;
   double _measureWidth = 0;
   double _viewportHeight = 0;
+  double _zoom = 1, _resolvedZoom = 1, _fitZoom = 1;
+  bool _fitBar = false;
   static const _padding = EdgeInsets.all(12);
   static const _rowHeight = 145.0;
+
+  double get _minimumZoom => math.min(.25, _fitZoom);
+
+  void _setZoom(double? value) => setState(() {
+    _fitBar = value == null;
+    if (value != null) _zoom = value.clamp(_minimumZoom, 3.0);
+    _lastRequest = null;
+  });
 
   Score get _score {
     if (!identical(_sourceScore, widget.score)) {
@@ -480,15 +490,19 @@ class _ReviewBarPreviewState extends State<_ReviewBarPreview> {
       if (target != null && widget.selectedSymbol != null) {
         _revealAxis(
           _scroll,
-          target.hitRect.left - 20,
-          target.hitRect.right + 20,
+          target.hitRect.left * _resolvedZoom - 20,
+          target.hitRect.right * _resolvedZoom + 20,
         );
       }
       // Include stems/ledger lines around the head, matching actual tap geometry.
       final region =
           target?.hitRect ??
           Rect.fromLTWH(0, _verticalLayout.padding.top + 28, 0, 48);
-      _revealAxis(_verticalScroll, region.top - 32, region.bottom + 32);
+      _revealAxis(
+        _verticalScroll,
+        region.top * _resolvedZoom - 32,
+        region.bottom * _resolvedZoom + 32,
+      );
     });
   }
 
@@ -526,13 +540,25 @@ class _ReviewBarPreviewState extends State<_ReviewBarPreview> {
             : minimum,
       );
       final layout = _layout(_measureWidth);
-      _viewportHeight = layout.size.height.clamp(155.0, 240.0);
+      _fitZoom = math.min(
+        1.0,
+        math.min(
+          constraints.hasBoundedWidth
+              ? constraints.maxWidth / layout.size.width
+              : 1.0,
+          240 / layout.size.height,
+        ),
+      );
+      _resolvedZoom = _fitBar ? _fitZoom : _zoom;
+      final canvasSize = layout.size * _resolvedZoom;
+      _viewportHeight = canvasSize.height.clamp(155.0, 240.0);
       final request = (
         widget.score,
         widget.selectedSymbol,
         _measureWidth,
         constraints.maxWidth,
         _viewportHeight,
+        _resolvedZoom,
       );
       if (_lastRequest != request) {
         _revealDefault =
@@ -540,41 +566,113 @@ class _ReviewBarPreviewState extends State<_ReviewBarPreview> {
         _lastRequest = request;
         _scheduleReveal();
       }
-      return Scrollbar(
+      final preview = Scrollbar(
         controller: _verticalScroll,
-        thumbVisibility: layout.size.height > _viewportHeight,
+        thumbVisibility: canvasSize.height > _viewportHeight,
         notificationPredicate: (notification) =>
             notification.metrics.axis == Axis.vertical,
-        child: SizedBox(
-          height: _viewportHeight,
-          child: SingleChildScrollView(
-            controller: _scroll,
-            scrollDirection: Axis.horizontal,
-            child: SizedBox(
-              width: layout.size.width,
-              height: _viewportHeight,
-              child: SingleChildScrollView(
-                controller: _verticalScroll,
-                child: ScoreNotationViewer(
-                  score: _score,
-                  firstMeasureIndex: widget.measure,
-                  pageMeasureCount: 1,
-                  measuresPerRow: 1,
-                  minMeasureWidth: _measureWidth,
-                  rowHeight: _rowHeight,
-                  padding: _padding,
-                  backgroundColor: Colors.white,
-                  selectedPartIndex: 0,
-                  selectedMeasureIndex: 0,
-                  selectedSymbolIndex: widget.selectedSymbol,
-                  onSymbolTap: widget.canEdit
-                      ? (target) => widget.onSelect(target?.symbolIndex)
-                      : null,
+        child: ColoredBox(
+          color: Colors.white,
+          child: SizedBox(
+            height: _viewportHeight,
+            child: SingleChildScrollView(
+              controller: _scroll,
+              scrollDirection: Axis.horizontal,
+              child: SizedBox(
+                width: math.max(
+                  canvasSize.width,
+                  constraints.hasBoundedWidth ? constraints.maxWidth : 0,
+                ),
+                height: _viewportHeight,
+                child: SingleChildScrollView(
+                  controller: _verticalScroll,
+                  child: Align(
+                    alignment: Alignment.topLeft,
+                    child: SizedBox(
+                      width: canvasSize.width,
+                      height: canvasSize.height,
+                      child: FittedBox(
+                        alignment: Alignment.topLeft,
+                        child: SizedBox(
+                          width: layout.size.width,
+                          height: layout.size.height,
+                          child: ScoreNotationViewer(
+                            score: _score,
+                            firstMeasureIndex: widget.measure,
+                            pageMeasureCount: 1,
+                            measuresPerRow: 1,
+                            minMeasureWidth: _measureWidth,
+                            rowHeight: _rowHeight,
+                            padding: _padding,
+                            backgroundColor: Colors.white,
+                            selectedPartIndex: 0,
+                            selectedMeasureIndex: 0,
+                            selectedSymbolIndex: widget.selectedSymbol,
+                            onSymbolTap: widget.canEdit
+                                ? (target) =>
+                                      widget.onSelect(target?.symbolIndex)
+                                : null,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
         ),
+      );
+      final percent = _resolvedZoom * 100;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              IconButton(
+                tooltip: 'Review zoom out',
+                onPressed: _resolvedZoom <= _minimumZoom + .000001
+                    ? null
+                    : () => _setZoom(_resolvedZoom / 1.25),
+                icon: const Icon(Icons.remove),
+              ),
+              Tooltip(
+                message: 'Reset review zoom to 100%',
+                child: TextButton(
+                  onPressed: () => _setZoom(1),
+                  child: Text(
+                    '${percent < 10 ? percent.toStringAsFixed(1) : percent.round()}%',
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Review zoom in',
+                onPressed: _resolvedZoom >= 3
+                    ? null
+                    : () => _setZoom(_resolvedZoom * 1.25),
+                icon: const Icon(Icons.add),
+              ),
+              Semantics(
+                selected: _fitBar,
+                child: TextButton.icon(
+                  onPressed: () => _setZoom(null),
+                  style: _fitBar
+                      ? TextButton.styleFrom(
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: .12),
+                        )
+                      : null,
+                  icon: const Icon(Icons.fit_screen),
+                  label: const Text('Fit bar'),
+                ),
+              ),
+            ],
+          ),
+          preview,
+        ],
       );
     },
   );

@@ -60,6 +60,8 @@ fit the available width using their own engraving density; dense bars retain
 readable spacing and scroll when needed.
 High and low ledger notes now follow selection vertically too; the bounded
 preview can be panned vertically without reducing notation size.
+Review also offers Fit bar, zoom in/out and a percentage button to restore
+100%; zooming follows selection without changing the score or photo evidence.
 Remaining misclassified/missing-symbol and staff/barline geometry failures are recorded in
 `EDITOR_PARITY.md`; full parity stays queued.
 Each app change still needs
@@ -909,6 +911,46 @@ root). Facts: `/tmp/note-vision-review-vertical-2039/phone/qa-facts.json`.
 Tested APK SHA-256:
 `83de989f8e54d1b12f8b2aa80e5af3bbac30d0a5b66183a8adf7671923c50bf2`.
 No iOS test or new listening claim. Full parity remains queued.
+
+**Review preview zoom — 2026-11-09 / release 2041:** Review offers zoom out/in,
+Fit bar and a percentage button restoring 100%. Default notation stays at
+100%; Fit bar scales the complete preview into its width and bounded height,
+including dense bars and extreme ledger notes. Manual zoom runs from 25% to
+300%, permitting a smaller minimum when Fit requires it. Selection follows
+both axes at the scaled coordinates; scaled taps still select the right symbol.
+Controls wrap for narrow/larger-text layouts. Fit recomputes on resize/edits;
+manual percentages survive selection, score edits and rotation. Changing
+bar/staff resets zoom. Manual panning, original photo and review/score data
+remain intact. Pinch zoom and remembering zoom after leaving a bar are future
+work; full MuseScore parity remains queued.
+
+**16 new regressions; 58 focused passed**, analysis clean; full **1,327 passed**
+with concurrency 2 after the rotation fix. Tests cover actual enlargement,
+fitting/tapping every dense
+bar symbol, ledger following, four viewport/text sizes, resize, manual pan/reset,
+bar/staff switches, score edits, read-only/empty zoom limits and unchanged
+photo/decision/score evidence. Evidence: `/tmp/note-vision-review-zoom-2041/`.
+Partial Realme build **2040** caught zoom resetting from 125% to 100% when
+rotation switched the panel's compact layout. A regression reproduces the
+failure; the panel now retains its bar editor subtree with a GlobalKey.
+
+Realme **2041 passed** on **NVMarkDense2035** and **NVLedger2039**. The
+twelve-symbol row 3/bar 3 fits at **88%**; tapping its last G4 selects the
+correct symbol, and reset/enlargement keeps it visible at **100%/125%**.
+Fit remains active through **88% portrait → 66% landscape → 88% portrait**.
+C1/C8 follow at **125%**, retained across rotation and **1.8x text**;
+the whole ledger range fits at **51%**. No musical correction or review decision
+was added. Both projects' post-navigation and cold-reopen XML are byte-identical
+to their pre-update baselines. **52 projects retained; no new projects.**
+Six verified XML files are in `Download/NoteVisionQA2041/`; three partial-build
+baseline/check files are separately in `Download/NoteVisionQA2040/`.
+**53 retained app log lines**, no recorded Flutter/crash/overflow/save errors.
+A post-install activity wait needed a saved-app restart. Original font,
+rotation, timeout and charging keep-awake settings restored; phone at Home;
+temporary helpers removed. Facts: `/tmp/note-vision-review-zoom-2041/phone/qa-facts.json`.
+Tested APK SHA-256:
+`eb9d8538b49cb4db3002479196cbe8189f38f02462870d37019fefce5a8e34b2`.
+No model/cutoff change, iOS test or new listening claim. Full parity remains queued.
 
 **Phone QA photos:** user authorized dataset reads from
 `/home/ken/Workspace/note-vision-data`. `tool/android_qa_images.py --serial
