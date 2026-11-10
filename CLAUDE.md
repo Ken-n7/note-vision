@@ -65,10 +65,18 @@ Review also offers Fit bar, zoom in/out and a percentage button to restore
 Genre training can now run locally on the Ryzen CPU using `tool/genre/`:
 exact mobile-window benchmarking, frozen work partitions, label-conflict
 quarantine, bounded fine-tuning, validation-only calibration and LiteRT export.
-Two attributed real Kundiman excerpts were added: Sa Silong ng Langit for
-training and an anonymous historical Kundiman reserved for testing. The new
-corpus has 15 training works, four validation works and one fresh test work;
-these are excerpts, not full-song transcriptions. Thirteen PDMX work IDs with
+The first trial added Sa Silong ng Langit for training and an anonymous
+historical Kundiman for testing (15 training / 4 validation / 1 fresh test).
+The November 10 source collection adds Kung Hindi Man and Jocelynang Baliwag
+for training, and Bituing Marikit for fresh testing: **17 / 4 / 2** real works.
+These are excerpts, not full-song transcriptions. Source provenance, PDF hashes,
+bar/event counts and genre evidence are in `tool/genre/data/manifest.json`;
+pending/ambiguous/duplicate leads stay separate in `research_leads.json`.
+Bituing retains its printed 2/4 and exact triplets; source-based tests protect
+chromatic pitches and ties. Related melody groups cannot cross partitions.
+Use `prepare.py --through 2026-11-09` to reproduce the first trial's note lists
+and frozen partitions; the new three works have not been used in training.
+Thirteen PDMX work IDs with
 contradictory Jazz/Waltz labels are quarantined without modifying source data.
 The trial weights were not promoted: stronger Kundiman sampling increased
 false Kundiman labels, while calibration reduced short-Kundiman recognition.

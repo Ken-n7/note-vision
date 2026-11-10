@@ -1,0 +1,94 @@
+{
+  "reviewed_on": "2026-11-10",
+  "accepted_manifest": "manifest.json",
+  "newly_accepted": [
+    "kundiman_kung_hindi_man",
+    "kundiman_jocelynang_baliwag",
+    "kundiman_bituing_marikit"
+  ],
+  "pending": [
+    {
+      "title": "Cundiman from Ang Pagcacatiuala (1902)",
+      "source": "https://asset.library.wisc.edu/1711.dl/NPUGSNNBQOLWU84/R/file-1109e.pdf",
+      "pages": "Printed 57-58 / PDF 69-70, Example 2 upper staff",
+      "status": "pending_source_attribution_and_rights",
+      "attribution": "The thesis attributes the zarzuela score to F. Marin and Leon Ignacio; the original manuscript is at Sibley Music Library.",
+      "group_id": "kundiman_jocelynang_pagcacatiuala_family",
+      "reason": "Original manuscript attribution/publication and edition rights have not been independently confirmed. Excluded from prepared data. If admitted later, keep it with the related Jocelynang Baliwag melody."
+    },
+    {
+      "title": "Condiman / Tagalian Merriness (Novara expedition)",
+      "source": "https://www.univie.ac.at/Voelkerkunde/apsis/aufi/aurel/novara/nov1340.htm",
+      "evidence": "https://api.research-repository.uwa.edu.au/ws/portalfiles/portal/220617505/TCR_12_12_1_LACUNA.pdf",
+      "status": "referenced_university_score_page_returns_404",
+      "reason": "A historical lead, not an acquired/verified transcription. The alternative cited condi1.htm page also returns 404. Check the original 1862 book and aliases before counting a new work."
+    },
+    {
+      "title": "Cundiman in La musica popular de Filipinas (1892)",
+      "source": "https://digilib.ust.edu.ph/digital/collection/section5/id/12156/",
+      "status": "library_record_found_notation_not_acquired",
+      "reason": "UST catalogs the historical book; score-page download was not obtained. Confirm the actual tune and aliases before admission."
+    },
+    {
+      "title": "Sakali Man",
+      "source": "https://imslp.org/wiki/Sakali_Man_(Santiago,_Francisco)",
+      "status": "genre_unconfirmed",
+      "reason": "Catalog identifies a Filipino ballad duet. Composer alone does not establish a Kundiman label; no new transcription admitted."
+    },
+    {
+      "title": "Anong Ligaya Ko",
+      "source": "https://imslp.org/wiki/Anong_Ligaya_Ko_(Santiago,_Francisco)",
+      "status": "genre_unconfirmed",
+      "reason": "Catalog identifies a Habanera. Requires work-specific Kundiman evidence; no new transcription admitted."
+    }
+  ],
+  "excluded_or_existing": [
+    {
+      "title": "Kundiman / Cancion Filipina / Anak Dalita",
+      "source": "https://imslp.org/wiki/Kundiman_(Santiago,_Francisco)",
+      "status": "existing_work_alias",
+      "existing_id": "kundiman_anak_dalita",
+      "reason": "Catalog explicitly gives Anak Dalita as an alternative title. Rochester item 926 is the same work; not a new composition."
+    },
+    {
+      "title": "Bulalakaw",
+      "source": "https://imslp.org/wiki/Bulalakaw_(Arco,_Joy_Wendel)",
+      "status": "already_in_original_corpus",
+      "existing_id": "kundiman_bulalakaw"
+    },
+    {
+      "title": "Mutya ng Pasig",
+      "source": "https://imslp.org/wiki/Mutya_ng_Pasig_(Abelardo,_Nicanor)",
+      "status": "ambiguous_genre_not_admitted",
+      "reason": "Available notation says Tempo di Kumintang; do not silently use as a Kundiman positive."
+    },
+    {
+      "title": "Naku...Kenkoy!",
+      "source": "https://scholarworks.iu.edu/dspace/bitstreams/313039f0-edd6-40db-8c84-8c19e6c0ca44/download",
+      "status": "not_admitted",
+      "reason": "Legaspi (2014), printed 66-67 describes a novelty/quasi-ragtime song; sharing an Abelardo score collection is insufficient genre evidence."
+    },
+    {
+      "title": "Kundiman by Silent Sanctuary or BGYO",
+      "status": "title_only_matches_not_admitted",
+      "reason": "Modern pop songs sharing the title do not establish membership in the target classical/folk Kundiman repertoire."
+    }
+  ],
+  "other_catalogs_checked": [
+    {
+      "source": "https://pawchorale.github.io/data/release-manifest.csv",
+      "entries": 200,
+      "result": "No catalog matches for Kundiman, Abelardo, Santiago, Buencamino or Baliwag; large audio archives were not downloaded. This text search is not a complete genre audit."
+    }
+  ],
+  "duplicate_audit": {
+    "method": "16-sounding-note exact pitch-interval and relative-duration matches; invariant to transposition/uniform duration scaling",
+    "matches": [],
+    "limit": "A heuristic over available excerpts, not complete composition-level deduplication."
+  },
+  "notes": [
+    "Full source PDFs remain in ignored project research storage; repository includes melody excerpts and source metadata only.",
+    "No IMSLP CAPTCHA was bypassed. Blocked file pages from the previous investigation were not retried.",
+    "No training run or app-model promotion used these three new works."
+  ]
+}

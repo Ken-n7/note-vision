@@ -7,6 +7,11 @@ def work_id(piece):
     return piece.get('work_id', piece['name'])
 
 
+def partition_id(piece):
+    """Known related melodies share one split even with different work IDs."""
+    return piece.get('group_id', work_id(piece))
+
+
 def conflicting_labels(pieces):
     labels = defaultdict(set)
     for piece in pieces:
@@ -18,7 +23,8 @@ def assert_disjoint(parts):
     seen = {}
     for split, pieces in parts.items():
         for piece in pieces:
-            work = work_id(piece)
-            if work in seen and seen[work] != split:
-                raise ValueError(f'{work} crosses {seen[work]} and {split}')
-            seen[work] = split
+            identities = (('work', work_id(piece)), ('group', partition_id(piece)))
+            for identity in identities:
+                if identity in seen and seen[identity] != split:
+                    raise ValueError(f'{identity[1]} crosses {seen[identity]} and {split}')
+                seen[identity] = split

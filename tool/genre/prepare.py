@@ -2,8 +2,10 @@
 
 import argparse
 from collections import Counter
+from datetime import date
 import hashlib
 import json
+import math
 from pathlib import Path
 import random
 import sys
@@ -16,6 +18,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('data_root', type=Path)
     parser.add_argument('experiment', type=Path)
+    parser.add_argument('--through', type=date.fromisoformat,
+                        help='Use only excerpts curated through YYYY-MM-DD; preserves older experiments')
     args = parser.parse_args()
     sys.path.insert(0, str(args.data_root / 'scripts'))
     import genre_train as legacy
@@ -40,20 +44,35 @@ def main():
         raise ValueError('Repeated source IDs require work-level reconciliation')
     additions = []
     data = Path(__file__).parent / 'data'
-    for filename, name, split_name, source in (
-        ('sa_silong_ng_langit.abc', 'kundiman_sa_silong_ng_langit', 'new_train',
-         'https://imslp.org/wiki/Dakilang_Punglo_(Abelardo,_Nicanor)'),
-        ('kundiman_1800.abc', 'kundiman_kundiman_1800', 'fresh_test',
-         'https://collections.carli.illinois.edu/digital/api/collection/rou_cmct/id/49/download'),
-    ):
-        path = data / filename
+    manifest_path = data / 'manifest.json'
+    manifest = json.loads(manifest_path.read_text())
+    if manifest['schema_version'] != 1:
+        raise ValueError('Unsupported curation manifest version')
+    for record in manifest['pieces']:
+        if args.through and date.fromisoformat(record['added_on']) > args.through:
+            continue
+        if record['split'] not in ('new_train', 'fresh_test'):
+            raise ValueError(f"{record['id']}: unrecognized curated partition")
+        path = data / record['filename']
         score = music21.converter.parse(path, format='abc')
         bars = list(score.parts[0].getElementsByClass(music21.stream.Measure))
-        if any(float(bar.duration.quarterLength) != 3 for bar in bars):
-            raise ValueError(f'{filename}: transcription has an incomplete/overfull bar')
-        additions.append(dict(name=name, work_id=name, genre='kundiman', source=source,
-                              split=split_name, notes=notes_of(score),
+        if any(not math.isclose(float(bar.duration.quarterLength),
+                                float(bar.barDuration.quarterLength), abs_tol=1e-8)
+               for bar in bars):
+            raise ValueError(f'{path.name}: transcription has an incomplete/overfull bar')
+        notes = notes_of(score)
+        if len(bars) != record['bars'] or len(notes) != record['events']:
+            raise ValueError(f'{path.name}: excerpt length changed; review its manifest')
+        additions.append(dict(name=record['id'], work_id=record['id'],
+                              group_id=record.get('group_id', record['id']),
+                              genre='kundiman', source=record['source_url'],
+                              split=record['split'], notes=notes, provenance=record,
                               abc_sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
+    if len({p['name'] for p in additions}) != len(additions):
+        raise ValueError('Repeated curated work IDs')
+    assert_disjoint(dict(
+        train=parts['train'] + [p for p in additions if p['split'] == 'new_train'],
+        valid=parts['valid'], test=parts['test'] + [p for p in additions if p['split'] == 'fresh_test']))
     evaluation = [dict(p, split=label) for label in ('valid', 'test') for p in parts[label]]
     evaluation += [dict(p, split='known_training') for p in parts['train']
                    if p['genre'] == 'kundiman']
@@ -65,10 +84,13 @@ def main():
         ('legacy-split.json', split), ('additions.json', additions),
         ('baseline-corpus.json', evaluation), ('input-hashes.json', inputs),
         ('quarantine.json', quarantine),
+        ('curation.json', dict(manifest_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+                               through=str(args.through) if args.through else None,
+                               included=[p['name'] for p in additions])),
     ):
         write_json(args.experiment / filename, value, compact=True)
     print({name: dict(Counter(p['genre'] for p in ps)) for name, ps in parts.items()})
-    print('New training works: 1; fresh test works: 1 (both excerpts, not complete songs)')
+    print('Curated excerpts:', dict(Counter(p['split'] for p in additions)))
 
 
 if __name__ == '__main__':

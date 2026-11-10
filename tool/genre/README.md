@@ -64,27 +64,58 @@ deduplication remains an audit limitation.
 
 ## Real Kundiman additions
 
-There were 18 real works: 14 training, 4 validation. The additions are **two
-different composition excerpts**, not two full songs or thousands of independent
-examples. Synthetic and augmented windows never count as additional works.
+The original corpus had 18 real works: 14 training, 4 validation. The first
+trial added two excerpts. The November 10 collection adds **three more works**,
+for **17 training / 4 validation / 2 fresh test works**. These are composition
+excerpts, not full songs or thousands of independent examples. Synthetic and
+augmented windows never count as additional works. `data/manifest.json` records
+sources, PDF hashes, notation pages, genre evidence, partitions and excerpt sizes.
 
 | File | Source and attribution | Partition |
 | --- | --- | --- |
 | `data/sa_silong_ng_langit.abc` | Nicanor Abelardo, *Sa Silong ng Langit*, vocal bars 5–19 (15 bars, 55 events). Paul Earvin Bibal's 2021 engraving, IMSLP671053, explicitly titled Kundiman; [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). [Source](https://imslp.org/wiki/Dakilang_Punglo_(Abelardo,_Nicanor)). Melody transcribed; lyrics/accompaniment omitted. | New training work |
 | `data/kundiman_1800.abc` | Anonymous traditional *Kundiman*, first 14 bars (47 sounding events), printed page 28/PDF page 33 in Rodolfo R. Cornejo's 1933 thesis *The Philippines, her native instruments and music*. The source dates the composition to 1800. [Archived primary source](https://collections.carli.illinois.edu/digital/api/collection/rou_cmct/id/49/download). Melody transcribed; no lyrics/accompaniment. | Fresh test work; never sampled |
+| `data/kung_hindi_man.abc` | Abelardo, *Kung Hindi Man*, vocal bars 5–20 (16 bars, 56 events). Joseph David S. Legaspi, *Filipino Diction for Singers* (Indiana University, 2014), printed 70/PDF 79; Kundiman attribution on printed 66. [University source](https://scholarworks.iu.edu/dspace/bitstreams/313039f0-edd6-40db-8c84-8c19e6c0ca44/download). | New training work |
+| `data/jocelynang_baliwag.abc` | Anonymous traditional melody (ca. 1896), first 12 vocal bars (45 events). Isidora Kabigting Miranda, *Dissonant Voices* (Wisconsin-Madison, 2020), Example 2 lower staff, printed 58/PDF 70. [University source](https://asset.library.wisc.edu/1711.dl/NPUGSNNBQOLWU84/R/file-1109e.pdf). | New training work; related 1902 Cundiman must share its partition if later admitted |
+| `data/bituing_marikit.abc` | Abelardo, *Bituing Marikit*, vocal bars 9–24 (16 bars, 53 events). Legaspi (2014), printed 87–88/PDF 96–97, with explicit Kundiman attribution on printed 66. [University source](https://scholarworks.iu.edu/dspace/bitstreams/313039f0-edd6-40db-8c84-8c19e6c0ca44/download). Retains the printed C minor, **2/4** and exact triplets. | Fresh test work; never sampled |
 
-Transcriptions were visually checked and all bars must contain exactly three
-quarter beats. A second independent pitch-by-pitch review is still desirable.
+The modern theses are copyrighted, **not CC licensed**; only the underlying
+historical melody excerpts were transcribed. No thesis prose, lyrics, IPA,
+translations, accompaniment or PDF pages are redistributed. Engraving-specific
+rights are not represented as a blanket license for the theses.
+
+Transcriptions were visually checked and every bar must match its own meter.
+Explicit naturals are repeated in the ABC where the installed parser otherwise
+reverts a repeated note to its key-signature pitch. Source-based pitch, tie and
+triplet tests cover those notes. A second independent pitch-by-pitch review is
+still desirable. The 2/4 repertoire example is deliberate: the existing corpus
+already includes *Ikaw Rin* in 2/4. Never force these pieces into 3/4 to match a
+rule. Report duple-meter examples separately when evaluating genre recognition.
 Do not label a piece Kundiman solely because its composer is Filipino, its title
 contains that word, or it is in minor triple meter. *Mutya ng Pasig* was not added:
 the available score identifies it as Kumintang. Public score pages requiring a
 CAPTCHA were left alone. Large local symbolic collections yielded no additional
 verified Kundiman works. Broader real-work coverage remains necessary.
 
+`data/research_leads.json` separates acquired, pending, ambiguous and duplicate
+sources. Santiago's *Kundiman / Cancion Filipina* is already present as *Anak
+Dalita*. The 1902 *Cundiman* from *Ang Pagcacatiuala* remains a source/rights lead;
+it is not included in model inputs. Known related melodies use a shared
+`group_id`, so different work IDs cannot place them across training/evaluation.
+A transposition/rhythm-scale-invariant 16-note phrase check found no matches
+between the three new excerpts and the prior 20 works; this is a heuristic,
+not proof of complete composition-level deduplication.
+
+To reproduce the first trial's **same note lists and frozen partitions**, add
+`--through 2026-11-09` to `prepare.py`. The default includes all verified
+manifest records. Each run records its manifest hash, cutoff and included IDs
+in `curation.json`. The historical `results.json` describes the first trial;
+the three later works were not used in that rejected experiment.
+
 ## Evaluation and promotion
 
 ```bash
-python3 -B -m unittest discover -s tool/genre -p 'test_*.py' -v
+/usr/bin/python3.12 -B -m unittest discover -s tool/genre -p 'test_*.py' -v
 /usr/bin/python3.12 -B tool/genre/export.py \
   "$GENRE_RUN/candidate_all/genre_lstm.pt" "$GENRE_RUN/baseline-corpus.json"
 /usr/bin/python3.12 -B tool/genre/benchmark.py \
@@ -92,8 +123,10 @@ python3 -B -m unittest discover -s tool/genre -p 'test_*.py' -v
   "$GENRE_RUN/baseline-corpus.json" "$GENRE_RUN/tflite-report.json"
 ```
 
-Standard-library tests cover the existing Dart feature fixture, the mobile cap,
-padding/stride and display gates, plus work-level split and label conflicts.
+Eight standard-library tests cover the existing Dart feature fixture, mobile
+cap, padding/stride and display gates, work/group splits and label conflicts.
+Four additional tests require the documented music21 runtime and verify the
+manifest lengths plus source pitches, accidentals, meter, triplets and ties.
 Export checks tensor shapes and Torch/LiteRT agreement to 1e-4 on up to 128
 prefixes. Benchmark the actual exported model before promotion.
 

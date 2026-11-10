@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "pieces": [
+    {
+      "id": "kundiman_sa_silong_ng_langit",
+      "filename": "sa_silong_ng_langit.abc",
+      "title": "Sa Silong ng Langit",
+      "composer": "Nicanor Abelardo",
+      "source_url": "https://imslp.org/wiki/Dakilang_Punglo_(Abelardo,_Nicanor)",
+      "source_sha256": "77b05056f37df916ea230921fe88c24fa645b79b33c36dbbff26b8730c1b9200",
+      "source_pages": "PDF 2; vocal bars 5-19",
+      "genre_evidence": "Published score explicitly says Kundiman.",
+      "rights_notes": "Underlying Abelardo composition; Paul Earvin Bibal engraving (2021), CC BY 4.0. Attribute both composer and editor.",
+      "split": "new_train",
+      "added_on": "2026-11-09",
+      "bars": 15,
+      "events": 55
+    },
+    {
+      "id": "kundiman_kundiman_1800",
+      "filename": "kundiman_1800.abc",
+      "title": "Kundiman (1800)",
+      "composer": "Traditional, composer unknown",
+      "source_url": "https://collections.carli.illinois.edu/digital/api/collection/rou_cmct/id/49/download",
+      "source_sha256": "ad877a4b18bf72d6914c1c8217e6de1fd710fa0ced396ba653cb5ebe04f5ade6",
+      "source_pages": "Printed 28 / PDF 33; first 14 bars",
+      "genre_evidence": "Rodolfo R. Cornejo (1933) labels the historical notation Kundiman, composed in 1800, composer unknown.",
+      "rights_notes": "Anonymous historical melody; no lyrics, accompaniment or modern arrangement copied.",
+      "split": "fresh_test",
+      "added_on": "2026-11-09",
+      "bars": 14,
+      "events": 47
+    },
+    {
+      "id": "kundiman_kung_hindi_man",
+      "filename": "kung_hindi_man.abc",
+      "title": "Kung Hindi Man",
+      "composer": "Nicanor Abelardo",
+      "source_url": "https://scholarworks.iu.edu/dspace/bitstreams/313039f0-edd6-40db-8c84-8c19e6c0ca44/download",
+      "source_sha256": "b46527f178ec8e909ed08e4091404a91a96970d51b590deeeddcb994bd308bff",
+      "source_pages": "Printed 70 / PDF 79; vocal bars 5-20, first ending only",
+      "genre_evidence": "Joseph David S. Legaspi, Filipino Diction for Singers (Indiana University, 2014), printed 66 calls this a Kundiman; notation on printed 70.",
+      "rights_notes": "Underlying 1920 Abelardo melody only. The 2014 thesis is copyrighted, not CC licensed; no lyrics, IPA, translation, accompaniment or PDF pages redistributed.",
+      "split": "new_train",
+      "added_on": "2026-11-10",
+      "bars": 16,
+      "events": 56
+    },
+    {
+      "id": "kundiman_jocelynang_baliwag",
+      "filename": "jocelynang_baliwag.abc",
+      "title": "Jocelynang Baliwag",
+      "composer": "Traditional, composer unknown (ca. 1896)",
+      "group_id": "kundiman_jocelynang_pagcacatiuala_family",
+      "source_url": "https://asset.library.wisc.edu/1711.dl/NPUGSNNBQOLWU84/R/file-1109e.pdf",
+      "source_sha256": "d9e1f0b310b7acf6c509a63e518bb76887a24d24f5e084ea9a74a5e4fd8d15a8",
+      "source_pages": "Printed 58 / PDF 70; Example 2, lower staff, bars 1-12",
+      "genre_evidence": "Isidora Kabigting Miranda, Dissonant Voices (University of Wisconsin-Madison, 2020), printed 57-58 identifies and compares these historical Kundiman vocal melodies.",
+      "rights_notes": "Anonymous nineteenth-century melody only. The 2020 thesis is not CC licensed; no thesis prose, lyrics, accompaniment or PDF pages redistributed.",
+      "split": "new_train",
+      "added_on": "2026-11-10",
+      "bars": 12,
+      "events": 45
+    },
+    {
+      "id": "kundiman_bituing_marikit",
+      "filename": "bituing_marikit.abc",
+      "title": "Bituing Marikit",
+      "composer": "Nicanor Abelardo",
+      "source_url": "https://scholarworks.iu.edu/dspace/bitstreams/313039f0-edd6-40db-8c84-8c19e6c0ca44/download",
+      "source_sha256": "b46527f178ec8e909ed08e4091404a91a96970d51b590deeeddcb994bd308bff",
+      "source_pages": "Printed 87-88 / PDF 96-97; vocal bars 9-24, first ending only",
+      "genre_evidence": "Legaspi (2014), printed 66 explicitly includes Bituing Marikit in the Kundiman repertoire. This edition is in C minor, 2/4; triplets are exact.",
+      "rights_notes": "Underlying 1926 Abelardo melody only. The 2014 thesis is copyrighted, not CC licensed; no lyrics, IPA, translation, accompaniment or PDF pages redistributed.",
+      "split": "fresh_test",
+      "added_on": "2026-11-10",
+      "bars": 16,
+      "events": 53,
+      "label_scope": "Kundiman repertoire, 2/4 example; existing corpus also includes Ikaw Rin in 2/4. Retain original meter; report separately from triple-meter examples."
+    }
+  ]
+}

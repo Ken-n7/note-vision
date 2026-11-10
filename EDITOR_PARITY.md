@@ -63,6 +63,41 @@ This changes work order, not the full-parity objective or acceptance criteria.
   full held-out validation and phone QA for any future candidate. Advanced
   editor parity remains on the roadmap below.
 
+### Additional sourced Kundiman excerpts — 2026-11-10
+
+- Added *Kung Hindi Man* (16 bars, 56 events) and the traditional
+  *Jocelynang Baliwag* (12 bars, 45 events) for training, plus *Bituing Marikit*
+  (16 bars, 53 events) reserved for fresh testing. Sources: Legaspi's Indiana
+  University thesis (2014), printed 70/87–88, and Miranda's Wisconsin-Madison
+  thesis (2020), printed 58. Actual notation, pages, PDF hashes, attribution,
+  genre evidence and excerpt sizes are recorded in the curation manifest.
+  No modern thesis PDF, lyrics, IPA, translation or accompaniment is redistributed.
+- Real-work totals are now **17 training / 4 validation / 2 fresh test**.
+  These are three new composition excerpts, not augmented windows. The two
+  traditional historical melodies are different; Santiago's *Kundiman* is
+  already present as *Anak Dalita* and is not counted again. A 16-note
+  transposition/rhythm-scale-invariant phrase check found no matches between
+  the three additions and the prior 20 excerpts; full composition-level
+  deduplication remains incomplete.
+- *Bituing* retains the printed C minor, 2/4 and exact triplets. Repeated
+  naturals are explicit to prevent the installed ABC parser reverting their
+  pitches. Tests protect source pitches, ties, meter and excerpt lengths.
+  Preparation validates each bar against its own meter. Work and related-melody
+  group boundaries both prevent training/evaluation overlap.
+- `prepare.py --through 2026-11-09` reproduces the first experiment's note lists
+  and partitions; current preparation records its manifest hash and cutoff.
+  The historical `tool/genre/results.json` still describes the rejected first
+  trial. No new training, app model or device build is claimed for this collection.
+- Verification: **12 Python checks passed**, including source-note and
+  related-work partition regressions; preparation reproduced the old note lists
+  and splits with the cutoff. `flutter analyze --no-pub` is clean and the full
+  Flutter suite passed **1,327 tests**. Logs and acquired source PDFs are in
+  `.dart_tool/genre_sources_20261110/` (ignored research artifacts).
+- **Not yet:** the related 1902 *Cundiman* needs original-source attribution and
+  rights checks; further historical leads have no verified acquired notation.
+  They remain excluded in `data/research_leads.json`. A new model still needs
+  held-out evaluation and phone QA before promotion; full editor parity stays queued.
+
 ### Scan lifecycle reliability — 2026-11-05
 
 - `ScanViewModel` invalidates work when reset, superseded or disposed. Late

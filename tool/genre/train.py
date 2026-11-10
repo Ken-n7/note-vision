@@ -16,7 +16,7 @@ import sys
 import numpy as np
 import torch
 
-from corpus import conflicting_labels
+from corpus import assert_disjoint, conflicting_labels
 from artifacts import write_json
 from protocol import FEATURES, GENRES, app_label, key_of, windows
 
@@ -86,6 +86,9 @@ def frozen_train(pieces, split, additions, held_out=()):
         raise ValueError('Work-level train/evaluation leakage')
     if conflicting_labels(result):
         raise ValueError('Training contains contradictory labels; run prepare.py first')
+    evaluation = [p for p in pieces if p['name'] in blocked]
+    evaluation += [p for p in additions if p.get('split') != 'new_train']
+    assert_disjoint(dict(train=result, evaluation=evaluation))
     return result
 
 
