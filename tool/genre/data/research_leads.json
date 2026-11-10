@@ -4,7 +4,8 @@
   "newly_accepted": [
     "kundiman_kung_hindi_man",
     "kundiman_jocelynang_baliwag",
-    "kundiman_bituing_marikit"
+    "kundiman_bituing_marikit",
+    "kundiman_merino_cundiman"
   ],
   "pending": [
     {
@@ -25,19 +26,12 @@
       "recovery_attempt": "The public archive availability API found a 2016 snapshot of the cited university page. The archive page host could not be resolved. The three public-domain English Novara volumes contain the textual reference but no recovered score for admission."
     },
     {
-      "title": "Cundiman in La musica popular de Filipinas (1892)",
-      "source": "https://digilib.ust.edu.ph/digital/collection/section5/id/12156/",
-      "status": "notation_acquired_pending_verified_transcription",
-      "reason": "Recovered the public library download (62 pages). The historical vocal notation needs verified pitch/duration transcription and alias checks before admission; not counted as a real training work yet.",
-      "download": "https://digilib.ust.edu.ph/digital/api/collection/section5/id/12195/download",
-      "source_sha256": "35731c0bf298eb5d0b0d3b8ee309b1b931a232fb2f5e3b835a87ad21a00d1209",
-      "pages": "Printed 35-36 / PDF 42-43; explicitly labelled El Cundiman"
-    },
-    {
       "title": "Sakali Man",
       "source": "https://imslp.org/wiki/Sakali_Man_(Santiago,_Francisco)",
-      "status": "genre_unconfirmed",
-      "reason": "Catalog identifies a Filipino ballad duet. Composer alone does not establish a Kundiman label; no new transcription admitted."
+      "status": "repertoire_evidence_found_notation_not_acquired",
+      "reason": "New repertoire evidence resolves the earlier label question, but notation is still unacquired. No work counted without verified pitches and durations.",
+      "genre_evidence": "PCEP/NCCA, Tanghal Dakilang Bulakeno (2025), lists Sakali Man in Santiago Kundiman repertoire.",
+      "evidence": "https://philippineculturaleducation.com.ph/pcep/wp-content/uploads/2025/03/Tanghal-Dakilang-Bulakeno-Digital.pdf"
     },
     {
       "title": "Anong Ligaya Ko",
@@ -116,6 +110,10 @@
     {
       "source": "https://bdh.bne.es/bnesearch/detalle/bdh0000105391",
       "result": "Lozano 1847 album cited by Miranda (2020) contains two historical Cundiman scores. Catalog request returned 403; no score acquired or counted."
+    },
+    {
+      "source": "https://classical-music-online.net/en/production/206684",
+      "result": "Independent archive catalogs Ulila sa Pag-ibig. The visible score-download link goes to an access-message action and redirects to the archive homepage; no public score file acquired or hidden download endpoint sought."
     }
   ],
   "duplicate_audit": {
@@ -127,6 +125,7 @@
     "Full source PDFs remain in ignored project research storage; repository includes melody excerpts and source metadata only.",
     "No IMSLP CAPTCHA was bypassed. Blocked file pages from the previous investigation were not retried.",
     "Balanced banks were used for a fixed 200-step/member, four-seed CPU trial on all training works and original held-out fold 0. No fold-0 calibration met validation constraints; trial rejected and shipped app model retained. See tool/genre/balance_report.json.",
-    "Error-audit follow-up accepted no new independent works. A source-verified Ikaw Rin training replacement corrects approximate triplets but retains the existing work ID; real counts remain 17 training / 4 validation / 2 fresh test. See training_corrections.json and ../error_audit.json."
+    "Error-audit follow-up accepted no new independent works. A source-verified Ikaw Rin training replacement corrects approximate triplets but retains the existing work ID; real counts remain 17 training / 4 validation / 2 fresh test. See training_corrections.json and ../error_audit.json.",
+    "Later reconciliation/collection follow-up admits eight verified bars of the historical El Cundiman from the acquired UST 1892 scan: 18 train / 4 validation / 2 fresh test. No newly trained replacement model or accuracy gain claimed."
   ]
 }

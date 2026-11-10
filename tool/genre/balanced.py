@@ -15,7 +15,7 @@ import random
 import numpy as np
 
 from artifacts import write_json
-from corpus import frozen_train, partition_id, work_id, training_corrections
+from corpus import frozen_train, partition_id, work_id, training_corrections, verify_reconciliation
 from protocol import FEATURES, GENRES, MAX_NOTES, WINDOW, windows
 
 
@@ -27,7 +27,25 @@ def fingerprint(pieces):
     return digest.hexdigest()
 
 
-def build_bank(pieces, target, seed=20261110):
+def exclusion_hash(excluded):
+    return hashlib.sha256('\n'.join(sorted(excluded)).encode()).hexdigest()
+
+
+def bank_exclusions(prepared, held_out=()):
+    """Reconciled datasets exclude exact evaluation inputs after augmentation too."""
+    prepared = Path(prepared)
+    if not (prepared / 'reconciliation.json').exists():
+        return set()  # Preserve the historical bank recipe.
+    evaluation = json.loads((prepared / 'baseline-corpus.json').read_text())
+    evaluation = [p for p in evaluation if p['split'] != 'known_training' or p['name'] in held_out]
+    evaluation += [p for p in json.loads((prepared / 'additions.json').read_text())
+                   if p['split'] != 'new_train']
+    return {hashlib.sha256(np.asarray(chunk, np.float32).tobytes()).hexdigest()
+            for p in evaluation for prefix in (40, 80, 320)
+            for chunk in windows(p['notes'][:prefix])}
+
+
+def build_bank(pieces, target, seed=20261110, excluded=()):
     if target < 1:
         raise ValueError('Examples per class must be positive')
     grouped = {g: [p for p in pieces if p['genre'] == g] for g in GENRES}
@@ -38,7 +56,7 @@ def build_bank(pieces, target, seed=20261110):
     for genre in GENRES:
         sources = list(grouped[genre])
         rng.shuffle(sources)
-        rows, metadata, attempts = [], [], 0
+        rows, metadata, attempts, held_out_rejections = [], [], 0, 0
         while len(rows) < target and attempts < max(1000, target * 100):
             piece = sources[attempts % len(sources)]
             original = piece['notes']
@@ -63,6 +81,9 @@ def build_bank(pieces, target, seed=20261110):
             if np.count_nonzero(actual & (row[:, 1] == 0)) < 16:
                 continue
             sha = hashlib.sha256(row.tobytes()).hexdigest()
+            if sha in excluded:
+                held_out_rejections += 1
+                continue
             if sha in seen:
                 continue
             seen.add(sha)
@@ -90,12 +111,13 @@ def build_bank(pieces, target, seed=20261110):
                             augmented_windows=sum(m['kind'] == 'augmented_window' for m in metadata),
                             examples_per_represented_source_min=min(counts.values()),
                             examples_per_represented_source_max=max(counts.values()),
+                            held_out_input_rejections=held_out_rejections,
                             rejected_attempts=attempts - len(rows))
         print(genre, stats[genre], flush=True)
     return bank, origins, stats
 
 
-def save_bank(output, bank, origins, stats, pieces, fold, seed):
+def save_bank(output, bank, origins, stats, pieces, fold, seed, excluded=()):
     output.mkdir(parents=True, exist_ok=True)
     arrays = output / 'features.npz'
     temporary = arrays.with_suffix('.tmp')
@@ -117,13 +139,15 @@ def save_bank(output, bank, origins, stats, pieces, fold, seed):
                     feature_shape=[WINDOW, FEATURES], real_derived_only=True,
                     features_sha256=hashlib.sha256(arrays.read_bytes()).hexdigest(),
                     origins_sha256=hashlib.sha256(metadata.read_bytes()).hexdigest(),
+                    excluded_evaluation_inputs=len(excluded),
+                    exclusion_sha256=exclusion_hash(excluded),
                     unique_feature_windows=sum(len(v) for v in bank.values()),
                     note='Examples are windows, not independent compositions; holdouts are unaugmented.')
     write_json(output / 'manifest.json', manifest)
     return manifest
 
 
-def load_bank(output, pieces, fold):
+def load_bank(output, pieces, fold, excluded=()):
     """Refuse stale data, different folds, changed payloads and held-out origins."""
     output = Path(output)
     manifest = json.loads((output / 'manifest.json').read_text())
@@ -131,6 +155,8 @@ def load_bank(output, pieces, fold):
         raise ValueError('Balanced bank belongs to a different fold/schema')
     if manifest['source_fingerprint'] != fingerprint(pieces):
         raise ValueError('Balanced bank sources differ from eligible training works')
+    if manifest.get('exclusion_sha256', exclusion_hash(())) != exclusion_hash(excluded):
+        raise ValueError('Balanced bank evaluation exclusions changed; rebuild the bank')
     for name, key in (('features.npz', 'features_sha256'), ('origins.jsonl', 'origins_sha256')):
         if hashlib.sha256((output / name).read_bytes()).hexdigest() != manifest[key]:
             raise ValueError(f'Balanced bank payload changed: {name}')
@@ -167,6 +193,8 @@ def load_bank(output, pieces, fold):
     all_hashes = [sha for values in hashes.values() for sha in values]
     if len(set(all_hashes)) != len(all_hashes):
         raise ValueError('Balanced bank contains duplicate feature windows')
+    if set(all_hashes).intersection(excluded):
+        raise ValueError('Balanced bank contains an exact evaluation input')
     minor = bank['waltz'][:, -1, 21] > .5
     bank['minor_waltz'] = bank['waltz'][minor]
     return bank
@@ -181,6 +209,7 @@ def main():
     parser.add_argument('--per-class', type=int, help='Default: largest eligible class')
     parser.add_argument('--seed', type=int, default=20261110)
     args = parser.parse_args()
+    verify_reconciliation(args.prepared, args.data_root)
     pieces = []
     for name in ('pieces', 'more', 'pdmx'):
         pieces.extend(json.loads((args.data_root / 'out/genre' / f'{name}.json').read_text()))
@@ -191,9 +220,10 @@ def main():
     training = frozen_train(pieces, split, additions, held_out, training_corrections(args.prepared))
     target = (max(Counter(p['genre'] for p in training).values())
               if args.per_class is None else args.per_class)
-    bank, origins, stats = build_bank(training, target, args.seed)
-    manifest = save_bank(args.output, bank, origins, stats, training, args.fold, args.seed)
-    load_bank(args.output, training, args.fold)
+    excluded = bank_exclusions(args.prepared, held_out)
+    bank, origins, stats = build_bank(training, target, args.seed, excluded)
+    manifest = save_bank(args.output, bank, origins, stats, training, args.fold, args.seed, excluded)
+    load_bank(args.output, training, args.fold, excluded)
     print('Verified bank:', manifest['examples_total'], 'unique real-derived training windows', flush=True)
 
 

@@ -71,6 +71,25 @@ class TranscriptionTest(unittest.TestCase):
         for bar in bars:
             self.assertAlmostEqual(float(bar.duration.quarterLength), 2.)
 
+    def test_merino_cundiman_keeps_chromatic_approaches_rests_and_fermata(self):
+        bars = self.bars('merino_cundiman.abc')
+        self.assertEqual(len(bars), 8)
+        self.assertEqual(bars[0].timeSignature.ratioString, '3/4')
+        self.assertEqual([n.pitch.midi for n in bars[0].notes], [67, 66, 67, 69])
+        self.assertTrue(bars[0].notesAndRests[1].isRest)
+        self.assertEqual([float(n.quarterLength) for n in bars[0].notesAndRests], [1., .5, .5, .5, .5])
+        self.assertEqual([n.pitch.midi for n in bars[1].notes], [67, 66, 65])
+        self.assertEqual([n.pitch.midi for n in bars[2].notes], [69, 68, 69, 71])
+        self.assertEqual([n.pitch.midi for n in bars[4].notes], [72, 71, 72, 74])
+        self.assertEqual([n.pitch.midi for n in bars[5].notes], [72, 69])
+        self.assertEqual([float(n.quarterLength) for n in bars[5].notes], [1., 2.])
+        # The installed ABC reader ignores fermata expressions; preserve it in
+        # the source notation without changing the model's notated duration.
+        self.assertIn('c2 !fermata! A4', (self.data / 'merino_cundiman.abc').read_text())
+        for i in (1, 3, 7):
+            self.assertTrue(bars[i].notesAndRests[-1].isRest)
+            self.assertEqual(float(bars[i].notesAndRests[-1].quarterLength), 1.)
+
 
 if __name__ == '__main__':
     unittest.main()

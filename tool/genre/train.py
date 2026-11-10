@@ -17,7 +17,7 @@ import sys
 import numpy as np
 import torch
 
-from corpus import frozen_train, training_corrections
+from corpus import frozen_train, training_corrections, verify_reconciliation
 from artifacts import write_json
 from protocol import FEATURES, GENRES, app_label, key_of, windows
 
@@ -226,6 +226,7 @@ def main():
     import kundiman_gen
 
     root = args.experiment
+    verify_reconciliation(root, args.data_root)
     pieces = []
     for name in ('pieces', 'more', 'pdmx'):
         pieces.extend(json.loads((args.data_root / 'out/genre' / f'{name}.json').read_text()))
@@ -239,8 +240,8 @@ def main():
     training = frozen_train(pieces, split, additions, held_out, corrections)
     print(f'fold={args.fold}, training={len(training)}, held_out={held_out}', flush=True)
     if args.bank_dir:
-        from balanced import load_bank
-        bank = load_bank(args.bank_dir, training, args.fold)
+        from balanced import load_bank, bank_exclusions
+        bank = load_bank(args.bank_dir, training, args.fold, bank_exclusions(root, held_out))
     else:
         rng = random.Random(20261109)
         synthetic = [kundiman_gen.kundiman(rng) for _ in range(1400)]
@@ -265,6 +266,8 @@ def main():
                   synthetic_kundiman_share=0. if args.bank_dir else .3,
                   bank_dir=str(args.bank_dir) if args.bank_dir else None,
                   checkpoint_sha256=hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
+                  reconciliation_sha256=hashlib.sha256((root / 'reconciliation.json').read_bytes()).hexdigest()
+                  if (root / 'reconciliation.json').exists() else None,
                   training_corrections=[p['name'] for p in training if 'correction_provenance' in p],
                   held_out=held_out, train_names=[p['name'] for p in training])
     write_json(output / 'training-manifest.json', report)

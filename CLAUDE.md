@@ -84,7 +84,8 @@ The balanced-bank trial trained four seeds for 200 steps each on all training
 works and original held-out fold 0. Fold 0 admitted no validation-safe calibration;
 the trial was rejected and the shipped model retained. Checks: 16 Python tests,
 1,327 Flutter tests and clean analysis. See `tool/genre/balance_report.json`. The acquired UST
-1892 El Cundiman score remains pending verified transcription and alias checks.
+1892 El Cundiman score was subsequently verified for eight vocal bars (see the
+new reconciliation/collection preparation below).
 The error-audit follow-up found 41 evaluation excerpts with exact normalized
 training-window matches (26 validation / 13 test / 2 external), including
 *After You've Gone* labelled Jazz versus Other across sources. This limits
@@ -98,6 +99,27 @@ on 14 held-out Kundiman works fell from 11/14 to 10/14 at 40 events; 80/320 stay
 unpromoted. See `tool/genre/error_audit.json`. Checks: 23 Python tests, 1,327
 Flutter tests and clean analysis. Further collection found no verified new work;
 real counts stay 17 / 4 / 2. Reused benchmarks now also need untouched works.
+The subsequent collection admits the historical *El Cundiman* (1892 source,
+unknown composition date/composer): eight bars / 29 events / 25 sounding notes,
+including the opening eighth rest, chromatic approaches and bar-six fermata.
+Current real Kundiman totals are **18 training / 4 validation / 2 test works**.
+`reconcile.py` creates a separate dataset version: reviewed work aliases plus
+exact normalized windows at 40/80/320 events define conservative input families.
+It retains one source in its existing highest-priority evaluation partition and
+quarantines conflicting labels. The reviewed Joplin *Entertainer* family spans
+nine arrangements. Final preparation excludes 151 source rows across 121
+families, including two Jazz/Other conflicts (four quarantined rows), with no
+remaining exact windows across retained sources. Original data and benchmarks
+stay unchanged. Full composition independence and untouched final tests remain
+outstanding; existing pretrained exposure cannot be undone by data filtering.
+New reconciled banks also reject exact evaluation windows after augmentation;
+sampling/calibration reject changed source/snapshot hashes.
+All-data and fold-0 banks contain **4,191 unique examples per class / 16,764 per
+bank**, with every retained training source represented and no exact evaluation
+input matches. A two-step/member CPU integration passed without saving weights
+or claiming accuracy. Checks: **31 Python / 1,327 Flutter tests**, clean analysis
+and reproduced legacy inputs. See `tool/genre/reconciliation_report.json`.
+This prepares data for future training; no replacement model or phone build.
 Thirteen PDMX work IDs with
 contradictory Jazz/Waltz labels are quarantined without modifying source data.
 The first trial weights were not promoted: stronger Kundiman sampling increased

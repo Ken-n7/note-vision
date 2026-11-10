@@ -42,6 +42,23 @@ def training_corrections(root):
     return json.loads(path.read_text()) if path.exists() else []
 
 
+def verify_reconciliation(root, data_root):
+    """Reject stale/edited reconciled snapshots before sampling or calibration."""
+    root, data_root = Path(root), Path(data_root)
+    path = root / 'reconciliation.json'
+    if not path.exists():
+        return  # Historical prepared snapshots remain supported.
+    report = json.loads(path.read_text())
+    if report['policy'] != 'shared_input_families_v1':
+        raise ValueError('Unsupported reconciliation policy')
+    for name, expected in report['output_hashes'].items():
+        if Path(name).name != name or hashlib.sha256((root / name).read_bytes()).hexdigest() != expected:
+            raise ValueError('Reconciled snapshot changed; rebuild it in a new directory')
+    for name, expected in report['input_hashes'].items():
+        if Path(name).name != name or hashlib.sha256((data_root / 'out/genre' / (name + '.json')).read_bytes()).hexdigest() != expected:
+            raise ValueError('Original data changed; reconcile the new sources before training')
+
+
 def frozen_train(pieces, split, additions, held_out=(), corrections=()):
     """Select eligible original/curated works before deriving any examples."""
     allowed = set(split['train']) - set(held_out)

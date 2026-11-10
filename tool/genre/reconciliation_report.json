@@ -1,0 +1,3414 @@
+{
+  "date": "2026-11-10",
+  "decision": "data_preparation_only_keep_shipped_model",
+  "artifact_directory": "/home/ken/Workspace/note-vision/.dart_tool/genre_reconcile_20261110",
+  "new_work": {
+    "name": "kundiman_merino_cundiman",
+    "bars": 8,
+    "events": 29,
+    "sounding_notes": 25,
+    "partition": "new_train",
+    "source_sha256": "35731c0bf298eb5d0b0d3b8ee309b1b931a232fb2f5e3b835a87ad21a00d1209",
+    "abc_sha256": "cdb331b85802c922488a2a1e03c77c550baa86d87d2ae78814f9ed312e5d3d57",
+    "prior_kundiman_excerpts_compared": 23,
+    "phrase_length_sounding_notes": 16,
+    "matching_phrases": [],
+    "alias_audit_limit": "Available excerpts only; no complete composition-level independence claim."
+  },
+  "real_kundiman_works": {
+    "train": 18,
+    "validation": 4,
+    "test": 2
+  },
+  "reconciliation": {
+    "policy": "shared_input_families_v1",
+    "prefixes": [
+      40,
+      80,
+      320
+    ],
+    "reviewed_work_groups": [
+      {
+        "id": "scott_joplin_the_entertainer",
+        "title": "The Entertainer",
+        "composer": "Scott Joplin",
+        "members": [
+          "pdmx_QmbjiRHpfdc3FkbC4XkQJBc1zij1R6GNWwGNtykCaGs1jC",
+          "pdmx_Qmb3MzkZN6mG3G12ZnRRJ1gvEeUsL3JJQ9kaW7bELhdwum",
+          "pdmx_QmYPVd57o4o8CTMk78dmfhuvRLB3sMBBePFCqw1vMAJRxM",
+          "pdmx_QmRbzKhmjYeoxdEVnMKNZhWUYntbdvKNR1jnx8ctmTUtj8",
+          "pdmx_QmaAx5uRgEB3rCNpU6MNj1v6aKZxhcGJiu2MiHGgkQXGji",
+          "pdmx_Qmaa6zgW92mEVQXRgeDnZEJVkdWMJzJDKx31rgGfC1nMdK",
+          "pdmx_QmTjqjoJX2yofb58uE6BypwxStCrdTqFSQo3xYtNDsPQ1T",
+          "pdmx_QmVH3kRjbe3D17ztBGxCh9S55B17WLRmrVBXZMXNiLLo71",
+          "ewld_2085"
+        ],
+        "evidence": [
+          {
+            "name": "pdmx_QmbjiRHpfdc3FkbC4XkQJBc1zij1R6GNWwGNtykCaGs1jC",
+            "title": "The Entertainer",
+            "creators": [
+              "Scott Joplin (1868-1917)"
+            ],
+            "metadata_sha256": "3ed3102caa31ea9c00182016e0bf5393f370c041ca568055a265a05400f131d8"
+          },
+          {
+            "name": "pdmx_Qmb3MzkZN6mG3G12ZnRRJ1gvEeUsL3JJQ9kaW7bELhdwum",
+            "title": "The Entertainer",
+            "creators": [
+              "Scott Joplin  Arr. Kyle Hilton"
+            ],
+            "metadata_sha256": "719e4b58bf36fb065f9c33a8a671669d9e37a75b53ecb678cfac8e22f6333819"
+          },
+          {
+            "name": "pdmx_QmYPVd57o4o8CTMk78dmfhuvRLB3sMBBePFCqw1vMAJRxM",
+            "title": "THE ENTERTAINER",
+            "creators": [
+              "SCOTT JOPLIN ARR. SAMMY WAGANER"
+            ],
+            "metadata_sha256": "35d4c6cf4e03cc660ad872a199e9d02e394f810728ae85676e35fba62db6b4e3"
+          },
+          {
+            "name": "pdmx_QmRbzKhmjYeoxdEVnMKNZhWUYntbdvKNR1jnx8ctmTUtj8",
+            "title": "The Entertainer",
+            "creators": [
+              "Scott Joplin"
+            ],
+            "metadata_sha256": "62bd0b465e917319308e01ec737c07e04adac300fb7c75ff6c37eaf60f093bbe"
+          },
+          {
+            "name": "pdmx_QmaAx5uRgEB3rCNpU6MNj1v6aKZxhcGJiu2MiHGgkQXGji",
+            "title": "THE ENTERTAINER",
+            "creators": [
+              "SCOTT JOPLIN ARR. SAMMY WAGANER"
+            ],
+            "metadata_sha256": "8e8241faa0838f5501cf802fbc7abbabd4403781663d98c2f59c7d7910227881"
+          },
+          {
+            "name": "pdmx_Qmaa6zgW92mEVQXRgeDnZEJVkdWMJzJDKx31rgGfC1nMdK",
+            "title": "The entertainer",
+            "creators": [
+              "Scot Joplin"
+            ],
+            "metadata_sha256": "603fd3b41d929c75fda375684e61754d8550636ff0489194deba1fa136354bd1"
+          },
+          {
+            "name": "pdmx_QmTjqjoJX2yofb58uE6BypwxStCrdTqFSQo3xYtNDsPQ1T",
+            "title": "The Entertainer",
+            "creators": [
+              "Scott Joplin"
+            ],
+            "metadata_sha256": "bf5816408bd098ed21be16718a8d980540f6acc9625390f927bb3dc0fa6e185b"
+          },
+          {
+            "name": "pdmx_QmVH3kRjbe3D17ztBGxCh9S55B17WLRmrVBXZMXNiLLo71",
+            "title": "THE ENTERTAINER",
+            "creators": [
+              "Christophe Baste",
+              "Scott Joplin"
+            ],
+            "metadata_sha256": "0d24115c8ccf11c2da3d94468070a6a0f9e91c851d35f35e1e84259b84f0ccd4"
+          },
+          {
+            "name": "ewld_2085",
+            "title": "The Entertainer",
+            "creators": [
+              "Scott Joplin"
+            ],
+            "evidence": "Read-only OpenEWLD works/work_author records for id 2085"
+          }
+        ],
+        "reason": "Reviewed title/composer metadata identifies arrangements of the same composition, including Scott/Scot spelling variation. Keep one source representative in its existing highest-priority partition."
+      },
+      {
+        "id": "layton_creamer_after_youve_gone",
+        "title": "After You've Gone",
+        "composer": "Turner Layton / Henry Creamer",
+        "members": [
+          "ewld_4450",
+          "pdmx_QmZFWEQiSTEd4xVAQ6MjKbRfuNzcd3RTUCoxWMCim2rLgp"
+        ],
+        "evidence": [
+          {
+            "name": "ewld_4450",
+            "title": "After You've Gone",
+            "creators": [
+              "Henry Creamer"
+            ],
+            "evidence": "Read-only OpenEWLD works/work_author records for id 4450"
+          },
+          {
+            "name": "pdmx_QmZFWEQiSTEd4xVAQ6MjKbRfuNzcd3RTUCoxWMCim2rLgp",
+            "title": "After You've Gone",
+            "creators": [
+              "Turner Layton",
+              "Henry Creamer"
+            ],
+            "evidence": "Read-only PDMX metadata; exact normalized window also matches ewld_4450"
+          }
+        ],
+        "reason": "Reviewed source metadata plus exact shared input confirms a family whose Jazz/Other labels conflict; quarantine instead of guessing a genre."
+      }
+    ],
+    "priority": {
+      "train": 0,
+      "valid": 1,
+      "external_negative": 2,
+      "test": 3,
+      "fresh_test": 4
+    },
+    "original_counts": {
+      "train": {
+        "waltz": 2003,
+        "other": 4261,
+        "jazz": 1051,
+        "kundiman": 18
+      },
+      "valid": {
+        "kundiman": 4,
+        "jazz": 202,
+        "waltz": 285,
+        "other": 460
+      },
+      "external_negative": {
+        "jazz": 50,
+        "waltz": 36,
+        "other": 623
+      },
+      "test": {
+        "jazz": 182,
+        "waltz": 281,
+        "other": 440
+      },
+      "fresh_test": {
+        "kundiman": 2
+      }
+    },
+    "retained_counts": {
+      "train": {
+        "other": 4191,
+        "jazz": 1023,
+        "kundiman": 18,
+        "waltz": 1973
+      },
+      "valid": {
+        "other": 457,
+        "jazz": 199,
+        "kundiman": 4,
+        "waltz": 282
+      },
+      "external_negative": {
+        "other": 614,
+        "waltz": 36,
+        "jazz": 48
+      },
+      "test": {
+        "jazz": 179,
+        "other": 440,
+        "waltz": 281
+      },
+      "fresh_test": {
+        "kundiman": 2
+      }
+    },
+    "original_rows": 9898,
+    "retained_rows": 9747,
+    "families": [
+      {
+        "group_id": "input_family_dcd8a3bbb4d60564fd85",
+        "members": [
+          "esac_1464",
+          "esac_1465"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "esac_1464",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_d1bcb05fc70c50b6a41b",
+        "members": [
+          "esac_1483",
+          "esac_1484"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "esac_1483",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_7abbd43c3c51e3849c4f",
+        "members": [
+          "esac_1918",
+          "esac_6340"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "esac_1918",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_52811b49e3fc255ffed6",
+        "members": [
+          "esac_2546",
+          "esac_6020"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "esac_2546",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_c6a4cc1d0cd5aeb73ada",
+        "members": [
+          "esac_2548",
+          "esac_6220"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "esac_2548",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_810919630973b13f422b",
+        "members": [
+          "esac_2584",
+          "esac_6256"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "esac_2584",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_af8fe9e67a370a01a642",
+        "members": [
+          "esac_2678",
+          "esac_4488"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "esac_2678",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_64f9fd5c590c8b291a30",
+        "members": [
+          "esac_4270",
+          "esac_935"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "esac_4270",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_4242984576f5ffa7011f",
+        "members": [
+          "esac_4828",
+          "esac_7514"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "esac_4828",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_3929e4c5144d0f9d6dc5",
+        "members": [
+          "esac_4839",
+          "esac_4840"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "esac_4840",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_5fe7dc94ea4e8883f338",
+        "members": [
+          "ewld_0",
+          "ewld_3065"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "ewld_0",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_ff0c65a144decbad23ad",
+        "members": [
+          "ewld_104",
+          "ewld_4988"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "ewld_4988",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_696d099a01a5d60b5775",
+        "members": [
+          "ewld_1055",
+          "ewld_2789"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_1055",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_30d98c97ecf964aa57c5",
+        "members": [
+          "ewld_1110",
+          "ewld_5099"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_1110",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_291f047126be50ac8cdf",
+        "members": [
+          "ewld_1185",
+          "ewld_4959"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_1185",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_8b1ae59b4a69e3bc904b",
+        "members": [
+          "ewld_126",
+          "ewld_1466"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "ewld_126",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_bbdd4d9c016bd1719295",
+        "members": [
+          "ewld_1268",
+          "ewld_2863"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_1268",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_2a284c125968aa59d9db",
+        "members": [
+          "ewld_1293",
+          "ewld_587"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_1293",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_faa036c7d3ec1f964ca4",
+        "members": [
+          "ewld_1331",
+          "ewld_3289",
+          "ewld_4126"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_1331",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_e33721935ed2b5b1b6a1",
+        "members": [
+          "ewld_1333",
+          "ewld_3780"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "ewld_1333",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_e1afb62373597889e2b8",
+        "members": [
+          "ewld_1344",
+          "ewld_4838"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "ewld_4838",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_c18de5bb9becf9bc93e6",
+        "members": [
+          "ewld_1389",
+          "ewld_290"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_1389",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_4bde356ec8940c6cc2b8",
+        "members": [
+          "ewld_1393",
+          "ewld_2127"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "ewld_2127",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_745ccf1dddce45a296e9",
+        "members": [
+          "ewld_1494",
+          "ewld_2432"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_1494",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_c385bf92147a23e039a0",
+        "members": [
+          "ewld_157",
+          "ewld_4094"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_157",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_66dc6fbaaebbbcef48cb",
+        "members": [
+          "ewld_1580",
+          "ewld_2425"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "ewld_2425",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_6ada8e7e16d616a8954b",
+        "members": [
+          "ewld_1639",
+          "ewld_1691",
+          "ewld_244"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_1639",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_ae9dac09e6acbbffa1f4",
+        "members": [
+          "ewld_170",
+          "ewld_4502"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "ewld_170",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_002ade9490313decaab3",
+        "members": [
+          "ewld_1805",
+          "ewld_5017"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "test",
+          "train"
+        ],
+        "retained": "ewld_5017",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_0e17bf229bbed817783a",
+        "members": [
+          "ewld_1827",
+          "ewld_2294"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "test",
+          "train"
+        ],
+        "retained": "ewld_2294",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_331689074acfd3acff37",
+        "members": [
+          "ewld_1960",
+          "ewld_317"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_1960",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_994959bc6ab67d61756e",
+        "members": [
+          "ewld_2085",
+          "pdmx_QmRbzKhmjYeoxdEVnMKNZhWUYntbdvKNR1jnx8ctmTUtj8",
+          "pdmx_QmTjqjoJX2yofb58uE6BypwxStCrdTqFSQo3xYtNDsPQ1T",
+          "pdmx_QmVH3kRjbe3D17ztBGxCh9S55B17WLRmrVBXZMXNiLLo71",
+          "pdmx_QmYPVd57o4o8CTMk78dmfhuvRLB3sMBBePFCqw1vMAJRxM",
+          "pdmx_QmaAx5uRgEB3rCNpU6MNj1v6aKZxhcGJiu2MiHGgkQXGji",
+          "pdmx_Qmaa6zgW92mEVQXRgeDnZEJVkdWMJzJDKx31rgGfC1nMdK",
+          "pdmx_Qmb3MzkZN6mG3G12ZnRRJ1gvEeUsL3JJQ9kaW7bELhdwum",
+          "pdmx_QmbjiRHpfdc3FkbC4XkQJBc1zij1R6GNWwGNtykCaGs1jC"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "test",
+          "train"
+        ],
+        "retained": "pdmx_QmVH3kRjbe3D17ztBGxCh9S55B17WLRmrVBXZMXNiLLo71",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_3b9a99cbc463f9c264a5",
+        "members": [
+          "ewld_2139",
+          "ewld_2611"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_2139",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_7ef441a20171af7eb8a7",
+        "members": [
+          "ewld_2142",
+          "ewld_2252",
+          "ewld_2311",
+          "ewld_633"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_2142",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_ab106f910ff7a13237af",
+        "members": [
+          "ewld_2163",
+          "ewld_2990"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "ewld_2163",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_a0b5d43f52f54f9e60b5",
+        "members": [
+          "ewld_2254",
+          "ewld_3742"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_2254",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_935a8dbddcdcfa9d9180",
+        "members": [
+          "ewld_2269",
+          "ewld_2855",
+          "ewld_3475"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_2269",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_c2eee97aaf308cdeb566",
+        "members": [
+          "ewld_228",
+          "ewld_4298",
+          "ewld_5098"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_228",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_e77e7708421fc6312f48",
+        "members": [
+          "ewld_2330",
+          "ewld_2745"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_2330",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_0459e5bb8470ac623871",
+        "members": [
+          "ewld_2401",
+          "ewld_4290",
+          "ewld_4459"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_2401",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_3b77cf096230553518e5",
+        "members": [
+          "ewld_2465",
+          "ewld_3395"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "ewld_2465",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_a7e5a9973666055c00a4",
+        "members": [
+          "ewld_2607",
+          "ewld_4244"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_2607",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_38dadc4e9af11228d2b7",
+        "members": [
+          "ewld_2648",
+          "ewld_3332",
+          "ewld_431",
+          "ewld_4795"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "ewld_2648",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_41112fbaf9585d54f0c6",
+        "members": [
+          "ewld_266",
+          "ewld_3938"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_266",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_9dc940ced3e93c32cc51",
+        "members": [
+          "ewld_273",
+          "ewld_505",
+          "ewld_902"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_273",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_d854b352b4864854c7ba",
+        "members": [
+          "ewld_2889",
+          "ewld_2912"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "test",
+          "train"
+        ],
+        "retained": "ewld_2912",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_507c095255fc16075240",
+        "members": [
+          "ewld_2895",
+          "ewld_884"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_2895",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_c0f2ff212405b06b5bbd",
+        "members": [
+          "ewld_2914",
+          "ewld_900"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_2914",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_e3c4cb066660bc05e520",
+        "members": [
+          "ewld_2946",
+          "ewld_4485"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "ewld_4485",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_3bbe51115dbfa775f425",
+        "members": [
+          "ewld_2987",
+          "ewld_973"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_2987",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_c1687d29ee43305b2088",
+        "members": [
+          "ewld_3102",
+          "ewld_3614"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_3102",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_d9f571b5a887b4e318ce",
+        "members": [
+          "ewld_3350",
+          "ewld_3608"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_3350",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_54feb1e22501948cdefb",
+        "members": [
+          "ewld_3401",
+          "ewld_3590"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "test",
+          "train"
+        ],
+        "retained": "ewld_3590",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_b593a2fbd23791fc2413",
+        "members": [
+          "ewld_3535",
+          "ewld_3734"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_3535",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_8947a485bf6deb2458e3",
+        "members": [
+          "ewld_3851",
+          "ewld_845"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_3851",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_241a55696f328431bd81",
+        "members": [
+          "ewld_3927",
+          "ewld_5134"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_3927",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_901a5b023fc0bdf843d5",
+        "members": [
+          "ewld_3934",
+          "pdmx_QmfTZ8bmd3DcociRJBvnccVDpx9nbG2oxUruzz1fLswkwv"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "pdmx_QmfTZ8bmd3DcociRJBvnccVDpx9nbG2oxUruzz1fLswkwv",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_041e6d86e32261d74c26",
+        "members": [
+          "ewld_3951",
+          "ewld_4621"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "ewld_3951",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_55b8ed4b43a0f5d947ce",
+        "members": [
+          "ewld_4450",
+          "pdmx_QmZFWEQiSTEd4xVAQ6MjKbRfuNzcd3RTUCoxWMCim2rLgp"
+        ],
+        "labels": [
+          "jazz",
+          "other"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": null,
+        "reason": "conflicting_labels"
+      },
+      {
+        "group_id": "input_family_6692f2b75bf44864a93c",
+        "members": [
+          "nmd_jigs_154",
+          "nmd_jigs_155"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "external_negative"
+        ],
+        "retained": "nmd_jigs_154",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_893a48c79411bebb5ec6",
+        "members": [
+          "nmd_jigs_252",
+          "nmd_jigs_256"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "external_negative"
+        ],
+        "retained": "nmd_jigs_256",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_32c88ce0497c3b6f7797",
+        "members": [
+          "nmd_jigs_261",
+          "nmd_jigs_54"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "external_negative"
+        ],
+        "retained": "nmd_jigs_54",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_06a901abf0657c5349ea",
+        "members": [
+          "nmd_jigs_281",
+          "nmd_jigs_282"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "external_negative"
+        ],
+        "retained": "nmd_jigs_281",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_5e3ee7c20030fda68235",
+        "members": [
+          "nmd_jigs_33",
+          "nmd_jigs_36",
+          "session_1153"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "external_negative",
+          "train"
+        ],
+        "retained": "nmd_jigs_33",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_198e981d88d3c1fad4c6",
+        "members": [
+          "nmd_reelsa-c_62",
+          "nmd_reelsa-c_63"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "external_negative"
+        ],
+        "retained": "nmd_reelsa-c_62",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_749b5f50801153e51484",
+        "members": [
+          "nmd_reelsd-g_11",
+          "session_1621"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "external_negative",
+          "train"
+        ],
+        "retained": "nmd_reelsd-g_11",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_3a980c696731d6f4d6fc",
+        "members": [
+          "nmd_reelsd-g_22",
+          "session_3376"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "external_negative",
+          "train"
+        ],
+        "retained": "nmd_reelsd-g_22",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_3cdd54ec96f9b6c36538",
+        "members": [
+          "nmd_reelsh-l_47",
+          "nmd_reelsh-l_48"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "external_negative"
+        ],
+        "retained": "nmd_reelsh-l_47",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_3983ba5e0afe807d5144",
+        "members": [
+          "nmd_reelsh-l_57",
+          "nmd_reelsh-l_59"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "external_negative"
+        ],
+        "retained": "nmd_reelsh-l_59",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_b27a8c9fdd5c75bd482c",
+        "members": [
+          "nmd_reelsr-t_68",
+          "nmd_reelsr-t_70"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "external_negative"
+        ],
+        "retained": "nmd_reelsr-t_70",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_8e532baa99eb08ff84ab",
+        "members": [
+          "nmd_waltzes_8",
+          "session_10443"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "external_negative",
+          "train"
+        ],
+        "retained": "nmd_waltzes_8",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_8ce2c7f43f1fd4b5fe08",
+        "members": [
+          "omnibook_Diverse",
+          "omnibook_Segment"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "external_negative"
+        ],
+        "retained": "omnibook_Diverse",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_c8fbbb37702a8636ae80",
+        "members": [
+          "omnibook_Mohawk_1",
+          "omnibook_Mohawk_2"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "external_negative"
+        ],
+        "retained": "omnibook_Mohawk_1",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_1bbffe780df0b3766ea8",
+        "members": [
+          "pdmx_QmNSn8BBhHpbU6w9fqkp5yCsXVtyY8fwh1BT16SSsZEdBL",
+          "pdmx_QmQb1RdU1FtmmYHbXdfU7YEY8a9nvkJcdBJGRTrSokCCq9",
+          "pdmx_QmSz2C2n172TdxVEnWYqqMpkUkrH8xTdwJyXHza8Bq9Drx",
+          "pdmx_QmdKexEC1RtbrJmgpxrcWmFau7mp4q3EqCBHfB7KRVfNH9"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "test",
+          "train",
+          "valid"
+        ],
+        "retained": "pdmx_QmSz2C2n172TdxVEnWYqqMpkUkrH8xTdwJyXHza8Bq9Drx",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_5dc6da529aab9cdfe462",
+        "members": [
+          "pdmx_QmNhGNmwyvtSwMxY2NppuaFK99XLQ6eXsHXcrvnigTHzxT",
+          "pdmx_QmZqHQpUy6SuTVdCdvKGtxtMrycAHFxVFSt8LmUeLRtcj8",
+          "pdmx_QmdFJAzz8UjBfRh5Jue8ztUw1UVL9qVyR3JrJVXUYtMgyr"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "pdmx_QmNhGNmwyvtSwMxY2NppuaFK99XLQ6eXsHXcrvnigTHzxT",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_783c315ba312e2a0731c",
+        "members": [
+          "pdmx_QmP7R5eXnSXAxCqseFNdCYBmo5SGfCBk7r1RVnxsY7sHDr",
+          "pdmx_QmW4o6SZczgacfxtKtSALHJhGnRnwk9vzYkycdc5Vbo8mj"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "pdmx_QmP7R5eXnSXAxCqseFNdCYBmo5SGfCBk7r1RVnxsY7sHDr",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_ada8e421821c41badc66",
+        "members": [
+          "pdmx_QmP9qghaQBpUHdNgqyLoLqju9KKwcgzCaRuSmBKyzmNwCp",
+          "pdmx_QmXPWX4qnw7HbpSXpYM6ahxUWndJzPShxfAVexato52vWU",
+          "pdmx_QmepdZm3AYShmUJgRCfP1CSg32naSvrJ1qmf6axGgnJg9A",
+          "pdmx_QmfQgmeDXM9qGaGAedACH7Qx1UQfrkEdoFqxEzf6LyFnGQ"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "pdmx_QmP9qghaQBpUHdNgqyLoLqju9KKwcgzCaRuSmBKyzmNwCp",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_15159059596139aa5417",
+        "members": [
+          "pdmx_QmPUpVGDWkXCaAiMJQs2RKKuKUHprSsCskraxNitC3Ut8w",
+          "pdmx_QmcU1jyQdXPE27B47VMzYae71Jm6JBgy9g48tqgt6uShFn"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "pdmx_QmPUpVGDWkXCaAiMJQs2RKKuKUHprSsCskraxNitC3Ut8w",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_e17a09fa2d220c18585b",
+        "members": [
+          "pdmx_QmPdy5cVQ2tE9qMWhwLhVd2QtZh26inRSadFmcwkoypkpN",
+          "pdmx_QmWsrkyCndk12u437ku3ApGXEjZC4NNGMmFvU4DuByszdK"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "pdmx_QmPdy5cVQ2tE9qMWhwLhVd2QtZh26inRSadFmcwkoypkpN",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_f735d050e8f421c49439",
+        "members": [
+          "pdmx_QmPerB1RoE6pXCfbKyghthNKhdteUHWuBQyi2Z4VX2ho5e",
+          "pdmx_QmVV4GtHePezrRkTQRKEBtkUGXE5gwhoLSH8Rn9etgNQdq"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "pdmx_QmPerB1RoE6pXCfbKyghthNKhdteUHWuBQyi2Z4VX2ho5e",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_b596a0650fd4e3f6208f",
+        "members": [
+          "pdmx_QmPjXsbrzPHkpqojiDBzMv2nZnNtKhRvJ7cj8wpU3LWVa2",
+          "pdmx_QmfBDSzoSfVJsWsxJk7iwmxFU4147s7BApgeYMnyz8aK1Z"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "test",
+          "valid"
+        ],
+        "retained": "pdmx_QmPjXsbrzPHkpqojiDBzMv2nZnNtKhRvJ7cj8wpU3LWVa2",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_5da0a1b075db62c5b5fb",
+        "members": [
+          "pdmx_QmQ1FQL9sNCEvwV8KhoUQ9TXToR26FzHHAEdr24p4qeBCY",
+          "pdmx_QmSd8iw4LSxdLT5B28Fv2jg9QeLdcY7BQT2zsoeNxqqSDW"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "pdmx_QmQ1FQL9sNCEvwV8KhoUQ9TXToR26FzHHAEdr24p4qeBCY",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_3bbf7414846dfccf8e1c",
+        "members": [
+          "pdmx_QmQVxY9V17itYzzDG8m76PTn1RLf57NeMP9hArPGWsT5Gg",
+          "pdmx_QmcLQrpb3vQdDfeaBMt9KNH4WxxqjnHPhP3GR4cEow6EDU"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "pdmx_QmQVxY9V17itYzzDG8m76PTn1RLf57NeMP9hArPGWsT5Gg",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_ba9b905cea24faeb5a5c",
+        "members": [
+          "pdmx_QmQhMuFDiGTASK35mR3Xk71PyvRoBvW989fbdNmFfXrDsx",
+          "pdmx_QmbDJCUFDQz5kiKTwk8XgvkwSofUB54J7vAYevYtgRpR2F"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "pdmx_QmbDJCUFDQz5kiKTwk8XgvkwSofUB54J7vAYevYtgRpR2F",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_074bea64b40156133409",
+        "members": [
+          "pdmx_QmQjjtEVQpEBdzsbFjzhXE4ayv9Xvcjcqk5CCbMRzg59W7",
+          "pdmx_QmRRAFR5Z9UdYUVUydBLEjNJHNfVzydetDgwjjZmyPBAxU",
+          "pdmx_QmZuY5Bo9tvfAymXCh9ahcRjDAtS4WSGM1ZrzecPXGbpUZ"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "test",
+          "train",
+          "valid"
+        ],
+        "retained": "pdmx_QmQjjtEVQpEBdzsbFjzhXE4ayv9Xvcjcqk5CCbMRzg59W7",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_e11a4abbc0a5fe79cefd",
+        "members": [
+          "pdmx_QmQviN9LjzjSEPyajCxMyC23AMqx47WshcjrGdxAJcjpxv",
+          "pdmx_QmWbH6ou7RZByRmuEgyye1qz7sx7T9RCjyQtfm5Pdro6dD"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "pdmx_QmQviN9LjzjSEPyajCxMyC23AMqx47WshcjrGdxAJcjpxv",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_3a43790a8fe47e6da81b",
+        "members": [
+          "pdmx_QmR14E4eMaiA8cRaJsv4CwwahD3pNxg9W1G9RvLyZNkzyX",
+          "pdmx_QmWKC9dUVEf7FVEmE9wXczdTeEha6v2XxnGNrqs3WEnFx5"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "pdmx_QmWKC9dUVEf7FVEmE9wXczdTeEha6v2XxnGNrqs3WEnFx5",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_25ad5ef6b51f19144527",
+        "members": [
+          "pdmx_QmR1WRS4dEXY7U7H2wEDNDdnMNMuepRqm6Nx8HiCiR1cgQ",
+          "pdmx_QmYeqxinPyMHhfsFaiHgi2h6o6aF4adKN5dPDC778JQMVg"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "pdmx_QmR1WRS4dEXY7U7H2wEDNDdnMNMuepRqm6Nx8HiCiR1cgQ",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_5b21d4b9bda23190063d",
+        "members": [
+          "pdmx_QmRT3VL1yY9rqhxpfQusEnjifiWCxtTmUZ4ZwoJgX2Di92",
+          "session_13443"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "session_13443",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_1d235177e834ea4e64a9",
+        "members": [
+          "pdmx_QmRaxFarur2UXH5X4Udr5g1bgZ16fT1htUK6Xyg4BjcsXD",
+          "pdmx_QmXXkb7MjgGA6EziPMFTLLqfhV8QAu3mMnHdzEomcuoA8P"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "pdmx_QmXXkb7MjgGA6EziPMFTLLqfhV8QAu3mMnHdzEomcuoA8P",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_c73f37afe0f0b6b5caf7",
+        "members": [
+          "pdmx_QmS56npA7ae7pgAfBTzqkV71cwFFjJukXpwEXhhzs3hs2J",
+          "pdmx_QmasoYaJtJGFdT4j5qCM9rcYzJJsXrzWborT7hFVRDAWVW"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "pdmx_QmasoYaJtJGFdT4j5qCM9rcYzJJsXrzWborT7hFVRDAWVW",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_0a4d6d737c645be5f699",
+        "members": [
+          "pdmx_QmSFbyDQJrRw6qMbkiPdFUXTAhe225sg9XTaMjhzEs6ee4",
+          "pdmx_QmUQS3izMhx5xFUJPKBEVswzLYqGiJ46C8L7hYurvrd9ii"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "pdmx_QmSFbyDQJrRw6qMbkiPdFUXTAhe225sg9XTaMjhzEs6ee4",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_c39e6610d4839eab4312",
+        "members": [
+          "pdmx_QmSybgLBS4jktgfhCUZ3LDS9y2b6qAzqDLifpELtLr8cLA",
+          "pdmx_QmU88e6cAHe6nbg42rPdUR8yTnhWCu8PSk8WRdykb71wSP",
+          "pdmx_QmX8gWPvoVUeZi5vgFKCXpFjUoKf3ux7CavHYPyWzWwzKE"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "pdmx_QmU88e6cAHe6nbg42rPdUR8yTnhWCu8PSk8WRdykb71wSP",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_9b2576651ff2762a0685",
+        "members": [
+          "pdmx_QmT2w7cgZnWVbbdyV3PN4wJcHwFCpviR18hM2TkXYUaRyw",
+          "pdmx_QmbvVVjePGbg6KvwjdfW19Lo3Jp4nZvNTzBGqayWeY4sp2"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "pdmx_QmbvVVjePGbg6KvwjdfW19Lo3Jp4nZvNTzBGqayWeY4sp2",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_9d2efaab86f689e3b427",
+        "members": [
+          "pdmx_QmT6c4KL4ewDceEzyJuhJTBJpbzjJYDPviZLvt7JpqS8M4",
+          "pdmx_QmZbEwLjBZAGRpktijg9TR63ydTCqkgJapv8Lc8iQw5fTs"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "test",
+          "train"
+        ],
+        "retained": "pdmx_QmT6c4KL4ewDceEzyJuhJTBJpbzjJYDPviZLvt7JpqS8M4",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_d74c099c6467408da757",
+        "members": [
+          "pdmx_QmTjD7qrdZCaNYy77zdiBjVy3NKkS1bbyj4LvTyivfZTPW",
+          "pdmx_QmYQjd8WWuc9pfxFTpGvS3Ej9QsETbgqvcscaXR1v6Dm9u",
+          "pdmx_QmeQyE8NUzNyMcrKGTfXEzXfkMLyjKUVTybvwzyFjDSMdz"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "test",
+          "train",
+          "valid"
+        ],
+        "retained": "pdmx_QmeQyE8NUzNyMcrKGTfXEzXfkMLyjKUVTybvwzyFjDSMdz",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_9aa17865517db26d60ce",
+        "members": [
+          "pdmx_QmU9iJus43X2qhWAtra8Rxy47VGpfNnkYG29ys7YXF6HBU",
+          "pdmx_QmaXuF2UAsK9tVi2c4V6MDZLyUSjxUz8Bem5CLWXEFiPU6"
+        ],
+        "labels": [
+          "jazz",
+          "other"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": null,
+        "reason": "conflicting_labels"
+      },
+      {
+        "group_id": "input_family_ff2ab92e9793d0cf9321",
+        "members": [
+          "pdmx_QmVLXyrnVo4TVRpLwDiCkSnoBCnwuSN1dFow79wEyErq8Z",
+          "pdmx_Qmbk9fuscKbFwBmqRT1jA5dCw6HAaP7K6BpKyXGGuQsjuC",
+          "pdmx_QmbncjnQV5c352pZ36p6CS8GmJnTrLRBGMvar1BkELnNkX"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "test",
+          "train",
+          "valid"
+        ],
+        "retained": "pdmx_QmbncjnQV5c352pZ36p6CS8GmJnTrLRBGMvar1BkELnNkX",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_c2ebd409a7b6fba514b4",
+        "members": [
+          "pdmx_QmVcP6EB8Dzi6ynNWrAQ4NJRZgd1vkhW4VDfubuK77kpQG",
+          "pdmx_QmdzwM2p7K8YscHzc59EFVFQrSw2Yn72mJqS1mgjAZb5BK"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "pdmx_QmVcP6EB8Dzi6ynNWrAQ4NJRZgd1vkhW4VDfubuK77kpQG",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_c30a8c1f751882373539",
+        "members": [
+          "pdmx_QmWNsmwogqFPNsKBHoaBmydg5jCjQkafB9sXTXMZ6XMR7U",
+          "pdmx_QmYQ6tUfr2aFDTsPp8UyfpmtpPDo5iDzDkWAjJzeq1WLA5"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "pdmx_QmYQ6tUfr2aFDTsPp8UyfpmtpPDo5iDzDkWAjJzeq1WLA5",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_214d09427553817223f7",
+        "members": [
+          "pdmx_QmWTgtM8DWetJGFF6KQnr3hnwjmsogtg8UMpHLAtX86Pvx",
+          "pdmx_QmcToAuigRsMqZ2GMX3s9WYviWSyrV4iXvt3dSefyxmw2i"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "pdmx_QmWTgtM8DWetJGFF6KQnr3hnwjmsogtg8UMpHLAtX86Pvx",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_d50015106bd612e70732",
+        "members": [
+          "pdmx_QmWuPxFhiH1xkw6cJSBUdii4tUiW5GwFBKuw4indNVXh8i",
+          "pdmx_QmZYTDDKqE391kiREaSE5c81gCtTmEDnZCX2HGjthN8Rr1"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "test",
+          "train"
+        ],
+        "retained": "pdmx_QmWuPxFhiH1xkw6cJSBUdii4tUiW5GwFBKuw4indNVXh8i",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_0536ce1865bd9a0049dc",
+        "members": [
+          "pdmx_QmXAz2cHD1dvv41nzUanA3QaWoXaLNwQRKg1Ju5F6KVSGm",
+          "pdmx_QmdCWAQVL43YwJLmEH4mqU6ARoifNR7ofQx8aUMKQe1Qag"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "valid"
+        ],
+        "retained": "pdmx_QmXAz2cHD1dvv41nzUanA3QaWoXaLNwQRKg1Ju5F6KVSGm",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_6afd1e10ac43ebcc2992",
+        "members": [
+          "pdmx_QmXji3KEax27UkDW5igXoY8BEsPFaSkEC683HxUuzyiw9K",
+          "pdmx_Qmd4Yvf6BXKjGM1wGRUFewgs5hKzoHfut3cThZmj1ZXGDf"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "pdmx_QmXji3KEax27UkDW5igXoY8BEsPFaSkEC683HxUuzyiw9K",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_58e69e16d096fa75d014",
+        "members": [
+          "pdmx_QmXnpmnc9mAkzPAzpxN1rFm5eqKNnwDhQKtAmN1ecYDABf",
+          "pdmx_QmYtYDXp6SDhcCRhRMZg1fN4RihJqvaBVgEHGuXPLbUv6a"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "test",
+          "train"
+        ],
+        "retained": "pdmx_QmYtYDXp6SDhcCRhRMZg1fN4RihJqvaBVgEHGuXPLbUv6a",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_a61282d3f01ab5d3e58e",
+        "members": [
+          "pdmx_QmXz69M1U7BBRAcQabxWVRUfsAwGef15n3iL5ykoA9ecSv",
+          "pdmx_QmeDvipBgUYrLBrMZxRjReQDNtdLscbGc9afhLmKR598NQ"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "pdmx_QmeDvipBgUYrLBrMZxRjReQDNtdLscbGc9afhLmKR598NQ",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_e51361e9c04077f74389",
+        "members": [
+          "pdmx_QmYoqaKJTzgwrh5yiLnAPQNm27Cxowavu5RsYuS3qT7AEY",
+          "pdmx_QmaoQa7nRcUPqTbvvNm7iMfvRMCGDXUHcjWUMBA6K3wbws"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "test",
+          "train"
+        ],
+        "retained": "pdmx_QmYoqaKJTzgwrh5yiLnAPQNm27Cxowavu5RsYuS3qT7AEY",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_f2963cd844c75de1a109",
+        "members": [
+          "pdmx_QmZGm7bHSEUrmmLWPiGEx4SfyzbV6acJ8X229FjB9u76qC",
+          "pdmx_Qmf7qNXJqZpsP2rGFh9VRzYnviSfzEvYusxKWUW83HZaFx"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "pdmx_QmZGm7bHSEUrmmLWPiGEx4SfyzbV6acJ8X229FjB9u76qC",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_f4dda1dc9e336896d115",
+        "members": [
+          "pdmx_QmZPRDqf3Mkz1nXRoi3nbEMRJpvZSNaeJ5YjzoMpKZH1XV",
+          "pdmx_QmZQij91kGAYuDmJCwyTpt8JZHbsRu1v4LRWPF9NzVyNHu"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "pdmx_QmZPRDqf3Mkz1nXRoi3nbEMRJpvZSNaeJ5YjzoMpKZH1XV",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_f96bd508c00cbd103498",
+        "members": [
+          "pdmx_QmZR6JdDCEJPQhWewEALxwFS3XkpueuzHMPxPdM7zJRJvu",
+          "pdmx_QmbeTPuLm3FqX4JNzC8Wc78rKLb2iFU7g8AKgtWFPkSCAZ"
+        ],
+        "labels": [
+          "jazz"
+        ],
+        "partitions": [
+          "test",
+          "valid"
+        ],
+        "retained": "pdmx_QmbeTPuLm3FqX4JNzC8Wc78rKLb2iFU7g8AKgtWFPkSCAZ",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_9771f364c994b902da40",
+        "members": [
+          "pdmx_QmZWJJN5kk7AyXe7ZD2tBfamirHj3Z9eqquQ89PedtdaH9",
+          "pdmx_QmbyJW3JvpE9ohUVjacRN8LWyowfkgSfZMK65dHQnqeR5p"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "pdmx_QmZWJJN5kk7AyXe7ZD2tBfamirHj3Z9eqquQ89PedtdaH9",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_35e7ff4319b31738a0c7",
+        "members": [
+          "pdmx_QmaA8ytbqvP9xcmjffRrThEBfy5qSPco7zoZ5Bjziyz9T3",
+          "pdmx_QmbuK8kHfUQdm7RNVQBBgF7Tx4v8W818ksY3ia9ZQuPiKG"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "test",
+          "train"
+        ],
+        "retained": "pdmx_QmaA8ytbqvP9xcmjffRrThEBfy5qSPco7zoZ5Bjziyz9T3",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_f86da7f1e257b6fbc7e1",
+        "members": [
+          "pdmx_QmaH2619HgNCeGgpzKXKzsBGbPBxiPBTdfv7MxNx8NR9KX",
+          "pdmx_Qmaq6R3UTCjB4yezWuVsh4e9r3G4xJqHtVEv2MUThzTbbk"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "test",
+          "train"
+        ],
+        "retained": "pdmx_Qmaq6R3UTCjB4yezWuVsh4e9r3G4xJqHtVEv2MUThzTbbk",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_0757f62fcad57c5b76a5",
+        "members": [
+          "pdmx_QmaZJdhuSNzgB5BaxG9qqsvZcX13b8vEP1YBv39BcL69BT",
+          "session_3598"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "pdmx_QmaZJdhuSNzgB5BaxG9qqsvZcX13b8vEP1YBv39BcL69BT",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_49c9c9d27bdf1fe9ff67",
+        "members": [
+          "pdmx_QmbcutgqrHpfy9rKRxh6wH2EQ8k1p5FR3RcWqtQ2HS6xTD",
+          "session_5589"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "pdmx_QmbcutgqrHpfy9rKRxh6wH2EQ8k1p5FR3RcWqtQ2HS6xTD",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_f21bb23f9e9358656baa",
+        "members": [
+          "pdmx_QmeaTpTwAsVyvdKQaKhQf8zgWweQc63JYVbXF4V82sYosR",
+          "pdmx_QmfZpD4GTDLQk8yFHdjkysjSdgzoTFSxcFCograE5bEyQt"
+        ],
+        "labels": [
+          "other"
+        ],
+        "partitions": [
+          "test",
+          "train"
+        ],
+        "retained": "pdmx_QmeaTpTwAsVyvdKQaKhQf8zgWweQc63JYVbXF4V82sYosR",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_a606fb28c33e289ba5c5",
+        "members": [
+          "pdmx_QmfS5tnAVLBAoNxXPK3Bh9qT6VKVNCVwGjNn85xpKgyhGe",
+          "session_12988"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "pdmx_QmfS5tnAVLBAoNxXPK3Bh9qT6VKVNCVwGjNn85xpKgyhGe",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_54f9e510d9b2415b10d8",
+        "members": [
+          "session_10571",
+          "session_15289",
+          "session_15290"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "session_15290",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_a325d6a5daf1015145a2",
+        "members": [
+          "session_12993",
+          "session_12994"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "session_12993",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_3d27bc544c18b4cfb322",
+        "members": [
+          "session_14612",
+          "session_17785"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "train"
+        ],
+        "retained": "session_14612",
+        "reason": "shared_input_family"
+      },
+      {
+        "group_id": "input_family_93e0770a68163dd8dfac",
+        "members": [
+          "session_19424",
+          "session_19989"
+        ],
+        "labels": [
+          "waltz"
+        ],
+        "partitions": [
+          "train",
+          "valid"
+        ],
+        "retained": "session_19424",
+        "reason": "shared_input_family"
+      }
+    ],
+    "excluded": [
+      {
+        "name": "esac_1465",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_dcd8a3bbb4d60564fd85",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "esac_1484",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_d1bcb05fc70c50b6a41b",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "esac_6340",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_7abbd43c3c51e3849c4f",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "esac_6020",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_52811b49e3fc255ffed6",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "esac_6220",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_c6a4cc1d0cd5aeb73ada",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "esac_6256",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_810919630973b13f422b",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "esac_4488",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_af8fe9e67a370a01a642",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "esac_935",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_64f9fd5c590c8b291a30",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "esac_7514",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_4242984576f5ffa7011f",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "esac_4839",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_3929e4c5144d0f9d6dc5",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_3065",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_5fe7dc94ea4e8883f338",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_104",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_ff0c65a144decbad23ad",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_2789",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_696d099a01a5d60b5775",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_5099",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_30d98c97ecf964aa57c5",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_4959",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_291f047126be50ac8cdf",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_1466",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_8b1ae59b4a69e3bc904b",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_2863",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_bbdd4d9c016bd1719295",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_587",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_2a284c125968aa59d9db",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_3289",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_faa036c7d3ec1f964ca4",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_4126",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_faa036c7d3ec1f964ca4",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_3780",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_e33721935ed2b5b1b6a1",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_1344",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_e1afb62373597889e2b8",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_290",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_c18de5bb9becf9bc93e6",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_1393",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_4bde356ec8940c6cc2b8",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_2432",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_745ccf1dddce45a296e9",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_4094",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_c385bf92147a23e039a0",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_1580",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_66dc6fbaaebbbcef48cb",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_1691",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_6ada8e7e16d616a8954b",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_244",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_6ada8e7e16d616a8954b",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_4502",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_ae9dac09e6acbbffa1f4",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_1805",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_002ade9490313decaab3",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_1827",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_0e17bf229bbed817783a",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_317",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_331689074acfd3acff37",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_2085",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_994959bc6ab67d61756e",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmRbzKhmjYeoxdEVnMKNZhWUYntbdvKNR1jnx8ctmTUtj8",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_994959bc6ab67d61756e",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmTjqjoJX2yofb58uE6BypwxStCrdTqFSQo3xYtNDsPQ1T",
+        "genre": "jazz",
+        "split": "test",
+        "group_id": "input_family_994959bc6ab67d61756e",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmYPVd57o4o8CTMk78dmfhuvRLB3sMBBePFCqw1vMAJRxM",
+        "genre": "jazz",
+        "split": "test",
+        "group_id": "input_family_994959bc6ab67d61756e",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmaAx5uRgEB3rCNpU6MNj1v6aKZxhcGJiu2MiHGgkQXGji",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_994959bc6ab67d61756e",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_Qmaa6zgW92mEVQXRgeDnZEJVkdWMJzJDKx31rgGfC1nMdK",
+        "genre": "jazz",
+        "split": "test",
+        "group_id": "input_family_994959bc6ab67d61756e",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_Qmb3MzkZN6mG3G12ZnRRJ1gvEeUsL3JJQ9kaW7bELhdwum",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_994959bc6ab67d61756e",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmbjiRHpfdc3FkbC4XkQJBc1zij1R6GNWwGNtykCaGs1jC",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_994959bc6ab67d61756e",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_2611",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_3b9a99cbc463f9c264a5",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_2252",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_7ef441a20171af7eb8a7",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_2311",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_7ef441a20171af7eb8a7",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_633",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_7ef441a20171af7eb8a7",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_2990",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_ab106f910ff7a13237af",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_3742",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_a0b5d43f52f54f9e60b5",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_2855",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_935a8dbddcdcfa9d9180",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_3475",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_935a8dbddcdcfa9d9180",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_4298",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_c2eee97aaf308cdeb566",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_5098",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_c2eee97aaf308cdeb566",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_2745",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_e77e7708421fc6312f48",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_4290",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_0459e5bb8470ac623871",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_4459",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_0459e5bb8470ac623871",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_3395",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_3b77cf096230553518e5",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_4244",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_a7e5a9973666055c00a4",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_3332",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_38dadc4e9af11228d2b7",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_431",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_38dadc4e9af11228d2b7",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_4795",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_38dadc4e9af11228d2b7",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_3938",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_41112fbaf9585d54f0c6",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_505",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_9dc940ced3e93c32cc51",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_902",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_9dc940ced3e93c32cc51",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_2889",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_d854b352b4864854c7ba",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_884",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_507c095255fc16075240",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_900",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_c0f2ff212405b06b5bbd",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_2946",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_e3c4cb066660bc05e520",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_973",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_3bbe51115dbfa775f425",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_3614",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_c1687d29ee43305b2088",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_3608",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_d9f571b5a887b4e318ce",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_3401",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_54feb1e22501948cdefb",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_3734",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_b593a2fbd23791fc2413",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_845",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_8947a485bf6deb2458e3",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_5134",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_241a55696f328431bd81",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_3934",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_901a5b023fc0bdf843d5",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_4621",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_041e6d86e32261d74c26",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "ewld_4450",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_55b8ed4b43a0f5d947ce",
+        "reason": "conflicting_labels"
+      },
+      {
+        "name": "pdmx_QmZFWEQiSTEd4xVAQ6MjKbRfuNzcd3RTUCoxWMCim2rLgp",
+        "genre": "jazz",
+        "split": "valid",
+        "group_id": "input_family_55b8ed4b43a0f5d947ce",
+        "reason": "conflicting_labels"
+      },
+      {
+        "name": "nmd_jigs_155",
+        "genre": "other",
+        "split": "external_negative",
+        "group_id": "input_family_6692f2b75bf44864a93c",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "nmd_jigs_252",
+        "genre": "other",
+        "split": "external_negative",
+        "group_id": "input_family_893a48c79411bebb5ec6",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "nmd_jigs_261",
+        "genre": "other",
+        "split": "external_negative",
+        "group_id": "input_family_32c88ce0497c3b6f7797",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "nmd_jigs_282",
+        "genre": "other",
+        "split": "external_negative",
+        "group_id": "input_family_06a901abf0657c5349ea",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "nmd_jigs_36",
+        "genre": "other",
+        "split": "external_negative",
+        "group_id": "input_family_5e3ee7c20030fda68235",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "session_1153",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_5e3ee7c20030fda68235",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "nmd_reelsa-c_63",
+        "genre": "other",
+        "split": "external_negative",
+        "group_id": "input_family_198e981d88d3c1fad4c6",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "session_1621",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_749b5f50801153e51484",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "session_3376",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_3a980c696731d6f4d6fc",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "nmd_reelsh-l_48",
+        "genre": "other",
+        "split": "external_negative",
+        "group_id": "input_family_3cdd54ec96f9b6c36538",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "nmd_reelsh-l_57",
+        "genre": "other",
+        "split": "external_negative",
+        "group_id": "input_family_3983ba5e0afe807d5144",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "nmd_reelsr-t_68",
+        "genre": "other",
+        "split": "external_negative",
+        "group_id": "input_family_b27a8c9fdd5c75bd482c",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "session_10443",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_8e532baa99eb08ff84ab",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "omnibook_Segment",
+        "genre": "jazz",
+        "split": "external_negative",
+        "group_id": "input_family_8ce2c7f43f1fd4b5fe08",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "omnibook_Mohawk_2",
+        "genre": "jazz",
+        "split": "external_negative",
+        "group_id": "input_family_c8fbbb37702a8636ae80",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmNSn8BBhHpbU6w9fqkp5yCsXVtyY8fwh1BT16SSsZEdBL",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_1bbffe780df0b3766ea8",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmQb1RdU1FtmmYHbXdfU7YEY8a9nvkJcdBJGRTrSokCCq9",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_1bbffe780df0b3766ea8",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmdKexEC1RtbrJmgpxrcWmFau7mp4q3EqCBHfB7KRVfNH9",
+        "genre": "waltz",
+        "split": "valid",
+        "group_id": "input_family_1bbffe780df0b3766ea8",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmZqHQpUy6SuTVdCdvKGtxtMrycAHFxVFSt8LmUeLRtcj8",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_5dc6da529aab9cdfe462",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmdFJAzz8UjBfRh5Jue8ztUw1UVL9qVyR3JrJVXUYtMgyr",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_5dc6da529aab9cdfe462",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmW4o6SZczgacfxtKtSALHJhGnRnwk9vzYkycdc5Vbo8mj",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_783c315ba312e2a0731c",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmXPWX4qnw7HbpSXpYM6ahxUWndJzPShxfAVexato52vWU",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_ada8e421821c41badc66",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmepdZm3AYShmUJgRCfP1CSg32naSvrJ1qmf6axGgnJg9A",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_ada8e421821c41badc66",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmfQgmeDXM9qGaGAedACH7Qx1UQfrkEdoFqxEzf6LyFnGQ",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_ada8e421821c41badc66",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmcU1jyQdXPE27B47VMzYae71Jm6JBgy9g48tqgt6uShFn",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_15159059596139aa5417",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmWsrkyCndk12u437ku3ApGXEjZC4NNGMmFvU4DuByszdK",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_e17a09fa2d220c18585b",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmVV4GtHePezrRkTQRKEBtkUGXE5gwhoLSH8Rn9etgNQdq",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_f735d050e8f421c49439",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmfBDSzoSfVJsWsxJk7iwmxFU4147s7BApgeYMnyz8aK1Z",
+        "genre": "jazz",
+        "split": "valid",
+        "group_id": "input_family_b596a0650fd4e3f6208f",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmSd8iw4LSxdLT5B28Fv2jg9QeLdcY7BQT2zsoeNxqqSDW",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_5da0a1b075db62c5b5fb",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmcLQrpb3vQdDfeaBMt9KNH4WxxqjnHPhP3GR4cEow6EDU",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_3bbf7414846dfccf8e1c",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmQhMuFDiGTASK35mR3Xk71PyvRoBvW989fbdNmFfXrDsx",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_ba9b905cea24faeb5a5c",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmRRAFR5Z9UdYUVUydBLEjNJHNfVzydetDgwjjZmyPBAxU",
+        "genre": "waltz",
+        "split": "valid",
+        "group_id": "input_family_074bea64b40156133409",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmZuY5Bo9tvfAymXCh9ahcRjDAtS4WSGM1ZrzecPXGbpUZ",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_074bea64b40156133409",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmWbH6ou7RZByRmuEgyye1qz7sx7T9RCjyQtfm5Pdro6dD",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_e11a4abbc0a5fe79cefd",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmR14E4eMaiA8cRaJsv4CwwahD3pNxg9W1G9RvLyZNkzyX",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_3a43790a8fe47e6da81b",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmYeqxinPyMHhfsFaiHgi2h6o6aF4adKN5dPDC778JQMVg",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_25ad5ef6b51f19144527",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmRT3VL1yY9rqhxpfQusEnjifiWCxtTmUZ4ZwoJgX2Di92",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_5b21d4b9bda23190063d",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmRaxFarur2UXH5X4Udr5g1bgZ16fT1htUK6Xyg4BjcsXD",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_1d235177e834ea4e64a9",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmS56npA7ae7pgAfBTzqkV71cwFFjJukXpwEXhhzs3hs2J",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_c73f37afe0f0b6b5caf7",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmUQS3izMhx5xFUJPKBEVswzLYqGiJ46C8L7hYurvrd9ii",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_0a4d6d737c645be5f699",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmSybgLBS4jktgfhCUZ3LDS9y2b6qAzqDLifpELtLr8cLA",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_c39e6610d4839eab4312",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmX8gWPvoVUeZi5vgFKCXpFjUoKf3ux7CavHYPyWzWwzKE",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_c39e6610d4839eab4312",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmT2w7cgZnWVbbdyV3PN4wJcHwFCpviR18hM2TkXYUaRyw",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_9b2576651ff2762a0685",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmZbEwLjBZAGRpktijg9TR63ydTCqkgJapv8Lc8iQw5fTs",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_9d2efaab86f689e3b427",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmTjD7qrdZCaNYy77zdiBjVy3NKkS1bbyj4LvTyivfZTPW",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_d74c099c6467408da757",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmYQjd8WWuc9pfxFTpGvS3Ej9QsETbgqvcscaXR1v6Dm9u",
+        "genre": "waltz",
+        "split": "valid",
+        "group_id": "input_family_d74c099c6467408da757",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmU9iJus43X2qhWAtra8Rxy47VGpfNnkYG29ys7YXF6HBU",
+        "genre": "jazz",
+        "split": "train",
+        "group_id": "input_family_9aa17865517db26d60ce",
+        "reason": "conflicting_labels"
+      },
+      {
+        "name": "pdmx_QmaXuF2UAsK9tVi2c4V6MDZLyUSjxUz8Bem5CLWXEFiPU6",
+        "genre": "other",
+        "split": "valid",
+        "group_id": "input_family_9aa17865517db26d60ce",
+        "reason": "conflicting_labels"
+      },
+      {
+        "name": "pdmx_QmVLXyrnVo4TVRpLwDiCkSnoBCnwuSN1dFow79wEyErq8Z",
+        "genre": "other",
+        "split": "valid",
+        "group_id": "input_family_ff2ab92e9793d0cf9321",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_Qmbk9fuscKbFwBmqRT1jA5dCw6HAaP7K6BpKyXGGuQsjuC",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_ff2ab92e9793d0cf9321",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmdzwM2p7K8YscHzc59EFVFQrSw2Yn72mJqS1mgjAZb5BK",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_c2ebd409a7b6fba514b4",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmWNsmwogqFPNsKBHoaBmydg5jCjQkafB9sXTXMZ6XMR7U",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_c30a8c1f751882373539",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmcToAuigRsMqZ2GMX3s9WYviWSyrV4iXvt3dSefyxmw2i",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_214d09427553817223f7",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmZYTDDKqE391kiREaSE5c81gCtTmEDnZCX2HGjthN8Rr1",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_d50015106bd612e70732",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmdCWAQVL43YwJLmEH4mqU6ARoifNR7ofQx8aUMKQe1Qag",
+        "genre": "other",
+        "split": "valid",
+        "group_id": "input_family_0536ce1865bd9a0049dc",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_Qmd4Yvf6BXKjGM1wGRUFewgs5hKzoHfut3cThZmj1ZXGDf",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_6afd1e10ac43ebcc2992",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmXnpmnc9mAkzPAzpxN1rFm5eqKNnwDhQKtAmN1ecYDABf",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_58e69e16d096fa75d014",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmXz69M1U7BBRAcQabxWVRUfsAwGef15n3iL5ykoA9ecSv",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_a61282d3f01ab5d3e58e",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmaoQa7nRcUPqTbvvNm7iMfvRMCGDXUHcjWUMBA6K3wbws",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_e51361e9c04077f74389",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_Qmf7qNXJqZpsP2rGFh9VRzYnviSfzEvYusxKWUW83HZaFx",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_f2963cd844c75de1a109",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmZQij91kGAYuDmJCwyTpt8JZHbsRu1v4LRWPF9NzVyNHu",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_f4dda1dc9e336896d115",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmZR6JdDCEJPQhWewEALxwFS3XkpueuzHMPxPdM7zJRJvu",
+        "genre": "jazz",
+        "split": "valid",
+        "group_id": "input_family_f96bd508c00cbd103498",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmbyJW3JvpE9ohUVjacRN8LWyowfkgSfZMK65dHQnqeR5p",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_9771f364c994b902da40",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmbuK8kHfUQdm7RNVQBBgF7Tx4v8W818ksY3ia9ZQuPiKG",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_35e7ff4319b31738a0c7",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmaH2619HgNCeGgpzKXKzsBGbPBxiPBTdfv7MxNx8NR9KX",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_f86da7f1e257b6fbc7e1",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "session_3598",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_0757f62fcad57c5b76a5",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "session_5589",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_49c9c9d27bdf1fe9ff67",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "pdmx_QmfZpD4GTDLQk8yFHdjkysjSdgzoTFSxcFCograE5bEyQt",
+        "genre": "other",
+        "split": "train",
+        "group_id": "input_family_f21bb23f9e9358656baa",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "session_12988",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_a606fb28c33e289ba5c5",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "session_10571",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_54f9e510d9b2415b10d8",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "session_15289",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_54f9e510d9b2415b10d8",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "session_12994",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_a325d6a5daf1015145a2",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "session_17785",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_3d27bc544c18b4cfb322",
+        "reason": "shared_input_family"
+      },
+      {
+        "name": "session_19989",
+        "genre": "waltz",
+        "split": "train",
+        "group_id": "input_family_93e0770a68163dd8dfac",
+        "reason": "shared_input_family"
+      }
+    ],
+    "residual_exact_window_matches": 0,
+    "limits": [
+      "Families can be shared phrases or arrangements, not necessarily identical compositions.",
+      "Labels are never guessed; conflicting families are quarantined.",
+      "Original source files and the legacy evaluation snapshot remain unchanged.",
+      "No exact window matches does not prove complete composition independence.",
+      "Fine-tuning cannot undo exposure already present in original pretrained weights.",
+      "A separate untouched work-level test set remains necessary before promotion."
+    ],
+    "source_snapshot": ".dart_tool/genre_reconcile_20261110/source_snapshot",
+    "source_snapshot_hashes": {
+      "additions.json": "e9eaa49304699372f6b33d11fe667cb4fa80cf25fb7fea4625b8b005628c728d",
+      "baseline-corpus.json": "f99565ca09de30845baf8f736c69f23094b06d6d6b145957f12744d4734369fd",
+      "curation.json": "ed353e223762a6ee3ba2cb32905ea39956cf912721d2d7b8506a96777d7be5b5",
+      "input-hashes.json": "df312ce9724e6ba18aad2a61fe68d34ccd1d528a07cce561080f92e4b25f65cc",
+      "legacy-split.json": "3696dae22fb20bcb63c09af11f73e7beca948257251f0c0d15a0ca295c59c4b4",
+      "quarantine.json": "550ba788279c695771731820229fba2874024ef3ad80b5e67fbd5ce490afe9b8",
+      "training-corrections.json": "24516255430d8a4831586683f61af9ac7770de96f4b760722be73c1515eb1ff8"
+    },
+    "input_hashes": {
+      "pieces": "433b90f5e4dd742cff9c4e63ea00a5309c01d7514c9fe38d6ab76cec8f6fb180",
+      "more": "49c2cfc5a982f690d3fc5fc0ab625c7e2838319edc095a3bd5640b07b868c16a",
+      "pdmx": "6f03a360f1260fe95726d4a4afc14d1c79768c98fabf2658f85773992af0b6f7",
+      "extra": "26c30f0e2e6167f3a5336c0b0eb3ac87df4df063c96b57aee1ad4f9c134ef445"
+    },
+    "builder_sha256": "56c6eb61c5dc3c2b08a9aab7cd8e61b2ab7a57d7fc95a8ed04fc9a90b78a5277",
+    "work_families_sha256": "4b5351b7dbc9399ac4ed110e1171b9e3bb4da66c7c15aa51426bd34fa4c592ca",
+    "output_hashes": {
+      "additions.json": "e9eaa49304699372f6b33d11fe667cb4fa80cf25fb7fea4625b8b005628c728d",
+      "baseline-corpus.json": "18e0410fdfd6f2f78b3f3aa90be4058e11f1e4e473e23100b68e22a13317e47a",
+      "curation.json": "ed353e223762a6ee3ba2cb32905ea39956cf912721d2d7b8506a96777d7be5b5",
+      "input-hashes.json": "df312ce9724e6ba18aad2a61fe68d34ccd1d528a07cce561080f92e4b25f65cc",
+      "legacy-split.json": "175479b13a5dab622533fbad397be99c7d1a5a532e565865a10b44bc3d74dd4b",
+      "quarantine.json": "550ba788279c695771731820229fba2874024ef3ad80b5e67fbd5ce490afe9b8",
+      "reconciled-corpus.json": "c47175b174e48213734f476ff3456003a9d6409f4e27a2f7e5224b9571023396",
+      "training-corrections.json": "24516255430d8a4831586683f61af9ac7770de96f4b760722be73c1515eb1ff8"
+    }
+  },
+  "banks": {
+    "all": {
+      "schema_version": 1,
+      "fold": "all",
+      "seed": 20261110,
+      "classes": {
+        "waltz": {
+          "examples": 4191,
+          "eligible_source_pieces": 1973,
+          "represented_source_pieces": 1973,
+          "represented_work_ids": 1973,
+          "represented_groups": 1973,
+          "source_windows": 1975,
+          "augmented_windows": 2216,
+          "examples_per_represented_source_min": 1,
+          "examples_per_represented_source_max": 3,
+          "held_out_input_rejections": 0,
+          "rejected_attempts": 25
+        },
+        "kundiman": {
+          "examples": 4191,
+          "eligible_source_pieces": 18,
+          "represented_source_pieces": 18,
+          "represented_work_ids": 18,
+          "represented_groups": 18,
+          "source_windows": 18,
+          "augmented_windows": 4173,
+          "examples_per_represented_source_min": 3,
+          "examples_per_represented_source_max": 341,
+          "held_out_input_rejections": 0,
+          "rejected_attempts": 2247
+        },
+        "jazz": {
+          "examples": 4191,
+          "eligible_source_pieces": 1023,
+          "represented_source_pieces": 1023,
+          "represented_work_ids": 1023,
+          "represented_groups": 1023,
+          "source_windows": 1023,
+          "augmented_windows": 3168,
+          "examples_per_represented_source_min": 2,
+          "examples_per_represented_source_max": 5,
+          "held_out_input_rejections": 0,
+          "rejected_attempts": 39
+        },
+        "other": {
+          "examples": 4191,
+          "eligible_source_pieces": 4191,
+          "represented_source_pieces": 4191,
+          "represented_work_ids": 4191,
+          "represented_groups": 4191,
+          "source_windows": 4191,
+          "augmented_windows": 0,
+          "examples_per_represented_source_min": 1,
+          "examples_per_represented_source_max": 1,
+          "held_out_input_rejections": 0,
+          "rejected_attempts": 0
+        }
+      },
+      "builder_sha256": "f63cbfda78df66e696a65a05c6cd6f31ac7870048ee7e168b4908bc1bf5a40ec",
+      "source_fingerprint": "1a86cda6d71671bf06bc662f5e86b0d712471e11329c9877425036bcd0f505b9",
+      "examples_total": 16764,
+      "feature_shape": [
+        64,
+        22
+      ],
+      "real_derived_only": true,
+      "features_sha256": "d59b86ffefd90301fd41edfbe9d1a71615eee3b2db4d0c56a6ba6d4b7ddd1252",
+      "origins_sha256": "12c9532b8370af886fec9acd49de3184fff9592ae7e83a5c82944ab2f8446b54",
+      "excluded_evaluation_inputs": 10960,
+      "exclusion_sha256": "d392343e125ba70784be2a649f468a8f8ee58ea6292c0b3687c5e24fd5ca22cb",
+      "unique_feature_windows": 16764,
+      "note": "Examples are windows, not independent compositions; holdouts are unaugmented."
+    },
+    "0": {
+      "schema_version": 1,
+      "fold": "0",
+      "seed": 20261110,
+      "classes": {
+        "waltz": {
+          "examples": 4191,
+          "eligible_source_pieces": 1973,
+          "represented_source_pieces": 1973,
+          "represented_work_ids": 1973,
+          "represented_groups": 1973,
+          "source_windows": 1975,
+          "augmented_windows": 2216,
+          "examples_per_represented_source_min": 1,
+          "examples_per_represented_source_max": 3,
+          "held_out_input_rejections": 0,
+          "rejected_attempts": 25
+        },
+        "kundiman": {
+          "examples": 4191,
+          "eligible_source_pieces": 14,
+          "represented_source_pieces": 14,
+          "represented_work_ids": 14,
+          "represented_groups": 14,
+          "source_windows": 16,
+          "augmented_windows": 4175,
+          "examples_per_represented_source_min": 3,
+          "examples_per_represented_source_max": 493,
+          "held_out_input_rejections": 0,
+          "rejected_attempts": 3279
+        },
+        "jazz": {
+          "examples": 4191,
+          "eligible_source_pieces": 1023,
+          "represented_source_pieces": 1023,
+          "represented_work_ids": 1023,
+          "represented_groups": 1023,
+          "source_windows": 1024,
+          "augmented_windows": 3167,
+          "examples_per_represented_source_min": 1,
+          "examples_per_represented_source_max": 5,
+          "held_out_input_rejections": 0,
+          "rejected_attempts": 36
+        },
+        "other": {
+          "examples": 4191,
+          "eligible_source_pieces": 4191,
+          "represented_source_pieces": 4191,
+          "represented_work_ids": 4191,
+          "represented_groups": 4191,
+          "source_windows": 4191,
+          "augmented_windows": 0,
+          "examples_per_represented_source_min": 1,
+          "examples_per_represented_source_max": 1,
+          "held_out_input_rejections": 0,
+          "rejected_attempts": 0
+        }
+      },
+      "builder_sha256": "f63cbfda78df66e696a65a05c6cd6f31ac7870048ee7e168b4908bc1bf5a40ec",
+      "source_fingerprint": "dcb96ee36d9bdc0886a5c4ceb4bca430254768315d5a9c8bd886dc763c5d3370",
+      "examples_total": 16764,
+      "feature_shape": [
+        64,
+        22
+      ],
+      "real_derived_only": true,
+      "features_sha256": "e2b7050856577d688c6e0cc925a41589cac9a5e5f8632da300eb5b449334e776",
+      "origins_sha256": "21a9639c4bd35d538f0767953bbf6cd347bf6d412dbea4d0294b76cd7f4c1f5f",
+      "excluded_evaluation_inputs": 10980,
+      "exclusion_sha256": "22842e5f29207ac382f83c0572a7ad75ca6e378fb86025baf16cb2ae09054233",
+      "unique_feature_windows": 16764,
+      "note": "Examples are windows, not independent compositions; holdouts are unaugmented."
+    }
+  },
+  "training_smoke": {
+    "all": {
+      "loaded": true,
+      "examples": 16764,
+      "held_out": [],
+      "exact_evaluation_matches": 0,
+      "source_pieces": 7205
+    },
+    "smoke": {
+      "steps_per_member": 2,
+      "members": 4,
+      "output_shape": [
+        2,
+        4
+      ],
+      "weights_changed": true,
+      "baseline_unchanged": true,
+      "checkpoint_saved": false,
+      "quality_evaluation": false,
+      "hard_negative_pools": {
+        "waltz": {
+          "windows": 420,
+          "lowest_kundiman_probability": 0.040245577692985535
+        },
+        "jazz": {
+          "windows": 420,
+          "lowest_kundiman_probability": 0.0022332961671054363
+        },
+        "other": {
+          "windows": 420,
+          "lowest_kundiman_probability": 0.0018832385540008545
+        }
+      }
+    },
+    "0": {
+      "loaded": true,
+      "examples": 16764,
+      "held_out": [
+        "kundiman_abelardo_kundiman_violin",
+        "kundiman_buencamino_kundiman",
+        "kundiman_kundiman_ng_luha",
+        "kundiman_pakiusap"
+      ],
+      "exact_evaluation_matches": 0,
+      "source_pieces": 7201
+    }
+  },
+  "verification": {
+    "python_tests_passed": 31,
+    "flutter_tests_passed": 1327,
+    "flutter_analyze": "clean",
+    "legacy_note_lists_and_partitions_reproduced": true
+  },
+  "shipped_model_sha256": "72595c786cc2c6567766ce51654ce350d45bc6864a1138843e99e15902bb7717",
+  "quality_claim": "No full training round, new accuracy result, TFLite export, asset replacement, phone build or phone QA. A two-step/member in-memory integration smoke is not a quality evaluation."
+}

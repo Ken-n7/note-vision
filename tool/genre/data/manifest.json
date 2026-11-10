@@ -77,6 +77,24 @@
       "bars": 16,
       "events": 53,
       "label_scope": "Kundiman repertoire, 2/4 example; existing corpus also includes Ikaw Rin in 2/4. Retain original meter; report separately from triple-meter examples."
+    },
+    {
+      "id": "kundiman_merino_cundiman",
+      "filename": "merino_cundiman.abc",
+      "title": "El Cundiman (documented 1892)",
+      "composer": "Traditional, composer unknown",
+      "source_url": "https://digilib.ust.edu.ph/digital/collection/section5/id/12156/",
+      "source_download": "https://digilib.ust.edu.ph/digital/api/collection/section5/id/12195/download",
+      "source_sha256": "35731c0bf298eb5d0b0d3b8ee309b1b931a232fb2f5e3b835a87ad21a00d1209",
+      "source_pages": "Printed 35 / PDF 42; first eight vocal bars",
+      "genre_evidence": "The historical notation explicitly titles the melody El Cundiman. Publication date is 1892; no composition date or named composer is asserted.",
+      "rights_notes": "Anonymous historical melody from an 1892 publication, transcribed from the UST library scan; no lyrics, accompaniment, watermark, PDF page or modern arrangement redistributed.",
+      "split": "new_train",
+      "added_on": "2026-11-10",
+      "bars": 8,
+      "events": 29,
+      "label_scope": "Historical folk Kundiman, C major, 3/4; retain chromatic approach notes, the opening eighth rest, three quarter rests and the bar-six fermata.",
+      "alias_audit": "No matching 16-sounding-note pitch-interval/relative-duration phrase against the prior 23 Kundiman excerpts. Full composition-level alias reconciliation remains incomplete."
     }
   ]
 }

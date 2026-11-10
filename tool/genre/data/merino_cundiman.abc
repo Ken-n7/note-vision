@@ -1,0 +1,13 @@
+X:1
+T:El Cundiman - first eight vocal bars, documented in 1892
+C:Traditional, composer unknown
+S:Manuel Walls y Merino, La musica popular de Filipinas (1892), printed 35 / PDF 42
+Z:Vocal melody only. Opening eighth rest, quarter rests, chromatic approach notes and the bar-six fermata retained; no lyrics or accompaniment.
+N:https://digilib.ust.edu.ph/digital/collection/section5/id/12156/
+N:UST public library PDF: https://digilib.ust.edu.ph/digital/api/collection/section5/id/12195/download
+N:1892 dates the printed source, not a known composition date. Historical notation explicitly labels this melody El Cundiman.
+M:3/4
+L:1/8
+K:C
+G2 z ^F G A | G ^F =F2 z2 | A3 ^G A B | A2 G2 z2 |
+c3 B c d | c2 !fermata! A4 | cc B3 A | G2 E2 z2 |]

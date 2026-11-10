@@ -12,6 +12,7 @@ import torch
 
 from protocol import app_label
 from artifacts import write_json
+from corpus import verify_reconciliation
 from train import Calibrated, load_model, paired_report, predict_many
 
 
@@ -42,6 +43,7 @@ def main():
     parser.add_argument('experiment', type=Path)
     parser.add_argument('--fold', choices=('all', '0', '1', '2', '3'), required=True)
     args = parser.parse_args()
+    verify_reconciliation(args.experiment, args.data_root)
     torch.set_num_threads(2)
     output = args.experiment / f'candidate_{args.fold}'
     checkpoint = output / 'genre_lstm.pt'

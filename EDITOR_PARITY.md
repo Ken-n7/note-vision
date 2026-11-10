@@ -127,8 +127,8 @@ This changes work order, not the full-parity objective or acceptance criteria.
   No app code/model or phone build changed. Checks: 16 Python tests, 1,327
   Flutter tests and clean analysis. The recovered UST copy of
   *La musica popular de Filipinas* (1892)
-  contains *El Cundiman* on printed 35–36 / PDF 42–43; its transcription and
-  alias checks remain pending, so it adds no accepted work yet.
+  contains *El Cundiman* on printed 35–36 / PDF 42–43; it was pending at this
+  stage. Eight verified vocal bars were subsequently admitted below.
 - **Not yet:** more independent Kundiman works, a candidate passing validation
   and complete held-out evaluation, and phone QA before model promotion. Equal
   example counts do not establish equal repertoire diversity or better accuracy.
@@ -175,6 +175,52 @@ This changes work order, not the full-parity objective or acceptance criteria.
   and more composers), complete composition grouping/label reconciliation,
   untouched independent evaluation works, a passing replacement and phone QA.
   Full editor parity remains queued.
+
+### Reconciled genre dataset and historical addition — 2026-11-10
+
+- Admitted eight source-verified vocal bars of *El Cundiman* from Walls y
+  Merino's 1892 publication (UST scan, printed 35 / PDF 42): **29 events / 25
+  sounding notes**. Retained the opening eighth rest, quarter rests, chromatic
+  approaches and the bar-six fermata in ABC; the installed parser ignores the
+  fermata expression while retaining its notated duration. Publication date is
+  not a composition date. No 16-note interval/relative-duration phrase match
+  was found against the prior 23 Kundiman excerpts; this is not a complete
+  composition-level alias audit. Real counts: **18 train / 4 validation / 2 test**.
+- `reconcile.py` makes a separate versioned snapshot, preserving original source
+  files and the legacy benchmark. Known work/group identities, two reviewed
+  composer/title families and exact normalized windows at 40/80/320 events
+  define conservative families. One representative stays in its original
+  highest-priority evaluation partition; no training row is moved into testing.
+  Conflicting labels are quarantined instead of guessed. Unknown/generic titles
+  alone never trigger grouping.
+- Nine metadata-verified arrangements of Joplin's *The Entertainer* now share a
+  family even when their windows differ. **121 families / 151 excluded rows**:
+  147 redundant/shared-family rows plus four rows in two Jazz/Other conflicts.
+  One conflict is *After You've Gone*; the other has a Mozart *Alla Turca*
+  input matching an untitled Jazz-tagged source. No exact normalized window
+  remains between retained sources at the checked prefixes. This does not prove
+  all remaining compositions independent or erase pretrained exposure.
+- Retained training source counts: **1,973 Waltz / 18 Kundiman / 1,023 Jazz /
+  4,191 Other**. Validation: **282 / 4 / 199 / 457**. Test including the two
+  Kundiman excerpts: **281 / 2 / 179 / 440**. External negatives: 698. These
+  revised counts belong to the new snapshot, not a rewritten historical report.
+- Reconciled bank generation excludes exact validation/test/external inputs
+  after crop/rescaling too, including original Kundiman fold holdouts. Bank
+  loading verifies the exclusion set, while sampling/calibration verify source
+  and snapshot hashes. Reconciliation is opt-in; older experiment inputs remain
+  supported. Future training needs rebuilt banks for the revised sources.
+- All-data and fold-0 banks rebuilt with **4,191 examples/class / 16,764 per
+  bank**, all retained training source IDs represented, zero exact evaluation
+  input matches, and fold holdouts excluded. A two-step/member in-memory CPU
+  integration passed; no checkpoint or accuracy evaluation was saved. Shipped
+  model, app code and phone build stay unchanged. **31 Python tests**, clean
+  Flutter analysis, **1,327 Flutter tests**, legacy note-list/partition
+  reproduction and source/asset hashes verified. Evidence:
+  `tool/genre/reconciliation_report.json`; ignored artifacts in
+  `.dart_tool/genre_reconcile_20261110/`.
+- **Not yet:** more independently verified Kundiman works, broader reviewed
+  work identities/genre definitions, untouched final evaluation and a validated
+  model replacement with phone QA. Full editor parity remains queued.
 
 ### Scan lifecycle reliability — 2026-11-05
 

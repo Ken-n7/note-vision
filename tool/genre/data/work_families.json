@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "reviewed_on": "2026-11-10",
+  "groups": [
+    {
+      "id": "scott_joplin_the_entertainer",
+      "title": "The Entertainer",
+      "composer": "Scott Joplin",
+      "members": [
+        "pdmx_QmbjiRHpfdc3FkbC4XkQJBc1zij1R6GNWwGNtykCaGs1jC",
+        "pdmx_Qmb3MzkZN6mG3G12ZnRRJ1gvEeUsL3JJQ9kaW7bELhdwum",
+        "pdmx_QmYPVd57o4o8CTMk78dmfhuvRLB3sMBBePFCqw1vMAJRxM",
+        "pdmx_QmRbzKhmjYeoxdEVnMKNZhWUYntbdvKNR1jnx8ctmTUtj8",
+        "pdmx_QmaAx5uRgEB3rCNpU6MNj1v6aKZxhcGJiu2MiHGgkQXGji",
+        "pdmx_Qmaa6zgW92mEVQXRgeDnZEJVkdWMJzJDKx31rgGfC1nMdK",
+        "pdmx_QmTjqjoJX2yofb58uE6BypwxStCrdTqFSQo3xYtNDsPQ1T",
+        "pdmx_QmVH3kRjbe3D17ztBGxCh9S55B17WLRmrVBXZMXNiLLo71",
+        "ewld_2085"
+      ],
+      "evidence": [
+        {
+          "name": "pdmx_QmbjiRHpfdc3FkbC4XkQJBc1zij1R6GNWwGNtykCaGs1jC",
+          "title": "The Entertainer",
+          "creators": [
+            "Scott Joplin (1868-1917)"
+          ],
+          "metadata_sha256": "3ed3102caa31ea9c00182016e0bf5393f370c041ca568055a265a05400f131d8"
+        },
+        {
+          "name": "pdmx_Qmb3MzkZN6mG3G12ZnRRJ1gvEeUsL3JJQ9kaW7bELhdwum",
+          "title": "The Entertainer",
+          "creators": [
+            "Scott Joplin  Arr. Kyle Hilton"
+          ],
+          "metadata_sha256": "719e4b58bf36fb065f9c33a8a671669d9e37a75b53ecb678cfac8e22f6333819"
+        },
+        {
+          "name": "pdmx_QmYPVd57o4o8CTMk78dmfhuvRLB3sMBBePFCqw1vMAJRxM",
+          "title": "THE ENTERTAINER",
+          "creators": [
+            "SCOTT JOPLIN ARR. SAMMY WAGANER"
+          ],
+          "metadata_sha256": "35d4c6cf4e03cc660ad872a199e9d02e394f810728ae85676e35fba62db6b4e3"
+        },
+        {
+          "name": "pdmx_QmRbzKhmjYeoxdEVnMKNZhWUYntbdvKNR1jnx8ctmTUtj8",
+          "title": "The Entertainer",
+          "creators": [
+            "Scott Joplin"
+          ],
+          "metadata_sha256": "62bd0b465e917319308e01ec737c07e04adac300fb7c75ff6c37eaf60f093bbe"
+        },
+        {
+          "name": "pdmx_QmaAx5uRgEB3rCNpU6MNj1v6aKZxhcGJiu2MiHGgkQXGji",
+          "title": "THE ENTERTAINER",
+          "creators": [
+            "SCOTT JOPLIN ARR. SAMMY WAGANER"
+          ],
+          "metadata_sha256": "8e8241faa0838f5501cf802fbc7abbabd4403781663d98c2f59c7d7910227881"
+        },
+        {
+          "name": "pdmx_Qmaa6zgW92mEVQXRgeDnZEJVkdWMJzJDKx31rgGfC1nMdK",
+          "title": "The entertainer",
+          "creators": [
+            "Scot Joplin"
+          ],
+          "metadata_sha256": "603fd3b41d929c75fda375684e61754d8550636ff0489194deba1fa136354bd1"
+        },
+        {
+          "name": "pdmx_QmTjqjoJX2yofb58uE6BypwxStCrdTqFSQo3xYtNDsPQ1T",
+          "title": "The Entertainer",
+          "creators": [
+            "Scott Joplin"
+          ],
+          "metadata_sha256": "bf5816408bd098ed21be16718a8d980540f6acc9625390f927bb3dc0fa6e185b"
+        },
+        {
+          "name": "pdmx_QmVH3kRjbe3D17ztBGxCh9S55B17WLRmrVBXZMXNiLLo71",
+          "title": "THE ENTERTAINER",
+          "creators": [
+            "Christophe Baste",
+            "Scott Joplin"
+          ],
+          "metadata_sha256": "0d24115c8ccf11c2da3d94468070a6a0f9e91c851d35f35e1e84259b84f0ccd4"
+        },
+        {
+          "name": "ewld_2085",
+          "title": "The Entertainer",
+          "creators": [
+            "Scott Joplin"
+          ],
+          "evidence": "Read-only OpenEWLD works/work_author records for id 2085"
+        }
+      ],
+      "reason": "Reviewed title/composer metadata identifies arrangements of the same composition, including Scott/Scot spelling variation. Keep one source representative in its existing highest-priority partition."
+    },
+    {
+      "id": "layton_creamer_after_youve_gone",
+      "title": "After You've Gone",
+      "composer": "Turner Layton / Henry Creamer",
+      "members": [
+        "ewld_4450",
+        "pdmx_QmZFWEQiSTEd4xVAQ6MjKbRfuNzcd3RTUCoxWMCim2rLgp"
+      ],
+      "evidence": [
+        {
+          "name": "ewld_4450",
+          "title": "After You've Gone",
+          "creators": [
+            "Henry Creamer"
+          ],
+          "evidence": "Read-only OpenEWLD works/work_author records for id 4450"
+        },
+        {
+          "name": "pdmx_QmZFWEQiSTEd4xVAQ6MjKbRfuNzcd3RTUCoxWMCim2rLgp",
+          "title": "After You've Gone",
+          "creators": [
+            "Turner Layton",
+            "Henry Creamer"
+          ],
+          "evidence": "Read-only PDMX metadata; exact normalized window also matches ewld_4450"
+        }
+      ],
+      "reason": "Reviewed source metadata plus exact shared input confirms a family whose Jazz/Other labels conflict; quarantine instead of guessing a genre."
+    }
+  ],
+  "limits": "Two reviewed work families; incomplete composition-level reconciliation of the larger corpus."
+}

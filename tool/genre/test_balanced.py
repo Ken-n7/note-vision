@@ -66,6 +66,19 @@ class BalancedBankTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'payload changed'):
                 self.balanced.load_bank(output, pieces, 'all')
 
+    def test_augmented_bank_cannot_reintroduce_a_frozen_evaluation_input(self):
+        pieces = self.pieces()
+        _, origins, _ = self.balanced.build_bank(pieces, 4, seed=3)
+        excluded = {r['feature_sha256'] for r in origins['kundiman']}
+        bank, origins, stats = self.balanced.build_bank(pieces, 4, seed=3, excluded=excluded)
+        self.assertFalse(excluded.intersection(r['feature_sha256'] for rs in origins.values() for r in rs))
+        self.assertGreater(stats['kundiman']['held_out_input_rejections'], 0)
+        with tempfile.TemporaryDirectory() as tmp:
+            self.balanced.save_bank(Path(tmp), bank, origins, stats, pieces, 'all', 3, excluded)
+            self.balanced.load_bank(Path(tmp), pieces, 'all', excluded)
+            with self.assertRaisesRegex(ValueError, 'exclusions changed'):
+                self.balanced.load_bank(Path(tmp), pieces, 'all')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -187,7 +187,72 @@ of legacy note lists/partitions. Further source collection and composition-level
 reconciliation remain necessary; these reused tests cannot provide untouched
 final evaluation for another development round.
 
-## Real Kundiman additions
+## Reconciled snapshot and historical Kundiman addition
+
+The latest collection adds eight vocal bars of *El Cundiman* from Walls y
+Merino's 1892 publication (UST scan, printed 35 / PDF 42), bringing real
+Kundiman totals to **18 training / 4 validation / 2 test works**. Its 29 events
+include 25 sounding notes, the opening eighth rest, chromatic approach notes,
+quarter rests and a fermata. The ABC preserves the fermata; the installed
+parser ignores that expression and keeps the notated two-quarter duration.
+1892 dates the source, not a known composition date. A 16-note interval/rhythm
+phrase comparison found no match against the prior 23 excerpts; full alias
+reconciliation remains incomplete.
+
+Prepare a new dataset version without overwriting the frozen benchmark:
+
+```bash
+/usr/bin/python3.12 -B tool/genre/prepare.py "$GENRE_DATA" "$GENRE_RUN/source" \
+  --training-corrections tool/genre/data/training_corrections.json
+/usr/bin/python3.12 -B tool/genre/reconcile.py \
+  "$GENRE_DATA" "$GENRE_RUN/source" "$GENRE_RUN/reconciled" \
+  --work-families tool/genre/data/work_families.json
+/usr/bin/python3.12 -B tool/genre/balanced.py \
+  "$GENRE_DATA" "$GENRE_RUN/reconciled" "$GENRE_RUN/banks/all" --fold all
+```
+
+Reconciliation links known identities, reviewed composer/title families and
+exact normalized windows at 40/80/320 events. Families can be arrangements or
+shared phrases; no complete composition identity is inferred from a window.
+Conflicting families are quarantined rather than relabelled. One representative
+stays in its existing highest-priority partition (fresh test, test, external,
+validation, then training), selected by sounding-event coverage and source ID,
+without consulting predictions or accuracy. Generic titles alone never group
+works. Reviewed aliases also group nine Joplin *Entertainer* arrangements whose
+inputs can differ. All source files and historical reports remain unchanged.
+
+The new snapshot excludes **151 rows across 121 families**: 147 shared-family
+copies and four rows in two Jazz/Other conflicts. Retained source counts:
+
+| Class | Training | Validation | Test, including fresh |
+| --- | ---: | ---: | ---: |
+| Waltz | 1,973 | 282 | 281 |
+| Kundiman | 18 | 4 | 2 |
+| Jazz | 1,023 | 199 | 179 |
+| Other | 4,191 | 457 | 440 |
+
+There are also 698 retained external negatives. No exact model-window matches
+remain across retained sources at the checked prefixes. Reconciled augmentation
+also rejects exact evaluation inputs after transforming context/key, including
+each fold's original Kundiman holdouts; bank loading verifies this exclusion
+set. Training/calibration refuse changed source or snapshot hashes. Existing
+banks must be rebuilt. Older prepared datasets retain their original recipe.
+
+All-data and original fold-0 banks have been rebuilt: **4,191 examples/class /
+16,764 unique windows per bank**, all retained training source IDs represented,
+zero exact evaluation inputs and fold holdouts excluded. A two-step/member
+in-memory CPU integration passed; no weights were saved and no quality gain is
+claimed. Verification: **31 Python tests**, clean analysis, **1,327 Flutter
+tests**, legacy preparation reproduction and unchanged source/asset hashes.
+See `reconciliation_report.json` for provenance, retained/excluded families,
+bank payload/exclusion hashes and integration results.
+
+This removes demonstrated input overlaps, not all possible composition aliases.
+It cannot erase earlier exposure in pretrained weights. Revised evaluation
+counts must not be presented as directly comparable accuracy improvements;
+untouched work-level evaluation is still needed before model promotion.
+
+## Earlier real Kundiman additions
 
 The original corpus had 18 real works: 14 training, 4 validation. The first
 trial added two excerpts. The November 10 collection adds **three more works**,
