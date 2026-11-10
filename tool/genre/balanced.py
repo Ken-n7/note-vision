@@ -15,7 +15,7 @@ import random
 import numpy as np
 
 from artifacts import write_json
-from corpus import frozen_train, partition_id, work_id
+from corpus import frozen_train, partition_id, work_id, training_corrections
 from protocol import FEATURES, GENRES, MAX_NOTES, WINDOW, windows
 
 
@@ -188,7 +188,7 @@ def main():
     additions = json.loads((args.prepared / 'additions.json').read_text())
     real = sorted(p['name'] for p in pieces if p['genre'] == 'kundiman' and p['name'] in split['train'])
     held_out = [] if args.fold == 'all' else [name for i, name in enumerate(real) if i % 4 == int(args.fold)]
-    training = frozen_train(pieces, split, additions, held_out)
+    training = frozen_train(pieces, split, additions, held_out, training_corrections(args.prepared))
     target = (max(Counter(p['genre'] for p in training).values())
               if args.per_class is None else args.per_class)
     bank, origins, stats = build_bank(training, target, args.seed)

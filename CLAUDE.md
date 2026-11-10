@@ -85,9 +85,22 @@ works and original held-out fold 0. Fold 0 admitted no validation-safe calibrati
 the trial was rejected and the shipped model retained. Checks: 16 Python tests,
 1,327 Flutter tests and clean analysis. See `tool/genre/balance_report.json`. The acquired UST
 1892 El Cundiman score remains pending verified transcription and alias checks.
+The error-audit follow-up found 41 evaluation excerpts with exact normalized
+training-window matches (26 validation / 13 test / 2 external), including
+*After You've Gone* labelled Jazz versus Other across sources. This limits
+evaluation independence; matches are not automatically duplicate compositions.
+An opt-in verified *Ikaw Rin* training excerpt preserves exact printed triplets
+and its existing work ID, leaving original data/evaluation passages unchanged.
+A conservative training-only hard-negative trial completed all four folds and
+all-data training. All folds passed validation calibration, but app-label recall
+on 14 held-out Kundiman works fell from 11/14 to 10/14 at 40 events; 80/320 stayed
+11/14 and 13/14. All-data raw macro F1 fell from 76.60% to 71.74%; weights stay
+unpromoted. See `tool/genre/error_audit.json`. Checks: 23 Python tests, 1,327
+Flutter tests and clean analysis. Further collection found no verified new work;
+real counts stay 17 / 4 / 2. Reused benchmarks now also need untouched works.
 Thirteen PDMX work IDs with
 contradictory Jazz/Waltz labels are quarantined without modifying source data.
-The trial weights were not promoted: stronger Kundiman sampling increased
+The first trial weights were not promoted: stronger Kundiman sampling increased
 false Kundiman labels, while calibration reduced short-Kundiman recognition.
 The shipped model/thresholds remain unchanged. See `tool/genre/results.json`
 for measured results and `tool/genre/README.md` for reproduction and limits.

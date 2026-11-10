@@ -9,6 +9,7 @@ import argparse
 from collections import defaultdict
 import hashlib
 import json
+import math
 from pathlib import Path
 import random
 import sys
@@ -16,7 +17,7 @@ import sys
 import numpy as np
 import torch
 
-from corpus import frozen_train
+from corpus import frozen_train, training_corrections
 from artifacts import write_json
 from protocol import FEATURES, GENRES, app_label, key_of, windows
 
@@ -110,20 +111,38 @@ def bank_for(pieces, synthetic, rng):
     return {k: np.stack(v) for k, v in banks.items()}
 
 
-def tune(baseline, bank, steps):
+def hard_negative_bank(baseline, bank):
+    """Mine only eligible training windows; no evaluation predictions enter here."""
+    bank = dict(bank)
+    counts = {}
+    for genre in ('waltz', 'jazz', 'other'):
+        rows = bank[genre]
+        with torch.no_grad():
+            scores = np.concatenate([baseline(torch.from_numpy(rows[i:i + 128]))[:, 1].numpy()
+                                     for i in range(0, len(rows), 128)])
+        count = max(1, math.ceil(len(rows) * .1))
+        selected = np.argsort(scores, kind='stable')[-count:]
+        bank['hard_' + genre] = rows[selected]
+        counts[genre] = dict(windows=count, lowest_kundiman_probability=float(scores[selected[0]]))
+    return bank, counts
+
+
+def tune(baseline, bank, steps, conservative=False):
     candidate = Mean()
     candidate.load_state_dict(baseline.state_dict())
     for i, seed in enumerate((7, 1, 2, 3)):
         rng = random.Random(seed)
         torch.manual_seed(seed)
         net, teacher = candidate.nets[i].train(), baseline.nets[i].eval()
-        opt = torch.optim.Adam(net.parameters(), lr=1e-4)
+        opt = torch.optim.Adam(net.parameters(), lr=1e-5 if conservative else 1e-4)
         for step in range(steps):
             labels = [rng.randrange(4) for _ in range(64)]
             rows = []
             for label in labels:
                 group = GENRES[label]
-                if group == 'kundiman' and 'synthetic' in bank and rng.random() < .3:
+                if conservative and group != 'kundiman' and rng.random() < .5:
+                    group = 'hard_' + group
+                elif group == 'kundiman' and 'synthetic' in bank and rng.random() < .3:
                     group = 'synthetic'
                 elif group == 'waltz' and len(bank.get('minor_waltz', ())) and rng.random() < .5:
                     group = 'minor_waltz'
@@ -136,7 +155,7 @@ def tune(baseline, bank, steps):
             negatives = y != 1
             with torch.no_grad():
                 targets = teacher(x[negatives])
-            loss += .5 * torch.nn.functional.kl_div(
+            loss += (2. if conservative else .5) * torch.nn.functional.kl_div(
                 logits[negatives].log_softmax(-1), targets, reduction='batchmean')
             opt.zero_grad()
             loss.backward()
@@ -196,7 +215,11 @@ def main():
     parser.add_argument('--fold', choices=('all', '0', '1', '2', '3'), required=True)
     parser.add_argument('--bank-dir', type=Path,
                         help='Use a verified, balanced real-derived bank instead of synthetic sampling')
+    parser.add_argument('--conservative', action='store_true',
+                        help='Fixed 1e-5 LR, 2x distillation, 50%% hardest-decile negative sampling')
     args = parser.parse_args()
+    if args.conservative and not args.bank_dir:
+        parser.error('--conservative requires a verified --bank-dir')
     torch.set_num_threads(2)
     sys.path.insert(0, str(args.data_root / 'scripts'))
     import genre_train as legacy
@@ -212,7 +235,8 @@ def main():
                       if p['genre'] == 'kundiman' and p['name'] in split['train'])
     held_out = [] if args.fold == 'all' else [name for i, name in enumerate(real_ids)
                                              if i % 4 == int(args.fold)]
-    training = frozen_train(pieces, split, additions, held_out)
+    corrections = training_corrections(root)
+    training = frozen_train(pieces, split, additions, held_out, corrections)
     print(f'fold={args.fold}, training={len(training)}, held_out={held_out}', flush=True)
     if args.bank_dir:
         from balanced import load_bank
@@ -225,15 +249,23 @@ def main():
     print({key: len(value) for key, value in bank.items()}, flush=True)
     checkpoint = args.data_root / f'out/genre_cv_{args.fold}/genre_lstm.pt'
     baseline = load_model(checkpoint)
-    candidate = tune(baseline, bank, args.steps)
+    hard_negatives = None
+    if args.conservative:
+        bank, hard_negatives = hard_negative_bank(baseline, bank)
+        print('Training-only hard negatives:', hard_negatives, flush=True)
+    candidate = tune(baseline, bank, args.steps, args.conservative)
     output = root / f'candidate_{args.fold}'
     output.mkdir(exist_ok=True)
     torch.save(candidate.state_dict(), output / 'genre_lstm.pt')
-    report = dict(steps=args.steps, fold=args.fold, seeds=[7, 1, 2, 3], lr=1e-4,
+    report = dict(steps=args.steps, fold=args.fold, seeds=[7, 1, 2, 3],
+                  lr=1e-5 if args.conservative else 1e-4,
+                  negative_distillation_weight=2. if args.conservative else .5,
+                  hard_negatives=hard_negatives,
                   real_kundiman_share=1. if args.bank_dir else .7,
                   synthetic_kundiman_share=0. if args.bank_dir else .3,
                   bank_dir=str(args.bank_dir) if args.bank_dir else None,
                   checkpoint_sha256=hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
+                  training_corrections=[p['name'] for p in training if 'correction_provenance' in p],
                   held_out=held_out, train_names=[p['name'] for p in training])
     write_json(output / 'training-manifest.json', report)
     # Evaluation occurs only after the fixed training schedule has finished.

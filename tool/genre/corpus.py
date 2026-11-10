@@ -1,6 +1,9 @@
 """Work identity and label checks shared by preparation and training."""
 
 from collections import defaultdict
+import hashlib
+import json
+from pathlib import Path
 
 
 def work_id(piece):
@@ -30,11 +33,36 @@ def assert_disjoint(parts):
                 seen[identity] = split
 
 
-def frozen_train(pieces, split, additions, held_out=()):
+def note_hash(notes):
+    return hashlib.sha256(json.dumps(notes, separators=(',', ':')).encode()).hexdigest()
+
+
+def training_corrections(root):
+    path = Path(root) / 'training-corrections.json'
+    return json.loads(path.read_text()) if path.exists() else []
+
+
+def frozen_train(pieces, split, additions, held_out=(), corrections=()):
     """Select eligible original/curated works before deriving any examples."""
     allowed = set(split['train']) - set(held_out)
     blocked = set(split['valid']) | set(split['test']) | set(held_out)
     result = [p for p in pieces if p['name'] in allowed]
+    originals = {p['name']: p for p in pieces}
+    replacements = {}
+    for correction in corrections:
+        name = correction['name']
+        if name not in split['train'] or name not in originals:
+            raise ValueError('Training correction must target an original training work')
+        original = originals[name]
+        if name in replacements or correction['genre'] != original['genre']:
+            raise ValueError('Repeated/mislabelled training correction')
+        if note_hash(original['notes']) != correction['replaces_notes_sha256']:
+            raise ValueError('Training correction targets changed original notes')
+        if work_id(original) != work_id(correction) or partition_id(original) != partition_id(correction):
+            raise ValueError('Training correction changes work/group identity')
+        replacements[name] = dict(original, notes=correction['notes'],
+                                  correction_provenance=correction['provenance'])
+    result = [replacements.get(p['name'], p) for p in result]
     for p in additions:
         if p.get('split') == 'new_train' and work_id(p) not in blocked:
             result.append(p)

@@ -56,6 +56,21 @@ class TranscriptionTest(unittest.TestCase):
         self.assertEqual([n.pitch.midi for n in bars[0].notes], [76, 71, 74, 72])
         self.assertEqual([n.pitch.midi for n in bars[6].notes], [71, 74, 65, 69, 62, 65])
 
+    def test_verified_ikaw_rin_keeps_printed_triplets_and_tie(self):
+        bars = self.bars('ikaw_rin_verified.abc')
+        self.assertEqual(len(bars), 12)
+        self.assertEqual(bars[0].timeSignature.ratioString, '2/4')
+        self.assertEqual([n.pitch.midi for n in bars[1].notes], [65, 67, 69, 65])
+        self.assertEqual([n.pitch.midi for n in bars[11].notes], [69, 71, 72, 76])
+        for i in (1, 3, 9, 11):
+            self.assertTrue(bars[i].notesAndRests[0].isRest)
+            for n in list(bars[i].notesAndRests)[:3]:
+                self.assertAlmostEqual(float(n.quarterLength), 1/3)
+        self.assertEqual(bars[4].notes[-1].tie.type, 'start')
+        self.assertEqual(bars[5].notes[0].tie.type, 'stop')
+        for bar in bars:
+            self.assertAlmostEqual(float(bar.duration.quarterLength), 2.)
+
 
 if __name__ == '__main__':
     unittest.main()

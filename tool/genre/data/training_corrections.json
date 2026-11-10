@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "pieces": [
+    {
+      "id": "kundiman_ikaw_rin",
+      "filename": "ikaw_rin_verified.abc",
+      "title": "Ikaw Rin",
+      "composer": "Nicanor Abelardo",
+      "added_on": "2026-11-10",
+      "source_url": "https://scholarworks.iu.edu/dspace/bitstreams/313039f0-edd6-40db-8c84-8c19e6c0ca44/download",
+      "source_sha256": "b46527f178ec8e909ed08e4091404a91a96970d51b590deeeddcb994bd308bff",
+      "source_pages": "Printed 103 / PDF 112; vocal bars 9-20",
+      "bars": 12,
+      "events": 37,
+      "replaces_notes_sha256": "821b4cc86fbf513c4568a6a1e94ad37abf01118ea5338f699af3b48696941b03",
+      "reason": "Existing ABC explicitly approximates triplets as sixteenths. Verified excerpt retains exact triplet durations and tie; same work ID, no extra composition.",
+      "rights_notes": "Underlying Abelardo melody only; no thesis prose, lyrics, IPA, accompaniment or PDF pages redistributed. The 2014 thesis is not CC licensed.",
+      "limits": "This is a shorter verified passage replacing the training input, not a complete correction of the legacy full transcription. Historic evaluation note lists stay frozen."
+    }
+  ]
+}

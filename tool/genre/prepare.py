@@ -10,7 +10,7 @@ from pathlib import Path
 import random
 import sys
 
-from corpus import assert_disjoint, conflicting_labels, work_id
+from corpus import assert_disjoint, conflicting_labels, work_id, frozen_train
 from artifacts import write_json
 
 
@@ -20,6 +20,8 @@ def main():
     parser.add_argument('experiment', type=Path)
     parser.add_argument('--through', type=date.fromisoformat,
                         help='Use only excerpts curated through YYYY-MM-DD; preserves older experiments')
+    parser.add_argument('--training-corrections', type=Path,
+                        help='Opt-in source-verified replacements; evaluation note lists remain frozen')
     args = parser.parse_args()
     sys.path.insert(0, str(args.data_root / 'scripts'))
     import genre_train as legacy
@@ -70,6 +72,26 @@ def main():
                               abc_sha256=hashlib.sha256(path.read_bytes()).hexdigest()))
     if len({p['name'] for p in additions}) != len(additions):
         raise ValueError('Repeated curated work IDs')
+    corrections = []
+    if args.training_corrections:
+        correction_manifest = json.loads(args.training_corrections.read_text())
+        if correction_manifest['schema_version'] != 1:
+            raise ValueError('Unsupported training-correction manifest version')
+        for record in correction_manifest['pieces']:
+            if args.through and date.fromisoformat(record['added_on']) > args.through:
+                continue
+            path = args.training_corrections.parent / record['filename']
+            score = music21.converter.parse(path, format='abc')
+            bars = list(score.parts[0].getElementsByClass(music21.stream.Measure))
+            notes = notes_of(score)
+            if len(bars) != record['bars'] or len(notes) != record['events'] or any(
+                    not math.isclose(float(b.duration.quarterLength),
+                                     float(b.barDuration.quarterLength), abs_tol=1e-8) for b in bars):
+                raise ValueError('Training correction has changed/incomplete notation')
+            corrections.append(dict(name=record['id'], genre='kundiman', notes=notes,
+                                    replaces_notes_sha256=record['replaces_notes_sha256'],
+                                    provenance=dict(record, abc_sha256=hashlib.sha256(path.read_bytes()).hexdigest())))
+        frozen_train(pieces, split, additions, corrections=corrections)
     assert_disjoint(dict(
         train=parts['train'] + [p for p in additions if p['split'] == 'new_train'],
         valid=parts['valid'], test=parts['test'] + [p for p in additions if p['split'] == 'fresh_test']))
@@ -84,7 +106,10 @@ def main():
         ('legacy-split.json', split), ('additions.json', additions),
         ('baseline-corpus.json', evaluation), ('input-hashes.json', inputs),
         ('quarantine.json', quarantine),
+        ('training-corrections.json', corrections),
         ('curation.json', dict(manifest_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+                               training_corrections_sha256=hashlib.sha256(args.training_corrections.read_bytes()).hexdigest()
+                               if args.training_corrections else None,
                                through=str(args.through) if args.through else None,
                                included=[p['name'] for p in additions])),
     ):

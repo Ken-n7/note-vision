@@ -1,6 +1,6 @@
 import unittest
 
-from corpus import assert_disjoint, conflicting_labels, frozen_train
+from corpus import assert_disjoint, conflicting_labels, frozen_train, note_hash
 
 
 class CorpusTest(unittest.TestCase):
@@ -33,6 +33,20 @@ class CorpusTest(unittest.TestCase):
                      dict(name='fresh', genre='kundiman', split='fresh_test')]
         self.assertEqual([p['name'] for p in frozen_train(pieces, split, additions)], ['a', 'new'])
         self.assertEqual([p['name'] for p in frozen_train(pieces, split, additions, ['a'])], ['new'])
+
+    def test_verified_correction_preserves_source_identity_and_held_out_input(self):
+        original = dict(name='a', genre='kundiman', notes=[[60, 1, 0, 2]])
+        correction = dict(name='a', genre='kundiman', notes=[[60, 1/3, 0, 2]],
+                          replaces_notes_sha256=note_hash(original['notes']), provenance={'verified': True})
+        split = dict(train=['a'], valid=[], test=[])
+        result = frozen_train([original], split, [], corrections=[correction])
+        self.assertEqual(result[0]['notes'], correction['notes'])
+        self.assertEqual(original['notes'], [[60, 1, 0, 2]])
+        self.assertEqual(frozen_train([original], split, [], ['a'], [correction]), [])
+        with self.assertRaisesRegex(ValueError, 'original training work'):
+            frozen_train([original], dict(train=[], valid=['a'], test=[]), [], corrections=[correction])
+        with self.assertRaisesRegex(ValueError, 'changed original notes'):
+            frozen_train([dict(original, notes=[])], split, [], corrections=[correction])
 
 
 if __name__ == '__main__':

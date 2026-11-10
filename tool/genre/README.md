@@ -128,6 +128,65 @@ decisions and paired metrics. Checks: 16 Python tests, 1,327 Flutter tests and
 clean analysis. Balanced example counts alone do not establish better accuracy
 or substitute for more independent Kundiman works.
 
+## Error audit and verified training corrections
+
+`audit.py` computes raw four-class precision/recall/F1 separately from app labels,
+explains Kundiman misses/false positives, and optionally checks exact normalized
+feature overlap against eligible training works:
+
+```bash
+/usr/bin/python3.12 -B tool/genre/audit.py "$GENRE_RUN" \
+  "$GENRE_RUN/candidate_all/paired-report.json" "$GENRE_RUN/errors.json" \
+  --data-root "$GENRE_DATA"
+```
+
+An exact feature match is evidence of shared input, not proof that two complete
+compositions are identical. The audit does not relabel or move evaluation works.
+Once test errors have informed development, those tests are reused benchmarks;
+future model promotion needs untouched independent works too. The current audit
+found 41 evaluation excerpts sharing at least one training window: 26 validation,
+13 test and 2 external negatives. One is the same titled work, *After You've
+Gone*, labelled Jazz in PDMX and Other in OpenEWLD. Existing headline scores
+therefore have a further independence/label-quality limitation. See
+`error_audit.json` for the recorded findings and measured experiment decision.
+Excluding these matches from a report does not erase prior exposure in pretrained
+weights or establish complete composition-level independence.
+
+The original *Ikaw Rin* ABC explicitly approximates triplets as sixteenths.
+`data/ikaw_rin_verified.abc` provides 12 source-verified vocal bars with exact
+triplets and the printed tie. This is a shorter verified training passage of the
+same composition, not a new work or a complete repair of the old transcription.
+Enable it explicitly when preparing a new experiment:
+
+```bash
+/usr/bin/python3.12 -B tool/genre/prepare.py "$GENRE_DATA" "$GENRE_RUN" \
+  --training-corrections tool/genre/data/training_corrections.json
+```
+
+Overrides require the original training ID, label, work/group identity and
+original note hash. They never change original files or evaluation passages and
+are excluded when their work is held out in a fold. Default preparation still
+reproduces historical experiments; corrected inputs require rebuilding banks.
+`--conservative` training requires a verified bank and uses a fixed 1e-5 learning
+rate, 2x negative distillation and 50% sampling from each negative class's hardest
+decile, ranked by the original matching baseline model's Kundiman probability.
+Mining uses eligible training windows only, with no validation/test examples.
+The verified correction, sampling, learning rate and distillation change together;
+this experiment cannot attribute any result to a single intervention.
+
+This follow-up completed the four original folds and all-data training. All
+folds admitted validation-only calibration (1, 1, .75, .75; all-data 1), but
+app-label Kundiman recognition at 40 events fell **11/14 → 10/14**; 80/320 stayed
+**11/14 / 13/14**. The older **12/14** short figure is raw model top-class
+recognition, not the app-label score. On the original test plus two fresh works,
+all-data raw accuracy stayed **89.61%**, while macro F1 fell **76.60% → 71.74%**.
+The candidate was rejected. No model export, app asset or phone build changed.
+The source search admitted no new independent work; counts remain 17 / 4 / 2.
+Checks: 23 Python tests, 1,327 Flutter tests, clean analysis and exact reproduction
+of legacy note lists/partitions. Further source collection and composition-level
+reconciliation remain necessary; these reused tests cannot provide untouched
+final evaluation for another development round.
+
 ## Real Kundiman additions
 
 The original corpus had 18 real works: 14 training, 4 validation. The first

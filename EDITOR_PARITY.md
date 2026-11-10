@@ -134,6 +134,48 @@ This changes work order, not the full-parity objective or acceptance criteria.
   example counts do not establish equal repertoire diversity or better accuracy.
   All editor parity items remain queued.
 
+### Genre error audit and conservative trial — 2026-11-10
+
+- Added `audit.py`: raw four-class confusion/precision/recall/F1, separate app
+  decisions, Kundiman error mechanisms and exact normalized train/evaluation
+  feature overlaps. Original baseline errors cover 24 falsely labelled works
+  and 4 missed Kundiman works across repeated prefixes/partitions, including
+  training diagnostics. These are not 28 independent test failures.
+- Found **41 evaluation excerpts** with at least one matching training window:
+  26 validation, 13 test and 2 external negatives. The matching *After You've
+  Gone* sources disagree as Jazz versus Other. No evaluation label or partition
+  was moved. Matches flag shared inputs rather than prove full composition
+  identity; metrics without exact matches are also recorded. Exclusion does not
+  erase pretrained exposure or establish full composition independence.
+- Source-verified *Ikaw Rin* vocal bars 9–20 (12 bars / 37 trimmed events / 32
+  sounding notes) replace its approximate-triplet training input only in opt-in
+  experiments. Original note hashes, labels and work/group identity are checked;
+  held-out works never receive training overrides. Existing evaluations and
+  source files stay frozen. This is a shorter verified excerpt, not a new work.
+- Four original folds plus all-data training completed: 200 steps/member,
+  four seeds, 1e-5 learning rate, 2x negative distillation and 50% hardest-decile
+  negative sampling from eligible training inputs only. Every fold admitted
+  validation-only calibration (scales 1, 1, .75, .75; all-data 1).
+  App-label held-out Kundiman recognition at 40 events **11/14 → 10/14**;
+  80/320 stayed **11/14 / 13/14**. The historical 12/14 short figure measures
+  raw top-class recognition, not app labels. No single intervention's effect
+  can be isolated from this combined trial.
+- All-data test plus two fresh works: raw accuracy stayed **89.61%**, macro F1
+  **76.60% → 71.74%**. App false Kundiman labels at 40/80/320 were
+  **13/7/4 → 13/6/4**, with fresh Kundiman recognition unchanged at **1/2**.
+  Trial rejected; shipped asset, app code and phone build stay unchanged.
+  Full evidence: `tool/genre/error_audit.json`; ignored artifacts in
+  `.dart_tool/genre_audit_20261110/`.
+- New collection checks found only existing works or inaccessible/unverified
+  notation; no independent composition was admitted. Counts remain **17 train /
+  4 validation / 2 fresh test**. Original note lists/partitions reproduced with
+  the legacy cutoff. **23 Python tests**, clean Flutter analysis and **1,327
+  Flutter tests passed**. No model was proposed for phone QA.
+- **Not yet:** verified additional Kundiman repertoire (especially duple meter
+  and more composers), complete composition grouping/label reconciliation,
+  untouched independent evaluation works, a passing replacement and phone QA.
+  Full editor parity remains queued.
+
 ### Scan lifecycle reliability — 2026-11-05
 
 - `ScanViewModel` invalidates work when reset, superseded or disposed. Late

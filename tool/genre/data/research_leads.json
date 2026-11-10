@@ -96,6 +96,26 @@
     {
       "source": "Public GitHub code search",
       "result": "No verified bulk Kundiman note/score dataset found in the queried matches; genre-name lists, poetry events and generated tune examples were excluded."
+    },
+    {
+      "source": "Local PDMX/PDMX.csv (read-only)",
+      "result": "No CSV row matched queried Kundiman, Abelardo, Buencamino, Pahimakas, Ulila sa, Babalik ka, Tanging Ligaya or Santiago, Francisco strings. This metadata search is not a score-level genre audit."
+    },
+    {
+      "source": "https://www.eum.ac.jp/graduate_school/20170519otus6.pdf",
+      "result": "Acquired Eugene De Los Santos, Western Vocalism in 20th Century Philippine Music (2017), 105 pages. Its score appendix contains Pakiusap, Madaling Araw and Nasaan Ka Irog, all existing works; no additional composition counted."
+    },
+    {
+      "source": "https://digitalcommons.memphis.edu/etd/932/",
+      "result": "Nicolasora (2014) metadata accessible; linked dissertation download returned 403. Notation not acquired; no bypass attempted."
+    },
+    {
+      "source": "https://unitasust.net/wp-content/uploads/2018/12/UNITAS-89-2-Antonio-Africa-Expressions-of-Tagalog-Online-Version1.pdf",
+      "result": "Public study lead on Ang Tangi Kong Pag-ibig; download returned 403. Notation not acquired; no bypass attempted."
+    },
+    {
+      "source": "https://bdh.bne.es/bnesearch/detalle/bdh0000105391",
+      "result": "Lozano 1847 album cited by Miranda (2020) contains two historical Cundiman scores. Catalog request returned 403; no score acquired or counted."
     }
   ],
   "duplicate_audit": {
@@ -106,6 +126,7 @@
   "notes": [
     "Full source PDFs remain in ignored project research storage; repository includes melody excerpts and source metadata only.",
     "No IMSLP CAPTCHA was bypassed. Blocked file pages from the previous investigation were not retried.",
-    "Balanced banks were used for a fixed 200-step/member, four-seed CPU trial on all training works and original held-out fold 0. No fold-0 calibration met validation constraints; trial rejected and shipped app model retained. See tool/genre/balance_report.json."
+    "Balanced banks were used for a fixed 200-step/member, four-seed CPU trial on all training works and original held-out fold 0. No fold-0 calibration met validation constraints; trial rejected and shipped app model retained. See tool/genre/balance_report.json.",
+    "Error-audit follow-up accepted no new independent works. A source-verified Ikaw Rin training replacement corrects approximate triplets but retains the existing work ID; real counts remain 17 training / 4 validation / 2 fresh test. See training_corrections.json and ../error_audit.json."
   ]
 }

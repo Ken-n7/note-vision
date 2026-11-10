@@ -1,0 +1,3089 @@
+{
+  "date": "2026-11-10",
+  "decision": "retain_shipped_model",
+  "reason": "No held-out Kundiman gain; short-prefix app recall regressed in fold 3 and all-data raw macro F1 fell. Existing evaluation independence and tiny Kundiman fresh-test limits also preclude promotion.",
+  "artifact_directory": "/home/ken/Workspace/note-vision/.dart_tool/genre_audit_20261110",
+  "real_source_counts": {
+    "train": {
+      "waltz": 2003,
+      "kundiman": 17,
+      "jazz": 1051,
+      "other": 4261
+    },
+    "validation": {
+      "waltz": 285,
+      "kundiman": 4,
+      "jazz": 202,
+      "other": 460
+    },
+    "test": {
+      "waltz": 281,
+      "kundiman": 2,
+      "jazz": 182,
+      "other": 440
+    }
+  },
+  "examples_per_class": 4261,
+  "new_independent_works_accepted": 0,
+  "source_correction": {
+    "work": "kundiman_ikaw_rin",
+    "bars": 12,
+    "events": 37,
+    "sounding_events": 32,
+    "manifest": "data/training_corrections.json",
+    "source_sha256": "b46527f178ec8e909ed08e4091404a91a96970d51b590deeeddcb994bd308bff",
+    "note": "Same training work ID; exact triplets and tie in a shorter verified passage. Original data and evaluation passages unchanged."
+  },
+  "audit_summary": {
+    "unique_false_kundiman_pieces": 24,
+    "unique_missed_kundiman_pieces": 4,
+    "baseline_error_mechanisms": [
+      {
+        "kind": "false_kundiman",
+        "decision": "confident_model",
+        "piece_prefix_cases": 23
+      },
+      {
+        "kind": "false_kundiman",
+        "decision": "rule_fallback",
+        "piece_prefix_cases": 17
+      },
+      {
+        "kind": "missed_kundiman",
+        "decision": "kundiman_rule_vetoed",
+        "piece_prefix_cases": 2
+      },
+      {
+        "kind": "missed_kundiman",
+        "decision": "rule_fallback",
+        "piece_prefix_cases": 5
+      }
+    ],
+    "note": "Baseline all-data model across frozen validation/test, external negatives and known-training diagnostics. Prefixes are repeated views of the same pieces."
+  },
+  "baseline_error_cases": [
+    {
+      "name": "ewld_4799",
+      "split": "valid",
+      "expected": "other",
+      "source": "openewld",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            6,
+            true
+          ],
+          "rule": "jazz"
+        }
+      ]
+    },
+    {
+      "name": "kundiman_abelardo_kundiman_violin",
+      "split": "known_training",
+      "expected": "kundiman",
+      "source": "imslp",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "waltz",
+          "app": "waltz",
+          "decision": "kundiman_rule_vetoed",
+          "estimated_key": [
+            5,
+            true
+          ],
+          "rule": "kundiman"
+        }
+      ]
+    },
+    {
+      "name": "kundiman_bituing_marikit",
+      "split": "fresh_test",
+      "expected": "kundiman",
+      "source": "https://scholarworks.iu.edu/dspace/bitstreams/313039f0-edd6-40db-8c84-8c19e6c0ca44/download",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "kundiman",
+          "app": "jazz",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            7,
+            true
+          ],
+          "rule": "jazz"
+        },
+        {
+          "prefix": 80,
+          "raw": "kundiman",
+          "app": "jazz",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            7,
+            true
+          ],
+          "rule": "jazz"
+        },
+        {
+          "prefix": 320,
+          "raw": "kundiman",
+          "app": "jazz",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            7,
+            true
+          ],
+          "rule": "jazz"
+        }
+      ]
+    },
+    {
+      "name": "kundiman_bulalakaw",
+      "split": "known_training",
+      "expected": "kundiman",
+      "source": "imslp",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "kundiman",
+          "app": "waltz",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            7,
+            true
+          ],
+          "rule": "waltz"
+        }
+      ]
+    },
+    {
+      "name": "kundiman_himutok",
+      "split": "known_training",
+      "expected": "kundiman",
+      "source": "imslp",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "kundiman",
+          "app": "waltz",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            7,
+            true
+          ],
+          "rule": "waltz"
+        },
+        {
+          "prefix": 80,
+          "raw": "waltz",
+          "app": "waltz",
+          "decision": "kundiman_rule_vetoed",
+          "estimated_key": [
+            2,
+            true
+          ],
+          "rule": "kundiman"
+        }
+      ]
+    },
+    {
+      "name": "nmd_waltzes_34",
+      "split": "external_negative",
+      "expected": "waltz",
+      "source": "nmd_waltz",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            11,
+            true
+          ],
+          "rule": "kundiman"
+        },
+        {
+          "prefix": 80,
+          "raw": "waltz",
+          "app": "kundiman",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            11,
+            true
+          ],
+          "rule": "kundiman"
+        }
+      ]
+    },
+    {
+      "name": "pdmx_QmPoQX5RTMZUQ5MCABnsxSQ4XXfVdF22ydG5nqe2cdLdVR",
+      "split": "valid",
+      "expected": "waltz",
+      "source": "pdmx",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "waltz",
+          "app": "kundiman",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            9,
+            false
+          ],
+          "rule": "kundiman"
+        }
+      ]
+    },
+    {
+      "name": "pdmx_QmQZpaRFDPu63e2SZF1SAKxpakzktfZsyznN4rms8aRKR9",
+      "split": "test",
+      "expected": "waltz",
+      "source": "pdmx",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            4,
+            false
+          ],
+          "rule": "kundiman"
+        }
+      ]
+    },
+    {
+      "name": "pdmx_QmQrYewxA6V1tcyyYmApK4BfC6q2mw9Een4Ymh12yLnh7Z",
+      "split": "test",
+      "expected": "waltz",
+      "source": "pdmx",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            5,
+            true
+          ],
+          "rule": "kundiman"
+        }
+      ]
+    },
+    {
+      "name": "pdmx_QmV1Awf8zT6Ep6TEb7F7vJa2UMxmdEYV2KN3a8MepbgKwW",
+      "split": "test",
+      "expected": "waltz",
+      "source": "pdmx",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            4,
+            true
+          ],
+          "rule": "kundiman"
+        },
+        {
+          "prefix": 80,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            4,
+            true
+          ],
+          "rule": "kundiman"
+        }
+      ]
+    },
+    {
+      "name": "pdmx_QmXGTMSLm59vU9CnuZXPP9z4yXpr9jvLhgTpD2xTXUuijC",
+      "split": "valid",
+      "expected": "waltz",
+      "source": "pdmx",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            4,
+            true
+          ],
+          "rule": "kundiman"
+        }
+      ]
+    },
+    {
+      "name": "pdmx_QmbQahbXZKQdHfrjYySvF2sdA7RzgyRjpFYC7s2rTMAgpg",
+      "split": "test",
+      "expected": "waltz",
+      "source": "pdmx",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "waltz",
+          "app": "kundiman",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            7,
+            true
+          ],
+          "rule": "kundiman"
+        }
+      ]
+    },
+    {
+      "name": "pdmx_Qmf6fCQbwxTdqPash4BA1rnrWEw1AqRgDGL96EgtndbUVG",
+      "split": "test",
+      "expected": "waltz",
+      "source": "pdmx",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            2,
+            false
+          ],
+          "rule": "waltz"
+        }
+      ]
+    },
+    {
+      "name": "pdmx_QmfXGVWCFJ69WjRHejZNqbekH6c5MMdzh9XQ5xwo8phNLW",
+      "split": "valid",
+      "expected": "jazz",
+      "source": "pdmx",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            10,
+            true
+          ],
+          "rule": "kundiman"
+        },
+        {
+          "prefix": 80,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            6,
+            false
+          ],
+          "rule": "kundiman"
+        },
+        {
+          "prefix": 320,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            6,
+            false
+          ],
+          "rule": "waltz"
+        }
+      ]
+    },
+    {
+      "name": "session_10378",
+      "split": "test",
+      "expected": "waltz",
+      "source": "thesession",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            9,
+            false
+          ],
+          "rule": "waltz"
+        },
+        {
+          "prefix": 80,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            9,
+            false
+          ],
+          "rule": "waltz"
+        },
+        {
+          "prefix": 320,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            9,
+            false
+          ],
+          "rule": "waltz"
+        }
+      ]
+    },
+    {
+      "name": "session_11488",
+      "split": "test",
+      "expected": "waltz",
+      "source": "thesession",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            11,
+            true
+          ],
+          "rule": "kundiman"
+        },
+        {
+          "prefix": 80,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            11,
+            true
+          ],
+          "rule": "kundiman"
+        }
+      ]
+    },
+    {
+      "name": "session_12373",
+      "split": "test",
+      "expected": "waltz",
+      "source": "thesession",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            2,
+            false
+          ],
+          "rule": "waltz"
+        },
+        {
+          "prefix": 320,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            7,
+            true
+          ],
+          "rule": "kundiman"
+        }
+      ]
+    },
+    {
+      "name": "session_14440",
+      "split": "test",
+      "expected": "waltz",
+      "source": "thesession",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            2,
+            true
+          ],
+          "rule": "kundiman"
+        },
+        {
+          "prefix": 80,
+          "raw": "waltz",
+          "app": "kundiman",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            2,
+            true
+          ],
+          "rule": "kundiman"
+        }
+      ]
+    },
+    {
+      "name": "session_15290",
+      "split": "valid",
+      "expected": "waltz",
+      "source": "thesession",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "waltz",
+          "app": "kundiman",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            2,
+            false
+          ],
+          "rule": "kundiman"
+        }
+      ]
+    },
+    {
+      "name": "session_15579",
+      "split": "valid",
+      "expected": "waltz",
+      "source": "thesession",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "waltz",
+          "app": "kundiman",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            9,
+            false
+          ],
+          "rule": "kundiman"
+        }
+      ]
+    },
+    {
+      "name": "session_16469",
+      "split": "test",
+      "expected": "waltz",
+      "source": "thesession",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "waltz",
+          "app": "kundiman",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            7,
+            false
+          ],
+          "rule": "kundiman"
+        }
+      ]
+    },
+    {
+      "name": "session_17068",
+      "split": "test",
+      "expected": "waltz",
+      "source": "thesession",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            9,
+            false
+          ],
+          "rule": "kundiman"
+        }
+      ]
+    },
+    {
+      "name": "session_17909",
+      "split": "valid",
+      "expected": "waltz",
+      "source": "thesession",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            4,
+            true
+          ],
+          "rule": "kundiman"
+        },
+        {
+          "prefix": 80,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            9,
+            true
+          ],
+          "rule": "kundiman"
+        },
+        {
+          "prefix": 320,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            0,
+            false
+          ],
+          "rule": "waltz"
+        }
+      ]
+    },
+    {
+      "name": "session_19710",
+      "split": "test",
+      "expected": "waltz",
+      "source": "thesession",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            4,
+            true
+          ],
+          "rule": "kundiman"
+        },
+        {
+          "prefix": 80,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            4,
+            true
+          ],
+          "rule": "kundiman"
+        },
+        {
+          "prefix": 320,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            4,
+            true
+          ],
+          "rule": "kundiman"
+        }
+      ]
+    },
+    {
+      "name": "session_23524",
+      "split": "valid",
+      "expected": "waltz",
+      "source": "thesession",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            5,
+            false
+          ],
+          "rule": "waltz"
+        }
+      ]
+    },
+    {
+      "name": "session_2562",
+      "split": "test",
+      "expected": "waltz",
+      "source": "thesession",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            4,
+            true
+          ],
+          "rule": "waltz"
+        },
+        {
+          "prefix": 80,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            4,
+            true
+          ],
+          "rule": "kundiman"
+        },
+        {
+          "prefix": 320,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            4,
+            true
+          ],
+          "rule": "kundiman"
+        }
+      ]
+    },
+    {
+      "name": "session_6215",
+      "split": "valid",
+      "expected": "waltz",
+      "source": "thesession",
+      "cases": [
+        {
+          "prefix": 40,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            2,
+            false
+          ],
+          "rule": "kundiman"
+        },
+        {
+          "prefix": 80,
+          "raw": "kundiman",
+          "app": "kundiman",
+          "decision": "confident_model",
+          "estimated_key": [
+            2,
+            false
+          ],
+          "rule": "waltz"
+        }
+      ]
+    },
+    {
+      "name": "session_8297",
+      "split": "test",
+      "expected": "waltz",
+      "source": "thesession",
+      "cases": [
+        {
+          "prefix": 80,
+          "raw": "waltz",
+          "app": "kundiman",
+          "decision": "rule_fallback",
+          "estimated_key": [
+            2,
+            true
+          ],
+          "rule": "kundiman"
+        }
+      ]
+    }
+  ],
+  "feature_overlap": {
+    "matches": [
+      {
+        "name": "pdmx_QmZFWEQiSTEd4xVAQ6MjKbRfuNzcd3RTUCoxWMCim2rLgp",
+        "split": "valid",
+        "genre": "jazz",
+        "training_matches": [
+          {
+            "name": "ewld_4450",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "pdmx_QmbvVVjePGbg6KvwjdfW19Lo3Jp4nZvNTzBGqayWeY4sp2",
+        "split": "valid",
+        "genre": "waltz",
+        "training_matches": [
+          {
+            "name": "pdmx_QmT2w7cgZnWVbbdyV3PN4wJcHwFCpviR18hM2TkXYUaRyw",
+            "genre": "waltz"
+          }
+        ]
+      },
+      {
+        "name": "pdmx_QmWKC9dUVEf7FVEmE9wXczdTeEha6v2XxnGNrqs3WEnFx5",
+        "split": "valid",
+        "genre": "waltz",
+        "training_matches": [
+          {
+            "name": "pdmx_QmR14E4eMaiA8cRaJsv4CwwahD3pNxg9W1G9RvLyZNkzyX",
+            "genre": "waltz"
+          }
+        ]
+      },
+      {
+        "name": "pdmx_QmdKexEC1RtbrJmgpxrcWmFau7mp4q3EqCBHfB7KRVfNH9",
+        "split": "valid",
+        "genre": "waltz",
+        "training_matches": [
+          {
+            "name": "pdmx_QmNSn8BBhHpbU6w9fqkp5yCsXVtyY8fwh1BT16SSsZEdBL",
+            "genre": "waltz"
+          },
+          {
+            "name": "pdmx_QmQb1RdU1FtmmYHbXdfU7YEY8a9nvkJcdBJGRTrSokCCq9",
+            "genre": "waltz"
+          }
+        ]
+      },
+      {
+        "name": "pdmx_QmQviN9LjzjSEPyajCxMyC23AMqx47WshcjrGdxAJcjpxv",
+        "split": "valid",
+        "genre": "waltz",
+        "training_matches": [
+          {
+            "name": "pdmx_QmWbH6ou7RZByRmuEgyye1qz7sx7T9RCjyQtfm5Pdro6dD",
+            "genre": "waltz"
+          }
+        ]
+      },
+      {
+        "name": "pdmx_QmXXkb7MjgGA6EziPMFTLLqfhV8QAu3mMnHdzEomcuoA8P",
+        "split": "valid",
+        "genre": "waltz",
+        "training_matches": [
+          {
+            "name": "pdmx_QmRaxFarur2UXH5X4Udr5g1bgZ16fT1htUK6Xyg4BjcsXD",
+            "genre": "waltz"
+          }
+        ]
+      },
+      {
+        "name": "pdmx_QmfTZ8bmd3DcociRJBvnccVDpx9nbG2oxUruzz1fLswkwv",
+        "split": "valid",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "ewld_3934",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "pdmx_QmbDJCUFDQz5kiKTwk8XgvkwSofUB54J7vAYevYtgRpR2F",
+        "split": "valid",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "pdmx_QmQhMuFDiGTASK35mR3Xk71PyvRoBvW989fbdNmFfXrDsx",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "pdmx_QmR1WRS4dEXY7U7H2wEDNDdnMNMuepRqm6Nx8HiCiR1cgQ",
+        "split": "valid",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "pdmx_QmYeqxinPyMHhfsFaiHgi2h6o6aF4adKN5dPDC778JQMVg",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "pdmx_QmVLXyrnVo4TVRpLwDiCkSnoBCnwuSN1dFow79wEyErq8Z",
+        "split": "valid",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "pdmx_Qmbk9fuscKbFwBmqRT1jA5dCw6HAaP7K6BpKyXGGuQsjuC",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "pdmx_QmXji3KEax27UkDW5igXoY8BEsPFaSkEC683HxUuzyiw9K",
+        "split": "valid",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "pdmx_Qmd4Yvf6BXKjGM1wGRUFewgs5hKzoHfut3cThZmj1ZXGDf",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "pdmx_QmYQ6tUfr2aFDTsPp8UyfpmtpPDo5iDzDkWAjJzeq1WLA5",
+        "split": "valid",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "pdmx_QmWNsmwogqFPNsKBHoaBmydg5jCjQkafB9sXTXMZ6XMR7U",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "session_15290",
+        "split": "valid",
+        "genre": "waltz",
+        "training_matches": [
+          {
+            "name": "session_10571",
+            "genre": "waltz"
+          },
+          {
+            "name": "session_15289",
+            "genre": "waltz"
+          }
+        ]
+      },
+      {
+        "name": "session_19424",
+        "split": "valid",
+        "genre": "waltz",
+        "training_matches": [
+          {
+            "name": "session_19989",
+            "genre": "waltz"
+          }
+        ]
+      },
+      {
+        "name": "ewld_1333",
+        "split": "valid",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "ewld_3780",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "ewld_2648",
+        "split": "valid",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "ewld_3332",
+            "genre": "other"
+          },
+          {
+            "name": "ewld_431",
+            "genre": "other"
+          },
+          {
+            "name": "ewld_4795",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "ewld_0",
+        "split": "valid",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "ewld_3065",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "ewld_2425",
+        "split": "valid",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "ewld_1580",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "ewld_170",
+        "split": "valid",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "ewld_4502",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "ewld_4838",
+        "split": "valid",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "ewld_1344",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "ewld_2465",
+        "split": "valid",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "ewld_3395",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "ewld_4988",
+        "split": "valid",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "ewld_104",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "ewld_4485",
+        "split": "valid",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "ewld_2946",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "ewld_2127",
+        "split": "valid",
+        "genre": "jazz",
+        "training_matches": [
+          {
+            "name": "ewld_1393",
+            "genre": "jazz"
+          }
+        ]
+      },
+      {
+        "name": "ewld_126",
+        "split": "valid",
+        "genre": "jazz",
+        "training_matches": [
+          {
+            "name": "ewld_1466",
+            "genre": "jazz"
+          }
+        ]
+      },
+      {
+        "name": "ewld_2163",
+        "split": "valid",
+        "genre": "jazz",
+        "training_matches": [
+          {
+            "name": "ewld_2990",
+            "genre": "jazz"
+          }
+        ]
+      },
+      {
+        "name": "pdmx_QmYPVd57o4o8CTMk78dmfhuvRLB3sMBBePFCqw1vMAJRxM",
+        "split": "test",
+        "genre": "jazz",
+        "training_matches": [
+          {
+            "name": "pdmx_QmaAx5uRgEB3rCNpU6MNj1v6aKZxhcGJiu2MiHGgkQXGji",
+            "genre": "jazz"
+          }
+        ]
+      },
+      {
+        "name": "pdmx_Qmaa6zgW92mEVQXRgeDnZEJVkdWMJzJDKx31rgGfC1nMdK",
+        "split": "test",
+        "genre": "jazz",
+        "training_matches": [
+          {
+            "name": "pdmx_QmbjiRHpfdc3FkbC4XkQJBc1zij1R6GNWwGNtykCaGs1jC",
+            "genre": "jazz"
+          }
+        ]
+      },
+      {
+        "name": "pdmx_QmYtYDXp6SDhcCRhRMZg1fN4RihJqvaBVgEHGuXPLbUv6a",
+        "split": "test",
+        "genre": "waltz",
+        "training_matches": [
+          {
+            "name": "pdmx_QmXnpmnc9mAkzPAzpxN1rFm5eqKNnwDhQKtAmN1ecYDABf",
+            "genre": "waltz"
+          }
+        ]
+      },
+      {
+        "name": "pdmx_QmSz2C2n172TdxVEnWYqqMpkUkrH8xTdwJyXHza8Bq9Drx",
+        "split": "test",
+        "genre": "waltz",
+        "training_matches": [
+          {
+            "name": "pdmx_QmNSn8BBhHpbU6w9fqkp5yCsXVtyY8fwh1BT16SSsZEdBL",
+            "genre": "waltz"
+          },
+          {
+            "name": "pdmx_QmQb1RdU1FtmmYHbXdfU7YEY8a9nvkJcdBJGRTrSokCCq9",
+            "genre": "waltz"
+          }
+        ]
+      },
+      {
+        "name": "pdmx_QmaA8ytbqvP9xcmjffRrThEBfy5qSPco7zoZ5Bjziyz9T3",
+        "split": "test",
+        "genre": "waltz",
+        "training_matches": [
+          {
+            "name": "pdmx_QmbuK8kHfUQdm7RNVQBBgF7Tx4v8W818ksY3ia9ZQuPiKG",
+            "genre": "waltz"
+          }
+        ]
+      },
+      {
+        "name": "pdmx_QmT6c4KL4ewDceEzyJuhJTBJpbzjJYDPviZLvt7JpqS8M4",
+        "split": "test",
+        "genre": "waltz",
+        "training_matches": [
+          {
+            "name": "pdmx_QmZbEwLjBZAGRpktijg9TR63ydTCqkgJapv8Lc8iQw5fTs",
+            "genre": "waltz"
+          }
+        ]
+      },
+      {
+        "name": "pdmx_QmeaTpTwAsVyvdKQaKhQf8zgWweQc63JYVbXF4V82sYosR",
+        "split": "test",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "pdmx_QmfZpD4GTDLQk8yFHdjkysjSdgzoTFSxcFCograE5bEyQt",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "pdmx_QmYoqaKJTzgwrh5yiLnAPQNm27Cxowavu5RsYuS3qT7AEY",
+        "split": "test",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "pdmx_QmaoQa7nRcUPqTbvvNm7iMfvRMCGDXUHcjWUMBA6K3wbws",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "pdmx_QmbncjnQV5c352pZ36p6CS8GmJnTrLRBGMvar1BkELnNkX",
+        "split": "test",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "pdmx_Qmbk9fuscKbFwBmqRT1jA5dCw6HAaP7K6BpKyXGGuQsjuC",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "ewld_2294",
+        "split": "test",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "ewld_1827",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "ewld_3590",
+        "split": "test",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "ewld_3401",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "ewld_5017",
+        "split": "test",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "ewld_1805",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "ewld_2912",
+        "split": "test",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "ewld_2889",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "nmd_jigs_36",
+        "split": "external_negative",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "session_1153",
+            "genre": "other"
+          }
+        ]
+      },
+      {
+        "name": "nmd_reelsd-g_22",
+        "split": "external_negative",
+        "genre": "other",
+        "training_matches": [
+          {
+            "name": "session_3376",
+            "genre": "other"
+          }
+        ]
+      }
+    ],
+    "evaluation_pieces_with_matches": 41,
+    "limit": "Exact normalized input matches flag possible duplicates or shared phrases; no automatic relabelling or repartitioning. Non-matches do not establish composition independence.",
+    "by_split": {
+      "valid": 26,
+      "test": 13,
+      "external_negative": 2
+    },
+    "verified_title_conflict": {
+      "title": "After You've Gone",
+      "validation_id": "pdmx_QmZFWEQiSTEd4xVAQ6MjKbRfuNzcd3RTUCoxWMCim2rLgp",
+      "validation_label": "jazz",
+      "training_id": "ewld_4450",
+      "training_label": "other"
+    }
+  },
+  "source_reviews": [
+    {
+      "name": "session_10378",
+      "title": "Flight Of The Curlew",
+      "type": "waltz",
+      "source_meter": "3/4",
+      "source_mode": "Amajor",
+      "source": "https://thesession.org/tunes/10378",
+      "non_full_bars": [],
+      "review": "Source catalog says Waltz. Non-full bars require notation review; pickups/split bars may be legitimate. No relabelling or training reuse of these held-out examples."
+    },
+    {
+      "name": "session_19710",
+      "title": "Gan Ainm",
+      "type": "waltz",
+      "source_meter": "3/4",
+      "source_mode": "Gmajor",
+      "source": "https://thesession.org/tunes/19710",
+      "non_full_bars": [
+        {
+          "bar": 1,
+          "quarters": 2.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 2,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 4,
+          "quarters": 2.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 5,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 7,
+          "quarters": 2.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 8,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 10,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 11,
+          "quarters": 1.5,
+          "expected": 3.0
+        }
+      ],
+      "review": "Source catalog says Waltz. Non-full bars require notation review; pickups/split bars may be legitimate. No relabelling or training reuse of these held-out examples."
+    },
+    {
+      "name": "session_17909",
+      "title": "Grey Foggy Day",
+      "type": "waltz",
+      "source_meter": "3/4",
+      "source_mode": "Cmajor",
+      "source": "https://thesession.org/tunes/17909",
+      "non_full_bars": [
+        {
+          "bar": 1,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 2,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 3,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 4,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 5,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 6,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 7,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 8,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 9,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 10,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 11,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 12,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 13,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 14,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 15,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 16,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 17,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 18,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 19,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 20,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 21,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 22,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 23,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 24,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 25,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 26,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 27,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 28,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 29,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 30,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 31,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 32,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 33,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 34,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 35,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 36,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 37,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 38,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 39,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 40,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 41,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 42,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 43,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 44,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 45,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 46,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 47,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 48,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 49,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 50,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 51,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 52,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 53,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 54,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 55,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 56,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 57,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 58,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 59,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 60,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 61,
+          "quarters": 1.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 62,
+          "quarters": 1.5,
+          "expected": 3.0
+        }
+      ],
+      "review": "Source catalog says Waltz. Non-full bars require notation review; pickups/split bars may be legitimate. No relabelling or training reuse of these held-out examples."
+    },
+    {
+      "name": "session_6215",
+      "title": "Joyous",
+      "type": "waltz",
+      "source_meter": "3/4",
+      "source_mode": "Dmajor",
+      "source": "https://thesession.org/tunes/6215",
+      "non_full_bars": [
+        {
+          "bar": 1,
+          "quarters": 2.0,
+          "expected": 3.0
+        },
+        {
+          "bar": 5,
+          "quarters": 2.5,
+          "expected": 3.0
+        },
+        {
+          "bar": 37,
+          "quarters": 2.75,
+          "expected": 3.0
+        },
+        {
+          "bar": 38,
+          "quarters": 2.75,
+          "expected": 3.0
+        },
+        {
+          "bar": 39,
+          "quarters": 2.75,
+          "expected": 3.0
+        }
+      ],
+      "review": "Source catalog says Waltz. Non-full bars require notation review; pickups/split bars may be legitimate. No relabelling or training reuse of these held-out examples."
+    },
+    {
+      "name": "session_12373",
+      "title": "My Dream Of You",
+      "type": "waltz",
+      "source_meter": "3/4",
+      "source_mode": "Gminor",
+      "source": "https://thesession.org/tunes/12373",
+      "non_full_bars": [
+        {
+          "bar": 1,
+          "quarters": 1.0,
+          "expected": 3.0
+        }
+      ],
+      "review": "Source catalog says Waltz. Non-full bars require notation review; pickups/split bars may be legitimate. No relabelling or training reuse of these held-out examples."
+    },
+    {
+      "name": "session_2562",
+      "title": "Road East, The",
+      "type": "waltz",
+      "source_meter": "3/4",
+      "source_mode": "Eminor",
+      "source": "https://thesession.org/tunes/2562",
+      "non_full_bars": [],
+      "review": "Source catalog says Waltz. Non-full bars require notation review; pickups/split bars may be legitimate. No relabelling or training reuse of these held-out examples."
+    }
+  ],
+  "training_recipe": {
+    "frozen_before_training": true,
+    "stop_after_any_validation_rejection": true,
+    "steps_per_member": 200,
+    "seeds": [
+      7,
+      1,
+      2,
+      3
+    ],
+    "learning_rate": 1e-05,
+    "negative_distillation_weight": 2,
+    "hard_negative_share_within_each_negative_class": 0.5,
+    "hard_negative_pool": "Top 10% of eligible training windows ranked by original baseline Kundiman probability per negative class",
+    "training_correction": "kundiman_ikaw_rin: exact-triplet verified passage, same source/work ID",
+    "real_counts_unchanged": true,
+    "new_compositions_accepted": 0,
+    "thresholds_unchanged": [
+      0.7,
+      0.4
+    ],
+    "selection": "Validation only, original fixed calibration grid",
+    "promotion_limit": "Original tests have been inspected during error analysis and are reused development benchmarks; a passing candidate still needs untouched independent Kundiman works before any promotion.",
+    "planned_validation_order": [
+      "0",
+      "1",
+      "2",
+      "3",
+      "all"
+    ],
+    "execution": "Fold 0 first; fold 1 and all-data training in parallel; folds 2 and 3 afterwards. Every fold received its own validation-only calibration."
+  },
+  "folds": {
+    "0": {
+      "baseline_checkpoint_sha256": "ee095c52294e11e23a4069c808fb7f81c10c3316ba209859d7ca269c2168f580",
+      "candidate_checkpoint_sha256": "7b1ce614ac0d9c779f181f927d11f525092d30ff1aab8cd48ec8577a6ade8a37",
+      "training_manifest_sha256": "df894128ed0f94d422ef3247bcb5cfef635cf082ab946643471f821fe67d82fa",
+      "bank_manifest_sha256": "ebf0a8da14f006ba637e16e803b24331e0e3d3e5880bb97235ca1770c4968338",
+      "held_out": [
+        "kundiman_abelardo_kundiman_violin",
+        "kundiman_buencamino_kundiman",
+        "kundiman_kundiman_ng_luha",
+        "kundiman_pakiusap"
+      ],
+      "corrections_applied": [
+        "kundiman_ikaw_rin"
+      ],
+      "hard_negative_pools": {
+        "waltz": {
+          "windows": 427,
+          "lowest_kundiman_probability": 0.04091711714863777
+        },
+        "jazz": {
+          "windows": 427,
+          "lowest_kundiman_probability": 0.000977167277596891
+        },
+        "other": {
+          "windows": 427,
+          "lowest_kundiman_probability": 0.0011074013309553266
+        }
+      },
+      "calibration": {
+        "kundiman_scale": 1.0,
+        "validation_baseline": {
+          "40": {
+            "kundiman": 4,
+            "false_kundiman": 7,
+            "negative_correct": 468
+          },
+          "80": {
+            "kundiman": 4,
+            "false_kundiman": 4,
+            "negative_correct": 470
+          },
+          "320": {
+            "kundiman": 4,
+            "false_kundiman": 1,
+            "negative_correct": 473
+          }
+        },
+        "attempts": [
+          {
+            "scale": 1.0,
+            "metrics": {
+              "40": {
+                "kundiman": 4,
+                "false_kundiman": 7,
+                "negative_correct": 468
+              },
+              "80": {
+                "kundiman": 4,
+                "false_kundiman": 4,
+                "negative_correct": 470
+              },
+              "320": {
+                "kundiman": 4,
+                "false_kundiman": 1,
+                "negative_correct": 473
+              }
+            }
+          }
+        ],
+        "selection": "validation only; largest admissible fixed-grid scale"
+      }
+    },
+    "1": {
+      "baseline_checkpoint_sha256": "b1b713b0cd62a8a23adfe3d7520d38bd99a510c59f6e128a4e96e4d292576257",
+      "candidate_checkpoint_sha256": "39426bf0dde5ac368d7de72925ee0198c1085bdc603d607a91aac9e6ad195940",
+      "training_manifest_sha256": "1ec01daa50fe3fe5e7c71830cc587c51e52c92c4386d5739d8155951f07b964e",
+      "bank_manifest_sha256": "11b35509052f4e1c78df0ee4f42752db28074935afb33b55989ebf7c4320ab44",
+      "held_out": [
+        "kundiman_ala_ala_ko_sa_iyo",
+        "kundiman_bulalakaw",
+        "kundiman_kung_iibig_ka",
+        "kundiman_tanging_ligaya_ko"
+      ],
+      "corrections_applied": [
+        "kundiman_ikaw_rin"
+      ],
+      "hard_negative_pools": {
+        "waltz": {
+          "windows": 427,
+          "lowest_kundiman_probability": 0.026826543733477592
+        },
+        "jazz": {
+          "windows": 427,
+          "lowest_kundiman_probability": 0.002089784713461995
+        },
+        "other": {
+          "windows": 427,
+          "lowest_kundiman_probability": 0.001930516678839922
+        }
+      },
+      "calibration": {
+        "kundiman_scale": 1.0,
+        "validation_baseline": {
+          "40": {
+            "kundiman": 4,
+            "false_kundiman": 10,
+            "negative_correct": 466
+          },
+          "80": {
+            "kundiman": 4,
+            "false_kundiman": 5,
+            "negative_correct": 472
+          },
+          "320": {
+            "kundiman": 4,
+            "false_kundiman": 3,
+            "negative_correct": 473
+          }
+        },
+        "attempts": [
+          {
+            "scale": 1.0,
+            "metrics": {
+              "40": {
+                "kundiman": 4,
+                "false_kundiman": 10,
+                "negative_correct": 467
+              },
+              "80": {
+                "kundiman": 4,
+                "false_kundiman": 5,
+                "negative_correct": 472
+              },
+              "320": {
+                "kundiman": 4,
+                "false_kundiman": 3,
+                "negative_correct": 473
+              }
+            }
+          }
+        ],
+        "selection": "validation only; largest admissible fixed-grid scale"
+      }
+    },
+    "2": {
+      "baseline_checkpoint_sha256": "6b02459f09f60776ca3bb1c20072e443287def965de7dae0d7001429d6b9ce40",
+      "candidate_checkpoint_sha256": "6c7490c2c6f94d99093d474556a8569e1a202975d210dc7e48579df949ed0b2d",
+      "training_manifest_sha256": "69d4ed8af2c2711f321f3ab3cfb6cd66919d0c2ad6a8389d4306b75848c4d6f7",
+      "bank_manifest_sha256": "62b82a73c9edf57b4aad5fcd29cbe4d87908109ffcf64b025c68fae12b4683c5",
+      "held_out": [
+        "kundiman_anak_dalita",
+        "kundiman_himutok",
+        "kundiman_magbalik_ka_hirang"
+      ],
+      "corrections_applied": [
+        "kundiman_ikaw_rin"
+      ],
+      "hard_negative_pools": {
+        "waltz": {
+          "windows": 427,
+          "lowest_kundiman_probability": 0.030636783689260483
+        },
+        "jazz": {
+          "windows": 427,
+          "lowest_kundiman_probability": 0.0017487374134361744
+        },
+        "other": {
+          "windows": 427,
+          "lowest_kundiman_probability": 0.0023166690953075886
+        }
+      },
+      "calibration": {
+        "kundiman_scale": 0.75,
+        "validation_baseline": {
+          "40": {
+            "kundiman": 4,
+            "false_kundiman": 7,
+            "negative_correct": 468
+          },
+          "80": {
+            "kundiman": 4,
+            "false_kundiman": 3,
+            "negative_correct": 472
+          },
+          "320": {
+            "kundiman": 4,
+            "false_kundiman": 3,
+            "negative_correct": 473
+          }
+        },
+        "attempts": [
+          {
+            "scale": 1.0,
+            "metrics": {
+              "40": {
+                "kundiman": 4,
+                "false_kundiman": 6,
+                "negative_correct": 468
+              },
+              "80": {
+                "kundiman": 4,
+                "false_kundiman": 3,
+                "negative_correct": 472
+              },
+              "320": {
+                "kundiman": 4,
+                "false_kundiman": 4,
+                "negative_correct": 472
+              }
+            }
+          },
+          {
+            "scale": 0.75,
+            "metrics": {
+              "40": {
+                "kundiman": 4,
+                "false_kundiman": 5,
+                "negative_correct": 469
+              },
+              "80": {
+                "kundiman": 4,
+                "false_kundiman": 3,
+                "negative_correct": 472
+              },
+              "320": {
+                "kundiman": 4,
+                "false_kundiman": 3,
+                "negative_correct": 473
+              }
+            }
+          }
+        ],
+        "selection": "validation only; largest admissible fixed-grid scale"
+      }
+    },
+    "3": {
+      "baseline_checkpoint_sha256": "b278321c5afbef6c8145e8df7f3511179f16b1e5ee60d7ab323980eb036dd9ac",
+      "candidate_checkpoint_sha256": "46ebcb2ebcf03c5b02601dd68b6a75c355fbfd7bb20f6f7322cdf3e07b4cde40",
+      "training_manifest_sha256": "bec529a0d9f3153f732aacc7a11b8f391c2d62e894e4a50c5fa1a6f69d5c926e",
+      "bank_manifest_sha256": "87b9444712bf751c16a7ac6a89569e3abeae9aec2066d033207a299ed76c9b0c",
+      "held_out": [
+        "kundiman_ano_kaya_ang_kapalaran",
+        "kundiman_ikaw_rin",
+        "kundiman_nasaan_ka_irog"
+      ],
+      "corrections_applied": [],
+      "hard_negative_pools": {
+        "waltz": {
+          "windows": 427,
+          "lowest_kundiman_probability": 0.033027034252882004
+        },
+        "jazz": {
+          "windows": 427,
+          "lowest_kundiman_probability": 0.0017618220299482346
+        },
+        "other": {
+          "windows": 427,
+          "lowest_kundiman_probability": 0.003086507087573409
+        }
+      },
+      "calibration": {
+        "kundiman_scale": 0.75,
+        "validation_baseline": {
+          "40": {
+            "kundiman": 4,
+            "false_kundiman": 9,
+            "negative_correct": 466
+          },
+          "80": {
+            "kundiman": 4,
+            "false_kundiman": 3,
+            "negative_correct": 471
+          },
+          "320": {
+            "kundiman": 4,
+            "false_kundiman": 2,
+            "negative_correct": 473
+          }
+        },
+        "attempts": [
+          {
+            "scale": 1.0,
+            "metrics": {
+              "40": {
+                "kundiman": 4,
+                "false_kundiman": 9,
+                "negative_correct": 465
+              },
+              "80": {
+                "kundiman": 4,
+                "false_kundiman": 3,
+                "negative_correct": 471
+              },
+              "320": {
+                "kundiman": 4,
+                "false_kundiman": 2,
+                "negative_correct": 473
+              }
+            }
+          },
+          {
+            "scale": 0.75,
+            "metrics": {
+              "40": {
+                "kundiman": 4,
+                "false_kundiman": 7,
+                "negative_correct": 467
+              },
+              "80": {
+                "kundiman": 4,
+                "false_kundiman": 3,
+                "negative_correct": 471
+              },
+              "320": {
+                "kundiman": 4,
+                "false_kundiman": 2,
+                "negative_correct": 473
+              }
+            }
+          }
+        ],
+        "selection": "validation only; largest admissible fixed-grid scale"
+      }
+    },
+    "all": {
+      "baseline_checkpoint_sha256": "338d95e1f62bcbef0abb563d1e20c6cb066ca872f1d75048af4b24492815a718",
+      "candidate_checkpoint_sha256": "24b5feadee5f6fa23e392fbad96d182da5d1e9f8d72990d972914b96c41b05b3",
+      "training_manifest_sha256": "ad82b86e70bcc4766f9502b10f4ffabe97306d507ca7ca4dafb4c760e6125187",
+      "bank_manifest_sha256": "8dad390ed540b4bc7b371f4cf675bc09ffa51280924753c438ca4d095555dd1b",
+      "held_out": [],
+      "corrections_applied": [
+        "kundiman_ikaw_rin"
+      ],
+      "hard_negative_pools": {
+        "waltz": {
+          "windows": 427,
+          "lowest_kundiman_probability": 0.033393729478120804
+        },
+        "jazz": {
+          "windows": 427,
+          "lowest_kundiman_probability": 0.0022572025191038847
+        },
+        "other": {
+          "windows": 427,
+          "lowest_kundiman_probability": 0.001882256823591888
+        }
+      },
+      "calibration": {
+        "kundiman_scale": 1.0,
+        "validation_baseline": {
+          "40": {
+            "kundiman": 4,
+            "false_kundiman": 9,
+            "negative_correct": 465
+          },
+          "80": {
+            "kundiman": 4,
+            "false_kundiman": 3,
+            "negative_correct": 471
+          },
+          "320": {
+            "kundiman": 4,
+            "false_kundiman": 2,
+            "negative_correct": 473
+          }
+        },
+        "attempts": [
+          {
+            "scale": 1.0,
+            "metrics": {
+              "40": {
+                "kundiman": 4,
+                "false_kundiman": 9,
+                "negative_correct": 466
+              },
+              "80": {
+                "kundiman": 4,
+                "false_kundiman": 3,
+                "negative_correct": 471
+              },
+              "320": {
+                "kundiman": 4,
+                "false_kundiman": 2,
+                "negative_correct": 473
+              }
+            }
+          }
+        ],
+        "selection": "validation only; largest admissible fixed-grid scale"
+      }
+    }
+  },
+  "cross_validation_app": {
+    "40": {
+      "works": 14,
+      "baseline_app_correct": 11,
+      "candidate_raw_app_correct": 10,
+      "candidate_calibrated_app_correct": 10,
+      "baseline_model_top_correct": 12,
+      "candidate_model_top_correct": 13
+    },
+    "80": {
+      "works": 14,
+      "baseline_app_correct": 11,
+      "candidate_raw_app_correct": 11,
+      "candidate_calibrated_app_correct": 11,
+      "baseline_model_top_correct": 12,
+      "candidate_model_top_correct": 12
+    },
+    "320": {
+      "works": 14,
+      "baseline_app_correct": 13,
+      "candidate_raw_app_correct": 13,
+      "candidate_calibrated_app_correct": 13,
+      "baseline_model_top_correct": 13,
+      "candidate_model_top_correct": 13
+    }
+  },
+  "all_data_test_metrics": [
+    {
+      "prefix": 40,
+      "original_test_plus_fresh": {
+        "baseline": {
+          "raw": {
+            "pieces": 905,
+            "order": [
+              "waltz",
+              "kundiman",
+              "jazz",
+              "other"
+            ],
+            "confusion": [
+              [
+                262,
+                14,
+                4,
+                1
+              ],
+              [
+                0,
+                2,
+                0,
+                0
+              ],
+              [
+                6,
+                0,
+                146,
+                30
+              ],
+              [
+                2,
+                0,
+                46,
+                392
+              ]
+            ],
+            "classes": {
+              "waltz": {
+                "support": 281,
+                "precision": 0.9703703703703703,
+                "recall": 0.9323843416370107,
+                "f1": 0.9509981851179674
+              },
+              "kundiman": {
+                "support": 2,
+                "precision": 0.125,
+                "recall": 1.0,
+                "f1": 0.2222222222222222
+              },
+              "jazz": {
+                "support": 182,
+                "precision": 0.7448979591836735,
+                "recall": 0.8021978021978022,
+                "f1": 0.7724867724867726
+              },
+              "other": {
+                "support": 440,
+                "precision": 0.9267139479905437,
+                "recall": 0.8909090909090909,
+                "f1": 0.9084588644264194
+              }
+            },
+            "accuracy": 0.8861878453038674,
+            "macro_f1": 0.7135415110633454
+          },
+          "app_correct": {
+            "waltz": 263,
+            "kundiman": 1,
+            "jazz": 171
+          },
+          "false_kundiman": 13
+        },
+        "candidate": {
+          "raw": {
+            "pieces": 905,
+            "order": [
+              "waltz",
+              "kundiman",
+              "jazz",
+              "other"
+            ],
+            "confusion": [
+              [
+                260,
+                16,
+                4,
+                1
+              ],
+              [
+                0,
+                2,
+                0,
+                0
+              ],
+              [
+                6,
+                0,
+                146,
+                30
+              ],
+              [
+                2,
+                0,
+                47,
+                391
+              ]
+            ],
+            "classes": {
+              "waltz": {
+                "support": 281,
+                "precision": 0.9701492537313433,
+                "recall": 0.9252669039145908,
+                "f1": 0.9471766848816029
+              },
+              "kundiman": {
+                "support": 2,
+                "precision": 0.1111111111111111,
+                "recall": 1.0,
+                "f1": 0.19999999999999998
+              },
+              "jazz": {
+                "support": 182,
+                "precision": 0.7411167512690355,
+                "recall": 0.8021978021978022,
+                "f1": 0.7704485488126649
+              },
+              "other": {
+                "support": 440,
+                "precision": 0.9265402843601895,
+                "recall": 0.8886363636363637,
+                "f1": 0.9071925754060325
+              }
+            },
+            "accuracy": 0.8828729281767956,
+            "macro_f1": 0.7062044522750751
+          },
+          "app_correct": {
+            "waltz": 263,
+            "kundiman": 1,
+            "jazz": 171
+          },
+          "false_kundiman": 13
+        }
+      },
+      "without_exact_training_window_matches": {
+        "baseline": {
+          "raw": {
+            "pieces": 892,
+            "order": [
+              "waltz",
+              "kundiman",
+              "jazz",
+              "other"
+            ],
+            "confusion": [
+              [
+                258,
+                14,
+                4,
+                1
+              ],
+              [
+                0,
+                2,
+                0,
+                0
+              ],
+              [
+                6,
+                0,
+                144,
+                30
+              ],
+              [
+                2,
+                0,
+                42,
+                389
+              ]
+            ],
+            "classes": {
+              "waltz": {
+                "support": 277,
+                "precision": 0.9699248120300752,
+                "recall": 0.9314079422382672,
+                "f1": 0.9502762430939227
+              },
+              "kundiman": {
+                "support": 2,
+                "precision": 0.125,
+                "recall": 1.0,
+                "f1": 0.2222222222222222
+              },
+              "jazz": {
+                "support": 180,
+                "precision": 0.7578947368421053,
+                "recall": 0.8,
+                "f1": 0.7783783783783784
+              },
+              "other": {
+                "support": 433,
+                "precision": 0.9261904761904762,
+                "recall": 0.8983833718244804,
+                "f1": 0.9120750293083236
+              }
+            },
+            "accuracy": 0.8890134529147982,
+            "macro_f1": 0.7157379682507117
+          },
+          "app_correct": {
+            "waltz": 259,
+            "kundiman": 1,
+            "jazz": 169
+          },
+          "false_kundiman": 13
+        },
+        "candidate": {
+          "raw": {
+            "pieces": 892,
+            "order": [
+              "waltz",
+              "kundiman",
+              "jazz",
+              "other"
+            ],
+            "confusion": [
+              [
+                256,
+                16,
+                4,
+                1
+              ],
+              [
+                0,
+                2,
+                0,
+                0
+              ],
+              [
+                6,
+                0,
+                144,
+                30
+              ],
+              [
+                2,
+                0,
+                43,
+                388
+              ]
+            ],
+            "classes": {
+              "waltz": {
+                "support": 277,
+                "precision": 0.9696969696969697,
+                "recall": 0.924187725631769,
+                "f1": 0.9463955637707948
+              },
+              "kundiman": {
+                "support": 2,
+                "precision": 0.1111111111111111,
+                "recall": 1.0,
+                "f1": 0.19999999999999998
+              },
+              "jazz": {
+                "support": 180,
+                "precision": 0.7539267015706806,
+                "recall": 0.8,
+                "f1": 0.7762803234501349
+              },
+              "other": {
+                "support": 433,
+                "precision": 0.9260143198090692,
+                "recall": 0.8960739030023095,
+                "f1": 0.9107981220657277
+              }
+            },
+            "accuracy": 0.8856502242152466,
+            "macro_f1": 0.7083685023216644
+          },
+          "app_correct": {
+            "waltz": 259,
+            "kundiman": 1,
+            "jazz": 169
+          },
+          "false_kundiman": 13
+        }
+      }
+    },
+    {
+      "prefix": 80,
+      "original_test_plus_fresh": {
+        "baseline": {
+          "raw": {
+            "pieces": 905,
+            "order": [
+              "waltz",
+              "kundiman",
+              "jazz",
+              "other"
+            ],
+            "confusion": [
+              [
+                267,
+                9,
+                4,
+                1
+              ],
+              [
+                0,
+                2,
+                0,
+                0
+              ],
+              [
+                6,
+                0,
+                153,
+                23
+              ],
+              [
+                2,
+                0,
+                50,
+                388
+              ]
+            ],
+            "classes": {
+              "waltz": {
+                "support": 281,
+                "precision": 0.9709090909090909,
+                "recall": 0.9501779359430605,
+                "f1": 0.960431654676259
+              },
+              "kundiman": {
+                "support": 2,
+                "precision": 0.18181818181818182,
+                "recall": 1.0,
+                "f1": 0.3076923076923077
+              },
+              "jazz": {
+                "support": 182,
+                "precision": 0.7391304347826086,
+                "recall": 0.8406593406593407,
+                "f1": 0.7866323907455014
+              },
+              "other": {
+                "support": 440,
+                "precision": 0.941747572815534,
+                "recall": 0.8818181818181818,
+                "f1": 0.9107981220657277
+              }
+            },
+            "accuracy": 0.8950276243093923,
+            "macro_f1": 0.741388618794949
+          },
+          "app_correct": {
+            "waltz": 269,
+            "kundiman": 1,
+            "jazz": 174
+          },
+          "false_kundiman": 7
+        },
+        "candidate": {
+          "raw": {
+            "pieces": 905,
+            "order": [
+              "waltz",
+              "kundiman",
+              "jazz",
+              "other"
+            ],
+            "confusion": [
+              [
+                267,
+                10,
+                3,
+                1
+              ],
+              [
+                0,
+                1,
+                0,
+                1
+              ],
+              [
+                6,
+                0,
+                153,
+                23
+              ],
+              [
+                2,
+                0,
+                51,
+                387
+              ]
+            ],
+            "classes": {
+              "waltz": {
+                "support": 281,
+                "precision": 0.9709090909090909,
+                "recall": 0.9501779359430605,
+                "f1": 0.960431654676259
+              },
+              "kundiman": {
+                "support": 2,
+                "precision": 0.09090909090909091,
+                "recall": 0.5,
+                "f1": 0.15384615384615385
+              },
+              "jazz": {
+                "support": 182,
+                "precision": 0.7391304347826086,
+                "recall": 0.8406593406593407,
+                "f1": 0.7866323907455014
+              },
+              "other": {
+                "support": 440,
+                "precision": 0.9393203883495146,
+                "recall": 0.8795454545454545,
+                "f1": 0.9084507042253521
+              }
+            },
+            "accuracy": 0.8928176795580111,
+            "macro_f1": 0.7023402258733166
+          },
+          "app_correct": {
+            "waltz": 270,
+            "kundiman": 1,
+            "jazz": 174
+          },
+          "false_kundiman": 6
+        }
+      },
+      "without_exact_training_window_matches": {
+        "baseline": {
+          "raw": {
+            "pieces": 892,
+            "order": [
+              "waltz",
+              "kundiman",
+              "jazz",
+              "other"
+            ],
+            "confusion": [
+              [
+                263,
+                9,
+                4,
+                1
+              ],
+              [
+                0,
+                2,
+                0,
+                0
+              ],
+              [
+                6,
+                0,
+                151,
+                23
+              ],
+              [
+                2,
+                0,
+                46,
+                385
+              ]
+            ],
+            "classes": {
+              "waltz": {
+                "support": 277,
+                "precision": 0.9704797047970479,
+                "recall": 0.9494584837545126,
+                "f1": 0.95985401459854
+              },
+              "kundiman": {
+                "support": 2,
+                "precision": 0.18181818181818182,
+                "recall": 1.0,
+                "f1": 0.3076923076923077
+              },
+              "jazz": {
+                "support": 180,
+                "precision": 0.7512437810945274,
+                "recall": 0.8388888888888889,
+                "f1": 0.7926509186351706
+              },
+              "other": {
+                "support": 433,
+                "precision": 0.941320293398533,
+                "recall": 0.8891454965357968,
+                "f1": 0.9144893111638954
+              }
+            },
+            "accuracy": 0.897982062780269,
+            "macro_f1": 0.7436716380224784
+          },
+          "app_correct": {
+            "waltz": 265,
+            "kundiman": 1,
+            "jazz": 172
+          },
+          "false_kundiman": 7
+        },
+        "candidate": {
+          "raw": {
+            "pieces": 892,
+            "order": [
+              "waltz",
+              "kundiman",
+              "jazz",
+              "other"
+            ],
+            "confusion": [
+              [
+                263,
+                10,
+                3,
+                1
+              ],
+              [
+                0,
+                1,
+                0,
+                1
+              ],
+              [
+                6,
+                0,
+                151,
+                23
+              ],
+              [
+                2,
+                0,
+                47,
+                384
+              ]
+            ],
+            "classes": {
+              "waltz": {
+                "support": 277,
+                "precision": 0.9704797047970479,
+                "recall": 0.9494584837545126,
+                "f1": 0.95985401459854
+              },
+              "kundiman": {
+                "support": 2,
+                "precision": 0.09090909090909091,
+                "recall": 0.5,
+                "f1": 0.15384615384615385
+              },
+              "jazz": {
+                "support": 180,
+                "precision": 0.7512437810945274,
+                "recall": 0.8388888888888889,
+                "f1": 0.7926509186351706
+              },
+              "other": {
+                "support": 433,
+                "precision": 0.9388753056234719,
+                "recall": 0.8868360277136259,
+                "f1": 0.9121140142517815
+              }
+            },
+            "accuracy": 0.8957399103139013,
+            "macro_f1": 0.7046162753329115
+          },
+          "app_correct": {
+            "waltz": 266,
+            "kundiman": 1,
+            "jazz": 172
+          },
+          "false_kundiman": 6
+        }
+      }
+    },
+    {
+      "prefix": 320,
+      "original_test_plus_fresh": {
+        "baseline": {
+          "raw": {
+            "pieces": 905,
+            "order": [
+              "waltz",
+              "kundiman",
+              "jazz",
+              "other"
+            ],
+            "confusion": [
+              [
+                271,
+                6,
+                2,
+                2
+              ],
+              [
+                0,
+                2,
+                0,
+                0
+              ],
+              [
+                4,
+                0,
+                158,
+                20
+              ],
+              [
+                3,
+                0,
+                57,
+                380
+              ]
+            ],
+            "classes": {
+              "waltz": {
+                "support": 281,
+                "precision": 0.9748201438848921,
+                "recall": 0.9644128113879004,
+                "f1": 0.9695885509838998
+              },
+              "kundiman": {
+                "support": 2,
+                "precision": 0.25,
+                "recall": 1.0,
+                "f1": 0.4
+              },
+              "jazz": {
+                "support": 182,
+                "precision": 0.728110599078341,
+                "recall": 0.8681318681318682,
+                "f1": 0.7919799498746867
+              },
+              "other": {
+                "support": 440,
+                "precision": 0.945273631840796,
+                "recall": 0.8636363636363636,
+                "f1": 0.9026128266033254
+              }
+            },
+            "accuracy": 0.8961325966850828,
+            "macro_f1": 0.766045331865478
+          },
+          "app_correct": {
+            "waltz": 272,
+            "kundiman": 1,
+            "jazz": 176
+          },
+          "false_kundiman": 4
+        },
+        "candidate": {
+          "raw": {
+            "pieces": 905,
+            "order": [
+              "waltz",
+              "kundiman",
+              "jazz",
+              "other"
+            ],
+            "confusion": [
+              [
+                270,
+                7,
+                2,
+                2
+              ],
+              [
+                0,
+                1,
+                0,
+                1
+              ],
+              [
+                4,
+                0,
+                160,
+                18
+              ],
+              [
+                3,
+                0,
+                57,
+                380
+              ]
+            ],
+            "classes": {
+              "waltz": {
+                "support": 281,
+                "precision": 0.9747292418772563,
+                "recall": 0.9608540925266904,
+                "f1": 0.967741935483871
+              },
+              "kundiman": {
+                "support": 2,
+                "precision": 0.125,
+                "recall": 0.5,
+                "f1": 0.2
+              },
+              "jazz": {
+                "support": 182,
+                "precision": 0.730593607305936,
+                "recall": 0.8791208791208791,
+                "f1": 0.7980049875311721
+              },
+              "other": {
+                "support": 440,
+                "precision": 0.9476309226932669,
+                "recall": 0.8636363636363636,
+                "f1": 0.9036860879904876
+              }
+            },
+            "accuracy": 0.8961325966850828,
+            "macro_f1": 0.7173582527513827
+          },
+          "app_correct": {
+            "waltz": 272,
+            "kundiman": 1,
+            "jazz": 176
+          },
+          "false_kundiman": 4
+        }
+      },
+      "without_exact_training_window_matches": {
+        "baseline": {
+          "raw": {
+            "pieces": 892,
+            "order": [
+              "waltz",
+              "kundiman",
+              "jazz",
+              "other"
+            ],
+            "confusion": [
+              [
+                267,
+                6,
+                2,
+                2
+              ],
+              [
+                0,
+                2,
+                0,
+                0
+              ],
+              [
+                4,
+                0,
+                157,
+                19
+              ],
+              [
+                3,
+                0,
+                53,
+                377
+              ]
+            ],
+            "classes": {
+              "waltz": {
+                "support": 277,
+                "precision": 0.9744525547445255,
+                "recall": 0.9638989169675091,
+                "f1": 0.969147005444646
+              },
+              "kundiman": {
+                "support": 2,
+                "precision": 0.25,
+                "recall": 1.0,
+                "f1": 0.4
+              },
+              "jazz": {
+                "support": 180,
+                "precision": 0.7405660377358491,
+                "recall": 0.8722222222222222,
+                "f1": 0.8010204081632655
+              },
+              "other": {
+                "support": 433,
+                "precision": 0.9472361809045227,
+                "recall": 0.8706697459584296,
+                "f1": 0.9073405535499399
+              }
+            },
+            "accuracy": 0.9002242152466368,
+            "macro_f1": 0.7693769917894628
+          },
+          "app_correct": {
+            "waltz": 268,
+            "kundiman": 1,
+            "jazz": 174
+          },
+          "false_kundiman": 4
+        },
+        "candidate": {
+          "raw": {
+            "pieces": 892,
+            "order": [
+              "waltz",
+              "kundiman",
+              "jazz",
+              "other"
+            ],
+            "confusion": [
+              [
+                266,
+                7,
+                2,
+                2
+              ],
+              [
+                0,
+                1,
+                0,
+                1
+              ],
+              [
+                4,
+                0,
+                159,
+                17
+              ],
+              [
+                3,
+                0,
+                53,
+                377
+              ]
+            ],
+            "classes": {
+              "waltz": {
+                "support": 277,
+                "precision": 0.9743589743589743,
+                "recall": 0.9602888086642599,
+                "f1": 0.9672727272727273
+              },
+              "kundiman": {
+                "support": 2,
+                "precision": 0.125,
+                "recall": 0.5,
+                "f1": 0.2
+              },
+              "jazz": {
+                "support": 180,
+                "precision": 0.7429906542056075,
+                "recall": 0.8833333333333333,
+                "f1": 0.8071065989847717
+              },
+              "other": {
+                "support": 433,
+                "precision": 0.9496221662468514,
+                "recall": 0.8706697459584296,
+                "f1": 0.908433734939759
+              }
+            },
+            "accuracy": 0.9002242152466368,
+            "macro_f1": 0.7207032652993145
+          },
+          "app_correct": {
+            "waltz": 268,
+            "kundiman": 1,
+            "jazz": 174
+          },
+          "false_kundiman": 4
+        }
+      }
+    }
+  ],
+  "shipped_model_sha256": "72595c786cc2c6567766ce51654ce350d45bc6864a1138843e99e15902bb7717",
+  "verification": {
+    "python_tests_passed": 23,
+    "flutter_tests_passed": 1327,
+    "flutter_analyze": "clean",
+    "legacy_note_lists_and_partitions_reproduced": true
+  },
+  "limits": [
+    "Rows are score excerpts at fixed prefixes, not independent windows.",
+    "Training diagnostics are not generalization evidence.",
+    "Raw Other predictions differ from the app, which falls back to genre rules.",
+    "Auditing test errors makes that test a reused development benchmark; future promotion needs untouched works.",
+    "No labels or partitions are changed by this audit.",
+    "41 exact-window matches are not automatically 41 duplicate compositions.",
+    "Excluding exact matches does not undo pretrained exposure or establish complete composition independence.",
+    "Kundiman fresh testing contains only two works; no broad generalization claim.",
+    "Historical 12/14 short-Kundiman figure is raw model top-class recognition, not current app-label recall.",
+    "Correction, learning rate, distillation and negative sampling changed together; no single-cause attribution.",
+    "No new TFLite export, app asset, phone build or phone QA in this follow-up.",
+    "Further real-piece collection remains outstanding; checked new sources were duplicates, inaccessible or unverified."
+  ]
+}
