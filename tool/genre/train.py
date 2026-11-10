@@ -16,7 +16,7 @@ import sys
 import numpy as np
 import torch
 
-from corpus import assert_disjoint, conflicting_labels
+from corpus import frozen_train
 from artifacts import write_json
 from protocol import FEATURES, GENRES, app_label, key_of, windows
 
@@ -73,25 +73,6 @@ def predict(model, notes):
         return model(torch.tensor(np.asarray(chunks, np.float32))).mean(0).tolist()
 
 
-def frozen_train(pieces, split, additions, held_out=()):
-    """A new passage cannot move its parent work across a split boundary."""
-    allowed = set(split['train']) - set(held_out)
-    blocked = set(split['valid']) | set(split['test']) | set(held_out)
-    result = [p for p in pieces if p['name'] in allowed]
-    for p in additions:
-        work = p.get('work_id', p['name'])
-        if p.get('split') == 'new_train' and work not in blocked:
-            result.append(p)
-    if any(p.get('work_id', p['name']) in blocked for p in result):
-        raise ValueError('Work-level train/evaluation leakage')
-    if conflicting_labels(result):
-        raise ValueError('Training contains contradictory labels; run prepare.py first')
-    evaluation = [p for p in pieces if p['name'] in blocked]
-    evaluation += [p for p in additions if p.get('split') != 'new_train']
-    assert_disjoint(dict(train=result, evaluation=evaluation))
-    return result
-
-
 def bank_for(pieces, synthetic, rng):
     """Cache realistic visible contexts; recompute key before taking a window.
 
@@ -142,9 +123,9 @@ def tune(baseline, bank, steps):
             rows = []
             for label in labels:
                 group = GENRES[label]
-                if group == 'kundiman' and rng.random() < .3:
+                if group == 'kundiman' and 'synthetic' in bank and rng.random() < .3:
                     group = 'synthetic'
-                elif group == 'waltz' and rng.random() < .5:
+                elif group == 'waltz' and len(bank.get('minor_waltz', ())) and rng.random() < .5:
                     group = 'minor_waltz'
                 rows.append(bank[group][rng.randrange(len(bank[group]))])
             x = torch.from_numpy(np.stack(rows))
@@ -213,6 +194,8 @@ def main():
     parser.add_argument('experiment', type=Path)
     parser.add_argument('--steps', type=int, default=200)
     parser.add_argument('--fold', choices=('all', '0', '1', '2', '3'), required=True)
+    parser.add_argument('--bank-dir', type=Path,
+                        help='Use a verified, balanced real-derived bank instead of synthetic sampling')
     args = parser.parse_args()
     torch.set_num_threads(2)
     sys.path.insert(0, str(args.data_root / 'scripts'))
@@ -230,11 +213,15 @@ def main():
     held_out = [] if args.fold == 'all' else [name for i, name in enumerate(real_ids)
                                              if i % 4 == int(args.fold)]
     training = frozen_train(pieces, split, additions, held_out)
-    rng = random.Random(20261109)
-    synthetic = [kundiman_gen.kundiman(rng) for _ in range(1400)]
-    synthetic += [legacy.trait_kundiman(rng) for _ in range(600)]
     print(f'fold={args.fold}, training={len(training)}, held_out={held_out}', flush=True)
-    bank = bank_for(training, synthetic, rng)
+    if args.bank_dir:
+        from balanced import load_bank
+        bank = load_bank(args.bank_dir, training, args.fold)
+    else:
+        rng = random.Random(20261109)
+        synthetic = [kundiman_gen.kundiman(rng) for _ in range(1400)]
+        synthetic += [legacy.trait_kundiman(rng) for _ in range(600)]
+        bank = bank_for(training, synthetic, rng)
     print({key: len(value) for key, value in bank.items()}, flush=True)
     checkpoint = args.data_root / f'out/genre_cv_{args.fold}/genre_lstm.pt'
     baseline = load_model(checkpoint)
@@ -243,7 +230,9 @@ def main():
     output.mkdir(exist_ok=True)
     torch.save(candidate.state_dict(), output / 'genre_lstm.pt')
     report = dict(steps=args.steps, fold=args.fold, seeds=[7, 1, 2, 3], lr=1e-4,
-                  real_kundiman_share=.7, synthetic_kundiman_share=.3,
+                  real_kundiman_share=1. if args.bank_dir else .7,
+                  synthetic_kundiman_share=0. if args.bank_dir else .3,
+                  bank_dir=str(args.bank_dir) if args.bank_dir else None,
                   checkpoint_sha256=hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
                   held_out=held_out, train_names=[p['name'] for p in training])
     write_json(output / 'training-manifest.json', report)

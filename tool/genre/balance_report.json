@@ -1,0 +1,1277 @@
+{
+  "date": "2026-11-10",
+  "purpose": "Balanced labelled training examples; independent Kundiman repertoire remains small",
+  "user_approved": "Real pieces plus labelled augmentation",
+  "real_kundiman_works": {
+    "train": 17,
+    "validation": 4,
+    "fresh_test": 2
+  },
+  "examples_per_class": 4261,
+  "examples_per_bank": 17044,
+  "generated_fold_banks": {
+    "all": {
+      "schema_version": 1,
+      "fold": "all",
+      "seed": 20261110,
+      "classes": {
+        "waltz": {
+          "examples": 4261,
+          "eligible_source_pieces": 2003,
+          "represented_source_pieces": 2003,
+          "represented_work_ids": 2003,
+          "represented_groups": 2003,
+          "source_windows": 2000,
+          "augmented_windows": 2261,
+          "examples_per_represented_source_min": 1,
+          "examples_per_represented_source_max": 3,
+          "rejected_attempts": 35
+        },
+        "kundiman": {
+          "examples": 4261,
+          "eligible_source_pieces": 17,
+          "represented_source_pieces": 17,
+          "represented_work_ids": 17,
+          "represented_groups": 17,
+          "source_windows": 20,
+          "augmented_windows": 4241,
+          "examples_per_represented_source_min": 77,
+          "examples_per_represented_source_max": 319,
+          "rejected_attempts": 1500
+        },
+        "jazz": {
+          "examples": 4261,
+          "eligible_source_pieces": 1051,
+          "represented_source_pieces": 1051,
+          "represented_work_ids": 1051,
+          "represented_groups": 1051,
+          "source_windows": 1044,
+          "augmented_windows": 3217,
+          "examples_per_represented_source_min": 1,
+          "examples_per_represented_source_max": 5,
+          "rejected_attempts": 48
+        },
+        "other": {
+          "examples": 4261,
+          "eligible_source_pieces": 4261,
+          "represented_source_pieces": 4235,
+          "represented_work_ids": 4235,
+          "represented_groups": 4235,
+          "source_windows": 4235,
+          "augmented_windows": 26,
+          "examples_per_represented_source_min": 1,
+          "examples_per_represented_source_max": 2,
+          "rejected_attempts": 31
+        }
+      },
+      "builder_sha256": "430644bc8cbd8ef3bebf30c5868738a2e975fcb24092ce84a44eefc54bc70399",
+      "source_fingerprint": "a7c2a465b51b941f5660fcf9525dbd774fa394738cc4dfe8a5bde405329aef95",
+      "examples_total": 17044,
+      "feature_shape": [
+        64,
+        22
+      ],
+      "real_derived_only": true,
+      "features_sha256": "d6e6686ce62274db0d94d72f2446a56709926cda382520fc6cb794c8d29e348a",
+      "origins_sha256": "ebf61dc4eed511189ff53727488c4f3be435a91b619747f8bbd040fa258d27b1",
+      "unique_feature_windows": 17044,
+      "note": "Examples are windows, not independent compositions; holdouts are unaugmented.",
+      "held_out_kundiman_works": []
+    },
+    "0": {
+      "schema_version": 1,
+      "fold": "0",
+      "seed": 20261110,
+      "classes": {
+        "waltz": {
+          "examples": 4261,
+          "eligible_source_pieces": 2003,
+          "represented_source_pieces": 2003,
+          "represented_work_ids": 2003,
+          "represented_groups": 2003,
+          "source_windows": 2000,
+          "augmented_windows": 2261,
+          "examples_per_represented_source_min": 1,
+          "examples_per_represented_source_max": 3,
+          "rejected_attempts": 35
+        },
+        "kundiman": {
+          "examples": 4261,
+          "eligible_source_pieces": 13,
+          "represented_source_pieces": 13,
+          "represented_work_ids": 13,
+          "represented_groups": 13,
+          "source_windows": 13,
+          "augmented_windows": 4248,
+          "examples_per_represented_source_min": 85,
+          "examples_per_represented_source_max": 459,
+          "rejected_attempts": 2218
+        },
+        "jazz": {
+          "examples": 4261,
+          "eligible_source_pieces": 1051,
+          "represented_source_pieces": 1051,
+          "represented_work_ids": 1051,
+          "represented_groups": 1051,
+          "source_windows": 1040,
+          "augmented_windows": 3221,
+          "examples_per_represented_source_min": 1,
+          "examples_per_represented_source_max": 5,
+          "rejected_attempts": 47
+        },
+        "other": {
+          "examples": 4261,
+          "eligible_source_pieces": 4261,
+          "represented_source_pieces": 4233,
+          "represented_work_ids": 4233,
+          "represented_groups": 4233,
+          "source_windows": 4233,
+          "augmented_windows": 28,
+          "examples_per_represented_source_min": 1,
+          "examples_per_represented_source_max": 2,
+          "rejected_attempts": 28
+        }
+      },
+      "builder_sha256": "430644bc8cbd8ef3bebf30c5868738a2e975fcb24092ce84a44eefc54bc70399",
+      "source_fingerprint": "22fe3d2feaa45be4fa23fb304943804790e4aae38a2580c24da82cf4b89e12a3",
+      "examples_total": 17044,
+      "feature_shape": [
+        64,
+        22
+      ],
+      "real_derived_only": true,
+      "features_sha256": "881973f30a44fc2d214dfa75687fc1c5b9a79a3be1810b35ebf12bfe7836fd68",
+      "origins_sha256": "78777c2e2b4e00e7165f7ee9553156e18b0401f5d83f234606d2f2c2140e5004",
+      "unique_feature_windows": 17044,
+      "note": "Examples are windows, not independent compositions; holdouts are unaugmented.",
+      "held_out_kundiman_works": [
+        "kundiman_abelardo_kundiman_violin",
+        "kundiman_buencamino_kundiman",
+        "kundiman_kundiman_ng_luha",
+        "kundiman_pakiusap"
+      ]
+    },
+    "1": {
+      "schema_version": 1,
+      "fold": "1",
+      "seed": 20261110,
+      "classes": {
+        "waltz": {
+          "examples": 4261,
+          "eligible_source_pieces": 2003,
+          "represented_source_pieces": 2003,
+          "represented_work_ids": 2003,
+          "represented_groups": 2003,
+          "source_windows": 2000,
+          "augmented_windows": 2261,
+          "examples_per_represented_source_min": 1,
+          "examples_per_represented_source_max": 3,
+          "rejected_attempts": 35
+        },
+        "kundiman": {
+          "examples": 4261,
+          "eligible_source_pieces": 13,
+          "represented_source_pieces": 13,
+          "represented_work_ids": 13,
+          "represented_groups": 13,
+          "source_windows": 14,
+          "augmented_windows": 4247,
+          "examples_per_represented_source_min": 84,
+          "examples_per_represented_source_max": 457,
+          "rejected_attempts": 2221
+        },
+        "jazz": {
+          "examples": 4261,
+          "eligible_source_pieces": 1051,
+          "represented_source_pieces": 1051,
+          "represented_work_ids": 1051,
+          "represented_groups": 1051,
+          "source_windows": 1039,
+          "augmented_windows": 3222,
+          "examples_per_represented_source_min": 2,
+          "examples_per_represented_source_max": 5,
+          "rejected_attempts": 49
+        },
+        "other": {
+          "examples": 4261,
+          "eligible_source_pieces": 4261,
+          "represented_source_pieces": 4236,
+          "represented_work_ids": 4236,
+          "represented_groups": 4236,
+          "source_windows": 4236,
+          "augmented_windows": 25,
+          "examples_per_represented_source_min": 1,
+          "examples_per_represented_source_max": 2,
+          "rejected_attempts": 25
+        }
+      },
+      "builder_sha256": "430644bc8cbd8ef3bebf30c5868738a2e975fcb24092ce84a44eefc54bc70399",
+      "source_fingerprint": "598afb4dbc008e6140e4ebafed1776013fed6a75d94113d4a8844346b4d2fa69",
+      "examples_total": 17044,
+      "feature_shape": [
+        64,
+        22
+      ],
+      "real_derived_only": true,
+      "features_sha256": "4c340c600e87d69ff85a8967790ed71bf600011c749dd2e0966af71e90aae54a",
+      "origins_sha256": "640435cd68cac7ab9f5cf2efb205a23bc4c9e885ec8390b5ec40d09a9fb382b5",
+      "unique_feature_windows": 17044,
+      "note": "Examples are windows, not independent compositions; holdouts are unaugmented.",
+      "held_out_kundiman_works": [
+        "kundiman_ala_ala_ko_sa_iyo",
+        "kundiman_bulalakaw",
+        "kundiman_kung_iibig_ka",
+        "kundiman_tanging_ligaya_ko"
+      ]
+    },
+    "2": {
+      "schema_version": 1,
+      "fold": "2",
+      "seed": 20261110,
+      "classes": {
+        "waltz": {
+          "examples": 4261,
+          "eligible_source_pieces": 2003,
+          "represented_source_pieces": 2003,
+          "represented_work_ids": 2003,
+          "represented_groups": 2003,
+          "source_windows": 2000,
+          "augmented_windows": 2261,
+          "examples_per_represented_source_min": 1,
+          "examples_per_represented_source_max": 3,
+          "rejected_attempts": 35
+        },
+        "kundiman": {
+          "examples": 4261,
+          "eligible_source_pieces": 14,
+          "represented_source_pieces": 14,
+          "represented_work_ids": 14,
+          "represented_groups": 14,
+          "source_windows": 16,
+          "augmented_windows": 4245,
+          "examples_per_represented_source_min": 84,
+          "examples_per_represented_source_max": 422,
+          "rejected_attempts": 2174
+        },
+        "jazz": {
+          "examples": 4261,
+          "eligible_source_pieces": 1051,
+          "represented_source_pieces": 1051,
+          "represented_work_ids": 1051,
+          "represented_groups": 1051,
+          "source_windows": 1044,
+          "augmented_windows": 3217,
+          "examples_per_represented_source_min": 1,
+          "examples_per_represented_source_max": 5,
+          "rejected_attempts": 48
+        },
+        "other": {
+          "examples": 4261,
+          "eligible_source_pieces": 4261,
+          "represented_source_pieces": 4234,
+          "represented_work_ids": 4234,
+          "represented_groups": 4234,
+          "source_windows": 4234,
+          "augmented_windows": 27,
+          "examples_per_represented_source_min": 1,
+          "examples_per_represented_source_max": 2,
+          "rejected_attempts": 29
+        }
+      },
+      "builder_sha256": "430644bc8cbd8ef3bebf30c5868738a2e975fcb24092ce84a44eefc54bc70399",
+      "source_fingerprint": "b87c26865047d7e4505b6e2aa4af78d143cd1d446069fc9fc5c3834315af1b06",
+      "examples_total": 17044,
+      "feature_shape": [
+        64,
+        22
+      ],
+      "real_derived_only": true,
+      "features_sha256": "52377fa64dc98df512575d8c83fe023df16ad9b295d5411ebcdb821960df18b4",
+      "origins_sha256": "2b8497448fd2eb926cbfcdf7f861fb44336cdb732249d0fbfbc24e2a75a97fb9",
+      "unique_feature_windows": 17044,
+      "note": "Examples are windows, not independent compositions; holdouts are unaugmented.",
+      "held_out_kundiman_works": [
+        "kundiman_anak_dalita",
+        "kundiman_himutok",
+        "kundiman_magbalik_ka_hirang"
+      ]
+    },
+    "3": {
+      "schema_version": 1,
+      "fold": "3",
+      "seed": 20261110,
+      "classes": {
+        "waltz": {
+          "examples": 4261,
+          "eligible_source_pieces": 2003,
+          "represented_source_pieces": 2003,
+          "represented_work_ids": 2003,
+          "represented_groups": 2003,
+          "source_windows": 2000,
+          "augmented_windows": 2261,
+          "examples_per_represented_source_min": 1,
+          "examples_per_represented_source_max": 3,
+          "rejected_attempts": 35
+        },
+        "kundiman": {
+          "examples": 4261,
+          "eligible_source_pieces": 14,
+          "represented_source_pieces": 14,
+          "represented_work_ids": 14,
+          "represented_groups": 14,
+          "source_windows": 17,
+          "augmented_windows": 4244,
+          "examples_per_represented_source_min": 85,
+          "examples_per_represented_source_max": 414,
+          "rejected_attempts": 1910
+        },
+        "jazz": {
+          "examples": 4261,
+          "eligible_source_pieces": 1051,
+          "represented_source_pieces": 1051,
+          "represented_work_ids": 1051,
+          "represented_groups": 1051,
+          "source_windows": 1042,
+          "augmented_windows": 3219,
+          "examples_per_represented_source_min": 1,
+          "examples_per_represented_source_max": 5,
+          "rejected_attempts": 57
+        },
+        "other": {
+          "examples": 4261,
+          "eligible_source_pieces": 4261,
+          "represented_source_pieces": 4236,
+          "represented_work_ids": 4236,
+          "represented_groups": 4236,
+          "source_windows": 4236,
+          "augmented_windows": 25,
+          "examples_per_represented_source_min": 1,
+          "examples_per_represented_source_max": 2,
+          "rejected_attempts": 27
+        }
+      },
+      "builder_sha256": "430644bc8cbd8ef3bebf30c5868738a2e975fcb24092ce84a44eefc54bc70399",
+      "source_fingerprint": "7efe0d3c7ec37696a0af228e0b04f8c5c5cb93db61ca34b08a37e682546d00b5",
+      "examples_total": 17044,
+      "feature_shape": [
+        64,
+        22
+      ],
+      "real_derived_only": true,
+      "features_sha256": "1343121c559554b4b916c4281db72638ec1a9218a3ec2a463171db8c93b41df5",
+      "origins_sha256": "ac41c1f2c0ee2acec356222d912681179deb61d5f2ea4b0f9daeabb66e03139a",
+      "unique_feature_windows": 17044,
+      "note": "Examples are windows, not independent compositions; holdouts are unaugmented.",
+      "held_out_kundiman_works": [
+        "kundiman_ano_kaya_ang_kapalaran",
+        "kundiman_ikaw_rin",
+        "kundiman_nasaan_ka_irog"
+      ]
+    }
+  },
+  "raw_training_source_counts": {
+    "waltz": 2003,
+    "kundiman": 17,
+    "jazz": 1051,
+    "other": 4261
+  },
+  "transforms": [
+    "excerpt_crop",
+    "uniform_rhythmic_rescaling"
+  ],
+  "synthetic_compositions_generated": 0,
+  "artifact_directory": "/home/ken/Workspace/note-vision/.dart_tool/genre_expansion_20261110",
+  "training_smoke": {
+    "passed": true,
+    "steps_per_member": 2,
+    "members": 4,
+    "output_shape": [
+      2,
+      4
+    ],
+    "checkpoint_saved": false,
+    "quality_evaluation": false
+  },
+  "unchanged": "Original source datasets, validation/test works, shipped genre asset and app code",
+  "limits": [
+    "Augmented windows are not additional independent compositions.",
+    "No accuracy improvement or model promotion is established by class counts.",
+    "Fold banks overlap and must not be pooled as independent examples.",
+    "Current larger source collections still need complete composition-level deduplication."
+  ],
+  "verification": {
+    "python_tests_passed": 16,
+    "flutter_tests_passed": 1327,
+    "flutter_analyze": "clean",
+    "original_fold_holdouts_excluded": true
+  },
+  "quality_trial": {
+    "steps_per_member": 200,
+    "seeds": [
+      7,
+      1,
+      2,
+      3
+    ],
+    "learning_rate": 0.0001,
+    "real_kundiman_share": 1.0,
+    "synthetic_kundiman_share": 0.0,
+    "folds_trained": [
+      "all",
+      "0"
+    ],
+    "remaining_folds_not_trained": "Stopped after fold 0 failed validation; no complete cross-validation claim.",
+    "folds": {
+      "all": {
+        "baseline_checkpoint_sha256": "338d95e1f62bcbef0abb563d1e20c6cb066ca872f1d75048af4b24492815a718",
+        "candidate_checkpoint_sha256": "652efe847f303edf910e88e15087c8c572a98d89181ce8b177444932c4308ed2",
+        "training_manifest_sha256": "daa4d65e86509c85cbc3595d4ee8abb1efd2f482da39a29c39410500939090d6",
+        "bank_manifest_sha256": "b22ee89704a865335d5f7a85dbd78603928f5c6d0d0d5ca4aac689c1c3960fde",
+        "held_out": [],
+        "calibration": {
+          "kundiman_scale": 0.125,
+          "validation_baseline": {
+            "40": {
+              "kundiman": 4,
+              "false_kundiman": 9,
+              "negative_correct": 465
+            },
+            "80": {
+              "kundiman": 4,
+              "false_kundiman": 3,
+              "negative_correct": 471
+            },
+            "320": {
+              "kundiman": 4,
+              "false_kundiman": 2,
+              "negative_correct": 473
+            }
+          },
+          "attempts": [
+            {
+              "scale": 1.0,
+              "metrics": {
+                "40": {
+                  "kundiman": 4,
+                  "false_kundiman": 29,
+                  "negative_correct": 448
+                },
+                "80": {
+                  "kundiman": 4,
+                  "false_kundiman": 13,
+                  "negative_correct": 462
+                },
+                "320": {
+                  "kundiman": 4,
+                  "false_kundiman": 17,
+                  "negative_correct": 459
+                }
+              }
+            },
+            {
+              "scale": 0.75,
+              "metrics": {
+                "40": {
+                  "kundiman": 4,
+                  "false_kundiman": 25,
+                  "negative_correct": 452
+                },
+                "80": {
+                  "kundiman": 4,
+                  "false_kundiman": 11,
+                  "negative_correct": 464
+                },
+                "320": {
+                  "kundiman": 4,
+                  "false_kundiman": 15,
+                  "negative_correct": 461
+                }
+              }
+            },
+            {
+              "scale": 0.5,
+              "metrics": {
+                "40": {
+                  "kundiman": 4,
+                  "false_kundiman": 17,
+                  "negative_correct": 458
+                },
+                "80": {
+                  "kundiman": 4,
+                  "false_kundiman": 8,
+                  "negative_correct": 467
+                },
+                "320": {
+                  "kundiman": 4,
+                  "false_kundiman": 11,
+                  "negative_correct": 465
+                }
+              }
+            },
+            {
+              "scale": 0.25,
+              "metrics": {
+                "40": {
+                  "kundiman": 4,
+                  "false_kundiman": 10,
+                  "negative_correct": 464
+                },
+                "80": {
+                  "kundiman": 4,
+                  "false_kundiman": 4,
+                  "negative_correct": 470
+                },
+                "320": {
+                  "kundiman": 4,
+                  "false_kundiman": 4,
+                  "negative_correct": 471
+                }
+              }
+            },
+            {
+              "scale": 0.125,
+              "metrics": {
+                "40": {
+                  "kundiman": 4,
+                  "false_kundiman": 6,
+                  "negative_correct": 467
+                },
+                "80": {
+                  "kundiman": 4,
+                  "false_kundiman": 3,
+                  "negative_correct": 471
+                },
+                "320": {
+                  "kundiman": 4,
+                  "false_kundiman": 2,
+                  "negative_correct": 473
+                }
+              }
+            }
+          ],
+          "selection": "validation only; largest admissible fixed-grid scale"
+        },
+        "raw_metrics": [
+          {
+            "split": "external_negative",
+            "expected": "jazz",
+            "prefixes": {
+              "40": {
+                "pieces": 50,
+                "baseline_correct": 50,
+                "candidate_correct": 50,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "80": {
+                "pieces": 50,
+                "baseline_correct": 50,
+                "candidate_correct": 50,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "320": {
+                "pieces": 50,
+                "baseline_correct": 50,
+                "candidate_correct": 50,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              }
+            }
+          },
+          {
+            "split": "external_negative",
+            "expected": "waltz",
+            "prefixes": {
+              "40": {
+                "pieces": 36,
+                "baseline_correct": 35,
+                "candidate_correct": 35,
+                "baseline_false_kundiman": 1,
+                "candidate_false_kundiman": 1
+              },
+              "80": {
+                "pieces": 36,
+                "baseline_correct": 35,
+                "candidate_correct": 35,
+                "baseline_false_kundiman": 1,
+                "candidate_false_kundiman": 1
+              },
+              "320": {
+                "pieces": 36,
+                "baseline_correct": 36,
+                "candidate_correct": 35,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 1
+              }
+            }
+          },
+          {
+            "split": "fresh_test",
+            "expected": "kundiman",
+            "prefixes": {
+              "40": {
+                "pieces": 2,
+                "baseline_correct": 1,
+                "candidate_correct": 2,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "80": {
+                "pieces": 2,
+                "baseline_correct": 1,
+                "candidate_correct": 1,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "320": {
+                "pieces": 2,
+                "baseline_correct": 1,
+                "candidate_correct": 1,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              }
+            }
+          },
+          {
+            "split": "known_training",
+            "expected": "kundiman",
+            "prefixes": {
+              "40": {
+                "pieces": 14,
+                "baseline_correct": 11,
+                "candidate_correct": 14,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "80": {
+                "pieces": 14,
+                "baseline_correct": 13,
+                "candidate_correct": 14,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "320": {
+                "pieces": 14,
+                "baseline_correct": 14,
+                "candidate_correct": 14,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              }
+            }
+          },
+          {
+            "split": "new_train",
+            "expected": "kundiman",
+            "prefixes": {
+              "40": {
+                "pieces": 3,
+                "baseline_correct": 3,
+                "candidate_correct": 3,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "80": {
+                "pieces": 3,
+                "baseline_correct": 3,
+                "candidate_correct": 3,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "320": {
+                "pieces": 3,
+                "baseline_correct": 3,
+                "candidate_correct": 3,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              }
+            }
+          },
+          {
+            "split": "test",
+            "expected": "jazz",
+            "prefixes": {
+              "40": {
+                "pieces": 182,
+                "baseline_correct": 171,
+                "candidate_correct": 171,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 1
+              },
+              "80": {
+                "pieces": 182,
+                "baseline_correct": 174,
+                "candidate_correct": 174,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 1
+              },
+              "320": {
+                "pieces": 182,
+                "baseline_correct": 176,
+                "candidate_correct": 176,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              }
+            }
+          },
+          {
+            "split": "test",
+            "expected": "waltz",
+            "prefixes": {
+              "40": {
+                "pieces": 281,
+                "baseline_correct": 263,
+                "candidate_correct": 255,
+                "baseline_false_kundiman": 13,
+                "candidate_false_kundiman": 22
+              },
+              "80": {
+                "pieces": 281,
+                "baseline_correct": 269,
+                "candidate_correct": 264,
+                "baseline_false_kundiman": 7,
+                "candidate_false_kundiman": 12
+              },
+              "320": {
+                "pieces": 281,
+                "baseline_correct": 272,
+                "candidate_correct": 263,
+                "baseline_false_kundiman": 4,
+                "candidate_false_kundiman": 13
+              }
+            }
+          },
+          {
+            "split": "valid",
+            "expected": "jazz",
+            "prefixes": {
+              "40": {
+                "pieces": 202,
+                "baseline_correct": 189,
+                "candidate_correct": 188,
+                "baseline_false_kundiman": 1,
+                "candidate_false_kundiman": 3
+              },
+              "80": {
+                "pieces": 202,
+                "baseline_correct": 190,
+                "candidate_correct": 190,
+                "baseline_false_kundiman": 1,
+                "candidate_false_kundiman": 1
+              },
+              "320": {
+                "pieces": 202,
+                "baseline_correct": 192,
+                "candidate_correct": 192,
+                "baseline_false_kundiman": 1,
+                "candidate_false_kundiman": 1
+              }
+            }
+          },
+          {
+            "split": "valid",
+            "expected": "kundiman",
+            "prefixes": {
+              "40": {
+                "pieces": 4,
+                "baseline_correct": 4,
+                "candidate_correct": 4,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "80": {
+                "pieces": 4,
+                "baseline_correct": 4,
+                "candidate_correct": 4,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "320": {
+                "pieces": 4,
+                "baseline_correct": 4,
+                "candidate_correct": 4,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              }
+            }
+          },
+          {
+            "split": "valid",
+            "expected": "waltz",
+            "prefixes": {
+              "40": {
+                "pieces": 285,
+                "baseline_correct": 276,
+                "candidate_correct": 260,
+                "baseline_false_kundiman": 7,
+                "candidate_false_kundiman": 23
+              },
+              "80": {
+                "pieces": 285,
+                "baseline_correct": 281,
+                "candidate_correct": 272,
+                "baseline_false_kundiman": 2,
+                "candidate_false_kundiman": 11
+              },
+              "320": {
+                "pieces": 285,
+                "baseline_correct": 281,
+                "candidate_correct": 267,
+                "baseline_false_kundiman": 1,
+                "candidate_false_kundiman": 15
+              }
+            }
+          }
+        ],
+        "calibrated_metrics": [
+          {
+            "split": "external_negative",
+            "expected": "jazz",
+            "prefixes": {
+              "40": {
+                "pieces": 50,
+                "baseline_correct": 50,
+                "candidate_correct": 50,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "80": {
+                "pieces": 50,
+                "baseline_correct": 50,
+                "candidate_correct": 50,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "320": {
+                "pieces": 50,
+                "baseline_correct": 50,
+                "candidate_correct": 50,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              }
+            }
+          },
+          {
+            "split": "external_negative",
+            "expected": "waltz",
+            "prefixes": {
+              "40": {
+                "pieces": 36,
+                "baseline_correct": 35,
+                "candidate_correct": 35,
+                "baseline_false_kundiman": 1,
+                "candidate_false_kundiman": 1
+              },
+              "80": {
+                "pieces": 36,
+                "baseline_correct": 35,
+                "candidate_correct": 35,
+                "baseline_false_kundiman": 1,
+                "candidate_false_kundiman": 1
+              },
+              "320": {
+                "pieces": 36,
+                "baseline_correct": 36,
+                "candidate_correct": 36,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              }
+            }
+          },
+          {
+            "split": "fresh_test",
+            "expected": "kundiman",
+            "prefixes": {
+              "40": {
+                "pieces": 2,
+                "baseline_correct": 1,
+                "candidate_correct": 1,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "80": {
+                "pieces": 2,
+                "baseline_correct": 1,
+                "candidate_correct": 1,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "320": {
+                "pieces": 2,
+                "baseline_correct": 1,
+                "candidate_correct": 1,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              }
+            }
+          },
+          {
+            "split": "known_training",
+            "expected": "kundiman",
+            "prefixes": {
+              "40": {
+                "pieces": 14,
+                "baseline_correct": 11,
+                "candidate_correct": 10,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "80": {
+                "pieces": 14,
+                "baseline_correct": 13,
+                "candidate_correct": 11,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "320": {
+                "pieces": 14,
+                "baseline_correct": 14,
+                "candidate_correct": 14,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              }
+            }
+          },
+          {
+            "split": "new_train",
+            "expected": "kundiman",
+            "prefixes": {
+              "40": {
+                "pieces": 3,
+                "baseline_correct": 3,
+                "candidate_correct": 3,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "80": {
+                "pieces": 3,
+                "baseline_correct": 3,
+                "candidate_correct": 2,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "320": {
+                "pieces": 3,
+                "baseline_correct": 3,
+                "candidate_correct": 2,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              }
+            }
+          },
+          {
+            "split": "test",
+            "expected": "jazz",
+            "prefixes": {
+              "40": {
+                "pieces": 182,
+                "baseline_correct": 171,
+                "candidate_correct": 171,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "80": {
+                "pieces": 182,
+                "baseline_correct": 174,
+                "candidate_correct": 174,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 1
+              },
+              "320": {
+                "pieces": 182,
+                "baseline_correct": 176,
+                "candidate_correct": 176,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              }
+            }
+          },
+          {
+            "split": "test",
+            "expected": "waltz",
+            "prefixes": {
+              "40": {
+                "pieces": 281,
+                "baseline_correct": 263,
+                "candidate_correct": 270,
+                "baseline_false_kundiman": 13,
+                "candidate_false_kundiman": 7
+              },
+              "80": {
+                "pieces": 281,
+                "baseline_correct": 269,
+                "candidate_correct": 271,
+                "baseline_false_kundiman": 7,
+                "candidate_false_kundiman": 5
+              },
+              "320": {
+                "pieces": 281,
+                "baseline_correct": 272,
+                "candidate_correct": 273,
+                "baseline_false_kundiman": 4,
+                "candidate_false_kundiman": 3
+              }
+            }
+          },
+          {
+            "split": "valid",
+            "expected": "jazz",
+            "prefixes": {
+              "40": {
+                "pieces": 202,
+                "baseline_correct": 189,
+                "candidate_correct": 189,
+                "baseline_false_kundiman": 1,
+                "candidate_false_kundiman": 1
+              },
+              "80": {
+                "pieces": 202,
+                "baseline_correct": 190,
+                "candidate_correct": 190,
+                "baseline_false_kundiman": 1,
+                "candidate_false_kundiman": 1
+              },
+              "320": {
+                "pieces": 202,
+                "baseline_correct": 192,
+                "candidate_correct": 192,
+                "baseline_false_kundiman": 1,
+                "candidate_false_kundiman": 1
+              }
+            }
+          },
+          {
+            "split": "valid",
+            "expected": "kundiman",
+            "prefixes": {
+              "40": {
+                "pieces": 4,
+                "baseline_correct": 4,
+                "candidate_correct": 4,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "80": {
+                "pieces": 4,
+                "baseline_correct": 4,
+                "candidate_correct": 4,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "320": {
+                "pieces": 4,
+                "baseline_correct": 4,
+                "candidate_correct": 4,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              }
+            }
+          },
+          {
+            "split": "valid",
+            "expected": "waltz",
+            "prefixes": {
+              "40": {
+                "pieces": 285,
+                "baseline_correct": 276,
+                "candidate_correct": 278,
+                "baseline_false_kundiman": 7,
+                "candidate_false_kundiman": 5
+              },
+              "80": {
+                "pieces": 285,
+                "baseline_correct": 281,
+                "candidate_correct": 281,
+                "baseline_false_kundiman": 2,
+                "candidate_false_kundiman": 2
+              },
+              "320": {
+                "pieces": 285,
+                "baseline_correct": 281,
+                "candidate_correct": 281,
+                "baseline_false_kundiman": 1,
+                "candidate_false_kundiman": 1
+              }
+            }
+          }
+        ]
+      },
+      "0": {
+        "baseline_checkpoint_sha256": "ee095c52294e11e23a4069c808fb7f81c10c3316ba209859d7ca269c2168f580",
+        "candidate_checkpoint_sha256": "e393ecec13f45f0999c366c2ed56f9c64289a4d5c2aac4a27ab37b38a5518197",
+        "training_manifest_sha256": "8ac10d37804fda91478768e666a792d4adea19ed1e8a32fcf196c8305c38b0b5",
+        "bank_manifest_sha256": "0ffafd5f0eed5615877d0218ec433cc22d0f9a18fe52f9f474dbb2b36855ff42",
+        "held_out": [
+          "kundiman_abelardo_kundiman_violin",
+          "kundiman_buencamino_kundiman",
+          "kundiman_kundiman_ng_luha",
+          "kundiman_pakiusap"
+        ],
+        "calibration": {
+          "kundiman_scale": null,
+          "validation_baseline": {
+            "40": {
+              "kundiman": 4,
+              "false_kundiman": 7,
+              "negative_correct": 468
+            },
+            "80": {
+              "kundiman": 4,
+              "false_kundiman": 4,
+              "negative_correct": 470
+            },
+            "320": {
+              "kundiman": 4,
+              "false_kundiman": 1,
+              "negative_correct": 473
+            }
+          },
+          "attempts": [
+            {
+              "scale": 1.0,
+              "metrics": {
+                "40": {
+                  "kundiman": 4,
+                  "false_kundiman": 30,
+                  "negative_correct": 447
+                },
+                "80": {
+                  "kundiman": 4,
+                  "false_kundiman": 22,
+                  "negative_correct": 453
+                },
+                "320": {
+                  "kundiman": 4,
+                  "false_kundiman": 21,
+                  "negative_correct": 455
+                }
+              }
+            },
+            {
+              "scale": 0.75,
+              "metrics": {
+                "40": {
+                  "kundiman": 4,
+                  "false_kundiman": 26,
+                  "negative_correct": 450
+                },
+                "80": {
+                  "kundiman": 4,
+                  "false_kundiman": 20,
+                  "negative_correct": 455
+                },
+                "320": {
+                  "kundiman": 4,
+                  "false_kundiman": 17,
+                  "negative_correct": 458
+                }
+              }
+            },
+            {
+              "scale": 0.5,
+              "metrics": {
+                "40": {
+                  "kundiman": 4,
+                  "false_kundiman": 21,
+                  "negative_correct": 454
+                },
+                "80": {
+                  "kundiman": 4,
+                  "false_kundiman": 15,
+                  "negative_correct": 460
+                },
+                "320": {
+                  "kundiman": 4,
+                  "false_kundiman": 16,
+                  "negative_correct": 459
+                }
+              }
+            },
+            {
+              "scale": 0.25,
+              "metrics": {
+                "40": {
+                  "kundiman": 4,
+                  "false_kundiman": 11,
+                  "negative_correct": 464
+                },
+                "80": {
+                  "kundiman": 4,
+                  "false_kundiman": 7,
+                  "negative_correct": 467
+                },
+                "320": {
+                  "kundiman": 4,
+                  "false_kundiman": 11,
+                  "negative_correct": 464
+                }
+              }
+            },
+            {
+              "scale": 0.125,
+              "metrics": {
+                "40": {
+                  "kundiman": 4,
+                  "false_kundiman": 7,
+                  "negative_correct": 468
+                },
+                "80": {
+                  "kundiman": 4,
+                  "false_kundiman": 5,
+                  "negative_correct": 469
+                },
+                "320": {
+                  "kundiman": 4,
+                  "false_kundiman": 7,
+                  "negative_correct": 468
+                }
+              }
+            }
+          ],
+          "selection": "validation only; largest admissible fixed-grid scale"
+        },
+        "raw_metrics": [
+          {
+            "split": "cv_test",
+            "expected": "kundiman",
+            "prefixes": {
+              "40": {
+                "pieces": 4,
+                "baseline_correct": 3,
+                "candidate_correct": 3,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "80": {
+                "pieces": 4,
+                "baseline_correct": 3,
+                "candidate_correct": 4,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              },
+              "320": {
+                "pieces": 4,
+                "baseline_correct": 3,
+                "candidate_correct": 4,
+                "baseline_false_kundiman": 0,
+                "candidate_false_kundiman": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    "metric_limits": [
+      "App labels at prefixes 40, 80 and 320, using original matching baseline checkpoints per fold.",
+      "known_training and new_train are training diagnostics, not held-out accuracy.",
+      "Other is not a displayed app label; correct-Other accuracy is intentionally omitted.",
+      "Calibration selected on validation only; no test-based parameter tuning.",
+      "All-data scale 0.125 passed validation but reduced known-training short Kundiman recognition; fold 0 had no admissible scale."
+    ],
+    "decision": "retain_shipped_model",
+    "reason": "Fold 0 failed validation constraints: even scale 0.125 increased false Kundiman at prefixes 80/320 and reduced Waltz/Jazz correctness.",
+    "model_exported": false,
+    "phone_build_changed": false
+  },
+  "shipped_model_sha256": "72595c786cc2c6567766ce51654ce350d45bc6864a1138843e99e15902bb7717"
+}

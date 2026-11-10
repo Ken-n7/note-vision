@@ -98,6 +98,42 @@ This changes work order, not the full-parity objective or acceptance criteria.
   They remain excluded in `data/research_leads.json`. A new model still needs
   held-out evaluation and phone QA before promotion; full editor parity stays queued.
 
+### Balanced genre training examples — 2026-11-10
+
+- User approved real pieces plus clearly labelled augmentation. Prepared
+  **4,261 examples per class / 17,044 unique windows per bank**, matching the
+  largest eligible class. Underlying Kundiman repertoire remains **17 training,
+  4 validation, 2 fresh test works**; augmentation never adds composition IDs.
+- `balanced.py` records every source/work/group, crop, rhythmic rescaling,
+  window and feature hash. Every window has at least 16 actual sounding notes;
+  padding does not count. Duplicate model inputs across all four classes are
+  rejected. Transposition/tempo changes do not inflate counts. No new synthetic
+  compositions are generated. Original source note lists stay unchanged.
+- One full-training bank and four original held-out-fold banks are prepared.
+  Validation/test works never produce training examples. `train.py --bank-dir`
+  verifies exact source content, fold, provenance, payloads, shapes, values and
+  row hashes before sampling. The bank recipe uses real-derived Kundiman
+  windows only; the previous synthetic recipe remains available without the flag.
+- All 17 eligible Kundiman works are represented. Feature deduplication makes
+  the full Other bank use 4,235 of 4,261 eligible source IDs, with extra distinct
+  crops filling the target. Per-class/source/augmentation counts and hashes are
+  in `tool/genre/balance_report.json`. Fold banks are overlapping experiment
+  partitions, not five independent corpora.
+- After the integration smoke, a fixed 200-step/member four-seed trial trained
+  all works and original held-out fold 0. Raw fold-0 Kundiman recognition rose
+  from 3/4 to 4/4 at 80/320 events, but false Kundiman labels increased. No
+  fold-0 calibration met validation constraints, so the trial was rejected.
+  Remaining folds were not trained; no complete cross-validation gain is claimed.
+  No app code/model or phone build changed. Checks: 16 Python tests, 1,327
+  Flutter tests and clean analysis. The recovered UST copy of
+  *La musica popular de Filipinas* (1892)
+  contains *El Cundiman* on printed 35–36 / PDF 42–43; its transcription and
+  alias checks remain pending, so it adds no accepted work yet.
+- **Not yet:** more independent Kundiman works, a candidate passing validation
+  and complete held-out evaluation, and phone QA before model promotion. Equal
+  example counts do not establish equal repertoire diversity or better accuracy.
+  All editor parity items remain queued.
+
 ### Scan lifecycle reliability — 2026-11-05
 
 - `ScanViewModel` invalidates work when reset, superseded or disposed. Late

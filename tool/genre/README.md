@@ -62,6 +62,72 @@ cross-partition source IDs. This does not establish that all compositions
 across the older source collections are independent: title/composer-level
 deduplication remains an audit limitation.
 
+## Balanced real-derived examples — November 10
+
+The user approved labelled augmentation alongside continued real-piece
+collection. `balanced.py` now prepares **4,261 examples per class**, matching
+the largest eligible training class: **17,044 unique feature windows** per bank.
+This balances examples, while the underlying corpus still contains only
+**17 training / 4 validation / 2 fresh test Kundiman works**.
+
+| Class | Eligible training source pieces | Balanced examples |
+| --- | ---: | ---: |
+| Waltz | 2,003 | 4,261 |
+| Kundiman | 17 | 4,261 |
+| Jazz | 1,051 | 4,261 |
+| Other | 4,261 | 4,261 |
+
+Every example records its source/work/group, context location, window index,
+transformations and feature hash in `origins.jsonl`. Augmentations are excerpt
+crops and uniform rhythmic rescaling (different notation resolution, not BPM).
+Keys are recomputed from the visible context before extracting windows. Cropped
+leading rests follow the app's trimming rule; every window contains at least
+16 sounding notes, excluding padding. Source note lists remain unchanged.
+No new synthetic compositions or pitch-error patterns are generated.
+
+Feature hashes remove identical inputs within and across classes. Octave/key
+transposition and tempo changes are not used to inflate counts: absolute pitch
+is normalized by these features, and BPM is not an input. Some Other sources
+have duplicate canonical inputs, so the current full bank represents 4,235 of
+4,261 eligible Other source IDs; extra distinct crops fill its remaining slots.
+All 17 eligible Kundiman works are represented. See `balance_report.json` for
+the actual source coverage and augmentation counts for every fold.
+
+```bash
+/usr/bin/python3.12 -B tool/genre/balanced.py \
+  "$GENRE_DATA" "$GENRE_RUN" "$GENRE_RUN/banks/all" --fold all
+/usr/bin/python3.12 -B tool/genre/train.py \
+  "$GENRE_DATA" "$GENRE_RUN" --fold all --bank-dir "$GENRE_RUN/banks/all"
+```
+
+The default target is the largest eligible class; `--per-class N` overrides it.
+Repeat bank generation with `--fold 0` through `3`, each in its own directory,
+and use the corresponding bank for that fold's training. An all-data bank is
+rejected for any held-out fold. The loader checks the exact source-note
+fingerprint, payload hashes, origin/work/group identities, tensor contract,
+finite values, row hashes and uniqueness. Changed source data requires a
+rebuild. Validation/test works never produce augmented training examples.
+
+`--bank-dir` trains on real-derived windows only (no synthetic Kundiman draws).
+Without it, the earlier 70% real / 30% synthetic recipe remains available for
+reproduction. The four primary classes still receive equal expected sampling;
+minor-key Waltz windows remain hard negatives within the Waltz class.
+
+Five banks have been generated: one all-training bank and four original
+held-out folds. Each is internally deduplicated; overlaps across banks do not
+count as additional corpus diversity. After the integration smoke, a fixed
+200-step/member four-seed trial trained all works and original held-out fold 0.
+Raw fold-0 Kundiman recognition rose from 3/4 to 4/4 at 80/320 events, but false
+Kundiman labels increased. No fold-0 calibration met validation constraints;
+the trial was rejected and remaining folds were not trained. The all-training
+model admitted scale 0.125 on validation but lost short Kundiman recognition in
+training diagnostics; its two fresh-test works remained 1/2 at every prefix.
+No complete cross-validation improvement, model promotion or phone build is
+claimed. `balance_report.json` records the recipe, artifact hashes, validation
+decisions and paired metrics. Checks: 16 Python tests, 1,327 Flutter tests and
+clean analysis. Balanced example counts alone do not establish better accuracy
+or substitute for more independent Kundiman works.
+
 ## Real Kundiman additions
 
 The original corpus had 18 real works: 14 training, 4 validation. The first

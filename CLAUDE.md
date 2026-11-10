@@ -75,7 +75,16 @@ pending/ambiguous/duplicate leads stay separate in `research_leads.json`.
 Bituing retains its printed 2/4 and exact triplets; source-based tests protect
 chromatic pitches and ties. Related melody groups cannot cross partitions.
 Use `prepare.py --through 2026-11-09` to reproduce the first trial's note lists
-and frozen partitions; the new three works have not been used in training.
+and frozen partitions. The user approved real pieces plus labelled augmentation:
+`balanced.py` now builds 4,261 real-derived windows per class (17,044 per bank),
+with origin/transform hashes, exact feature deduplication and no held-out work
+augmentation. Five fold-specific banks are prepared; `train.py --bank-dir`
+checks source/fold identity before use. Real Kundiman counts remain 17 / 4 / 2.
+The balanced-bank trial trained four seeds for 200 steps each on all training
+works and original held-out fold 0. Fold 0 admitted no validation-safe calibration;
+the trial was rejected and the shipped model retained. Checks: 16 Python tests,
+1,327 Flutter tests and clean analysis. See `tool/genre/balance_report.json`. The acquired UST
+1892 El Cundiman score remains pending verified transcription and alias checks.
 Thirteen PDMX work IDs with
 contradictory Jazz/Waltz labels are quarantined without modifying source data.
 The trial weights were not promoted: stronger Kundiman sampling increased

@@ -21,13 +21,17 @@
       "source": "https://www.univie.ac.at/Voelkerkunde/apsis/aufi/aurel/novara/nov1340.htm",
       "evidence": "https://api.research-repository.uwa.edu.au/ws/portalfiles/portal/220617505/TCR_12_12_1_LACUNA.pdf",
       "status": "referenced_university_score_page_returns_404",
-      "reason": "A historical lead, not an acquired/verified transcription. The alternative cited condi1.htm page also returns 404. Check the original 1862 book and aliases before counting a new work."
+      "reason": "A historical lead, not an acquired/verified transcription. The alternative cited condi1.htm page also returns 404. Check the original 1862 book and aliases before counting a new work.",
+      "recovery_attempt": "The public archive availability API found a 2016 snapshot of the cited university page. The archive page host could not be resolved. The three public-domain English Novara volumes contain the textual reference but no recovered score for admission."
     },
     {
       "title": "Cundiman in La musica popular de Filipinas (1892)",
       "source": "https://digilib.ust.edu.ph/digital/collection/section5/id/12156/",
-      "status": "library_record_found_notation_not_acquired",
-      "reason": "UST catalogs the historical book; score-page download was not obtained. Confirm the actual tune and aliases before admission."
+      "status": "notation_acquired_pending_verified_transcription",
+      "reason": "Recovered the public library download (62 pages). The historical vocal notation needs verified pitch/duration transcription and alias checks before admission; not counted as a real training work yet.",
+      "download": "https://digilib.ust.edu.ph/digital/api/collection/section5/id/12195/download",
+      "source_sha256": "35731c0bf298eb5d0b0d3b8ee309b1b931a232fb2f5e3b835a87ad21a00d1209",
+      "pages": "Printed 35-36 / PDF 42-43; explicitly labelled El Cundiman"
     },
     {
       "title": "Sakali Man",
@@ -79,6 +83,19 @@
       "source": "https://pawchorale.github.io/data/release-manifest.csv",
       "entries": 200,
       "result": "No catalog matches for Kundiman, Abelardo, Santiago, Buencamino or Baliwag; large audio archives were not downloaded. This text search is not a complete genre audit."
+    },
+    {
+      "source": "Local OpenEWLD.db (read-only)",
+      "entries": 568,
+      "result": "No matching Philippine composer/nationality, Kundiman/Pahimakas/Ulila/Bayan Ko/Dahil title, or Filipino-language candidate."
+    },
+    {
+      "source": "https://www.cambridge.org/core/journals/phonology/article/evidence-for-stress-in-filipino-textsetting/749B69E22EEFE610B29535C6830D4575",
+      "result": "The 2025 study covers 19 modern OPM songs in 4/4, not a Kundiman symbolic corpus; not relabelled as Kundiman."
+    },
+    {
+      "source": "Public GitHub code search",
+      "result": "No verified bulk Kundiman note/score dataset found in the queried matches; genre-name lists, poetry events and generated tune examples were excluded."
     }
   ],
   "duplicate_audit": {
@@ -89,6 +106,6 @@
   "notes": [
     "Full source PDFs remain in ignored project research storage; repository includes melody excerpts and source metadata only.",
     "No IMSLP CAPTCHA was bypassed. Blocked file pages from the previous investigation were not retried.",
-    "No training run or app-model promotion used these three new works."
+    "Balanced banks were used for a fixed 200-step/member, four-seed CPU trial on all training works and original held-out fold 0. No fold-0 calibration met validation constraints; trial rejected and shipped app model retained. See tool/genre/balance_report.json."
   ]
 }

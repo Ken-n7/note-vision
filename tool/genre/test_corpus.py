@@ -1,6 +1,6 @@
 import unittest
 
-from corpus import assert_disjoint, conflicting_labels
+from corpus import assert_disjoint, conflicting_labels, frozen_train
 
 
 class CorpusTest(unittest.TestCase):
@@ -25,6 +25,14 @@ class CorpusTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'crosses'):
             assert_disjoint({'train': [dict(name='verse', work_id='song', group_id='a')],
                              'test': [dict(name='refrain', work_id='song', group_id='b')]})
+
+    def test_training_selection_excludes_validation_test_and_fresh_sources(self):
+        pieces = [dict(name=name, genre='kundiman') for name in ('a', 'b', 'c')]
+        split = dict(train=['a'], valid=['b'], test=['c'])
+        additions = [dict(name='new', genre='kundiman', split='new_train'),
+                     dict(name='fresh', genre='kundiman', split='fresh_test')]
+        self.assertEqual([p['name'] for p in frozen_train(pieces, split, additions)], ['a', 'new'])
+        self.assertEqual([p['name'] for p in frozen_train(pieces, split, additions, ['a'])], ['new'])
 
 
 if __name__ == '__main__':
